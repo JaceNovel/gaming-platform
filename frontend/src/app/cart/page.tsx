@@ -7,7 +7,9 @@ import SectionTitle from "@/components/ui/SectionTitle";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
 
 type CartItem = {
   id: number;

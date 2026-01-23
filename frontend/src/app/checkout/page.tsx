@@ -7,7 +7,9 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
 
 function CheckoutScreen() {
   const { authFetch } = useAuth();

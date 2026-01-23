@@ -69,7 +69,7 @@ export default function TransfersPage() {
                   <p className="text-sm text-white/70">Total transféré</p>
                   <div className="mt-2 flex items-center justify-between">
                     <h2 className="text-3xl font-black">
-                      {showBalance ? `${totalTransferred.toLocaleString()} FCFA` : "XXXX"}
+                      {showBalance ? `${totalTransferred.toLocaleString("fr-FR")} FCFA` : "XXXX"}
                     </h2>
                     <button
                       onClick={() => setShowBalance((prev) => !prev)}

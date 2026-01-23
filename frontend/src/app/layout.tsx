@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 import BottomNavigation from "@/components/BottomNavigation";
-import DesktopHeader from "@/components/layout/DesktopHeader";
+import AppHeader from "@/components/layout/AppHeader";
 
 export default function RootLayout({
   children,
@@ -33,7 +33,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900 text-white min-h-screen pb-20`}
       >
         <AuthProvider>
-          <DesktopHeader />
+          <AppHeader />
           {children}
           <BottomNavigation />
         </AuthProvider>

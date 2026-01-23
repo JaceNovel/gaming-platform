@@ -56,7 +56,9 @@ type Paginated<T> = {
   next_page_url: string | null;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
 
 const mentionClass = "text-amber-300 font-semibold";
 

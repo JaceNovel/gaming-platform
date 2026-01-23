@@ -15,6 +15,8 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [countryCode, setCountryCode] = useState("");
+  const [countryName, setCountryName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -31,6 +33,10 @@ export default function RegisterPage() {
       setError("Les mots de passe ne correspondent pas.");
       return;
     }
+    if (!countryCode) {
+      setError("Merci de sélectionner un pays.");
+      return;
+    }
     setLoading(true);
     try {
       await register({
@@ -38,6 +44,8 @@ export default function RegisterPage() {
         email: cleanEmail,
         password,
         password_confirmation: passwordConfirmation,
+        countryCode,
+        countryName,
       });
       router.replace(next);
     } catch (err) {
@@ -131,6 +139,32 @@ export default function RegisterPage() {
                 required
                 minLength={8}
               />
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Pays</label>
+              <select
+                value={countryCode}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const option = e.target.selectedOptions[0];
+                  setCountryCode(value);
+                  setCountryName(option?.dataset?.name ?? "");
+                }}
+                className="w-full rounded-lg bg-slate-900 text-white border border-white/10 px-3 py-2 focus:outline-none focus:border-cyan-300"
+                required
+              >
+                <option value="">Sélectionner un pays</option>
+                <option value="FR" data-name="France">France</option>
+                <option value="CI" data-name="Côte d'Ivoire">Côte d'Ivoire</option>
+                <option value="SN" data-name="Sénégal">Sénégal</option>
+                <option value="CM" data-name="Cameroun">Cameroun</option>
+                <option value="TG" data-name="Togo">Togo</option>
+                <option value="BJ" data-name="Bénin">Bénin</option>
+                <option value="BF" data-name="Burkina Faso">Burkina Faso</option>
+                <option value="ML" data-name="Mali">Mali</option>
+                <option value="NE" data-name="Niger">Niger</option>
+                <option value="GN" data-name="Guinée">Guinée</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm mb-1">Confirmation</label>

@@ -2,7 +2,9 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
 const STORAGE_KEY = "bbshop_token";
 
 export type AuthUser = {
@@ -20,7 +22,14 @@ type AuthContextValue = {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (payload: { name: string; email: string; password: string; password_confirmation: string }) => Promise<void>;
+  register: (payload: {
+    name: string;
+    email: string;
+    password: string;
+    password_confirmation: string;
+    countryCode: string;
+    countryName: string;
+  }) => Promise<void>;
   logout: () => Promise<void>;
   authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 };
@@ -46,6 +55,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (typeof window !== "undefined") {
           localStorage.removeItem(STORAGE_KEY);
         }
+      }
+    } catch {
+      setUser(null);
+      setToken(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY);
       }
     } finally {
       setLoading(false);
@@ -117,6 +132,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string;
     password: string;
     password_confirmation: string;
+    countryCode: string;
+    countryName: string;
   }) => {
     let res: Response;
     try {

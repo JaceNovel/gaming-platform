@@ -1,368 +1,236 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import { User, Crown, Wallet, ShoppingBag, LogOut, Shield, Coins, Calendar, Receipt } from "lucide-react";
+import Image from "next/image";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { useRouter } from "next/navigation";
-import PremiumBadge from "@/components/ui/PremiumBadge";
-import GlowButton from "@/components/ui/GlowButton";
-import SectionTitle from "@/components/ui/SectionTitle";
+import ProfileHeader from "@/components/profile/ProfileHeader";
+import ProfileSidebar from "@/components/profile/ProfileSidebar";
+import AvatarPickerModal from "@/components/profile/AvatarPickerModal";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
 
-type OrderItem = {
-  id: number;
-  quantity: number;
-  price: number;
-  product?: { id: number; name: string } | null;
+type Me = {
+  username: string;
+  countryCode: string | null;
+  countryName?: string | null;
+  avatarId: string;
+  walletBalanceFcfa: number;
+  premiumTier: "Bronze" | "Or" | "Platine" | string;
 };
 
 type Order = {
-  id: number;
-  reference?: string | null;
-  total_price: number;
-  status: string;
-  created_at: string;
-  order_items?: OrderItem[];
-  orderItems?: OrderItem[];
+  id: string;
+  title: string;
+  game: string;
+  priceFcfa: number;
+  status: "COMPLÉTÉ" | "EN_COURS" | "ÉCHOUÉ";
+  thumb: string;
 };
 
-function AccountScreen() {
-  const { user, logout, authFetch } = useAuth();
-  const router = useRouter();
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
-  const [walletStatus, setWalletStatus] = useState<string | null>(null);
-  const [showOrders, setShowOrders] = useState(false);
+const AVATARS = [
+  { id: "shadow_default", name: "Shadow", src: "/avatars/shadow.png" },
+  { id: "neon_assassin", name: "Neon Assassin", src: "/avatars/neon_assassin.png" },
+  { id: "cyber_samurai", name: "Cyber Samurai", src: "/avatars/cyber_samurai.png" },
+  { id: "space_valkyrie", name: "Space Valkyrie", src: "/avatars/space_valkyrie.png" },
+  { id: "void_mage", name: "Void Mage", src: "/avatars/void_mage.png" },
+  { id: "arc_reaper", name: "Arc Reaper", src: "/avatars/arc_reaper.png" },
+  { id: "nova_ranger", name: "Nova Ranger", src: "/avatars/nova_ranger.png" },
+  { id: "plasma_knight", name: "Plasma Knight", src: "/avatars/plasma_knight.png" },
+  { id: "glitch_hunter", name: "Glitch Hunter", src: "/avatars/glitch_hunter.png" },
+  { id: "star_merc", name: "Star Merc", src: "/avatars/star_merc.png" },
+];
+
+const thumbs = ["/thumbs/lol.png", "/thumbs/ml.png", "/thumbs/ff.png", "/thumbs/ff2.png"];
+
+const formatFcfa = (n: number) => new Intl.NumberFormat("fr-FR").format(n) + " FCFA";
+
+function AccountClient() {
+  const { authFetch } = useAuth();
+  const [me, setMe] = useState<Me | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [ordersError, setOrdersError] = useState<string | null>(null);
-  const [showPremium, setShowPremium] = useState(false);
-  const [premiumStatus, setPremiumStatus] = useState<{ expiration?: string | null } | null>(null);
-  const [premiumLoading, setPremiumLoading] = useState(false);
-  const [showTopup, setShowTopup] = useState(false);
-  const [topupAmount, setTopupAmount] = useState("5000");
-  const [topupError, setTopupError] = useState<string | null>(null);
-  const [topupLoading, setTopupLoading] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<
+    "MesCommandes" | "Wallet" | "VIP" | "Principal" | "Parametres"
+  >("Principal");
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/");
-  };
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pendingAvatarId, setPendingAvatarId] = useState<string>("shadow_default");
+  const [saving, setSaving] = useState(false);
 
-  const daysRemaining = useMemo(() => {
-    const expiration = premiumStatus?.expiration ?? user?.premium_expiration;
-    if (!expiration) return null;
-    const end = new Date(expiration).getTime();
-    const now = Date.now();
-    if (Number.isNaN(end)) return null;
-    return Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
-  }, [premiumStatus?.expiration, user?.premium_expiration]);
+  const avatar = useMemo(() => {
+    const id = me?.avatarId || "shadow_default";
+    return AVATARS.find((a) => a.id === id) || AVATARS[0];
+  }, [me?.avatarId]);
 
   useEffect(() => {
     let active = true;
-    const loadWallet = async () => {
-      try {
-        const res = await authFetch(`${API_BASE}/wallet`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!active) return;
-        setWalletBalance(data.balance ?? 0);
-        setWalletStatus(data.status ?? null);
-      } catch {
-        if (!active) return;
-        setWalletBalance(null);
-      }
-    };
-    loadWallet();
+    (async () => {
+      const res = await authFetch(`${API_BASE}/me`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!active) return;
+      setMe(data.me);
+    })();
     return () => {
       active = false;
     };
   }, [authFetch]);
 
-  const handleOpenOrders = async () => {
-    setShowOrders(true);
-    setOrdersLoading(true);
-    setOrdersError(null);
-    try {
+  useEffect(() => {
+    let active = true;
+    (async () => {
       const res = await authFetch(`${API_BASE}/orders`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setOrdersError(err.message ?? "Impossible de charger les commandes.");
-        return;
-      }
-      const data = await res.json();
-      const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-      setOrders(items);
-    } catch {
-      setOrdersError("Connexion au serveur impossible.");
-    } finally {
-      setOrdersLoading(false);
-    }
-  };
-
-  const handleOpenPremium = async () => {
-    setShowPremium(true);
-    setPremiumLoading(true);
-    try {
-      const res = await authFetch(`${API_BASE}/premium/status`);
       if (!res.ok) return;
       const data = await res.json();
-      setPremiumStatus({ expiration: data.expiration ?? null });
-    } finally {
-      setPremiumLoading(false);
-    }
-  };
-
-  const handleTopup = async () => {
-    setTopupError(null);
-    const amount = Number(topupAmount);
-    if (!amount || amount < 100) {
-      setTopupError("Montant invalide.");
-      return;
-    }
-    setTopupLoading(true);
-    try {
-      const res = await authFetch(`${API_BASE}/wallet/topup/init`, {
-        method: "POST",
-        body: JSON.stringify({ amount }),
+      const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+      if (!active) return;
+      const mapped = items.map((order: any, idx: number) => {
+        const orderItems = order.orderItems ?? order.order_items ?? [];
+        const title = orderItems[0]?.product?.name ?? order.reference ?? `Commande ${order.id}`;
+        return {
+          id: String(order.reference ?? order.id),
+          title,
+          game: orderItems[0]?.product?.name ? "BADBOYSHOP" : "BADBOYSHOP",
+          priceFcfa: Number(order.total_price ?? 0),
+          status: "COMPLÉTÉ",
+          thumb: thumbs[idx % thumbs.length],
+        } as Order;
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setTopupError(err.message ?? "Impossible de lancer le paiement.");
-        return;
+      setOrders(mapped);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [authFetch]);
+
+  useEffect(() => {
+    if (me?.avatarId) setPendingAvatarId(me.avatarId);
+  }, [me?.avatarId]);
+
+  async function saveAvatar() {
+    if (!me) return;
+    setSaving(true);
+    try {
+      const res = await authFetch(`${API_BASE}/me`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarId: pendingAvatarId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMe(data.me);
+        setPickerOpen(false);
       }
-      const data = await res.json();
-      if (data?.payment_url) {
-        window.location.href = data.payment_url;
-      } else {
-        setTopupError("Lien de paiement indisponible.");
-      }
-    } catch {
-      setTopupError("Connexion au serveur impossible.");
     } finally {
-      setTopupLoading(false);
+      setSaving(false);
     }
-  };
+  }
+
+  if (!me) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="animate-pulse opacity-70">Chargement...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen pb-24">
-      <div className="w-full px-5 sm:px-8 lg:px-16 xl:px-24 2xl:px-32 py-8 space-y-6">
-        <header className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-500 text-black grid place-items-center shadow-[0_10px_30px_rgba(110,231,255,0.35)]">
-            <User className="h-7 w-7" />
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.25em] text-cyan-200/80">Mon compte</p>
-            <h1 className="text-2xl font-bold">Profil BADBOY</h1>
-          </div>
-        </header>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card rounded-2xl p-5 border border-white/10 card-hover"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-500 grid place-items-center text-black shadow-[0_10px_30px_rgba(110,231,255,0.35)]">
-              <User className="h-8 w-8" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-lg">{user?.name}</h3>
-                {user?.is_premium && <PremiumBadge level={(user.premium_level ?? 1) >= 2 ? "Platine" : "Or"} />}
-              </div>
-              <p className="text-sm text-white/70">{user?.email}</p>
-              <div className="mt-2 flex items-center gap-2 text-xs text-white/60">
-                <Shield className="h-4 w-4 text-cyan-200" /> Compte sécurisé Sanctum
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr,0.6fr]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="glass-card rounded-2xl p-5 border border-white/10"
-          >
-            <SectionTitle eyebrow="Wallet" label="BD Wallet" />
-            <div className="mt-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-white/5 grid place-items-center text-emerald-200">
-                  <Wallet className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm text-white/70">Solde disponible</p>
-                  <p className="text-2xl font-bold">
-                    {walletBalance !== null ? `${walletBalance.toLocaleString()} FCFA` : "-- FCFA"}
-                  </p>
-                </div>
-              </div>
-              <GlowButton variant="secondary" className="px-3 py-2" onClick={() => setShowTopup(true)}>
-                Recharger
-              </GlowButton>
-            </div>
-            <div className="mt-3 flex items-center gap-2 text-xs text-white/60">
-              <Coins className="h-4 w-4 text-amber-200" /> Cashback premium activé
-            </div>
-            <div className="mt-1 text-xs text-white/50">
-              Gains de parrainage crédités sur le BD Wallet.
-            </div>
-            <div className="mt-2 text-xs text-white/50">
-              {walletStatus ? `Statut: ${walletStatus}` : "BD Wallet actif"}
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="glass-card rounded-2xl p-5 border border-white/10 space-y-3"
-          >
-            <SectionTitle eyebrow="Actions" label="Accès rapide" />
-            <div className="grid grid-cols-1 gap-2">
-              <GlowButton variant="secondary" className="w-full justify-start" onClick={handleOpenOrders}>
-                <ShoppingBag className="h-5 w-5" />
-                Mes Commandes
-              </GlowButton>
-              <GlowButton variant="secondary" className="w-full justify-start" onClick={handleOpenPremium}>
-                <Crown className="h-5 w-5" />
-                Gérer Premium
-              </GlowButton>
-              <GlowButton
-                variant="ghost"
-                className="w-full justify-start text-red-300 hover:text-red-200"
-                onClick={handleLogout}
-              >
-                <LogOut className="h-5 w-5" />
-                Déconnexion
-              </GlowButton>
-            </div>
-          </motion.div>
-        </div>
+    <div className="min-h-screen text-white">
+      <div className="fixed inset-0 -z-10 bg-black">
+        <div className="absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_30%_20%,rgba(180,70,255,0.25),transparent_40%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.18),transparent_45%),radial-gradient(circle_at_50%_90%,rgba(255,160,0,0.14),transparent_45%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.35),rgba(0,0,0,0.85))]" />
       </div>
 
-      {showOrders && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
-          <div className="glass-card rounded-2xl p-6 border border-white/10 w-full max-w-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Historique des commandes</h3>
-              <button className="text-xs text-white/50 hover:text-white" onClick={() => setShowOrders(false)}>
-                Fermer
-              </button>
-            </div>
-            {ordersLoading ? (
-              <p className="text-sm text-white/60">Chargement...</p>
-            ) : ordersError ? (
-              <p className="text-sm text-amber-200">{ordersError}</p>
-            ) : orders.length ? (
-              <div className="space-y-3">
-                {orders.map((order) => {
-                  const items = order.orderItems ?? order.order_items ?? [];
-                  return (
-                    <div key={order.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold text-white">
-                            {order.reference ?? `Commande #${order.id}`}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-white/60">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {new Date(order.created_at).toLocaleDateString()}
-                          </div>
+      <main className="mx-auto max-w-7xl px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+          <ProfileSidebar
+            username={me.username}
+            premiumTier={me.premiumTier}
+            countryCode={me.countryCode}
+            activeMenu={activeMenu}
+            onChangeMenu={setActiveMenu}
+          />
+
+          <section className="space-y-6">
+            <ProfileHeader
+              username={me.username}
+              countryCode={me.countryCode}
+              premiumTier={me.premiumTier}
+              avatar={avatar}
+              walletBalance={me.walletBalanceFcfa}
+              onChangeAvatar={() => setPickerOpen(true)}
+              onAddFunds={() => setPickerOpen(false)}
+              onUseFunds={() => setPickerOpen(false)}
+            />
+
+            <div className="rounded-[32px] bg-black/35 border border-white/10 backdrop-blur-xl p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold">Mes commandes</h2>
+                <button className="text-sm opacity-70 hover:opacity-100">Voir tout →</button>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
+                <div className="grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-3 text-xs uppercase tracking-wider opacity-70 bg-white/5">
+                  <div>Commande</div>
+                  <div className="text-right">Prix</div>
+                  <div className="text-right">Status</div>
+                </div>
+
+                <div className="divide-y divide-white/10">
+                  {orders.map((o) => (
+                    <div key={o.id} className="grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-4 items-center">
+                      <div className="flex items-center gap-3">
+                        <div className="relative h-12 w-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+                          <Image src={o.thumb} alt="" fill className="object-cover" />
                         </div>
-                        <span className="text-xs px-2 py-1 rounded-full border border-white/10 bg-white/5 text-white/70">
-                          {order.status}
+                        <div>
+                          <div className="font-semibold">
+                            {o.title} <span className="opacity-70 font-normal">/ {o.game}</span>
+                          </div>
+                          <div className="text-xs opacity-60">Commande {o.id}</div>
+                        </div>
+                      </div>
+                      <div className="text-right font-semibold">{formatFcfa(o.priceFcfa)}</div>
+                      <div className="text-right">
+                        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-300/20 text-xs font-semibold">
+                          {o.status}
                         </span>
                       </div>
-                      <div className="mt-3 flex items-center justify-between text-sm">
-                        <div className="text-white/70">Articles: {items.length}</div>
-                        <div className="font-bold text-cyan-200">
-                          {Number(order.total_price).toLocaleString()} FCFA
-                        </div>
-                      </div>
-                      {items.length > 0 && (
-                        <div className="mt-2 text-xs text-white/60">
-                          {items.slice(0, 3).map((item) => item.product?.name ?? "Produit").join(" • ")}
-                          {items.length > 3 ? "…" : ""}
-                        </div>
-                      )}
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
-                Aucune commande pour l'instant.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showPremium && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
-          <div className="glass-card rounded-2xl p-6 border border-white/10 w-full max-w-md space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Gérer Premium</h3>
-              <button className="text-xs text-white/50 hover:text-white" onClick={() => setShowPremium(false)}>
-                Fermer
-              </button>
-            </div>
-            {premiumLoading ? (
-              <p className="text-sm text-white/60">Chargement...</p>
-            ) : user?.is_premium ? (
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-sm text-white/70">Statut premium actif</p>
-                  <p className="text-lg font-bold text-cyan-200 mt-1">
-                    {daysRemaining !== null ? `${daysRemaining} jours restants` : "Expiration inconnue"}
-                  </p>
+                  ))}
                 </div>
-                <GlowButton variant="secondary" className="w-full justify-center" disabled>
-                  Résilier (bientôt)
-                </GlowButton>
-                <p className="text-xs text-white/50">
-                  Tu peux résilier à tout moment. L'abonnement reste actif jusqu'à la date d'expiration.
-                </p>
               </div>
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
-                Tu n'es pas encore premium.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {showTopup && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
-          <div className="glass-card rounded-2xl p-6 border border-white/10 w-full max-w-md space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Recharger BD Wallet</h3>
-              <button className="text-xs text-white/50 hover:text-white" onClick={() => setShowTopup(false)}>
-                Fermer
-              </button>
+              {activeMenu === "Parametres" && (
+                <div className="mt-6 rounded-2xl bg-white/5 border border-white/10 p-4">
+                  <div className="font-semibold">Paramètres</div>
+                  <div className="text-sm opacity-75 mt-1">
+                    Personnage actuel: <span className="font-semibold">{avatar.name}</span>
+                  </div>
+                  <button
+                    onClick={() => setPickerOpen(true)}
+                    className="mt-3 px-4 py-2 rounded-2xl bg-white/10 border border-white/15 hover:bg-white/15 transition text-sm"
+                  >
+                    Choisir un personnage
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="space-y-2 text-sm">
-              <label className="text-white/70">Montant (FCFA)</label>
-              <input
-                className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-                value={topupAmount}
-                onChange={(e) => setTopupAmount(e.target.value)}
-              />
-              {topupError && <p className="text-xs text-amber-200">{topupError}</p>}
-            </div>
-            <GlowButton className="w-full justify-center" onClick={handleTopup} disabled={topupLoading}>
-              <Receipt className="h-4 w-4" />
-              {topupLoading ? "Paiement..." : "Payer maintenant"}
-            </GlowButton>
-          </div>
+          </section>
         </div>
-      )}
+      </main>
+
+      <AvatarPickerModal
+        open={pickerOpen}
+        avatars={AVATARS}
+        pendingAvatarId={pendingAvatarId}
+        onSelect={setPendingAvatarId}
+        onClose={() => setPickerOpen(false)}
+        onSave={saveAvatar}
+        saving={saving}
+      />
     </div>
   );
 }
@@ -370,7 +238,7 @@ function AccountScreen() {
 export default function Account() {
   return (
     <RequireAuth>
-      <AccountScreen />
+      <AccountClient />
     </RequireAuth>
   );
 }

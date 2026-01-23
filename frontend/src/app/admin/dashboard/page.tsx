@@ -8,7 +8,9 @@ import { TablesGrid } from "@/components/admin/TablesGrid";
 import { SettingsPanel } from "@/components/admin/SettingsPanel";
 import { Charts, Settings, Summary, Tables } from "@/components/admin/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
 
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
