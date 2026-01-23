@@ -1,0 +1,273 @@
+@import "tailwindcss";
+
+:root {
+  --background: #05060c;
+  --foreground: #e7ecff;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-strong: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #6ee7ff;
+  --accent-2: #c084fc;
+  --accent-gold: #f4ce6a;
+  --glow: 0 10px 40px rgba(110, 231, 255, 0.25);
+  --glow-strong: 0 10px 50px rgba(192, 132, 252, 0.35);
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: radial-gradient(circle at 20% 20%, rgba(110, 231, 255, 0.06), transparent 25%),
+    radial-gradient(circle at 80% 0%, rgba(192, 132, 252, 0.08), transparent 30%),
+    #05060c;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+}
+
+html {
+  font-size: 16.5px;
+}
+
+@media (min-width: 1024px) {
+  html {
+    font-size: 17.5px;
+  }
+}
+
+.glass-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.glass-strong {
+  background: var(--surface-strong);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.glow-border {
+  position: relative;
+}
+
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: var(--radius-lg);
+  padding: 1px;
+  background: linear-gradient(120deg, rgba(110, 231, 255, 0.5), rgba(192, 132, 252, 0.45), rgba(244, 206, 106, 0.45));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.mobile-shell {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.grid-bg {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(circle at top, rgba(0, 0, 0, 0.9), transparent 70%);
+}
+
+.neon-text {
+  text-shadow: 0 0 18px rgba(110, 231, 255, 0.5), 0 0 30px rgba(192, 132, 252, 0.4);
+}
+
+.soft-glow {
+  box-shadow: 0 0 25px rgba(110, 231, 255, 0.2), 0 0 40px rgba(192, 132, 252, 0.18);
+}
+
+.card-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+}
+
+.wallet-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, rgba(7, 51, 122, 0.9), rgba(4, 30, 73, 0.85));
+  color: #eef4ff;
+}
+
+.wallet-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.08), transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(110, 231, 255, 0.15), transparent 45%);
+  pointer-events: none;
+}
+
+.wallet-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.18;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='none'/%3E%3Cpath d='M0 0h120v120H0z' fill='none'/%3E%3Ccircle cx='10' cy='10' r='1.2' fill='%23ffffff'/%3E%3Ccircle cx='60' cy='40' r='1' fill='%23ffffff'/%3E%3Ccircle cx='100' cy='90' r='1.2' fill='%23ffffff'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.scrollbar-soft::-webkit-scrollbar {
+  height: 8px;
+}
+
+.scrollbar-soft::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
+.hero-slideshow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.hero-slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  animation: heroFade 8s infinite ease-in-out;
+}
+
+.hero-slide:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.hero-slide:nth-child(2) {
+  animation-delay: 2s;
+}
+
+.hero-slide:nth-child(3) {
+  animation-delay: 4s;
+}
+
+.hero-slide:nth-child(4) {
+  animation-delay: 6s;
+}
+
+@keyframes heroFade {
+  0%,
+  22% {
+    opacity: 0.5;
+    transform: scale(1.02);
+  }
+  27%,
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+.cart-flyer {
+  position: fixed;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #0b1220;
+  background: linear-gradient(135deg, rgba(110, 231, 255, 1), rgba(192, 132, 252, 1));
+  box-shadow: 0 12px 30px rgba(110, 231, 255, 0.45);
+  z-index: 60;
+  pointer-events: none;
+  animation: flyToCart 900ms ease-in-out forwards;
+}
+
+@keyframes flyToCart {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(var(--target-x) - var(--start-x)), calc(var(--target-y) - var(--start-y)))
+      scale(0.3);
+    opacity: 0;
+  }
+}
+
+.gameplay-reel {
+  position: relative;
+  height: 280px;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.gameplay-frame {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: saturate(1.1) contrast(1.05);
+  opacity: 0;
+  animation: gameplayFade 18s infinite ease-in-out;
+}
+
+.gameplay-frame:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.gameplay-frame:nth-child(2) {
+  animation-delay: 6s;
+}
+
+.gameplay-frame:nth-child(3) {
+  animation-delay: 12s;
+}
+
+.gameplay-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(8, 16, 32, 0.65), rgba(8, 16, 32, 0.2));
+}
+
+.gameplay-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(110, 231, 255, 0.2), transparent 45%),
+    radial-gradient(circle at 80% 30%, rgba(192, 132, 252, 0.18), transparent 45%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+@keyframes gameplayFade {
+  0%,
+  30% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  33%,
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
