@@ -1,9 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, Camera, Search, ShoppingCart, Sparkles, Tag, SlidersHorizontal } from "lucide-react";
+import {
+  Bell,
+  Camera,
+  Crown,
+  Gamepad2,
+  Heart,
+  Package,
+  Search,
+  ShoppingCart,
+  SlidersHorizontal,
+  Sparkles,
+  Tag,
+  Ticket,
+  Zap,
+} from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 
@@ -69,6 +84,33 @@ const exampleProducts: ShopProduct[] = [
     categorySlug: "accessoires",
     type: "accessory",
   },
+];
+
+const HERO_BACKDROP =
+  "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=2000&q=80";
+const HERO_TROPHY =
+  "https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=900&q=80";
+
+const sidebarItems = [
+  { label: "Comptes", icon: Gamepad2 },
+  { label: "Recharges", icon: Zap },
+  { label: "Pass", icon: Ticket },
+  { label: "Articles", icon: Package },
+];
+
+const favoriteFilters = ["Populaire", "Esport", "Portable", "Premium"];
+
+const desktopCategoryPills = [
+  { label: "Comptes", icon: Gamepad2 },
+  { label: "Recharges", icon: Zap },
+  { label: "Pass", icon: Ticket },
+  { label: "Articles", icon: Package },
+];
+
+const leaderboardEntries = [
+  { rank: 1, team: "Zen's Team", score: "23 500 pts" },
+  { rank: 2, team: "OC Squad", score: "18 200 pts" },
+  { rank: 3, team: "Masked Devils", score: "18 000 pts" },
 ];
 
 const slugifyCategory = (value?: string | null) =>
@@ -302,6 +344,14 @@ export default function ShopPage() {
 
   const catalog = products.length ? products : exampleProducts;
 
+  const resolveProductAction = (type: string) => {
+    const normalized = type?.toLowerCase() ?? "";
+    if (normalized.includes("recharge")) return "Recharger";
+    if (normalized.includes("pass")) return "Rejoindre";
+    if (normalized.includes("article")) return "Ajouter";
+    return "Acheter";
+  };
+
   const derivedCategories = useMemo(() => {
     const registry = new Map<string, CategoryOption>();
     catalog.forEach((product) => {
@@ -357,6 +407,7 @@ export default function ShopPage() {
   const groupedDeals = filtered.slice(0, 6);
   const dailyDeals = filtered.slice(0, 8);
   const forYou = filtered.slice(0, 12);
+  const desktopProducts = catalog.slice(0, 4);
 
   const handleImageSearch = (file: File | null) => {
     if (!file) return;
@@ -365,8 +416,168 @@ export default function ShopPage() {
   };
 
   return (
-    <main className="min-h-[100dvh] bg-black text-white">
-      <header className="sticky top-0 z-40 bg-black/70 backdrop-blur-lg">
+    <main className="min-h-[100dvh] bg-[#04020c] text-white">
+      <section className="hidden min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.25),_transparent_55%),radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.18),transparent_50%),#04020c] lg:block">
+        <div className="mx-auto w-full max-w-6xl px-6 py-10">
+          <div className="space-y-10">
+            <div className="relative overflow-hidden rounded-[36px] border border-white/5 bg-gradient-to-r from-[#150423] via-[#10021c] to-[#090013] p-1">
+              <div className="relative overflow-hidden rounded-[32px]">
+                <div className="absolute inset-0">
+                  <Image src={HERO_BACKDROP} alt="Cosmic background" fill className="object-cover" sizes="(min-width: 1024px) 1200px, 100vw" priority />
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-[#0b0120]/80 to-transparent" />
+                </div>
+                <div className="relative grid gap-10 px-10 py-14 lg:grid-cols-[minmax(0,1fr)_360px]">
+                  <div className="max-w-xl">
+                    <p className="text-sm font-semibold uppercase tracking-[0.6em] text-cyan-200/70">Boutique élite</p>
+                    <h1 className="mt-4 text-5xl font-black tracking-tight">BOUTIQUE</h1>
+                    <p className="mt-3 text-lg text-white/80">Recharge ton compte, affûte tes skills. Découvre tes packs gaming.</p>
+                    <p className="mt-2 text-sm text-white/60">Boosts, comptes rare, pass d'événement et services premium en livraison instantanée.</p>
+                    <div className="mt-6 flex gap-3">
+                      <button className="rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold tracking-wide text-white shadow-[0_0_30px_rgba(110,231,255,0.25)]">Explorer</button>
+                      <button className="rounded-2xl border border-white/10 bg-transparent px-6 py-3 text-sm font-semibold text-white/70">Voir les offres</button>
+                    </div>
+                  </div>
+                  <div className="relative h-[280px] rounded-[32px] border border-white/5 bg-white/5/10">
+                    <Image src={HERO_TROPHY} alt="Trophée" fill className="object-cover" sizes="360px" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[280px_minmax(0,1fr)_280px] gap-6">
+              <aside className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur">
+                <div className="text-xs uppercase tracking-[0.5em] text-white/40">Top jeus</div>
+                <div className="mt-5 space-y-2">
+                  {sidebarItems.map(({ label, icon: Icon }) => (
+                    <button
+                      key={label}
+                      className={`flex w-full items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/40 ${
+                        label === "Comptes" ? "bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/10 border-cyan-300/40" : "bg-white/5"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </span>
+                      {label === "Comptes" && <span className="text-[11px] uppercase tracking-[0.4em] text-cyan-200">Actif</span>}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-7">
+                  <div className="flex items-center justify-between text-xs text-white/60">
+                    <span>Plage de prix</span>
+                    <span>1k - 100k FCFA</span>
+                  </div>
+                  <input type="range" min={1000} max={100000} className="mt-4 w-full accent-cyan-300" />
+                </div>
+                <div className="mt-7">
+                  <div className="text-xs uppercase tracking-[0.4em] text-white/40">Favoris les filtres</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {favoriteFilters.map((filter) => (
+                      <button key={filter} className="rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs text-white/80">
+                        {filter}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </aside>
+
+              <section className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur">
+                <div className="flex items-center gap-4 text-sm font-semibold">
+                  <button className="rounded-3xl border border-white/20 bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/10 px-6 py-2">TOP PICKS</button>
+                  <button className="text-white/50">Sélection mobile</button>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  {["Rechercher un jeu", "Filtrer par bonus"].map((placeholder, idx) => (
+                    <div key={placeholder} className="flex items-center gap-3 rounded-3xl border border-white/10 bg-black/30 px-4 py-3">
+                      <Search className="h-4 w-4 text-white/40" />
+                      <input className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none" placeholder={placeholder} />
+                      {idx === 0 ? <Sparkles className="h-4 w-4 text-amber-300" /> : <Heart className="h-4 w-4 text-rose-300" />}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  {desktopCategoryPills.map(({ label, icon: Icon }, index) => (
+                    <button
+                      key={label}
+                      className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition ${
+                        index === 0 ? "border-cyan-300/40 bg-cyan-500/10 text-white" : "border-white/10 bg-white/5 text-white/70 hover:text-white"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-8 grid grid-cols-4 gap-4">
+                  {desktopProducts.map((product) => (
+                    <Link
+                      key={product.id}
+                      href={`/product/${product.id}`}
+                      className="group relative flex flex-col rounded-[28px] border border-white/10 bg-gradient-to-b from-white/10 to-black/50 p-4 shadow-[0_20px_80px_rgba(10,10,20,0.55)] transition hover:border-cyan-300/40 hover:shadow-[0_30px_90px_rgba(14,165,233,0.35)]"
+                    >
+                      <div className="relative h-40 overflow-hidden rounded-2xl">
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#ff8a00]/50 via-[#6d00ff]/40 to-transparent" />
+                        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=800&q=80')] bg-cover bg-center opacity-60" />
+                      </div>
+                      <div className="mt-4 text-xs uppercase tracking-[0.4em] text-white/40">{product.category ?? "Offre"}</div>
+                      <div className="mt-2 text-base font-semibold leading-tight text-white line-clamp-2">{product.name}</div>
+                      <div className="mt-1 text-sm text-white/60 line-clamp-2">{product.description}</div>
+                      <div className="mt-4 flex items-center justify-between">
+                        <div>
+                          <div className="text-lg font-bold text-cyan-200">{product.priceLabel}</div>
+                          {product.oldPrice && (
+                            <div className="text-xs text-white/40 line-through">{formatNumber(product.oldPrice)}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-white/60">
+                          <Heart className="h-4 w-4 text-rose-300" />
+                          {product.likes}
+                        </div>
+                      </div>
+                      <button className="mt-4 rounded-2xl border border-white/15 bg-white/10 py-2 text-sm font-semibold tracking-wide text-white">
+                        {resolveProductAction(product.type)}
+                      </button>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+
+              <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.5em] text-amber-200/70">Classement</p>
+                    <h3 className="text-xl font-bold">Top Teams</h3>
+                  </div>
+                  <Crown className="h-6 w-6 text-amber-300" />
+                </div>
+                <div className="mt-6 space-y-4">
+                  {leaderboardEntries.map((entry) => (
+                    <div key={entry.rank} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg font-black text-white/80">#{entry.rank}</span>
+                        <div>
+                          <div className="text-sm font-semibold text-white">{entry.team}</div>
+                          <div className="text-xs text-white/50">Compétitif</div>
+                        </div>
+                      </div>
+                      <span className="text-sm font-semibold text-amber-200">{entry.score}</span>
+                    </div>
+                  ))}
+                </div>
+                <button className="mt-6 w-full rounded-2xl border border-amber-200/40 bg-amber-400/10 py-2 text-sm font-semibold text-amber-100">Voir le classement complet</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="lg:hidden">
+        <header className="sticky top-0 z-40 bg-black/70 backdrop-blur-lg">
         <div className="mobile-shell hidden items-center justify-between py-3 sm:flex">
           <Link href="/" className="text-lg font-black tracking-tight">
             BADBOY<span className="text-white/70">SHOP</span>
@@ -522,6 +733,8 @@ export default function ShopPage() {
           </div>
         </div>
       </section>
+
+      </div>
 
       <FilterSheet
         open={filterSheetOpen}
