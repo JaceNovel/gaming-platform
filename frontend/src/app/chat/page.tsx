@@ -62,7 +62,9 @@ const mentionClass = "text-amber-300 font-semibold";
 
 function ChatScreen() {
   const { token } = useAuth();
-  const authHeaders = useMemo(() => (token ? { Authorization: `Bearer ${token}` } : {}), [token]);
+  const authHeaders = useMemo((): Record<string, string> => {
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, [token]);
   const isAuthenticated = Boolean(token);
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [currentRoomId, setCurrentRoomId] = useState<number | null>(null);
