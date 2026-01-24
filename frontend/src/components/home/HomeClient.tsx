@@ -46,10 +46,12 @@ function GlassButton({
   children,
   href,
   tone = "cyan",
+  className = "",
 }: {
   children: React.ReactNode;
   href: string;
   tone?: "cyan" | "gold";
+  className?: string;
 }) {
   const toneCls =
     tone === "gold"
@@ -59,7 +61,7 @@ function GlassButton({
   return (
     <Link
       href={href}
-      className="group relative inline-flex min-w-[170px] items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold text-white transition active:scale-[0.98]"
+      className={`group relative inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold text-white transition active:scale-[0.98] ${className}`}
     >
       <span
         className={`absolute inset-0 -z-10 rounded-xl bg-gradient-to-r ${toneCls} opacity-80 blur-[14px]`}
@@ -74,14 +76,14 @@ function GlassButton({
 
 function StatBar({ stats }: { stats: Stat[] }) {
   return (
-    <div className="mx-auto mt-5 w-full max-w-6xl px-4">
+    <div className="mx-auto mt-4 w-full max-w-6xl px-4">
       <div className="relative overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/15 backdrop-blur-md">
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/10 via-fuchsia-400/10 to-amber-300/10" />
         <div className="relative grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
           {stats.map((s) => (
             <div
               key={s.label}
-              className="rounded-xl bg-black/25 p-3 ring-1 ring-white/10"
+              className="flex min-h-[92px] flex-col justify-between rounded-xl bg-black/25 p-3 ring-1 ring-white/10"
             >
               <div className="text-lg font-extrabold tracking-tight text-white">
                 {s.value}
@@ -217,7 +219,10 @@ export default function HomeClient() {
   const topProducts = useMemo(() => products, [products]);
 
   return (
-    <main className="relative min-h-dvh bg-black text-white">
+    <main
+      className="relative min-h-dvh bg-black text-white pb-[calc(96px+env(safe-area-inset-bottom))]"
+      style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}
+    >
       <div
         className="absolute inset-0 -z-20 bg-center bg-cover"
         style={{ backgroundImage: "url('/badboyshop-home.png')" }}
@@ -240,8 +245,8 @@ export default function HomeClient() {
         <div className="absolute right-[8%] top-[18%] h-[380px] w-[380px] rounded-full bg-amber-400/10 blur-[90px]" />
       </div>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-8 lg:pt-10">
-        <div className="mx-auto flex max-w-xl flex-wrap items-center justify-center gap-2 text-center">
+      <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
+        <div className="mx-auto flex max-w-[420px] flex-wrap items-center justify-center gap-2 text-center sm:max-w-xl">
           <GlowPill>
             <ShieldCheck className="h-4 w-4 text-cyan-300" />
             Sécurité sécurisée
@@ -256,22 +261,30 @@ export default function HomeClient() {
           </GlowPill>
         </div>
 
-        <div className="mt-7 text-center">
+        <div className="mt-5 text-center">
           <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
             BADBOY<span className="text-white/70">SHOP</span>
           </h1>
-          <p className="mt-2 text-lg font-semibold text-white/85 sm:text-xl">
+          <p className="mx-auto mt-2 max-w-[420px] text-base font-semibold leading-6 text-white/85 sm:max-w-2xl sm:text-xl">
             La plateforme gaming d’élite
           </p>
-          <p className="mx-auto mt-2 max-w-2xl text-sm text-white/70 sm:text-base">
+          <p className="mx-auto mt-2 max-w-[420px] text-xs leading-5 text-white/70 sm:max-w-2xl sm:text-base">
             Recharges, comptes, tournois, GVG, transferts internationaux
           </p>
 
-          <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <GlassButton href="/shop" tone="cyan">
+          <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <GlassButton
+              href="/shop"
+              tone="cyan"
+              className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
+            >
               Explorer la boutique
             </GlassButton>
-            <GlassButton href="/premium" tone="gold">
+            <GlassButton
+              href="/premium"
+              tone="gold"
+              className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
+            >
               Devenir Premium
             </GlassButton>
           </div>
@@ -280,7 +293,7 @@ export default function HomeClient() {
         <StatBar stats={stats} />
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-24">
+      <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-2">
         <div className="flex items-end justify-between">
           <h2 className="text-lg font-extrabold tracking-tight sm:text-xl">
             Produits <span className="text-white/70">les plus populaires</span>
@@ -290,10 +303,29 @@ export default function HomeClient() {
           </Link>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {topProducts.map((p) => (
-            <ProductCardUI key={p.id} p={p} />
-          ))}
+        <div className="mt-3">
+          {topProducts.length === 0 ? (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="min-w-[260px] flex-1 rounded-2xl border border-white/10 bg-white/5 p-4"
+                >
+                  <div className="h-4 w-16 rounded-full bg-white/10" />
+                  <div className="mt-3 h-12 w-12 rounded-xl bg-white/10" />
+                  <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
+                  <div className="mt-2 h-3 w-1/2 rounded-full bg-white/10" />
+                  <div className="mt-4 h-9 w-full rounded-xl bg-white/10" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {topProducts.map((p) => (
+                <ProductCardUI key={p.id} p={p} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </main>
