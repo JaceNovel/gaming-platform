@@ -96,8 +96,11 @@ class ProcessOrderDelivery implements ShouldQueue
         // Log email
         EmailLog::create([
             'user_id' => $this->order->user_id,
+            'to' => $this->order->user->email,
             'type' => 'account_delivery',
             'subject' => 'Vos identifiants de jeu BADBOYSHOP',
+            'status' => 'sent',
+            'sent_at' => now(),
         ]);
     }
 
@@ -116,8 +119,11 @@ class ProcessOrderDelivery implements ShouldQueue
 
         EmailLog::create([
             'user_id' => $this->order->user_id,
+            'to' => $this->order->user->email,
             'type' => 'topup_confirmation',
             'subject' => 'Paiement confirmé - Traitement en cours',
+            'status' => 'sent',
+            'sent_at' => now(),
         ]);
     }
 
@@ -132,8 +138,11 @@ class ProcessOrderDelivery implements ShouldQueue
 
         EmailLog::create([
             'user_id' => $this->order->user_id,
+            'to' => $this->order->user->email,
             'type' => 'article_confirmation',
             'subject' => 'Commande confirmée - Livraison en cours',
+            'status' => 'sent',
+            'sent_at' => now(),
         ]);
     }
 }

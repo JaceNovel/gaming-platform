@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShoppingCart } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -8,35 +8,19 @@ import SectionTitle from "@/components/ui/SectionTitle";
 import ProductCard from "@/components/ui/ProductCard";
 import GlowButton from "@/components/ui/GlowButton";
 
-const products = [
-  {
-    id: 1,
-    name: "Compte Free Fire Légendaire",
-    description: "Skins évolutifs, niveau 60+ avec badges rares",
-    price: "15 000 FCFA",
-    likes: 1600,
-    category: "Comptes",
-    badgeLevel: "Platine" as const,
-  },
-  {
-    id: 2,
-    name: "Recharge Mobile Legends 1000 diamants",
-    description: "Livraison express + bonus XP week-end",
-    price: "12 000 FCFA",
-    likes: 2300,
-    category: "Recharges",
-    badgeLevel: "Or" as const,
-  },
-  {
-    id: 3,
-    name: "Pack Accessoires mobile",
-    description: "Grip + ventilo + câble data tressé",
-    price: "25 000 FCFA",
-    likes: 500,
-    category: "Articles",
-    badgeLevel: "Bronze" as const,
-  },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+type ShopProduct = {
+  id: number;
+  name: string;
+  description: string;
+  priceLabel: string;
+  priceValue: number;
+  likes: number;
+  category: string;
+  badgeLevel: "Bronze" | "Or" | "Platine";
+  type: string;
+};
 
 const categories = ["Comptes", "Recharges", "Articles", "Pass", "Tournois", "Gifts"];
 const premiumLevels = ["Bronze", "Or", "Platine"];
@@ -46,15 +30,64 @@ const accessoriesBannerUrl =
 
 export default function ShopPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, authFetch } = useAuth();
   const [showFilter, setShowFilter] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [priceRange, setPriceRange] = useState(60);
   const [cartNotice, setCartNotice] = useState<string | null>(null);
+  const [products, setProducts] = useState<ShopProduct[]>([]);
   const [flyers, setFlyers] = useState<
     Array<{ id: number; x: number; y: number; targetX: number; targetY: number }>
   >([]);
   const nextPath = "/shop";
+
+  const formatNumber = useMemo(() => (value: number) => new Intl.NumberFormat("fr-FR").format(value), []);
+
+  useEffect(() => {
+    let active = true;
+    const loadProducts = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/products?active=1`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        if (!active) return;
+        const mapped = items.map((item: any) => {
+          const priceValue = Number(item?.discount_price ?? item?.price ?? 0);
+          const priceLabel = `${formatNumber(priceValue)} FCFA`;
+          const type = String(item?.type ?? "").toLowerCase();
+          const category = type.includes("recharge") || type.includes("topup")
+            ? "Recharges"
+            : type.includes("account")
+              ? "Comptes"
+              : type.includes("subscription") || type.includes("premium")
+                ? "Pass"
+                : "Articles";
+          const badgeLevel: ShopProduct["badgeLevel"] =
+            priceValue >= 30000 ? "Platine" : priceValue >= 15000 ? "Or" : "Bronze";
+          return {
+            id: item.id,
+            name: item.name,
+            description: item?.details?.description ?? item?.details?.subtitle ?? item?.game?.name ?? "Produit premium",
+            priceLabel,
+            priceValue,
+            likes: Number(item?.likes_count ?? 0),
+            category,
+            badgeLevel,
+            type: String(item?.type ?? ""),
+          } as ShopProduct;
+        });
+        setProducts(mapped);
+      } catch {
+        if (!active) return;
+      }
+    };
+
+    loadProducts();
+    return () => {
+      active = false;
+    };
+  }, [formatNumber]);
 
   const requireAuth = () => {
     if (!user) {
@@ -64,9 +97,20 @@ export default function ShopPage() {
     return true;
   };
 
-  const handleLike = (id: number) => {
+  const handleLike = async (id: number) => {
     if (!requireAuth()) return;
-    void id;
+    const res = await authFetch(`${API_BASE}/likes/toggle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: id }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setProducts((prev) =>
+      prev.map((product) =>
+        product.id === id ? { ...product, likes: Number(data?.likes_count ?? product.likes) } : product
+      )
+    );
   };
 
   const handleBuy = (id: number) => {
@@ -75,13 +119,13 @@ export default function ShopPage() {
   };
 
   const handleAddToCart = (
-    product: (typeof products)[number],
+    product: ShopProduct,
     event?: React.MouseEvent<HTMLDivElement>,
   ) => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem("bbshop_cart");
     const cart = stored ? (JSON.parse(stored) as Array<{ id: number; quantity: number } & Record<string, unknown>>) : [];
-    const priceNumber = Number(product.price.replace(/[^0-9]/g, "")) || 0;
+    const priceNumber = Number(product.priceValue) || 0;
     const existing = cart.find((item) => item.id === product.id);
     if (existing) {
       existing.quantity = (existing.quantity as number) + 1;
@@ -91,7 +135,8 @@ export default function ShopPage() {
         name: product.name,
         description: product.description,
         price: priceNumber,
-        priceLabel: product.price,
+        priceLabel: product.priceLabel,
+        type: product.type,
         quantity: 1,
       });
     }
@@ -147,7 +192,7 @@ export default function ShopPage() {
                     key={product.id}
                     title={product.name}
                     subtitle={product.description}
-                    price={product.price}
+                    price={product.priceLabel}
                     likes={product.likes}
                     tag={product.category}
                     badgeLevel={product.badgeLevel}

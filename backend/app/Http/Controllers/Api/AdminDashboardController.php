@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
+use App\Models\EmailLog;
 use App\Models\Like;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\Payout;
 use App\Models\PremiumMembership;
 use App\Models\Product;
 use App\Models\Tournament;
@@ -15,12 +17,17 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminDashboardController extends Controller
 {
     public function summary(Request $request)
     {
+        if (!$this->isSuperAdmin($request)) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         [$from, $to] = $this->parseDateRange($request);
 
         $payments = Payment::where('status', 'paid');
@@ -60,6 +67,10 @@ class AdminDashboardController extends Controller
 
     public function charts(Request $request)
     {
+        if (!$this->isSuperAdmin($request)) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         [$from, $to] = $this->parseDateRange($request);
 
         $payments = Payment::where('status', 'paid');
@@ -84,45 +95,101 @@ class AdminDashboardController extends Controller
     {
         [$from, $to] = $this->parseDateRange($request);
         $perPage = $request->integer('per_page', 10);
+        $role = $this->role($request);
 
-        $orders = Order::with(['user', 'payment'])
-            ->latest()
-            ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
-            ->paginate($perPage);
+        $empty = $this->emptyPaginator($perPage);
 
-        $payments = Payment::with(['order.user'])
-            ->where('status', 'paid')
-            ->latest()
-            ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
-            ->paginate($perPage);
+        $orders = $empty;
+        $payments = $empty;
+        $users = $empty;
+        $premiumMemberships = $empty;
+        $products = $empty;
+        $likes = $empty;
+        $tournaments = $empty;
+        $chat = $empty;
+        $payouts = $empty;
+        $emails = $empty;
 
-        $users = User::withCount('orders')
-            ->latest()
-            ->paginate($perPage);
+        if ($this->isSuperAdmin($request)) {
+            $orders = Order::with(['user', 'payment'])
+                ->latest()
+                ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+                ->paginate($perPage);
 
-        $premiumMemberships = PremiumMembership::with(['user', 'game'])
-            ->latest()
-            ->paginate($perPage);
+            $payments = Payment::with(['order.user'])
+                ->where('status', 'paid')
+                ->latest()
+                ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+                ->paginate($perPage);
 
-        $products = Product::with('game')
-            ->withCount('likes')
-            ->latest()
-            ->paginate($perPage);
+            $users = User::withCount('orders')
+                ->latest()
+                ->paginate($perPage);
 
-        $likes = Like::with(['user', 'product'])
-            ->latest()
-            ->paginate($perPage);
+            $premiumMemberships = PremiumMembership::with(['user', 'game'])
+                ->latest()
+                ->paginate($perPage);
 
-        $tournaments = Tournament::with('game')
-            ->withCount('participants')
-            ->latest()
-            ->paginate($perPage);
+            $products = Product::with('game')
+                ->withCount('likes')
+                ->latest()
+                ->paginate($perPage);
 
-        $chat = ChatMessage::with(['user', 'room'])
-            ->latest()
-            ->paginate($perPage);
+            $likes = Like::with(['user', 'product'])
+                ->latest()
+                ->paginate($perPage);
+
+            $tournaments = Tournament::with('game')
+                ->withCount('participants')
+                ->latest()
+                ->paginate($perPage);
+
+            $chat = ChatMessage::with(['user', 'room'])
+                ->latest()
+                ->paginate($perPage);
+
+            $payouts = Payout::with('user')
+                ->latest()
+                ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+                ->paginate($perPage);
+
+            $emails = EmailLog::with('user')
+                ->latest()
+                ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+                ->paginate($perPage);
+        } elseif ($role === 'admin_article') {
+            $products = Product::with('game')
+                ->withCount('likes')
+                ->latest()
+                ->paginate($perPage);
+        } elseif ($role === 'admin_client') {
+            $orders = Order::with(['user', 'payment'])
+                ->latest()
+                ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+                ->paginate($perPage);
+
+            $payments = Payment::with(['order.user'])
+                ->where('status', 'paid')
+                ->latest()
+                ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+                ->paginate($perPage);
+
+            $users = User::withCount('orders')
+                ->latest()
+                ->paginate($perPage);
+
+            $emails = EmailLog::with('user')
+                ->latest()
+                ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+                ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+                ->paginate($perPage);
+        }
 
         return response()->json([
             'orders' => $orders,
@@ -133,6 +200,8 @@ class AdminDashboardController extends Controller
             'likes' => $likes,
             'tournaments' => $tournaments,
             'chat_messages' => $chat,
+            'payouts' => $payouts,
+            'email_logs' => $emails,
         ]);
     }
 
@@ -140,17 +209,7 @@ class AdminDashboardController extends Controller
     {
         [$from, $to] = $this->parseDateRange($request);
         $type = $request->input('type');
-
-        $allowed = [
-            'orders',
-            'payments',
-            'users',
-            'premium_memberships',
-            'products',
-            'likes',
-            'tournaments',
-            'chat_messages',
-        ];
+        $allowed = $this->allowedExportTypes($request);
 
         if (!in_array($type, $allowed, true)) {
             return response()->json(['message' => 'Invalid export type'], 422);
@@ -165,6 +224,8 @@ class AdminDashboardController extends Controller
             'likes' => $this->exportLikes($from, $to),
             'tournaments' => $this->exportTournaments($from, $to),
             'chat_messages' => $this->exportChat($from, $to),
+            'payouts', 'transfers' => $this->exportPayouts($from, $to),
+            'email_logs' => $this->exportEmailLogs($from, $to),
             default => [[], []],
         };
 
@@ -464,5 +525,100 @@ class AdminDashboardController extends Controller
         })->toArray();
 
         return [$headers, $rows];
+    }
+
+    private function exportPayouts(?Carbon $from, ?Carbon $to): array
+    {
+        $payouts = Payout::with('user')
+            ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+            ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+            ->get();
+
+        $headers = ['id', 'user', 'amount', 'currency', 'status', 'provider', 'provider_ref', 'created_at'];
+        $rows = $payouts->map(function (Payout $payout) {
+            return [
+                $payout->id,
+                optional($payout->user)->email,
+                $payout->amount,
+                $payout->currency,
+                $payout->status,
+                $payout->provider,
+                $payout->provider_ref,
+                optional($payout->created_at)?->toDateTimeString(),
+            ];
+        })->toArray();
+
+        return [$headers, $rows];
+    }
+
+    private function exportEmailLogs(?Carbon $from, ?Carbon $to): array
+    {
+        $emails = EmailLog::with('user')
+            ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+            ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+            ->get();
+
+        $headers = ['id', 'user', 'to', 'type', 'subject', 'status', 'error', 'sent_at', 'created_at'];
+        $rows = $emails->map(function (EmailLog $log) {
+            return [
+                $log->id,
+                optional($log->user)->email,
+                $log->to,
+                $log->type,
+                $log->subject,
+                $log->status,
+                $log->error,
+                optional($log->sent_at)?->toDateTimeString(),
+                optional($log->created_at)?->toDateTimeString(),
+            ];
+        })->toArray();
+
+        return [$headers, $rows];
+    }
+
+    private function role(Request $request): string
+    {
+        return $request->user()?->role ?? 'user';
+    }
+
+    private function isSuperAdmin(Request $request): bool
+    {
+        return in_array($this->role($request), ['admin', 'admin_super'], true);
+    }
+
+    private function emptyPaginator(int $perPage): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator([], 0, $perPage);
+    }
+
+    private function allowedExportTypes(Request $request): array
+    {
+        $role = $this->role($request);
+
+        if (in_array($role, ['admin', 'admin_super'], true)) {
+            return [
+                'orders',
+                'payments',
+                'users',
+                'premium_memberships',
+                'products',
+                'likes',
+                'tournaments',
+                'chat_messages',
+                'payouts',
+                'transfers',
+                'email_logs',
+            ];
+        }
+
+        if ($role === 'admin_article') {
+            return ['products'];
+        }
+
+        if ($role === 'admin_client') {
+            return ['orders', 'payments', 'users', 'email_logs'];
+        }
+
+        return [];
     }
 }

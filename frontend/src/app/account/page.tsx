@@ -8,9 +8,7 @@ import ProfileHeader from "@/components/profile/ProfileHeader";
 import ProfileSidebar from "@/components/profile/ProfileSidebar";
 import AvatarPickerModal from "@/components/profile/AvatarPickerModal";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 type Me = {
   username: string;
@@ -46,6 +44,16 @@ const AVATARS = [
 const thumbs = ["/thumbs/lol.png", "/thumbs/ml.png", "/thumbs/ff.png", "/thumbs/ff2.png"];
 
 const formatFcfa = (n: number) => new Intl.NumberFormat("fr-FR").format(n) + " FCFA";
+const mapOrderStatus = (status?: string): Order["status"] => {
+  const normalized = (status ?? "").toLowerCase();
+  if (normalized === "paid" || normalized === "delivered" || normalized === "success") {
+    return "COMPLÉTÉ";
+  }
+  if (normalized === "failed" || normalized === "canceled") {
+    return "ÉCHOUÉ";
+  }
+  return "EN_COURS";
+};
 
 function AccountClient() {
   const { authFetch } = useAuth();
@@ -94,7 +102,7 @@ function AccountClient() {
           title,
           game: orderItems[0]?.product?.name ? "BADBOYSHOP" : "BADBOYSHOP",
           priceFcfa: Number(order.total_price ?? 0),
-          status: "COMPLÉTÉ",
+          status: mapOrderStatus(order.status),
           thumb: thumbs[idx % thumbs.length],
         } as Order;
       });
@@ -136,15 +144,21 @@ function AccountClient() {
     );
   }
 
+  const missingCountry = !me.countryCode;
+
   return (
     <div className="min-h-screen text-white">
-      <div className="fixed inset-0 -z-10 bg-black">
-        <div className="absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_30%_20%,rgba(180,70,255,0.25),transparent_40%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.18),transparent_45%),radial-gradient(circle_at_50%_90%,rgba(255,160,0,0.14),transparent_45%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.35),rgba(0,0,0,0.85))]" />
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-black" />
+        <div className="absolute inset-0 bg-[url('/backgrounds/profile.jpg')] bg-cover bg-center" />
+        <div className="absolute inset-0 bg-black/55" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(180,70,255,0.35),transparent_45%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.25),transparent_50%),radial-gradient(circle_at_50%_90%,rgba(255,160,0,0.2),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.15),rgba(0,0,0,0.9))]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.9)]" />
       </div>
 
-      <main className="mx-auto max-w-7xl px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+      <main className="w-full px-5 md:px-10 lg:px-12 py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8">
           <ProfileSidebar
             username={me.username}
             premiumTier={me.premiumTier}
@@ -153,7 +167,12 @@ function AccountClient() {
             onChangeMenu={setActiveMenu}
           />
 
-          <section className="space-y-6">
+          <section className="space-y-8">
+            {missingCountry && (
+              <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+                Pays manquant. Merci de compléter ton pays dans le profil pour afficher le drapeau.
+              </div>
+            )}
             <ProfileHeader
               username={me.username}
               countryCode={me.countryCode}
@@ -165,7 +184,7 @@ function AccountClient() {
               onUseFunds={() => setPickerOpen(false)}
             />
 
-            <div className="rounded-[32px] bg-black/35 border border-white/10 backdrop-blur-xl p-6">
+            <div className="rounded-[32px] bg-black/40 border border-white/10 backdrop-blur-xl p-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold">Mes commandes</h2>
                 <button className="text-sm opacity-70 hover:opacity-100">Voir tout →</button>

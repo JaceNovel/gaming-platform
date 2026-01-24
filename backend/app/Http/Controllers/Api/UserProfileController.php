@@ -25,6 +25,7 @@ class UserProfileController extends Controller
                 'avatarId' => $user->avatar_id ?? 'shadow_default',
                 'walletBalanceFcfa' => (float) $wallet->balance,
                 'premiumTier' => $user->premium_tier ?: $this->inferPremiumTier($user),
+                'role' => $user->role,
             ],
         ]);
     }
@@ -61,6 +62,7 @@ class UserProfileController extends Controller
                 'avatarId' => $user->avatar_id ?? 'shadow_default',
                 'walletBalanceFcfa' => (float) $wallet->balance,
                 'premiumTier' => $user->premium_tier ?: $this->inferPremiumTier($user),
+                'role' => $user->role,
             ],
         ]);
     }

@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Eye, EyeOff, Share2 } from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
+import { useAuth } from "@/components/auth/AuthProvider";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export default function TransfersPage() {
+  const { authFetch } = useAuth();
   const [amount, setAmount] = useState("50000");
   const [country, setCountry] = useState("Togo");
   const [currency, setCurrency] = useState("XOF");
@@ -22,7 +26,8 @@ export default function TransfersPage() {
 
   const fee = Math.round(Number(amount || 0) * 0.02);
   const total = Number(amount || 0) + fee;
-  const totalTransferred = 490000;
+  const [totalTransferred, setTotalTransferred] = useState(0);
+  const [history, setHistory] = useState<Array<{ id: number; reference: string; status: string; amount: number }>>([]);
   const supportedCountries = useMemo(() => ["Togo", "Bénin", "Cameroun", "Côte d'Ivoire"], []);
 
   const handleOpenTransfer = () => {
@@ -30,7 +35,7 @@ export default function TransfersPage() {
     setShowModal(true);
   };
 
-  const handleSubmitTransfer = () => {
+  const handleSubmitTransfer = async () => {
     setTransferError(null);
     if (!senderName || !receiverName || !senderPhone || !senderCountry) {
       setTransferError("Merci de compléter tous les champs.");
@@ -40,9 +45,56 @@ export default function TransfersPage() {
       setTransferError("On ne peut pas envoyer de l'argent vers ce pays pour le moment.");
       return;
     }
-    window.open("https://www.cinetpay.com", "_blank");
-    setShowModal(false);
+    try {
+      const res = await authFetch(`${API_BASE}/transfers/init`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: Number(amount),
+          country: senderCountry,
+          phone: senderPhone,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setTransferError(err.message ?? "Transfert refusé.");
+        return;
+      }
+      setShowModal(false);
+    } catch {
+      setTransferError("Connexion au serveur impossible.");
+    }
   };
+
+  useEffect(() => {
+    let active = true;
+    const loadHistory = async () => {
+      try {
+        const res = await authFetch(`${API_BASE}/transfers/history`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        if (!active) return;
+        setHistory(
+          items.map((item: any) => ({
+            id: item.id,
+            reference: item.provider_ref ?? item.idempotency_key ?? `TR-${item.id}`,
+            status: item.status ?? "queued",
+            amount: Number(item.amount ?? 0),
+          })),
+        );
+        const total = items.reduce((sum: number, item: any) => sum + Number(item.amount ?? 0), 0);
+        setTotalTransferred(total);
+      } catch {
+        if (!active) return;
+      }
+    };
+
+    loadHistory();
+    return () => {
+      active = false;
+    };
+  }, [authFetch]);
 
   return (
     <div className="min-h-[100dvh] pb-24">
@@ -96,13 +148,21 @@ export default function TransfersPage() {
               <div className="glass-card rounded-2xl p-6 border border-white/10">
                 <SectionTitle eyebrow="Activité" label="Transferts récents" />
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {["#TR-1201", "#TR-1202", "#TR-1203", "#TR-1204"].map((ref) => (
-                    <div key={ref} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                      <p className="text-xs text-white/50">Référence</p>
-                      <p className="font-semibold text-white">{ref}</p>
-                      <p className="text-xs text-emerald-300 mt-2">Succès • 25 000 FCFA</p>
+                  {history.length ? (
+                    history.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                        <p className="text-xs text-white/50">Référence</p>
+                        <p className="font-semibold text-white">{item.reference}</p>
+                        <p className="text-xs text-emerald-300 mt-2">
+                          {item.status} • {item.amount.toLocaleString("fr-FR")} FCFA
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
+                      Aucun transfert pour le moment.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>

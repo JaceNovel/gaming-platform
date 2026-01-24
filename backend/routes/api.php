@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdminDashboardController;
+use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminSettingsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
@@ -15,6 +16,8 @@ use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\TransferController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\TournamentController;
+use App\Http\Controllers\Api\LikeController;
+use App\Http\Controllers\Api\PublicStatsController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
@@ -31,6 +34,8 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanc
 Route::apiResource('games', GameController::class)->only(['index', 'show']);
 Route::apiResource('products', ProductController::class)->only(['index', 'show']);
 Route::apiResource('tournaments', TournamentController::class)->only(['index', 'show']);
+Route::get('/stats/overview', [PublicStatsController::class, 'overview']);
+Route::get('/likes/stats', [LikeController::class, 'stats']);
 
 // Webhooks (no auth required)
 Route::post('/payments/cinetpay/webhook', [PaymentController::class, 'webhookCinetpay'])->name('api.payments.cinetpay.webhook');
@@ -42,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Products actions
     Route::post('products/{product}/like', [ProductController::class, 'like']);
+        Route::post('likes/toggle', [LikeController::class, 'toggle']);
 
     // Orders
     Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'store']);
@@ -74,6 +80,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Transfers
     Route::post('/transfers/init', [TransferController::class, 'init'])->middleware('throttle:5,1');
+    Route::get('/transfers/history', [TransferController::class, 'history']);
 
     // Support tickets
     Route::get('/support/inbox', [SupportTicketController::class, 'inbox']);
@@ -86,18 +93,27 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Admin routes
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
-    Route::get('/dashboard/summary', [AdminDashboardController::class, 'summary']);
-    Route::get('/dashboard/charts', [AdminDashboardController::class, 'charts']);
     Route::get('/dashboard/tables', [AdminDashboardController::class, 'tables']);
     Route::get('/dashboard/export', [AdminDashboardController::class, 'export']);
 
-    Route::get('/settings', [AdminSettingsController::class, 'show']);
-    Route::post('/settings', [AdminSettingsController::class, 'update']);
-    Route::post('/settings/logo', [AdminSettingsController::class, 'uploadLogo']);
+    Route::middleware('role:admin,admin_super')->group(function () {
+        Route::get('/dashboard/summary', [AdminDashboardController::class, 'summary']);
+        Route::get('/dashboard/charts', [AdminDashboardController::class, 'charts']);
 
-    // Chat moderation
-    Route::post('/chat/rooms/{room}/mute', [ChatController::class, 'muteUser']);
-    Route::post('/chat/rooms/{room}/ban', [ChatController::class, 'banUser']);
+        Route::get('/settings', [AdminSettingsController::class, 'show']);
+        Route::post('/settings', [AdminSettingsController::class, 'update']);
+        Route::post('/settings/logo', [AdminSettingsController::class, 'uploadLogo']);
+
+        // Chat moderation
+        Route::post('/chat/rooms/{room}/mute', [ChatController::class, 'muteUser']);
+        Route::post('/chat/rooms/{room}/ban', [ChatController::class, 'banUser']);
+    });
+
+    Route::middleware('role:admin,admin_super,admin_article')->group(function () {
+        Route::post('/products', [AdminProductController::class, 'store']);
+        Route::patch('/products/{product}', [AdminProductController::class, 'update']);
+        Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
+    });
 });
 
 // SSE streaming endpoint (auth handled inside controller to allow token query param)

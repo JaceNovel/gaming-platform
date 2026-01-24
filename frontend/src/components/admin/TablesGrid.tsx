@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Tables } from "./types";
 
 type Column<T> = {
@@ -51,11 +51,20 @@ function SimpleTable<T>({ title, rows, columns }: TableProps<T>) {
   );
 }
 
-export function TablesGrid({ tables }: { tables: Tables | null }) {
+export function TablesGrid({
+  tables,
+  visibleTables,
+}: {
+  tables: Tables | null;
+  visibleTables?: string[];
+}) {
   const slice = <T,>(rows?: { data: T[] }, limit = 6) => rows?.data?.slice(0, limit) ?? [];
+  const [emailDetail, setEmailDetail] = useState<any | null>(null);
+  const isVisible = (key: string) => !visibleTables || visibleTables.includes(key);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      {isVisible("orders") && (
       <SimpleTable
         title="Orders"
         rows={slice(tables?.orders)}
@@ -67,7 +76,9 @@ export function TablesGrid({ tables }: { tables: Tables | null }) {
           { header: "Créé", render: (r: any) => r.created_at ?? "—" },
         ]}
       />
+      )}
 
+      {isVisible("payments") && (
       <SimpleTable
         title="Payments"
         rows={slice(tables?.payments)}
@@ -79,7 +90,9 @@ export function TablesGrid({ tables }: { tables: Tables | null }) {
           { header: "Statut", render: (r: any) => r.status },
         ]}
       />
+      )}
 
+      {isVisible("users") && (
       <SimpleTable
         title="Users"
         rows={slice(tables?.users)}
@@ -90,7 +103,9 @@ export function TablesGrid({ tables }: { tables: Tables | null }) {
           { header: "Niveau", render: (r: any) => r.premium_level ?? "—" },
         ]}
       />
+      )}
 
+      {isVisible("premium_memberships") && (
       <SimpleTable
         title="Premium memberships"
         rows={slice(tables?.premium_memberships)}
@@ -102,7 +117,9 @@ export function TablesGrid({ tables }: { tables: Tables | null }) {
           { header: "Expire", render: (r: any) => r.expiration_date ?? "—" },
         ]}
       />
+      )}
 
+      {isVisible("products") && (
       <SimpleTable
         title="Products"
         rows={slice(tables?.products)}
@@ -114,7 +131,9 @@ export function TablesGrid({ tables }: { tables: Tables | null }) {
           { header: "Likes", render: (r: any) => r.likes_count ?? "—" },
         ]}
       />
+      )}
 
+      {isVisible("likes") && (
       <SimpleTable
         title="Likes"
         rows={slice(tables?.likes)}
@@ -125,7 +144,9 @@ export function TablesGrid({ tables }: { tables: Tables | null }) {
           { header: "Date", render: (r: any) => r.created_at ?? "—" },
         ]}
       />
+      )}
 
+      {isVisible("tournaments") && (
       <SimpleTable
         title="Tournaments"
         rows={slice(tables?.tournaments)}
@@ -137,7 +158,9 @@ export function TablesGrid({ tables }: { tables: Tables | null }) {
           { header: "Actif", render: (r: any) => (r.is_active ? "Oui" : "Non") },
         ]}
       />
+      )}
 
+      {isVisible("chat_messages") && (
       <SimpleTable
         title="Chat moderation"
         rows={slice(tables?.chat_messages)}
@@ -148,6 +171,78 @@ export function TablesGrid({ tables }: { tables: Tables | null }) {
           { header: "Message", render: (r: any) => r.message ?? "—" },
         ]}
       />
+      )}
+
+      {isVisible("email_logs") && (
+      <SimpleTable
+        title="Delivery emails"
+        rows={slice(tables?.email_logs)}
+        columns={[
+          { header: "ID", render: (r: any) => r.id },
+          { header: "User", render: (r: any) => r.user?.email ?? "—" },
+          { header: "To", render: (r: any) => r.to ?? "—" },
+          { header: "Type", render: (r: any) => r.type ?? "—" },
+          { header: "Sujet", render: (r: any) => r.subject ?? "—" },
+          { header: "Statut", render: (r: any) => r.status ?? "—" },
+          { header: "Erreur", render: (r: any) => r.error ?? "—" },
+          { header: "Envoyé", render: (r: any) => r.sent_at ?? "—" },
+          {
+            header: "Détails",
+            render: (r: any) => (
+              <button
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/80"
+                onClick={() => setEmailDetail(r)}
+              >
+                Voir
+              </button>
+            ),
+          },
+        ]}
+      />
+      )}
+
+      {isVisible("payouts") && (
+        <SimpleTable
+          title="Transfers"
+          rows={slice(tables?.payouts)}
+          columns={[
+            { header: "ID", render: (r: any) => r.id },
+            { header: "User", render: (r: any) => r.user?.email ?? "—" },
+            { header: "Montant", render: (r: any) => r.amount ?? "—" },
+            { header: "Devise", render: (r: any) => r.currency ?? "—" },
+            { header: "Statut", render: (r: any) => r.status ?? "—" },
+            { header: "Provider", render: (r: any) => r.provider ?? "—" },
+            { header: "Ref", render: (r: any) => r.provider_ref ?? "—" },
+            { header: "Créé", render: (r: any) => r.created_at ?? "—" },
+          ]}
+        />
+      )}
+      {emailDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-950/95 p-6 text-white shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="text-lg font-semibold">Détail email</div>
+              <button
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-sm"
+                onClick={() => setEmailDetail(null)}
+              >
+                Fermer
+              </button>
+            </div>
+            <div className="grid gap-3 text-sm text-white/80">
+              <div><span className="text-white/50">ID:</span> {emailDetail.id}</div>
+              <div><span className="text-white/50">User:</span> {emailDetail.user?.email ?? "—"}</div>
+              <div><span className="text-white/50">To:</span> {emailDetail.to ?? "—"}</div>
+              <div><span className="text-white/50">Type:</span> {emailDetail.type ?? "—"}</div>
+              <div><span className="text-white/50">Sujet:</span> {emailDetail.subject ?? "—"}</div>
+              <div><span className="text-white/50">Statut:</span> {emailDetail.status ?? "—"}</div>
+              <div><span className="text-white/50">Erreur:</span> {emailDetail.error ?? "—"}</div>
+              <div><span className="text-white/50">Envoyé:</span> {emailDetail.sent_at ?? "—"}</div>
+              <div><span className="text-white/50">Créé:</span> {emailDetail.created_at ?? "—"}</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

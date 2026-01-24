@@ -99,6 +99,29 @@ export type ChatRow = {
   created_at?: string;
 };
 
+export type PayoutRow = {
+  id: string;
+  user?: { email?: string };
+  amount?: number | string;
+  currency?: string;
+  status?: string;
+  provider?: string;
+  provider_ref?: string | null;
+  created_at?: string;
+};
+
+export type EmailLogRow = {
+  id: number;
+  user?: { email?: string };
+  to?: string;
+  type?: string;
+  subject?: string;
+  status?: string;
+  error?: string | null;
+  sent_at?: string;
+  created_at?: string;
+};
+
 export type Tables = {
   orders: Paginated<OrderRow>;
   payments: Paginated<PaymentRow>;
@@ -108,6 +131,8 @@ export type Tables = {
   likes: Paginated<LikeRow>;
   tournaments: Paginated<TournamentRow>;
   chat_messages: Paginated<ChatRow>;
+  payouts: Paginated<PayoutRow>;
+  email_logs: Paginated<EmailLogRow>;
 };
 
 export type Settings = {

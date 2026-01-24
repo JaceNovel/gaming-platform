@@ -53,6 +53,13 @@ class OrderController extends Controller
 
             $product = Product::findOrFail($item['product_id']);
 
+            $requiresGameId = in_array($product->type, ['recharge', 'subscription', 'topup', 'pass'], true);
+            if ($requiresGameId && empty($item['game_id'])) {
+                throw ValidationException::withMessages([
+                    'items' => "Game ID is required for {$product->name}",
+                ]);
+            }
+
             if (!$product->is_active) {
                 throw ValidationException::withMessages([
                     'items' => "Product {$product->name} is not available",

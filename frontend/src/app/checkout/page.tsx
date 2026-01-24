@@ -1,15 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import RequireAuth from "@/components/auth/RequireAuth";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 function CheckoutScreen() {
   const { authFetch } = useAuth();
@@ -17,10 +15,31 @@ function CheckoutScreen() {
   const router = useRouter();
   const productId = Number(searchParams.get("product"));
   const [quantity, setQuantity] = useState(1);
+  const [gameId, setGameId] = useState("");
+  const [productType, setProductType] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const isValidProduct = useMemo(() => Number.isFinite(productId) && productId > 0, [productId]);
+  const requiresGameId = useMemo(() => {
+    const normalized = String(productType ?? "").toLowerCase();
+    return ["recharge", "subscription", "topup", "pass"].includes(normalized);
+  }, [productType]);
+
+  useEffect(() => {
+    if (!isValidProduct) return;
+    let active = true;
+    (async () => {
+      const res = await fetch(`${API_BASE}/products/${productId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!active) return;
+      setProductType(data?.type ?? null);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [isValidProduct, productId]);
 
   const handleCreateOrder = async () => {
     setStatus(null);
@@ -30,10 +49,15 @@ function CheckoutScreen() {
     }
     setLoading(true);
     try {
+      if (requiresGameId && !gameId.trim()) {
+        setStatus("Merci de renseigner l'ID du jeu.");
+        return;
+      }
+
       const res = await authFetch(`${API_BASE}/orders`, {
         method: "POST",
         body: JSON.stringify({
-          items: [{ product_id: productId, quantity }],
+          items: [{ product_id: productId, quantity, game_id: gameId || undefined }],
         }),
       });
 
@@ -44,8 +68,32 @@ function CheckoutScreen() {
       }
 
       const data = await res.json();
-      setStatus(data.message ?? "Commande créée.");
-      setTimeout(() => router.push("/account"), 800);
+      const orderId = data?.order?.id;
+      if (!orderId) {
+        setStatus("Commande invalide.");
+        return;
+      }
+
+      const payRes = await authFetch(`${API_BASE}/payments/cinetpay/init`, {
+        method: "POST",
+        body: JSON.stringify({ order_id: orderId, payment_method: "cinetpay" }),
+      });
+
+      if (!payRes.ok) {
+        const err = await payRes.json().catch(() => ({}));
+        setStatus(err.message ?? "Impossible de démarrer le paiement.");
+        return;
+      }
+
+      const payData = await payRes.json();
+      const paymentUrl = payData?.data?.payment_url;
+
+      if (!paymentUrl) {
+        setStatus("Lien de paiement indisponible.");
+        return;
+      }
+
+      window.location.href = paymentUrl;
     } catch (error) {
       setStatus("Connexion au serveur impossible.");
     } finally {
@@ -68,6 +116,17 @@ function CheckoutScreen() {
             onChange={(e) => setQuantity(Number(e.target.value) || 1)}
             className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
           />
+          {requiresGameId && (
+            <div>
+              <label className="text-sm text-white/70">ID du jeu</label>
+              <input
+                value={gameId}
+                onChange={(e) => setGameId(e.target.value)}
+                className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
+                placeholder="Ex: 123456789"
+              />
+            </div>
+          )}
           <GlowButton onClick={handleCreateOrder} disabled={loading} className="w-full justify-center">
             {loading ? "Création..." : "Confirmer la commande"}
           </GlowButton>

@@ -2,9 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 const STORAGE_KEY = "bbshop_token";
 
 export type AuthUser = {
@@ -42,6 +40,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadUser = async (nextToken: string) => {
+    if (!API_BASE) {
+      setUser(null);
+      setToken(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/user`, {
         headers: { Authorization: `Bearer ${nextToken}` },
@@ -79,6 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const authFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    if (!API_BASE) {
+      throw new Error("API non configurée (NEXT_PUBLIC_API_URL manquant)");
+    }
     const headers = new Headers(init.headers as HeadersInit | undefined);
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
@@ -90,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const parseErrorMessage = async (res: Response) => {
-    const payload = await res.json().catch(() => ({}));
+    const payload = await res.clone().json().catch(() => null);
     if (payload?.message) {
       return payload.message;
     }
@@ -100,12 +110,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return payload.errors[firstKey][0];
       }
     }
+
+    const text = await res.text().catch(() => "");
+    if (text) {
+      return `Erreur ${res.status}`;
+    }
     return "Une erreur est survenue";
   };
 
   const login = async (email: string, password: string) => {
     let res: Response;
     try {
+      if (!API_BASE) {
+        throw new Error("API non configurée (NEXT_PUBLIC_API_URL manquant)");
+      }
       res = await fetch(`${API_BASE}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -137,6 +155,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }) => {
     let res: Response;
     try {
+      if (!API_BASE) {
+        throw new Error("API non configurée (NEXT_PUBLIC_API_URL manquant)");
+      }
       res = await fetch(`${API_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

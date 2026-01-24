@@ -23,6 +23,18 @@ class TransferController extends Controller
     {
     }
 
+    public function history(Request $request)
+    {
+        $user = $request->user();
+        $perPage = $request->integer('per_page', 10);
+
+        $payouts = Payout::where('user_id', $user->id)
+            ->latest()
+            ->paginate($perPage);
+
+        return response()->json($payouts);
+    }
+
     public function init(TransferInitRequest $request)
     {
         $user = $request->user();

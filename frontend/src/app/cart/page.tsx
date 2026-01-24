@@ -7,9 +7,7 @@ import SectionTitle from "@/components/ui/SectionTitle";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 type CartItem = {
   id: number;
@@ -18,6 +16,8 @@ type CartItem = {
   price: number;
   priceLabel?: string;
   quantity: number;
+  type?: string;
+  game_id?: string;
 };
 
 function CartScreen() {
@@ -37,6 +37,20 @@ function CartScreen() {
       }
     }
   }, []);
+  const requiresGameId = (type?: string) => {
+    const normalized = String(type ?? "").toLowerCase();
+    return ["recharge", "subscription", "topup", "pass"].includes(normalized);
+  };
+
+  const handleGameIdChange = (id: number, value: string) => {
+    setCartItems((prev) => {
+      const next = prev.map((item) => (item.id === id ? { ...item, game_id: value } : item));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("bbshop_cart", JSON.stringify(next));
+      }
+      return next;
+    });
+  };
   const subtotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cartItems],
@@ -56,7 +70,11 @@ function CartScreen() {
       const orderRes = await authFetch(`${API_BASE}/orders`, {
         method: "POST",
         body: JSON.stringify({
-          items: cartItems.map((item) => ({ product_id: item.id, quantity: item.quantity })),
+          items: cartItems.map((item) => ({
+            product_id: item.id,
+            quantity: item.quantity,
+            game_id: item.game_id,
+          })),
         }),
       });
 
@@ -124,15 +142,28 @@ function CartScreen() {
               <SectionTitle eyebrow="Articles" label="Dans ton panier" />
               <div className="space-y-4">
                 {cartItems.length ? cartItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div>
-                      <p className="text-base font-semibold text-white">{item.name}</p>
-                      <p className="text-sm text-white/60">{item.description}</p>
-                      <p className="text-xs text-white/40 mt-1">Qté: {item.quantity}</p>
+                  <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-base font-semibold text-white">{item.name}</p>
+                        <p className="text-sm text-white/60">{item.description}</p>
+                        <p className="text-xs text-white/40 mt-1">Qté: {item.quantity}</p>
+                      </div>
+                      <p className="text-base font-bold text-cyan-200">
+                        {(item.price * item.quantity).toLocaleString()} FCFA
+                      </p>
                     </div>
-                    <p className="text-base font-bold text-cyan-200">
-                      {(item.price * item.quantity).toLocaleString()} FCFA
-                    </p>
+                    {requiresGameId(item.type) && (
+                      <div className="text-sm text-white/70">
+                        <label className="text-xs text-white/60">ID jeu requis</label>
+                        <input
+                          className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
+                          value={item.game_id ?? ""}
+                          onChange={(e) => handleGameIdChange(item.id, e.target.value)}
+                          placeholder="Ex: 123456789"
+                        />
+                      </div>
+                    )}
                   </div>
                 )) : (
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">

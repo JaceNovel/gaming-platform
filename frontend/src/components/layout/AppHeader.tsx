@@ -14,9 +14,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api` : "");
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 const navItems = [
   { label: "Boutique", href: "/shop" },

@@ -2,16 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ShieldCheck,
-  Zap,
-  Bot,
-  Heart,
-  ShoppingCart,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ShieldCheck, Zap, Bot, Heart, ShoppingCart } from "lucide-react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 type Stat = { value: string; label: string };
 type ProductCard = {
+  id: number;
   title: string;
   subtitle: string;
   price: string;
@@ -20,39 +18,7 @@ type ProductCard = {
   image: string;
 };
 
-const stats: Stat[] = [
-  { value: "1,234", label: "Comptes\nvendus" },
-  { value: "567", label: "Recharges\neffectuées" },
-  { value: "2,100", label: "Membres\npremium" },
-  { value: "185", label: "Guildes\nactives" },
-];
-
-const products: ProductCard[] = [
-  {
-    title: "Compte Free Fire",
-    subtitle: "Légendaire",
-    price: "15 000 FCFA",
-    likes: 43,
-    badge: "2BR",
-    image: "/file.svg",
-  },
-  {
-    title: "Recharge 1000 diamants",
-    subtitle: "Mobile Legends",
-    price: "12 000 FCFA",
-    likes: 28,
-    badge: "SBT",
-    image: "/file.svg",
-  },
-  {
-    title: "Pack Accessoires",
-    subtitle: "Mobile",
-    price: "25 000 FCFA",
-    likes: 15,
-    badge: "BONUS",
-    image: "/file.svg",
-  },
-];
+const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
 function GlowPill({
   children,
@@ -107,7 +73,7 @@ function GlassButton({
   );
 }
 
-function StatBar() {
+function StatBar({ stats }: { stats: Stat[] }) {
   return (
     <div className="mx-auto mt-5 w-full max-w-6xl px-4">
       <div className="relative overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/15 backdrop-blur-md">
@@ -193,6 +159,64 @@ function ProductCardUI({ p }: { p: ProductCard }) {
 }
 
 export default function HomeClient() {
+  const [stats, setStats] = useState<Stat[]>([
+    { value: "—", label: "Comptes\nvendus" },
+    { value: "—", label: "Recharges\neffectuées" },
+    { value: "—", label: "Membres\npremium" },
+    { value: "—", label: "Likes\nactifs" },
+  ]);
+  const [products, setProducts] = useState<ProductCard[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const loadStats = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/stats/overview`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!active) return;
+        setStats([
+          { value: formatNumber(Number(data?.orders ?? 0)), label: "Comptes\nvendus" },
+          { value: formatNumber(Number(data?.orders ?? 0)), label: "Recharges\neffectuées" },
+          { value: formatNumber(Number(data?.premium ?? 0)), label: "Membres\npremium" },
+          { value: formatNumber(Number(data?.likes ?? 0)), label: "Likes\nactifs" },
+        ]);
+      } catch {
+        if (!active) return;
+      }
+    };
+
+    const loadProducts = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/products?active=1`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        if (!active) return;
+        const mapped = items.slice(0, 3).map((item: any) => ({
+          id: item.id,
+          title: item.name,
+          subtitle: item.game?.name ?? item.type ?? "Gaming",
+          price: `${formatNumber(Number(item.price ?? 0))} FCFA`,
+          likes: Number(item.likes_count ?? 0),
+          badge: item.type ? String(item.type).toUpperCase().slice(0, 4) : "VIP",
+          image: "/file.svg",
+        }));
+        setProducts(mapped);
+      } catch {
+        if (!active) return;
+      }
+    };
+
+    loadStats();
+    loadProducts();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const topProducts = useMemo(() => products, [products]);
+
   return (
     <main className="relative min-h-dvh bg-black text-white">
       <div
@@ -254,7 +278,7 @@ export default function HomeClient() {
           </div>
         </div>
 
-        <StatBar />
+        <StatBar stats={stats} />
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-24">
@@ -268,8 +292,8 @@ export default function HomeClient() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {products.map((p) => (
-            <ProductCardUI key={p.title} p={p} />
+          {topProducts.map((p) => (
+            <ProductCardUI key={p.id} p={p} />
           ))}
         </div>
       </section>
