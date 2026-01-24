@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "BADBOYSHOP - Gaming Platform",
-  description: "Plateforme gaming panafricaine - Comptes, recharges, tournois",
+  description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
 };
 
 export const viewport = {

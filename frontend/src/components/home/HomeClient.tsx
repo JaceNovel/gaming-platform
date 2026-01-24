@@ -229,13 +229,7 @@ export default function HomeClient() {
       className="relative min-h-[100dvh] bg-[#0d0f1f] text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
-      <div
-        className="absolute inset-0 -z-20 hidden sm:block bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "linear-gradient(180deg, rgba(13,15,31,0.85) 0%, rgba(11,11,20,0.9) 100%), url('https://as1.ftcdn.net/v2/jpg/05/55/49/54/1000_F_555495493_eENKH9YSBt11mof5hAkC77aMFpoG5BdG.jpg')",
-        }}
-      />
+      <div className="absolute inset-0 -z-20 hidden sm:block bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.18),transparent_55%),radial-gradient(circle_at_30%_10%,rgba(14,165,233,0.16),transparent_45%),linear-gradient(180deg,#0d0f1f_0%,#0b0b14_100%)]" />
 
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute left-1/2 top-[-120px] h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-fuchsia-500/20 blur-[80px]" />
@@ -245,6 +239,38 @@ export default function HomeClient() {
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
         <div className="relative overflow-hidden rounded-none border-0 bg-transparent px-4 pb-5 pt-6 shadow-none sm:rounded-[28px] sm:border sm:border-white/10 sm:bg-black/60 sm:shadow-[0_30px_120px_rgba(15,23,42,0.6)] sm:px-8 sm:pb-6 lg:px-10">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="hero-slideshow">
+              <div
+                className="hero-slide"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(180deg, rgba(10,10,20,0.65) 0%, rgba(10,10,20,0.85) 100%), url('https://wallpapercave.com/wp/wp8975622.jpg')",
+                }}
+              />
+              <div
+                className="hero-slide"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(180deg, rgba(10,10,20,0.65) 0%, rgba(10,10,20,0.85) 100%), url('https://mcdn.wallpapersafari.com/medium/19/6/LfHsD5.jpeg')",
+                }}
+              />
+              <div
+                className="hero-slide"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(180deg, rgba(10,10,20,0.65) 0%, rgba(10,10,20,0.85) 100%), url('https://bagogames-com.s3.amazonaws.com/wp-content/uploads/2022/02/25095342/call-of-duty-still-the-king-of-FPS-BG.jpg')",
+                }}
+              />
+              <div
+                className="hero-slide"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(180deg, rgba(10,10,20,0.65) 0%, rgba(10,10,20,0.85) 100%), url('https://www.bluesecure.io/app/uploads/2024/05/Capture-decran-2024-04-29-150953-min.png')",
+                }}
+              />
+            </div>
+          </div>
           <div className="relative">
             <div className="mx-auto w-full max-w-[420px] sm:hidden">
               <div className="pill-marquee">
@@ -281,21 +307,21 @@ export default function HomeClient() {
                 La plateforme gaming d’élite
               </p>
               <p className="mx-auto mt-2 max-w-[420px] text-xs leading-5 text-white/70 sm:max-w-2xl sm:text-base">
-                Recharges, comptes, tournois, GVG, transferts internationaux
+                Recharges, comptes, coaching premium et services digitaux sécurisés
               </p>
 
               <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <GlassButton
                   href="/shop"
                   tone="cyan"
-                  className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
+                  className="w-full max-w-[340px] shadow-[0_0_30px_rgba(110,231,255,0.35)] sm:w-auto sm:max-w-none"
                 >
                   Explorer la boutique
                 </GlassButton>
                 <GlassButton
                   href="/premium"
                   tone="gold"
-                  className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
+                  className="w-full max-w-[340px] shadow-[0_0_30px_rgba(244,206,106,0.35)] sm:w-auto sm:max-w-none"
                 >
                   Devenir Premium
                 </GlassButton>

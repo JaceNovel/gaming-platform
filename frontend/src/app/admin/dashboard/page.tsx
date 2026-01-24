@@ -181,9 +181,7 @@ export default function AdminDashboardPage() {
       { value: "premium_memberships", label: "Premium" },
       { value: "products", label: "Products" },
       { value: "likes", label: "Likes" },
-      { value: "tournaments", label: "Tournaments" },
       { value: "chat_messages", label: "Chat" },
-      { value: "transfers", label: "Transfers" },
       { value: "email_logs", label: "Delivery emails" },
     ];
   }, [isArticleAdmin, isClientAdmin]);

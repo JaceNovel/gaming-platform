@@ -82,14 +82,6 @@ export type LikeRow = {
   created_at?: string;
 };
 
-export type TournamentRow = {
-  id: number;
-  name?: string;
-  game?: { name?: string };
-  participants_count?: number;
-  is_active?: boolean;
-};
-
 export type ChatRow = {
   id: number;
   room?: { name?: string };
@@ -129,7 +121,6 @@ export type Tables = {
   premium_memberships: Paginated<PremiumRow>;
   products: Paginated<ProductRow>;
   likes: Paginated<LikeRow>;
-  tournaments: Paginated<TournamentRow>;
   chat_messages: Paginated<ChatRow>;
   payouts: Paginated<PayoutRow>;
   email_logs: Paginated<EmailLogRow>;

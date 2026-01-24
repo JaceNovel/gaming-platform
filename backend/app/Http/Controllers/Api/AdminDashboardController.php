@@ -11,7 +11,6 @@ use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\PremiumMembership;
 use App\Models\Product;
-use App\Models\Tournament;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -105,7 +104,6 @@ class AdminDashboardController extends Controller
         $premiumMemberships = $empty;
         $products = $empty;
         $likes = $empty;
-        $tournaments = $empty;
         $chat = $empty;
         $payouts = $empty;
         $emails = $empty;
@@ -138,11 +136,6 @@ class AdminDashboardController extends Controller
                 ->paginate($perPage);
 
             $likes = Like::with(['user', 'product'])
-                ->latest()
-                ->paginate($perPage);
-
-            $tournaments = Tournament::with('game')
-                ->withCount('participants')
                 ->latest()
                 ->paginate($perPage);
 
@@ -198,7 +191,6 @@ class AdminDashboardController extends Controller
             'premium_memberships' => $premiumMemberships,
             'products' => $products,
             'likes' => $likes,
-            'tournaments' => $tournaments,
             'chat_messages' => $chat,
             'payouts' => $payouts,
             'email_logs' => $emails,
@@ -222,9 +214,8 @@ class AdminDashboardController extends Controller
             'premium_memberships' => $this->exportPremiums($from, $to),
             'products' => $this->exportProducts(),
             'likes' => $this->exportLikes($from, $to),
-            'tournaments' => $this->exportTournaments($from, $to),
             'chat_messages' => $this->exportChat($from, $to),
-            'payouts', 'transfers' => $this->exportPayouts($from, $to),
+            'payouts' => $this->exportPayouts($from, $to),
             'email_logs' => $this->exportEmailLogs($from, $to),
             default => [[], []],
         };
@@ -480,31 +471,6 @@ class AdminDashboardController extends Controller
         return [$headers, $rows];
     }
 
-    private function exportTournaments(?Carbon $from, ?Carbon $to): array
-    {
-        $tournaments = Tournament::with(['game'])->withCount('participants')
-            ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
-            ->get();
-
-        $headers = ['id', 'name', 'game', 'prize', 'participants', 'is_active', 'start_date', 'end_date', 'created_at'];
-        $rows = $tournaments->map(function (Tournament $tournament) {
-            return [
-                $tournament->id,
-                $tournament->name,
-                optional($tournament->game)->name,
-                $tournament->prize,
-                $tournament->participants_count,
-                $tournament->is_active ? 'yes' : 'no',
-                optional($tournament->start_date)?->toDateString(),
-                optional($tournament->end_date)?->toDateString(),
-                optional($tournament->created_at)?->toDateTimeString(),
-            ];
-        })->toArray();
-
-        return [$headers, $rows];
-    }
-
     private function exportChat(?Carbon $from, ?Carbon $to): array
     {
         $messages = ChatMessage::with(['user', 'room'])
@@ -603,10 +569,8 @@ class AdminDashboardController extends Controller
                 'premium_memberships',
                 'products',
                 'likes',
-                'tournaments',
                 'chat_messages',
                 'payouts',
-                'transfers',
                 'email_logs',
             ];
         }

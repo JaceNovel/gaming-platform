@@ -146,20 +146,6 @@ export function TablesGrid({
       />
       )}
 
-      {isVisible("tournaments") && (
-      <SimpleTable
-        title="Tournaments"
-        rows={slice(tables?.tournaments)}
-        columns={[
-          { header: "ID", render: (r: any) => r.id },
-          { header: "Nom", render: (r: any) => r.name ?? "—" },
-          { header: "Jeu", render: (r: any) => r.game?.name ?? "—" },
-          { header: "Participants", render: (r: any) => r.participants_count ?? "—" },
-          { header: "Actif", render: (r: any) => (r.is_active ? "Oui" : "Non") },
-        ]}
-      />
-      )}
-
       {isVisible("chat_messages") && (
       <SimpleTable
         title="Chat moderation"
@@ -203,7 +189,7 @@ export function TablesGrid({
 
       {isVisible("payouts") && (
         <SimpleTable
-          title="Transfers"
+          title="Payouts"
           rows={slice(tables?.payouts)}
           columns={[
             { header: "ID", render: (r: any) => r.id },

@@ -31,11 +31,50 @@ const categories = [
   "Fête",
 ];
 
+const exampleProducts: ShopProduct[] = [
+  {
+    id: 9001,
+    name: "Compte Free Fire Légendaire",
+    description: "Skin rare + diamant bonus",
+    priceLabel: "12 000 FCFA",
+    priceValue: 12000,
+    oldPrice: 18000,
+    discountPercent: 33,
+    likes: 42,
+    category: "Comptes",
+    type: "account",
+  },
+  {
+    id: 9002,
+    name: "Recharge 1000 diamants",
+    description: "Livraison instantanée",
+    priceLabel: "4 000 FCFA",
+    priceValue: 4000,
+    oldPrice: 5200,
+    discountPercent: 23,
+    likes: 28,
+    category: "Recharges",
+    type: "recharge",
+  },
+  {
+    id: 9003,
+    name: "Pack accessoires gaming",
+    description: "Contrôleur + bonus",
+    priceLabel: "7 000 FCFA",
+    priceValue: 7000,
+    oldPrice: 9800,
+    discountPercent: 29,
+    likes: 19,
+    category: "Accessoires",
+    type: "accessory",
+  },
+];
+
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
 function CategoryChips({ value, onChange }: { value: string; onChange: (c: string) => void }) {
   return (
-    <div className="sticky top-[96px] z-30 bg-black/60 backdrop-blur-md sm:top-[110px]">
+    <div className="sticky top-[96px] z-30 mt-3 bg-black/60 backdrop-blur-md sm:top-[110px]">
       <div className="mobile-shell flex gap-2 overflow-x-auto py-3 scrollbar-soft">
         {["Tous", ...categories].map((cat) => {
           const active = value === cat;
@@ -180,15 +219,17 @@ export default function ShopPage() {
     router.push(`/checkout?product=${id}`);
   };
 
+  const catalog = products.length ? products : exampleProducts;
+
   const filtered = useMemo(() => {
-    return products.filter((product) => {
+    return catalog.filter((product) => {
       const matchesQuery = query
         ? product.name.toLowerCase().includes(query.toLowerCase())
         : true;
       const matchesCategory = category === "Tous" || product.category === category;
       return matchesQuery && matchesCategory;
     });
-  }, [products, query, category]);
+  }, [catalog, query, category]);
 
   const groupedDeals = filtered.slice(0, 6);
   const dailyDeals = filtered.slice(0, 8);
@@ -203,7 +244,7 @@ export default function ShopPage() {
   return (
     <main className="min-h-[100dvh] bg-black text-white">
       <header className="sticky top-0 z-40 bg-black/70 backdrop-blur-lg">
-        <div className="mobile-shell flex items-center justify-between py-3">
+        <div className="mobile-shell hidden items-center justify-between py-3 sm:flex">
           <Link href="/" className="text-lg font-black tracking-tight">
             BADBOY<span className="text-white/70">SHOP</span>
           </Link>

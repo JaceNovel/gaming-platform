@@ -68,7 +68,7 @@ export default function RegisterClient() {
           <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">BADBOYSHOP</p>
           <h1 className="text-4xl font-black mt-3">Crée ton compte premium.</h1>
           <p className="text-sm text-white/60 mt-4 max-w-md">
-            Accès VIP, cashback, recharges rapides et tournois exclusifs. Rejoins la communauté.
+            Accès VIP, cashback, recharges rapides et services partenaires exclusifs. Rejoins la communauté.
           </p>
         </div>
         <div className="gameplay-reel">

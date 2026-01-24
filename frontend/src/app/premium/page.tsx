@@ -53,7 +53,7 @@ const comparison = [
   { feature: "Cashback BD Wallet", bronze: "1%", gold: "3%", platinum: "5%" },
   { feature: "Support prioritaire", bronze: "Email", gold: "WhatsApp", platinum: "WhatsApp 24/7" },
   { feature: "Réductions boutique", bronze: "-2%", gold: "-8%", platinum: "-12%" },
-  { feature: "Accès tournois", bronze: "Standard", gold: "VIP", platinum: "Elite" },
+  { feature: "Conciergerie évènementielle", bronze: "Basique", gold: "Prioritaire", platinum: "Élite" },
 ];
 
 const faqs = [

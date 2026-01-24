@@ -14,9 +14,7 @@ use App\Http\Controllers\Api\PremiumController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\SupportTicketController;
-use App\Http\Controllers\Api\TransferController;
 use App\Http\Controllers\Api\WalletController;
-use App\Http\Controllers\Api\TournamentController;
 use App\Http\Controllers\Api\LikeController;
 use App\Http\Controllers\Api\PublicStatsController;
 use App\Http\Controllers\Api\CartController;
@@ -51,14 +49,12 @@ Route::get('categories', function () {
         'data' => ['RECHARGES', 'COMPTES', 'PREMIER_ARRIVE', 'ACCESSOIRES', 'OFFRES', 'BUREAUTIQUE', 'FETE'],
     ]);
 });
-Route::apiResource('tournaments', TournamentController::class)->only(['index', 'show']);
 Route::get('/stats/overview', [PublicStatsController::class, 'overview']);
 Route::get('/likes/stats', [LikeController::class, 'stats']);
 
 // Webhooks (no auth required)
 Route::post('/payments/cinetpay/webhook', [PaymentController::class, 'webhookCinetpay'])->name('api.payments.cinetpay.webhook');
 Route::post('/wallet/topup/webhook', [WalletController::class, 'webhookTopup'])->name('api.wallet.topup.webhook');
-Route::post('/transfers/cinetpay/webhook', [TransferController::class, 'webhook'])->name('api.transfers.cinetpay.webhook');
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -99,10 +95,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Profile
     Route::get('/me', [UserProfileController::class, 'show']);
     Route::patch('/me', [UserProfileController::class, 'update']);
-
-    // Transfers
-    Route::post('/transfers/init', [TransferController::class, 'init'])->middleware('throttle:5,1');
-    Route::get('/transfers/history', [TransferController::class, 'history']);
 
     // Reviews
     Route::get('/reviews', [ReviewController::class, 'index']);

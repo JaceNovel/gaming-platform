@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, ShoppingBag, Crown, User, ArrowRightLeft, Trophy, Swords } from "lucide-react";
+import { Home, ShoppingBag, Crown, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -8,9 +8,6 @@ const navigation = [
   { name: "Accueil", href: "/", icon: Home },
   { name: "Boutique", href: "/shop", icon: ShoppingBag },
   { name: "Premium", href: "/premium", icon: Crown },
-  { name: "Tournois", href: "/tournaments", icon: Trophy },
-  { name: "GVG", href: "/gvg", icon: Swords },
-  { name: "Transferts", href: "/transfers", icon: ArrowRightLeft },
   { name: "Profil", href: "/account", icon: User },
 ];
 

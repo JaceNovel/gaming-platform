@@ -21,14 +21,8 @@ export default function DesktopHeader() {
             <Link className="px-2 py-2 rounded-lg hover:text-white transition" href="/shop">
               Boutique
             </Link>
-            <Link className="px-2 py-2 rounded-lg hover:text-white transition" href="/tournaments">
-              Tournois
-            </Link>
             <Link className="px-2 py-2 rounded-lg hover:text-white transition" href="/premium">
               Premium
-            </Link>
-            <Link className="px-2 py-2 rounded-lg hover:text-white transition" href="/transfers">
-              BADBOYTrans
             </Link>
           </nav>
 

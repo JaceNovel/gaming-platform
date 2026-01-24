@@ -43,7 +43,7 @@ export default function LoginClient() {
           <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">BADBOYSHOP</p>
           <h1 className="text-4xl font-black mt-3">Connecte-toi au gaming premium.</h1>
           <p className="text-sm text-white/60 mt-4 max-w-md">
-            Achats instantanés, transferts internationaux et tournois exclusifs. Vitesse mobile, confort desktop.
+            Achats instantanés, recharges internationales et services premium. Vitesse mobile, confort desktop.
           </p>
         </div>
         <div className="gameplay-reel">

@@ -18,9 +18,6 @@ import { API_BASE } from "@/lib/config";
 const navItems = [
   { label: "Boutique", href: "/shop" },
   { label: "Premium", href: "/premium" },
-  { label: "Tournois", href: "/tournaments" },
-  { label: "GVG", href: "/gvg" },
-  { label: "BADBOYTrans", href: "/transfers" },
 ];
 
 export default function AppHeader() {
@@ -374,6 +371,19 @@ export default function AppHeader() {
               {unreadBadge ? (
                 <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                   {unreadBadge}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
+              aria-label="Support"
+              onClick={handleToggleSupport}
+            >
+              <Mail className="h-4 w-4 text-white/80" />
+              {supportBadge ? (
+                <span className="absolute -right-1 -top-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-semibold text-black">
+                  {supportBadge}
                 </span>
               ) : null}
             </button>

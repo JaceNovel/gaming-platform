@@ -105,11 +105,6 @@ class User extends Authenticatable
         return $this->hasMany(Referral::class, 'referred_id');
     }
 
-    public function tournamentParticipants(): HasMany
-    {
-        return $this->hasMany(TournamentParticipant::class);
-    }
-
     public function chatMessages(): HasMany
     {
         return $this->hasMany(ChatMessage::class);

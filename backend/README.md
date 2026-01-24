@@ -54,8 +54,6 @@ Si usage de cookies/Sanctum:
 - `POST /api/orders`
 - `GET /api/wallet`
 - `POST /api/wallet/topup/init`
-- `POST /api/transfers/init`
-- `GET /api/transfers/history`
 
 ## Health check
 
