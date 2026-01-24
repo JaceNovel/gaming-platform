@@ -24,7 +24,7 @@ export function ProductManager({ products, onRefresh }: Props) {
   const [status, setStatus] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  const authHeaders = useMemo(() => {
+  const authHeaders = useMemo((): Record<string, string> => {
     if (typeof window === "undefined") return {};
     const token = localStorage.getItem("bbshop_token");
     return token ? { Authorization: `Bearer ${token}` } : {};
