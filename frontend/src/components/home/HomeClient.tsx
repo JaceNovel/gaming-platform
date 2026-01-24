@@ -229,18 +229,27 @@ export default function HomeClient() {
       className="relative min-h-dvh bg-black text-white pb-[calc(64px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}
     >
-      <div
-        className="absolute inset-0 -z-20 bg-center bg-cover"
-        style={{ backgroundImage: "url('/badboyshop-home.png')" }}
-      >
-        <Image
-          src="/badboyshop-home.png"
-          alt="BADBOYSHOP background"
-          fill
-          className="object-cover object-center"
-          priority
-          sizes="100vw"
-        />
+      <div className="absolute inset-0 -z-20">
+        <div className="absolute inset-0 sm:hidden">
+          <Image
+            src="/banner_mobile_1080x1920.png"
+            alt="BADBOYSHOP background mobile"
+            fill
+            className="object-cover object-center"
+            priority
+            sizes="100vw"
+          />
+        </div>
+        <div className="absolute inset-0 hidden sm:block">
+          <Image
+            src="/badboyshop-home.png"
+            alt="BADBOYSHOP background"
+            fill
+            className="object-cover object-center"
+            priority
+            sizes="100vw"
+          />
+        </div>
         <div className="absolute inset-0 bg-black/25" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-black/60" />
       </div>
@@ -253,32 +262,6 @@ export default function HomeClient() {
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
         <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/60 px-4 pb-5 pt-6 shadow-[0_30px_120px_rgba(15,23,42,0.6)] sm:px-8 sm:pb-6 lg:px-10">
-          <div className="pointer-events-none absolute inset-0 sm:hidden">
-            <Image
-              src="/banner_mobile_1080x1920.png"
-              alt="BADBOYSHOP banner mobile"
-              fill
-              className="object-cover object-center"
-              priority
-              sizes="100vw"
-            />
-            <div className="absolute inset-0 bg-black/45" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/40 to-black/75" />
-          </div>
-
-          <div className="pointer-events-none absolute inset-0 hidden sm:block">
-            <Image
-              src="/badboyshop-home.png"
-              alt="BADBOYSHOP banner"
-              fill
-              className="object-cover object-center"
-              priority
-              sizes="(min-width: 1024px) 1000px, 100vw"
-            />
-            <div className="absolute inset-0 bg-black/35" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-black/45 to-black/70" />
-          </div>
-
           <div className="relative">
             <div className="mx-auto w-full max-w-[420px] sm:hidden">
               <div className="pill-marquee">
