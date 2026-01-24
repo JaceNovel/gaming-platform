@@ -13,8 +13,7 @@ import {
   Swords,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { API_BASE } from "@/lib/config";
 
 const navItems = [
   { label: "Boutique", href: "/shop" },

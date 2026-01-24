@@ -5,8 +5,7 @@ import Link from "next/link";
 import { Download, RefreshCw } from "lucide-react";
 import { TablesGrid } from "@/components/admin/TablesGrid";
 import { Tables } from "@/components/admin/types";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { API_BASE } from "@/lib/config";
 
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};

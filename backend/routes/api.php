@@ -25,6 +25,15 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+Route::get('/health', function () {
+    return response()->json([
+        'ok' => true,
+        'app' => 'BADBOYSHOP',
+        'env' => app()->environment(),
+        'time' => now()->toIso8601String(),
+    ]);
+});
+
 // Auth routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);

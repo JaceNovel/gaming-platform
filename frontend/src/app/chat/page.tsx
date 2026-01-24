@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/components/auth/AuthProvider";
 import RequireAuth from "@/components/auth/RequireAuth";
+import { API_BASE } from "@/lib/config";
 import {
   Bell,
   Crown,
@@ -55,8 +56,6 @@ type Paginated<T> = {
   current_page: number;
   next_page_url: string | null;
 };
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 const mentionClass = "text-amber-300 font-semibold";
 

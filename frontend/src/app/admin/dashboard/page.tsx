@@ -9,8 +9,7 @@ import { TablesGrid } from "@/components/admin/TablesGrid";
 import { SettingsPanel } from "@/components/admin/SettingsPanel";
 import { ProductManager } from "@/components/admin/ProductManager";
 import { Charts, Settings, Summary, Tables } from "@/components/admin/types";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { API_BASE } from "@/lib/config";
 
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};

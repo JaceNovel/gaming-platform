@@ -4,8 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ShieldCheck, Zap, Bot, Heart, ShoppingCart } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { API_BASE } from "@/lib/config";
 
 type Stat = { value: string; label: string };
 type ProductCard = {

@@ -7,8 +7,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import ProfileHeader from "@/components/profile/ProfileHeader";
 import ProfileSidebar from "@/components/profile/ProfileSidebar";
 import AvatarPickerModal from "@/components/profile/AvatarPickerModal";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { API_BASE } from "@/lib/config";
 
 type Me = {
   username: string;

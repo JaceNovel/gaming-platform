@@ -7,8 +7,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import SectionTitle from "@/components/ui/SectionTitle";
 import ProductCard from "@/components/ui/ProductCard";
 import GlowButton from "@/components/ui/GlowButton";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { API_BASE } from "@/lib/config";
 
 type ShopProduct = {
   id: number;

@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ProductRow } from "./types";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { API_BASE } from "@/lib/config";
 
 type Game = { id: number; name: string };
 

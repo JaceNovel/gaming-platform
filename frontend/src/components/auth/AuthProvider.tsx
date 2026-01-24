@@ -1,9 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { API_BASE } from "@/lib/config";
 const STORAGE_KEY = "bbshop_token";
+const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
 
 export type AuthUser = {
   id: number;
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadUser = async (nextToken: string) => {
-    if (!API_BASE) {
+    if (!HAS_API_ENV) {
       setUser(null);
       setToken(null);
       if (typeof window !== "undefined") {
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const authFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
-    if (!API_BASE) {
+    if (!HAS_API_ENV) {
       throw new Error("API non configurée (NEXT_PUBLIC_API_URL manquant)");
     }
     const headers = new Headers(init.headers as HeadersInit | undefined);
@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     let res: Response;
     try {
-      if (!API_BASE) {
+      if (!HAS_API_ENV) {
         throw new Error("API non configurée (NEXT_PUBLIC_API_URL manquant)");
       }
       res = await fetch(`${API_BASE}/login`, {
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }) => {
     let res: Response;
     try {
-      if (!API_BASE) {
+      if (!HAS_API_ENV) {
         throw new Error("API non configurée (NEXT_PUBLIC_API_URL manquant)");
       }
       res = await fetch(`${API_BASE}/register`, {

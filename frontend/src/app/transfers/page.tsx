@@ -5,8 +5,7 @@ import { Eye, EyeOff, Share2 } from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { useAuth } from "@/components/auth/AuthProvider";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { API_BASE } from "@/lib/config";
 
 export default function TransfersPage() {
   const { authFetch } = useAuth();
