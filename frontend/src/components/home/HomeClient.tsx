@@ -226,7 +226,7 @@ export default function HomeClient() {
 
   return (
     <main
-      className="relative min-h-dvh bg-black text-white pb-[calc(64px+env(safe-area-inset-bottom))]"
+      className="relative min-h-dvh bg-black text-white sm:bg-transparent pb-[calc(64px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}
     >
       <div className="absolute inset-0 -z-20">
