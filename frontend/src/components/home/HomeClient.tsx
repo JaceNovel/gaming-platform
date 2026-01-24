@@ -19,6 +19,12 @@ type ProductCard = {
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
+const heroPills = [
+  { icon: ShieldCheck, label: "Sécurité sécurisée" },
+  { icon: Zap, label: "Livraison instantanée" },
+  { icon: Bot, label: "Anti-fraude actif" },
+];
+
 function GlowPill({
   children,
   tone = "cyan",
@@ -220,8 +226,8 @@ export default function HomeClient() {
 
   return (
     <main
-      className="relative min-h-dvh bg-black text-white pb-[calc(96px+env(safe-area-inset-bottom))]"
-      style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}
+      className="relative min-h-dvh bg-black text-white pb-[calc(64px+env(safe-area-inset-bottom))]"
+      style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}
     >
       <div
         className="absolute inset-0 -z-20 bg-center bg-cover"
@@ -246,19 +252,30 @@ export default function HomeClient() {
       </div>
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
-        <div className="mx-auto flex max-w-[420px] flex-wrap items-center justify-center gap-2 text-center sm:max-w-xl">
-          <GlowPill>
-            <ShieldCheck className="h-4 w-4 text-cyan-300" />
-            Sécurité sécurisée
-          </GlowPill>
-          <GlowPill>
-            <Zap className="h-4 w-4 text-cyan-300" />
-            Livraison instantanée
-          </GlowPill>
-          <GlowPill>
-            <Bot className="h-4 w-4 text-cyan-300" />
-            Anti-fraude actif
-          </GlowPill>
+        <div className="mx-auto w-full max-w-[420px] sm:hidden">
+          <div className="pill-marquee">
+            <div className="pill-marquee-track">
+              {[0, 1].map((loop) => (
+                <div key={loop} className="pill-marquee-group">
+                  {heroPills.map((pill) => (
+                    <GlowPill key={`${loop}-${pill.label}`}>
+                      <pill.icon className="h-4 w-4 text-cyan-300" />
+                      {pill.label}
+                    </GlowPill>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-auto hidden max-w-xl flex-wrap items-center justify-center gap-2 text-center sm:flex">
+          {heroPills.map((pill) => (
+            <GlowPill key={pill.label}>
+              <pill.icon className="h-4 w-4 text-cyan-300" />
+              {pill.label}
+            </GlowPill>
+          ))}
         </div>
 
         <div className="mt-5 text-center">

@@ -13,13 +13,25 @@ class AdminProductController extends Controller
         $data = $request->validate([
             'game_id' => 'required|exists:games,id',
             'name' => 'required|string|max:255',
+            'title' => 'nullable|string|max:255',
+            'slug' => 'nullable|string|max:255',
             'type' => 'required|string|in:account,recharge,item',
+            'category' => 'nullable|string|max:32',
             'price' => 'required|numeric|min:0',
             'discount_price' => 'nullable|numeric|min:0',
+            'old_price' => 'nullable|numeric|min:0',
+            'deal_type' => 'nullable|string|max:16',
+            'stock_type' => 'nullable|string|max:16',
+            'delivery_eta_days' => 'nullable|integer|min:1',
             'stock' => 'required|integer|min:0',
             'is_active' => 'sometimes|boolean',
             'details' => 'nullable|array',
+            'description' => 'nullable|string',
         ]);
+
+        $data['sku'] = $data['sku'] ?? $this->generateSku();
+        $data['title'] = $data['title'] ?? $data['name'];
+        $data['slug'] = $data['slug'] ?? str($data['title'])->slug()->value();
 
         $product = Product::create($data);
 
@@ -31,12 +43,20 @@ class AdminProductController extends Controller
         $data = $request->validate([
             'game_id' => 'sometimes|exists:games,id',
             'name' => 'sometimes|string|max:255',
+            'title' => 'sometimes|string|max:255',
+            'slug' => 'sometimes|string|max:255',
             'type' => 'sometimes|string|in:account,recharge,item',
+            'category' => 'nullable|string|max:32',
             'price' => 'sometimes|numeric|min:0',
             'discount_price' => 'nullable|numeric|min:0',
+            'old_price' => 'nullable|numeric|min:0',
+            'deal_type' => 'nullable|string|max:16',
+            'stock_type' => 'nullable|string|max:16',
+            'delivery_eta_days' => 'nullable|integer|min:1',
             'stock' => 'sometimes|integer|min:0',
             'is_active' => 'sometimes|boolean',
             'details' => 'nullable|array',
+            'description' => 'nullable|string',
         ]);
 
         $product->update($data);
@@ -49,5 +69,11 @@ class AdminProductController extends Controller
         $product->delete();
 
         return response()->json(['message' => 'Product deleted']);
+    }
+
+    private function generateSku(): string
+    {
+        $next = Product::count() + 1;
+        return sprintf('BBS-%06d', $next);
     }
 }

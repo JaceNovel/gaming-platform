@@ -138,6 +138,42 @@ html {
   border-radius: 999px;
 }
 
+.pill-marquee {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 32px;
+}
+
+.pill-marquee-track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  animation: pillMarquee 16s linear infinite;
+}
+
+.pill-marquee-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+@keyframes pillMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pill-marquee-track {
+    animation: none;
+  }
+}
+
 .hero-slideshow {
   position: absolute;
   inset: 0;

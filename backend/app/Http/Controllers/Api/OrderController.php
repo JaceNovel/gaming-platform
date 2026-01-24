@@ -104,6 +104,9 @@ class OrderController extends Controller
                     'game_user_id' => $item['game_id'],
                     'delivery_status' => 'pending',
                 ]);
+
+                Product::where('id', $item['product_id'])->increment('purchases_count');
+                Product::where('id', $item['product_id'])->increment('sold_count', $item['quantity']);
             }
 
             return $order;

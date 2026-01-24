@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AdminDashboardController;
 use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminSettingsController;
+use App\Http\Controllers\Api\AdminOrderController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\GameController;
@@ -18,6 +19,8 @@ use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\TournamentController;
 use App\Http\Controllers\Api\LikeController;
 use App\Http\Controllers\Api\PublicStatsController;
+use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\ReviewController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
@@ -41,7 +44,13 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanc
 
 // Public listing routes
 Route::apiResource('games', GameController::class)->only(['index', 'show']);
-Route::apiResource('products', ProductController::class)->only(['index', 'show']);
+Route::get('products/{product}', [ProductController::class, 'show']);
+Route::get('products', [ProductController::class, 'index']);
+Route::get('categories', function () {
+    return response()->json([
+        'data' => ['RECHARGES', 'COMPTES', 'PREMIER_ARRIVE', 'ACCESSOIRES', 'OFFRES', 'BUREAUTIQUE', 'FETE'],
+    ]);
+});
 Route::apiResource('tournaments', TournamentController::class)->only(['index', 'show']);
 Route::get('/stats/overview', [PublicStatsController::class, 'overview']);
 Route::get('/likes/stats', [LikeController::class, 'stats']);
@@ -60,6 +69,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Orders
     Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'store']);
+
+    // Cart
+    Route::get('/cart', [CartController::class, 'index']);
+    Route::post('/cart/add', [CartController::class, 'add']);
 
     // Payments
     Route::post('/payments/cinetpay/init', [PaymentController::class, 'initCinetpay']);
@@ -91,6 +104,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/transfers/init', [TransferController::class, 'init'])->middleware('throttle:5,1');
     Route::get('/transfers/history', [TransferController::class, 'history']);
 
+    // Reviews
+    Route::get('/reviews', [ReviewController::class, 'index']);
+    Route::post('/reviews', [ReviewController::class, 'store']);
+
     // Support tickets
     Route::get('/support/inbox', [SupportTicketController::class, 'inbox']);
     Route::post('/support/inbox/read-all', [SupportTicketController::class, 'markAllRead']);
@@ -112,6 +129,10 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
         Route::get('/settings', [AdminSettingsController::class, 'show']);
         Route::post('/settings', [AdminSettingsController::class, 'update']);
         Route::post('/settings/logo', [AdminSettingsController::class, 'uploadLogo']);
+
+        // Orders
+        Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']);
+        Route::post('/orders/{order}/delivery-note-pdf', [AdminOrderController::class, 'deliveryNotePdf']);
 
         // Chat moderation
         Route::post('/chat/rooms/{room}/mute', [ChatController::class, 'muteUser']);

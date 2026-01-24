@@ -11,7 +11,7 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::query()->with('game')->withCount('likes');
+        $query = Product::query()->with(['game', 'images'])->withCount('likes');
 
         if ($request->boolean('active', true)) {
             $query->where('is_active', true);
@@ -25,8 +25,20 @@ class ProductController extends Controller
             $query->where('type', $type);
         }
 
+        if ($category = $request->input('category')) {
+            $query->where('category', $category);
+        }
+
+        if ($dealType = $request->input('dealType')) {
+            $query->where('deal_type', $dealType);
+        }
+
         if ($search = $request->input('q')) {
-            $query->where('name', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('title', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%");
+            });
         }
 
         $products = $query->orderByDesc('created_at')->paginate(20);
@@ -34,10 +46,14 @@ class ProductController extends Controller
         return response()->json($products);
     }
 
-    public function show(Product $product)
+    public function show(string $product)
     {
-        $product->load('game')->loadCount('likes');
-        return response()->json($product);
+        $item = Product::with(['game', 'images'])->withCount('likes')
+            ->where('id', $product)
+            ->orWhere('slug', $product)
+            ->firstOrFail();
+
+        return response()->json($item);
     }
 
     public function like(Request $request, Product $product)

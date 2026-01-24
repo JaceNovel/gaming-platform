@@ -18,6 +18,11 @@ export const metadata: Metadata = {
   description: "Plateforme gaming panafricaine - Comptes, recharges, tournois",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 import BottomNavigation from "@/components/BottomNavigation";
 import AppHeader from "@/components/layout/AppHeader";
 
@@ -30,7 +35,7 @@ export default function RootLayout({
     <html lang="fr" className="dark" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900 text-white min-h-screen pb-20`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900 text-white min-h-screen pb-[calc(64px+env(safe-area-inset-bottom))]`}
       >
         <AuthProvider>
           <AppHeader />
