@@ -1,28 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ShoppingCart } from "lucide-react";
-import { useAuth } from "@/components/auth/AuthProvider";
-import SectionTitle from "@/components/ui/SectionTitle";
-import ProductCard from "@/components/ui/ProductCard";
-import GlowButton from "@/components/ui/GlowButton";
-import { API_BASE } from "@/lib/config";
-
-"use client";
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import {
-  Bell,
-  Camera,
-  Search,
-  ShoppingCart,
-  Sparkles,
-  Tag,
-} from "lucide-react";
+import { Bell, Camera, Search, ShoppingCart, Sparkles, Tag } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
@@ -402,17 +383,3 @@ export default function ShopPage() {
     </main>
   );
 }
-                <div className="flex gap-3">
-                  <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => setShowFilter(false)}>
-                    Annuler
-                  </GlowButton>
-                  <GlowButton className="flex-1 justify-center" onClick={() => setShowFilter(false)}>
-                    Appliquer
-                  </GlowButton>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
