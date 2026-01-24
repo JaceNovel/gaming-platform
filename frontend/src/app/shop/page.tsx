@@ -267,17 +267,15 @@ export default function ShopPage() {
             <span className="text-xs text-white/60">3+ dès 5 000 FCFA</span>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft">
-            {(loading ? Array.from({ length: 4 }) : groupedDeals).map((product, idx) =>
-              loading ? (
-                <div key={idx} className="min-w-[180px] rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="h-4 w-16 rounded-full bg-white/10" />
-                  <div className="mt-3 h-24 rounded-xl bg-white/10" />
-                  <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
-                </div>
-              ) : (
-                <DealCard key={product.id} product={product} />
-              )
-            )}
+            {loading
+              ? Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="min-w-[180px] rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="h-4 w-16 rounded-full bg-white/10" />
+                    <div className="mt-3 h-24 rounded-xl bg-white/10" />
+                    <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
+                  </div>
+                ))
+              : groupedDeals.map((product) => <DealCard key={product.id} product={product} />)}
           </div>
         </div>
 
@@ -287,34 +285,34 @@ export default function ShopPage() {
             <Link href="/shop" className="text-xs text-white/60">Voir tout</Link>
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {(loading ? Array.from({ length: 4 }) : dailyDeals).map((product, idx) =>
-              loading ? (
-                <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                  <div className="h-20 rounded-xl bg-white/10" />
-                  <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
-                  <div className="mt-2 h-3 w-1/2 rounded-full bg-white/10" />
-                </div>
-              ) : (
-                <div key={product.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                  <div className="h-20 rounded-xl bg-white/10" />
-                  <div className="mt-2 text-xs font-semibold text-white line-clamp-2">{product.name}</div>
-                  <div className="mt-1 text-xs text-white/60 line-clamp-1">{product.description}</div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-sm font-bold text-cyan-200">{product.priceLabel}</span>
-                    {product.oldPrice && (
-                      <span className="text-[10px] text-white/40 line-through">
-                        {formatNumber(product.oldPrice)}
-                      </span>
-                    )}
-                    {product.discountPercent && (
-                      <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] text-amber-200">
-                        -{product.discountPercent}%
-                      </span>
-                    )}
+            {loading
+              ? Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <div className="h-20 rounded-xl bg-white/10" />
+                    <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
+                    <div className="mt-2 h-3 w-1/2 rounded-full bg-white/10" />
                   </div>
-                </div>
-              )
-            )}
+                ))
+              : dailyDeals.map((product) => (
+                  <div key={product.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <div className="h-20 rounded-xl bg-white/10" />
+                    <div className="mt-2 text-xs font-semibold text-white line-clamp-2">{product.name}</div>
+                    <div className="mt-1 text-xs text-white/60 line-clamp-1">{product.description}</div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-sm font-bold text-cyan-200">{product.priceLabel}</span>
+                      {product.oldPrice && (
+                        <span className="text-[10px] text-white/40 line-through">
+                          {formatNumber(product.oldPrice)}
+                        </span>
+                      )}
+                      {product.discountPercent && (
+                        <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] text-amber-200">
+                          -{product.discountPercent}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
           </div>
         </div>
 
@@ -324,39 +322,39 @@ export default function ShopPage() {
             <span className="text-xs text-white/60">Scroll infini bientôt</span>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {(loading ? Array.from({ length: 6 }) : forYou).map((product, idx) =>
-              loading ? (
-                <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="h-24 rounded-xl bg-white/10" />
-                  <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
-                </div>
-              ) : (
-                <div key={product.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="h-24 rounded-xl bg-white/10" />
-                  <div className="mt-3 text-sm font-semibold text-white line-clamp-2">{product.name}</div>
-                  <div className="mt-1 text-xs text-white/60 line-clamp-2">{product.description}</div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-bold text-cyan-200">{product.priceLabel}</div>
-                      {product.oldPrice && (
-                        <div className="text-[10px] text-white/40 line-through">
-                          {formatNumber(product.oldPrice)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs text-white"
-                      >
-                        Panier
-                      </button>
-                      <GlowButton onClick={() => handleBuy(product.id)}>Acheter</GlowButton>
+            {loading
+              ? Array.from({ length: 6 }).map((_, idx) => (
+                  <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="h-24 rounded-xl bg-white/10" />
+                    <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
+                  </div>
+                ))
+              : forYou.map((product) => (
+                  <div key={product.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="h-24 rounded-xl bg-white/10" />
+                    <div className="mt-3 text-sm font-semibold text-white line-clamp-2">{product.name}</div>
+                    <div className="mt-1 text-xs text-white/60 line-clamp-2">{product.description}</div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-bold text-cyan-200">{product.priceLabel}</div>
+                        {product.oldPrice && (
+                          <div className="text-[10px] text-white/40 line-through">
+                            {formatNumber(product.oldPrice)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAddToCart(product)}
+                          className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs text-white"
+                        >
+                          Panier
+                        </button>
+                        <GlowButton onClick={() => handleBuy(product.id)}>Acheter</GlowButton>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            )}
+                ))}
           </div>
         </div>
       </section>
