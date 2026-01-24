@@ -138,18 +138,21 @@ function FilterSheet({
   const chips = [{ slug: "all", name: "Tous" }, ...options.map((opt) => ({ slug: opt.slug, name: opt.name }))];
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/70 backdrop-blur-[2px]">
-      <button className="flex-1 w-full" onClick={onClose} aria-label="Fermer les filtres" />
-      <div className="rounded-t-3xl border border-white/10 bg-slate-950/90 p-5 shadow-[0_-20px_60px_rgba(0,0,0,0.45)]">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">Filtrer</p>
-            <h3 className="text-xl font-bold text-white">Catégories</h3>
-          </div>
-          <button onClick={onClose} className="text-sm text-white/60 hover:text-white">
-            Fermer
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-[2px] px-4">
+      <button
+        className="absolute inset-0"
+        onClick={onClose}
+        aria-label="Fermer les filtres"
+      />
+      <div className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-slate-950/95 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 text-xs font-semibold uppercase tracking-[0.3em] text-white/50 hover:text-white"
+        >
+          Fermer
+        </button>
+        <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">Filtrer</p>
+        <h3 className="text-xl font-bold text-white">Catégories</h3>
         <div className="mt-4 flex flex-wrap gap-2">
           {chips.map((chip) => {
             const active = value === chip.slug;
