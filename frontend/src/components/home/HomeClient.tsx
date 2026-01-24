@@ -230,16 +230,6 @@ export default function HomeClient() {
       style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}
     >
       <div className="absolute inset-0 -z-20">
-        <div className="absolute inset-0 sm:hidden">
-          <Image
-            src="/banner_mobile_1080x1920.png"
-            alt="BADBOYSHOP background mobile"
-            fill
-            className="object-cover object-center"
-            priority
-            sizes="100vw"
-          />
-        </div>
         <div className="absolute inset-0 hidden sm:block">
           <Image
             src="/badboyshop-home.png"
@@ -249,9 +239,9 @@ export default function HomeClient() {
             priority
             sizes="100vw"
           />
+          <div className="absolute inset-0 bg-black/25" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-black/60" />
         </div>
-        <div className="absolute inset-0 bg-black/25" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-black/60" />
       </div>
 
       <div className="pointer-events-none absolute inset-0 -z-10">
