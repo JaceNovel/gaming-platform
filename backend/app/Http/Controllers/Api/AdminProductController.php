@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
 
@@ -17,6 +18,7 @@ class AdminProductController extends Controller
             'slug' => 'nullable|string|max:255',
             'type' => 'required|string|in:account,recharge,item',
             'category' => 'nullable|string|max:32',
+            'category_id' => 'nullable|exists:categories,id',
             'price' => 'required|numeric|min:0',
             'discount_price' => 'nullable|numeric|min:0',
             'old_price' => 'nullable|numeric|min:0',
@@ -32,6 +34,7 @@ class AdminProductController extends Controller
         $data['sku'] = $data['sku'] ?? $this->generateSku();
         $data['title'] = $data['title'] ?? $data['name'];
         $data['slug'] = $data['slug'] ?? str($data['title'])->slug()->value();
+        $this->syncCategoryName($data);
 
         $product = Product::create($data);
 
@@ -47,6 +50,7 @@ class AdminProductController extends Controller
             'slug' => 'sometimes|string|max:255',
             'type' => 'sometimes|string|in:account,recharge,item',
             'category' => 'nullable|string|max:32',
+            'category_id' => 'nullable|exists:categories,id',
             'price' => 'sometimes|numeric|min:0',
             'discount_price' => 'nullable|numeric|min:0',
             'old_price' => 'nullable|numeric|min:0',
@@ -58,6 +62,8 @@ class AdminProductController extends Controller
             'details' => 'nullable|array',
             'description' => 'nullable|string',
         ]);
+
+        $this->syncCategoryName($data);
 
         $product->update($data);
 
@@ -75,5 +81,17 @@ class AdminProductController extends Controller
     {
         $next = Product::count() + 1;
         return sprintf('BBS-%06d', $next);
+    }
+
+    private function syncCategoryName(array &$data): void
+    {
+        if (!array_key_exists('category_id', $data) || !$data['category_id']) {
+            return;
+        }
+
+        $category = Category::find($data['category_id']);
+        if ($category) {
+            $data['category'] = $category->name;
+        }
     }
 }

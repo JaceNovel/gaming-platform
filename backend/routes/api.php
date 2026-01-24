@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminCategoryController;
 use App\Http\Controllers\Api\AdminDashboardController;
 use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminSettingsController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\LikeController;
 use App\Http\Controllers\Api\PublicStatsController;
 use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ReviewController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -44,11 +46,8 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanc
 Route::apiResource('games', GameController::class)->only(['index', 'show']);
 Route::get('products/{product}', [ProductController::class, 'show']);
 Route::get('products', [ProductController::class, 'index']);
-Route::get('categories', function () {
-    return response()->json([
-        'data' => ['RECHARGES', 'COMPTES', 'PREMIER_ARRIVE', 'ACCESSOIRES', 'OFFRES', 'BUREAUTIQUE', 'FETE'],
-    ]);
-});
+Route::get('categories', [CategoryController::class, 'index']);
+Route::get('categories/{category}', [CategoryController::class, 'show']);
 Route::get('/stats/overview', [PublicStatsController::class, 'overview']);
 Route::get('/likes/stats', [LikeController::class, 'stats']);
 
@@ -135,6 +134,11 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
         Route::post('/products', [AdminProductController::class, 'store']);
         Route::patch('/products/{product}', [AdminProductController::class, 'update']);
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
+
+        Route::get('/categories', [AdminCategoryController::class, 'index']);
+        Route::post('/categories', [AdminCategoryController::class, 'store']);
+        Route::patch('/categories/{category}', [AdminCategoryController::class, 'update']);
+        Route::delete('/categories/{category}', [AdminCategoryController::class, 'destroy']);
     });
 });
 

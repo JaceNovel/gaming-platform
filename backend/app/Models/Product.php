@@ -17,6 +17,7 @@ class Product extends Model
         'sku',
         'type',
         'category',
+        'category_id',
         'price',
         'discount_price',
         'old_price',
@@ -56,5 +57,10 @@ class Product extends Model
     public function game(): BelongsTo
     {
         return $this->belongsTo(Game::class);
+    }
+
+    public function categoryEntity(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'category_id');
     }
 }

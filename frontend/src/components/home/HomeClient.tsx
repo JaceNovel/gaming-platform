@@ -195,20 +195,25 @@ export default function HomeClient() {
 
     const loadProducts = async () => {
       try {
-        const res = await fetch(`${API_BASE}/products?active=1`);
+        const res = await fetch(`${API_BASE}/products?active=1&sort=popular&limit=6`);
         if (!res.ok) return;
         const data = await res.json();
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
         if (!active) return;
-        const mapped = items.slice(0, 3).map((item: any) => ({
-          id: item.id,
-          title: item.name,
-          subtitle: item.game?.name ?? item.type ?? "Gaming",
-          price: `${formatNumber(Number(item.price ?? 0))} FCFA`,
-          likes: Number(item.likes_count ?? 0),
-          badge: item.type ? String(item.type).toUpperCase().slice(0, 4) : "VIP",
-          image: "/file.svg",
-        }));
+        const mapped = items.map((item: any) => {
+          const priceValue = Number(item?.discount_price ?? item?.price ?? 0);
+          const image = item?.images?.[0]?.url ?? "/file.svg";
+          const badgeLabel = String(item?.category ?? item?.type ?? "VIP");
+          return {
+            id: item.id,
+            title: item.name,
+            subtitle: item.game?.name ?? item.category ?? item.type ?? "Gaming",
+            price: `${formatNumber(priceValue)} FCFA`,
+            likes: Number(item.likes_count ?? 0),
+            badge: badgeLabel.toUpperCase().slice(0, 6),
+            image,
+          };
+        });
         setProducts(mapped);
       } catch {
         if (!active) return;

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, Camera, Search, ShoppingCart, Sparkles, Tag } from "lucide-react";
+import { Bell, Camera, Search, ShoppingCart, Sparkles, Tag, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
@@ -18,18 +18,17 @@ type ShopProduct = {
   discountPercent?: number;
   likes: number;
   category: string;
+  categorySlug?: string | null;
   type: string;
 };
 
-const categories = [
-  "Recharges",
-  "Comptes",
-  "Premier arrivé",
-  "Accessoires",
-  "Offres",
-  "Bureautique",
-  "Fête",
-];
+type CategoryOption = {
+  id: number;
+  name: string;
+  slug: string;
+  icon?: string | null;
+  productsCount: number;
+};
 
 const exampleProducts: ShopProduct[] = [
   {
@@ -42,6 +41,7 @@ const exampleProducts: ShopProduct[] = [
     discountPercent: 33,
     likes: 42,
     category: "Comptes",
+    categorySlug: "comptes",
     type: "account",
   },
   {
@@ -54,6 +54,7 @@ const exampleProducts: ShopProduct[] = [
     discountPercent: 23,
     likes: 28,
     category: "Recharges",
+    categorySlug: "recharges",
     type: "recharge",
   },
   {
@@ -66,32 +67,116 @@ const exampleProducts: ShopProduct[] = [
     discountPercent: 29,
     likes: 19,
     category: "Accessoires",
+    categorySlug: "accessoires",
     type: "accessory",
   },
 ];
 
+const slugifyCategory = (value?: string | null) =>
+  (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
-function CategoryChips({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+function CategoryChips({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: CategoryOption[];
+  onChange: (c: string) => void;
+}) {
+  const chips = [{ slug: "all", name: "Tous" }, ...options.map((opt) => ({ slug: opt.slug, name: opt.name }))];
   return (
     <div className="sticky top-[96px] z-30 mt-3 bg-black/60 backdrop-blur-md sm:top-[110px]">
       <div className="mobile-shell flex gap-2 overflow-x-auto py-3 scrollbar-soft">
-        {["Tous", ...categories].map((cat) => {
-          const active = value === cat;
+        {chips.map((cat) => {
+          const active = value === cat.slug;
           return (
             <button
-              key={cat}
-              onClick={() => onChange(cat)}
+              key={cat.slug}
+              onClick={() => onChange(cat.slug)}
               className={`whitespace-nowrap rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.2em] transition ${
                 active
                   ? "border-cyan-300/60 bg-cyan-400/10 text-cyan-200"
                   : "border-white/10 bg-white/5 text-white/70 hover:text-white"
               }`}
             >
-              {cat}
+              {cat.name}
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function FilterSheet({
+  open,
+  value,
+  options,
+  onSelect,
+  onReset,
+  onApply,
+  onClose,
+}: {
+  open: boolean;
+  value: string;
+  options: CategoryOption[];
+  onSelect: (slug: string) => void;
+  onReset: () => void;
+  onApply: () => void;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  const chips = [{ slug: "all", name: "Tous" }, ...options.map((opt) => ({ slug: opt.slug, name: opt.name }))];
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/70 backdrop-blur-[2px]">
+      <button className="flex-1 w-full" onClick={onClose} aria-label="Fermer les filtres" />
+      <div className="rounded-t-3xl border border-white/10 bg-slate-950/90 p-5 shadow-[0_-20px_60px_rgba(0,0,0,0.45)]">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">Filtrer</p>
+            <h3 className="text-xl font-bold text-white">Catégories</h3>
+          </div>
+          <button onClick={onClose} className="text-sm text-white/60 hover:text-white">
+            Fermer
+          </button>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {chips.map((chip) => {
+            const active = value === chip.slug;
+            return (
+              <button
+                key={chip.slug}
+                onClick={() => onSelect(chip.slug)}
+                className={`rounded-2xl border px-4 py-2 text-sm transition ${
+                  active
+                    ? "border-cyan-300/50 bg-cyan-400/10 text-cyan-100"
+                    : "border-white/10 bg-white/5 text-white/70 hover:text-white"
+                }`}
+              >
+                {chip.name}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <button
+            onClick={onReset}
+            className="rounded-2xl border border-white/15 bg-transparent py-3 text-sm font-semibold text-white"
+          >
+            Réinitialiser
+          </button>
+          <GlowButton onClick={onApply}>Appliquer</GlowButton>
+        </div>
       </div>
     </div>
   );
@@ -124,9 +209,12 @@ function DealCard({ product }: { product: ShopProduct }) {
 
 export default function ShopPage() {
   const router = useRouter();
-  const { user, authFetch } = useAuth();
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("Tous");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [pendingCategory, setPendingCategory] = useState("all");
   const [cartNotice, setCartNotice] = useState<string | null>(null);
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,13 +238,15 @@ export default function ShopPage() {
           const oldPrice = baseOld > priceValue ? baseOld : Math.round(priceValue * 1.18);
           const discountPercent = oldPrice > priceValue ? Math.round(((oldPrice - priceValue) / oldPrice) * 100) : 0;
           const type = String(item?.type ?? "").toLowerCase();
-          const category = type.includes("recharge") || type.includes("topup")
+          const fallbackCategory = type.includes("recharge") || type.includes("topup")
             ? "Recharges"
             : type.includes("account")
               ? "Comptes"
               : type.includes("subscription") || type.includes("premium")
                 ? "Offres"
                 : "Accessoires";
+          const categoryName = item?.category ?? item?.category_entity?.name ?? fallbackCategory;
+          const categorySlug = item?.category_entity?.slug ?? (categoryName ? slugifyCategory(categoryName) : null);
           return {
             id: item.id,
             name: item.name,
@@ -166,7 +256,8 @@ export default function ShopPage() {
             oldPrice,
             discountPercent,
             likes: Number(item?.likes_count ?? 0),
-            category,
+            category: categoryName,
+            categorySlug,
             type: String(item?.type ?? ""),
           } as ShopProduct;
         });
@@ -177,6 +268,35 @@ export default function ShopPage() {
     };
 
     loadProducts();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadCategories = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/categories`);
+        if (!res.ok) return;
+        const payload = await res.json();
+        const list = Array.isArray(payload?.data) ? payload.data : [];
+        if (!active) return;
+        setCategoryOptions(
+          list.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            slug: item.slug,
+            icon: item.icon ?? null,
+            productsCount: Number(item?.products_count ?? 0),
+          }))
+        );
+      } catch {
+        if (!active) return;
+      }
+    };
+
+    loadCategories();
     return () => {
       active = false;
     };
@@ -221,15 +341,57 @@ export default function ShopPage() {
 
   const catalog = products.length ? products : exampleProducts;
 
+  const derivedCategories = useMemo(() => {
+    const registry = new Map<string, CategoryOption>();
+    catalog.forEach((product) => {
+      const label = product.category || "Autres";
+      const slug = product.categorySlug ?? (label ? slugifyCategory(label) : "");
+      if (!slug || registry.has(slug)) return;
+      registry.set(slug, {
+        id: product.id,
+        name: label,
+        slug,
+        icon: null,
+        productsCount: 0,
+      });
+    });
+    return Array.from(registry.values());
+  }, [catalog]);
+
+  const categoryChipOptions = useMemo(
+    () => (categoryOptions.length ? categoryOptions : derivedCategories),
+    [categoryOptions, derivedCategories]
+  );
+
+  const openFilterSheet = () => {
+    setPendingCategory(categoryFilter);
+    setFilterSheetOpen(true);
+  };
+
+  const applyFilterSheet = () => {
+    setCategoryFilter(pendingCategory);
+    setFilterSheetOpen(false);
+  };
+
+  const resetFilterSheet = () => {
+    setPendingCategory("all");
+  };
+
   const filtered = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
     return catalog.filter((product) => {
-      const matchesQuery = query
-        ? product.name.toLowerCase().includes(query.toLowerCase())
+      const matchesQuery = normalizedQuery
+        ? product.name.toLowerCase().includes(normalizedQuery)
         : true;
-      const matchesCategory = category === "Tous" || product.category === category;
+      const filterSlug = categoryFilter;
+      const productSlug = product.categorySlug ?? slugifyCategory(product.category ?? "");
+      const matchesCategory =
+        filterSlug === "all" ||
+        productSlug === filterSlug ||
+        product.category?.toLowerCase() === filterSlug;
       return matchesQuery && matchesCategory;
     });
-  }, [catalog, query, category]);
+  }, [catalog, query, categoryFilter]);
 
   const groupedDeals = filtered.slice(0, 6);
   const dailyDeals = filtered.slice(0, 8);
@@ -272,6 +434,13 @@ export default function ShopPage() {
             >
               <Camera className="h-4 w-4 text-white/70" />
             </button>
+            <button
+              onClick={openFilterSheet}
+              className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white sm:hidden"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Filtrer
+            </button>
             <input
               ref={imageInputRef}
               type="file"
@@ -289,13 +458,11 @@ export default function ShopPage() {
         </div>
       </header>
 
-      <CategoryChips value={category} onChange={setCategory} />
+      <div className="hidden sm:block">
+        <CategoryChips value={categoryFilter} options={categoryChipOptions} onChange={setCategoryFilter} />
+      </div>
 
       <section className="mobile-shell space-y-4 py-4">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
-          Livraison gratuite • Livraison rapide • Remboursement garanti
-        </div>
-
         {cartNotice && (
           <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-100">
             {cartNotice}
@@ -325,17 +492,20 @@ export default function ShopPage() {
             <h2 className="text-lg font-bold">Deal du jour</h2>
             <Link href="/shop" className="text-xs text-white/60">Voir tout</Link>
           </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
             {loading
               ? Array.from({ length: 4 }).map((_, idx) => (
-                  <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <div key={idx} className="min-w-[190px] flex-shrink-0 snap-start rounded-2xl border border-white/10 bg-white/5 p-3">
                     <div className="h-20 rounded-xl bg-white/10" />
                     <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
                     <div className="mt-2 h-3 w-1/2 rounded-full bg-white/10" />
                   </div>
                 ))
               : dailyDeals.map((product) => (
-                  <div key={product.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <div
+                    key={product.id}
+                    className="min-w-[210px] flex-shrink-0 snap-center rounded-2xl border border-white/10 bg-white/5 p-3"
+                  >
                     <div className="h-20 rounded-xl bg-white/10" />
                     <div className="mt-2 text-xs font-semibold text-white line-clamp-2">{product.name}</div>
                     <div className="mt-1 text-xs text-white/60 line-clamp-1">{product.description}</div>
@@ -362,7 +532,7 @@ export default function ShopPage() {
             <h2 className="text-lg font-bold">Pour vous</h2>
             <span className="text-xs text-white/60">Scroll infini bientôt</span>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {loading
               ? Array.from({ length: 6 }).map((_, idx) => (
                   <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -399,6 +569,16 @@ export default function ShopPage() {
           </div>
         </div>
       </section>
+
+      <FilterSheet
+        open={filterSheetOpen}
+        value={pendingCategory}
+        options={categoryChipOptions}
+        onSelect={(slug) => setPendingCategory(slug)}
+        onReset={resetFilterSheet}
+        onApply={applyFilterSheet}
+        onClose={() => setFilterSheetOpen(false)}
+      />
 
       {showPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">

@@ -11,7 +11,9 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::query()->with(['game', 'images'])->withCount('likes');
+        $query = Product::query()
+            ->with(['game', 'images', 'categoryEntity'])
+            ->withCount('likes');
 
         if ($request->boolean('active', true)) {
             $query->where('is_active', true);
@@ -26,7 +28,18 @@ class ProductController extends Controller
         }
 
         if ($category = $request->input('category')) {
-            $query->where('category', $category);
+            $query->where(function ($inner) use ($category) {
+                $inner->where('category', $category);
+
+                if (is_numeric($category)) {
+                    $inner->orWhere('category_id', (int) $category);
+                } else {
+                    $inner->orWhereHas('categoryEntity', function ($builder) use ($category) {
+                        $builder->where('slug', $category)
+                            ->orWhere('name', $category);
+                    });
+                }
+            });
         }
 
         if ($dealType = $request->input('dealType')) {
@@ -41,14 +54,28 @@ class ProductController extends Controller
             });
         }
 
-        $products = $query->orderByDesc('created_at')->paginate(20);
+        $sort = $request->input('sort');
+        if ($sort === 'popular') {
+            $query->orderByDesc('likes_count')->orderByDesc('sold_count');
+        } else {
+            $query->orderByDesc('created_at');
+        }
+
+        if ($limit = $request->integer('limit')) {
+            $products = $query->limit(min($limit, 100))->get();
+            return response()->json(['data' => $products]);
+        }
+
+        $perPage = $request->integer('per_page', 20);
+        $perPage = max(1, min($perPage, 100));
+        $products = $query->paginate($perPage);
 
         return response()->json($products);
     }
 
     public function show(string $product)
     {
-        $item = Product::with(['game', 'images'])->withCount('likes')
+        $item = Product::with(['game', 'images', 'categoryEntity'])->withCount('likes')
             ->where('id', $product)
             ->orWhere('slug', $product)
             ->firstOrFail();
