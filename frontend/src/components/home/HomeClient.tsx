@@ -85,11 +85,11 @@ function StatBar({ stats }: { stats: Stat[] }) {
     <div className="mx-auto mt-4 w-full max-w-6xl px-4">
       <div className="relative overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/15 backdrop-blur-md">
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/10 via-fuchsia-400/10 to-amber-300/10" />
-        <div className="relative grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+        <div className="relative flex gap-3 overflow-x-auto p-4 sm:grid sm:grid-cols-4">
           {stats.map((s) => (
             <div
               key={s.label}
-              className="flex min-h-[92px] flex-col justify-between rounded-xl bg-black/25 p-3 ring-1 ring-white/10"
+              className="flex min-h-[92px] min-w-[160px] flex-col justify-between rounded-xl bg-black/25 p-3 ring-1 ring-white/10 sm:min-w-0"
             >
               <div className="text-lg font-extrabold tracking-tight text-white">
                 {s.value}
@@ -226,8 +226,8 @@ export default function HomeClient() {
 
   return (
     <main
-      className="relative min-h-dvh bg-[#0d0f1f] text-white pb-[calc(64px+env(safe-area-inset-bottom))]"
-      style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}
+      className="relative min-h-[100dvh] bg-[#0d0f1f] text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
+      style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
       <div
         className="absolute inset-0 -z-20 hidden sm:block bg-cover bg-center"

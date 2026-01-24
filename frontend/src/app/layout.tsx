@@ -35,7 +35,7 @@ export default function RootLayout({
     <html lang="fr" className="dark" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900 text-white min-h-screen pb-[calc(64px+env(safe-area-inset-bottom))]`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900 text-white min-h-[100dvh] overflow-x-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]`}
       >
         <AuthProvider>
           <AppHeader />
