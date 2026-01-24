@@ -244,7 +244,7 @@ export default function HomeClient() {
       </div>
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
-        <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/60 px-4 pb-5 pt-6 shadow-[0_30px_120px_rgba(15,23,42,0.6)] sm:px-8 sm:pb-6 lg:px-10">
+        <div className="relative overflow-hidden rounded-none border-0 bg-transparent px-4 pb-5 pt-6 shadow-none sm:rounded-[28px] sm:border sm:border-white/10 sm:bg-black/60 sm:shadow-[0_30px_120px_rgba(15,23,42,0.6)] sm:px-8 sm:pb-6 lg:px-10">
           <div className="relative">
             <div className="mx-auto w-full max-w-[420px] sm:hidden">
               <div className="pill-marquee">
@@ -274,7 +274,8 @@ export default function HomeClient() {
 
             <div className="mt-5 text-center">
               <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
-                BADBOY<span className="text-white/70">SHOP</span>
+                <span className="neon-text">BADBOY</span>
+                <span className="text-white/70">SHOP</span>
               </h1>
               <p className="mx-auto mt-2 max-w-[420px] text-base font-semibold leading-6 text-white/85 sm:max-w-2xl sm:text-xl">
                 La plateforme gaming d’élite
@@ -301,7 +302,9 @@ export default function HomeClient() {
               </div>
             </div>
 
-            <StatBar stats={stats} />
+            <div className="hidden sm:block">
+              <StatBar stats={stats} />
+            </div>
           </div>
         </div>
       </section>
