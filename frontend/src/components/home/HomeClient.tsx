@@ -252,62 +252,92 @@ export default function HomeClient() {
       </div>
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
-        <div className="mx-auto w-full max-w-[420px] sm:hidden">
-          <div className="pill-marquee">
-            <div className="pill-marquee-track">
-              {[0, 1].map((loop) => (
-                <div key={loop} className="pill-marquee-group">
-                  {heroPills.map((pill) => (
-                    <GlowPill key={`${loop}-${pill.label}`}>
-                      <pill.icon className="h-4 w-4 text-cyan-300" />
-                      {pill.label}
-                    </GlowPill>
+        <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/60 px-4 pb-5 pt-6 shadow-[0_30px_120px_rgba(15,23,42,0.6)] sm:px-8 sm:pb-6 lg:px-10">
+          <div className="pointer-events-none absolute inset-0 sm:hidden">
+            <Image
+              src="/banner_mobile_1080x1920.png"
+              alt="BADBOYSHOP banner mobile"
+              fill
+              className="object-cover object-center"
+              priority
+              sizes="100vw"
+            />
+            <div className="absolute inset-0 bg-black/45" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/40 to-black/75" />
+          </div>
+
+          <div className="pointer-events-none absolute inset-0 hidden sm:block">
+            <Image
+              src="/badboyshop-home.png"
+              alt="BADBOYSHOP banner"
+              fill
+              className="object-cover object-center"
+              priority
+              sizes="(min-width: 1024px) 1000px, 100vw"
+            />
+            <div className="absolute inset-0 bg-black/35" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-black/45 to-black/70" />
+          </div>
+
+          <div className="relative">
+            <div className="mx-auto w-full max-w-[420px] sm:hidden">
+              <div className="pill-marquee">
+                <div className="pill-marquee-track">
+                  {[0, 1].map((loop) => (
+                    <div key={loop} className="pill-marquee-group">
+                      {heroPills.map((pill) => (
+                        <GlowPill key={`${loop}-${pill.label}`}>
+                          <pill.icon className="h-4 w-4 text-cyan-300" />
+                          {pill.label}
+                        </GlowPill>
+                      ))}
+                    </div>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            <div className="mx-auto hidden max-w-xl flex-wrap items-center justify-center gap-2 text-center sm:flex">
+              {heroPills.map((pill) => (
+                <GlowPill key={pill.label}>
+                  <pill.icon className="h-4 w-4 text-cyan-300" />
+                  {pill.label}
+                </GlowPill>
               ))}
             </div>
+
+            <div className="mt-5 text-center">
+              <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+                BADBOY<span className="text-white/70">SHOP</span>
+              </h1>
+              <p className="mx-auto mt-2 max-w-[420px] text-base font-semibold leading-6 text-white/85 sm:max-w-2xl sm:text-xl">
+                La plateforme gaming d’élite
+              </p>
+              <p className="mx-auto mt-2 max-w-[420px] text-xs leading-5 text-white/70 sm:max-w-2xl sm:text-base">
+                Recharges, comptes, tournois, GVG, transferts internationaux
+              </p>
+
+              <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <GlassButton
+                  href="/shop"
+                  tone="cyan"
+                  className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
+                >
+                  Explorer la boutique
+                </GlassButton>
+                <GlassButton
+                  href="/premium"
+                  tone="gold"
+                  className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
+                >
+                  Devenir Premium
+                </GlassButton>
+              </div>
+            </div>
+
+            <StatBar stats={stats} />
           </div>
         </div>
-
-        <div className="mx-auto hidden max-w-xl flex-wrap items-center justify-center gap-2 text-center sm:flex">
-          {heroPills.map((pill) => (
-            <GlowPill key={pill.label}>
-              <pill.icon className="h-4 w-4 text-cyan-300" />
-              {pill.label}
-            </GlowPill>
-          ))}
-        </div>
-
-        <div className="mt-5 text-center">
-          <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
-            BADBOY<span className="text-white/70">SHOP</span>
-          </h1>
-          <p className="mx-auto mt-2 max-w-[420px] text-base font-semibold leading-6 text-white/85 sm:max-w-2xl sm:text-xl">
-            La plateforme gaming d’élite
-          </p>
-          <p className="mx-auto mt-2 max-w-[420px] text-xs leading-5 text-white/70 sm:max-w-2xl sm:text-base">
-            Recharges, comptes, tournois, GVG, transferts internationaux
-          </p>
-
-          <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <GlassButton
-              href="/shop"
-              tone="cyan"
-              className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
-            >
-              Explorer la boutique
-            </GlassButton>
-            <GlassButton
-              href="/premium"
-              tone="gold"
-              className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
-            >
-              Devenir Premium
-            </GlassButton>
-          </div>
-        </div>
-
-        <StatBar stats={stats} />
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-2">
