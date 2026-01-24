@@ -85,11 +85,11 @@ function StatBar({ stats }: { stats: Stat[] }) {
     <div className="mx-auto mt-4 w-full max-w-6xl px-4">
       <div className="relative overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/15 backdrop-blur-md">
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/10 via-fuchsia-400/10 to-amber-300/10" />
-        <div className="relative flex gap-3 overflow-x-auto p-4 sm:grid sm:grid-cols-4">
+        <div className="relative grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
           {stats.map((s) => (
             <div
               key={s.label}
-              className="flex min-h-[92px] min-w-[160px] flex-col justify-between rounded-xl bg-black/25 p-3 ring-1 ring-white/10 sm:min-w-0"
+              className="flex min-h-[92px] flex-col justify-between rounded-xl bg-black/25 p-3 ring-1 ring-white/10"
             >
               <div className="text-lg font-extrabold tracking-tight text-white">
                 {s.value}
@@ -226,9 +226,16 @@ export default function HomeClient() {
 
   return (
     <main
-      className="relative min-h-[100dvh] bg-[#0d0f1f] text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
-      style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
+      className="relative min-h-dvh bg-[#0d0f1f] text-white pb-[calc(64px+env(safe-area-inset-bottom))]"
+      style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}
     >
+      <div
+        className="absolute inset-0 -z-20 hidden sm:block bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, rgba(13,15,31,0.85) 0%, rgba(11,11,20,0.9) 100%), url('https://as1.ftcdn.net/v2/jpg/05/55/49/54/1000_F_555495493_eENKH9YSBt11mof5hAkC77aMFpoG5BdG.jpg')",
+        }}
+      />
 
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute left-1/2 top-[-120px] h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-fuchsia-500/20 blur-[80px]" />
@@ -237,54 +244,33 @@ export default function HomeClient() {
       </div>
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
-        <div className="mx-auto w-full max-w-[420px] sm:hidden">
-          <div className="pill-marquee">
-            <div className="pill-marquee-track">
-              {[0, 1].map((loop) => (
-                <div key={loop} className="pill-marquee-group">
-                  {heroPills.map((pill) => (
-                    <GlowPill key={`${loop}-${pill.label}`}>
-                      <pill.icon className="h-4 w-4 text-cyan-300" />
-                      {pill.label}
-                    </GlowPill>
+        <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/60 px-4 pb-5 pt-6 shadow-[0_30px_120px_rgba(15,23,42,0.6)] sm:px-8 sm:pb-6 lg:px-10">
+          <div className="relative">
+            <div className="mx-auto w-full max-w-[420px] sm:hidden">
+              <div className="pill-marquee">
+                <div className="pill-marquee-track">
+                  {[0, 1].map((loop) => (
+                    <div key={loop} className="pill-marquee-group">
+                      {heroPills.map((pill) => (
+                        <GlowPill key={`${loop}-${pill.label}`}>
+                          <pill.icon className="h-4 w-4 text-cyan-300" />
+                          {pill.label}
+                        </GlowPill>
+                      ))}
+                    </div>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            <div className="mx-auto hidden max-w-xl flex-wrap items-center justify-center gap-2 text-center sm:flex">
+              {heroPills.map((pill) => (
+                <GlowPill key={pill.label}>
+                  <pill.icon className="h-4 w-4 text-cyan-300" />
+                  {pill.label}
+                </GlowPill>
               ))}
             </div>
-          </div>
-        </div>
-
-        <div className="mx-auto hidden max-w-xl flex-wrap items-center justify-center gap-2 text-center sm:flex">
-          {heroPills.map((pill) => (
-            <GlowPill key={pill.label}>
-              <pill.icon className="h-4 w-4 text-cyan-300" />
-              {pill.label}
-            </GlowPill>
-          ))}
-        </div>
-
-        <div className="relative mt-4 min-h-[60vh] overflow-hidden rounded-[28px] border border-white/10 bg-black/60 px-4 pb-5 pt-6 shadow-[0_30px_120px_rgba(15,23,42,0.6)] sm:mt-6 sm:min-h-[520px] sm:px-8 sm:pb-6 lg:px-10">
-          <div className="pointer-events-none absolute inset-0">
-            <Image
-              src="/badboyshop-home.png"
-              alt="BADBOYSHOP banner desktop"
-              fill
-              className="hidden object-cover object-center sm:block"
-              priority
-              sizes="(min-width: 640px) 100vw, 0px"
-            />
-            <Image
-              src="/images/banner_mobile_1080x1920.png"
-              alt="BADBOYSHOP banner mobile"
-              fill
-              className="object-cover object-center sm:hidden"
-              priority
-              sizes="100vw"
-            />
-            <div className="absolute inset-0 bg-black/45" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/40 to-black/75" />
-          </div>
-          <div className="relative">
 
             <div className="mt-5 text-center">
               <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">

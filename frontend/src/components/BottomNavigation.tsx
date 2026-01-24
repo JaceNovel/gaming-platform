@@ -19,7 +19,7 @@ export default function BottomNavigation() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 h-16 pb-[env(safe-area-inset-bottom)] lg:hidden">
-      <div className="mobile-shell glass-card h-16 rounded-2xl border border-white/10 backdrop-blur flex gap-1 overflow-x-auto px-2 py-1 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+      <div className="mobile-shell glass-card h-16 rounded-2xl border border-white/10 backdrop-blur flex gap-2 overflow-x-auto px-3 py-2 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
         {navigation.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -32,8 +32,8 @@ export default function BottomNavigation() {
                   : "text-white/60 hover:text-white"
               }`}
             >
-              <item.icon className="h-4 w-4" />
-              <span className="mt-1 text-[10px]">{item.name}</span>
+              <item.icon className="h-5 w-5" />
+              <span className="mt-1 text-[11px]">{item.name}</span>
             </Link>
           );
         })}
