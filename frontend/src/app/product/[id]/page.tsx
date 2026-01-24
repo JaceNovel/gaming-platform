@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ChevronDown, ChevronLeft, Star, Truck } from "lucide-react";
+import { ChevronDown, ChevronLeft, ShoppingCart, Star, Truck } from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -30,12 +30,15 @@ const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(va
 export default function ProductPage() {
   const params = useParams();
   const router = useRouter();
-  const { authFetch, user } = useAuth();
+  const { user } = useAuth();
   const id = params?.id as string;
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
   const [showDescription, setShowDescription] = useState(false);
+  const [cartAnimation, setCartAnimation] = useState(false);
+  const animationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -60,6 +63,14 @@ export default function ProductPage() {
     if (product?.images && product.images.length > 0) return product.images;
     return ["/file.svg", "/file.svg", "/file.svg"];
   }, [product]);
+  const coverImage = images[activeImage] ?? images[0];
+  useEffect(() => {
+    return () => {
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const priceValue = Number(product?.discount_price ?? product?.price ?? 0);
   const oldPrice = product?.old_price ? Number(product.old_price) : Math.round(priceValue * 1.2);
@@ -84,18 +95,40 @@ export default function ProductPage() {
       });
     }
     localStorage.setItem("bbshop_cart", JSON.stringify(cart));
+    if (animationTimeoutRef.current) {
+      clearTimeout(animationTimeoutRef.current);
+    }
+    setCartAnimation(true);
+    animationTimeoutRef.current = setTimeout(() => setCartAnimation(false), 900);
   };
 
-  const handleBuyNow = () => {
+  const proceedToCheckout = () => {
     if (!user) {
       router.push(`/auth/login?next=/product/${id}`);
       return;
     }
-    router.push(`/checkout?product=${id}`);
+    router.push(`/checkout?product/${id}`);
+  };
+
+  const confirmCheckout = () => {
+    setShowCheckoutModal(false);
+    proceedToCheckout();
   };
 
   return (
     <main className="min-h-[100dvh] bg-black text-white pb-[calc(120px+env(safe-area-inset-bottom))]">
+      {cartAnimation && (
+        <>
+          <div
+            className="pointer-events-none fixed left-1/2 bottom-32 z-50 h-4 w-4 rounded-full bg-cyan-300 shadow-lg"
+            style={{ animation: "cart-flight 0.9s ease forwards" }}
+          />
+          <div className="pointer-events-none fixed right-4 top-4 z-50 flex items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-100 shadow-lg">
+            <ShoppingCart className="h-4 w-4" />
+            Ajouté au panier
+          </div>
+        </>
+      )}
       <div className="mobile-shell py-4">
         <button
           onClick={() => router.back()}
@@ -200,12 +233,57 @@ export default function ProductPage() {
             >
               Ajouter au panier
             </button>
-            <GlowButton onClick={handleBuyNow} className="flex-1 justify-center">
-              Acheter maintenant
+            <GlowButton onClick={() => setShowCheckoutModal(true)} className="flex-1 justify-center">
+              Acheter
             </GlowButton>
           </div>
         </div>
       </div>
+      {showCheckoutModal && product && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-white shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/10">
+                <Image src={coverImage} alt={product.name} fill className="object-cover" sizes="64px" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold line-clamp-2">{product.name}</div>
+                <div className="text-xs text-white/50">{product.type ?? "Digital"}</div>
+              </div>
+            </div>
+            <p className="mt-4 text-sm text-white/70 line-clamp-3">
+              {product.description ?? "Résumé disponible bientôt."}
+            </p>
+            <div className="mt-4 flex items-center justify-between text-sm font-semibold">
+              <span>Total</span>
+              <span className="text-lg text-cyan-200">{formatNumber(priceValue)} FCFA</span>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setShowCheckoutModal(false)}
+                className="flex-1 rounded-2xl border border-white/15 bg-transparent py-3 text-sm text-white"
+              >
+                Annuler
+              </button>
+              <GlowButton onClick={confirmCheckout} className="flex-1 justify-center">
+                Valider
+              </GlowButton>
+            </div>
+          </div>
+        </div>
+      )}
+      <style jsx>{`
+        @keyframes cart-flight {
+          0% {
+            transform: translate(-50%, 0) scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: translate(140px, -320px) scale(0.3);
+            opacity: 0;
+          }
+        }
+      `}</style>
     </main>
   );
 }

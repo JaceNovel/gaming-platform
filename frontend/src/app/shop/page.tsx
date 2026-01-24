@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Bell, Camera, Search, ShoppingCart, Sparkles, Tag, SlidersHorizontal } from "lucide-react";
-import { useAuth } from "@/components/auth/AuthProvider";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 
@@ -212,19 +211,15 @@ function DealCard({ product }: { product: ShopProduct }) {
 
 export default function ShopPage() {
   const router = useRouter();
-  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [pendingCategory, setPendingCategory] = useState("all");
-  const [cartNotice, setCartNotice] = useState<string | null>(null);
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showPrompt, setShowPrompt] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const nextPath = "/shop";
 
   useEffect(() => {
     let active = true;
@@ -304,43 +299,6 @@ export default function ShopPage() {
       active = false;
     };
   }, []);
-
-  const requireAuth = () => {
-    if (!user) {
-      setShowPrompt(true);
-      return false;
-    }
-    return true;
-  };
-
-  const handleAddToCart = (product: ShopProduct) => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem("bbshop_cart");
-    const cart = stored ? (JSON.parse(stored) as Array<{ id: number; quantity: number } & Record<string, unknown>>) : [];
-    const priceNumber = Number(product.priceValue) || 0;
-    const existing = cart.find((item) => item.id === product.id);
-    if (existing) {
-      existing.quantity = (existing.quantity as number) + 1;
-    } else {
-      cart.push({
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        price: priceNumber,
-        priceLabel: product.priceLabel,
-        type: product.type,
-        quantity: 1,
-      });
-    }
-    localStorage.setItem("bbshop_cart", JSON.stringify(cart));
-    setCartNotice(`${product.name} ajouté au panier`);
-    setTimeout(() => setCartNotice(null), 1500);
-  };
-
-  const handleBuy = (id: number) => {
-    if (!requireAuth()) return;
-    router.push(`/checkout?product=${id}`);
-  };
 
   const catalog = products.length ? products : exampleProducts;
 
@@ -466,12 +424,6 @@ export default function ShopPage() {
       </div>
 
       <section className="mobile-shell space-y-4 py-4">
-        {cartNotice && (
-          <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-100">
-            {cartNotice}
-          </div>
-        )}
-
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Offres groupées</h2>
@@ -544,11 +496,15 @@ export default function ShopPage() {
                   </div>
                 ))
               : forYou.map((product) => (
-                  <div key={product.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <Link
+                    key={product.id}
+                    href={`/product/${product.id}`}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-cyan-300/40 hover:bg-white/10"
+                  >
                     <div className="h-24 rounded-xl bg-white/10" />
                     <div className="mt-3 text-sm font-semibold text-white line-clamp-2">{product.name}</div>
                     <div className="mt-1 text-xs text-white/60 line-clamp-2">{product.description}</div>
-                    <div className="mt-3 flex items-center justify-between">
+                    <div className="mt-3 flex items-center justify-between text-sm">
                       <div>
                         <div className="text-sm font-bold text-cyan-200">{product.priceLabel}</div>
                         {product.oldPrice && (
@@ -557,17 +513,11 @@ export default function ShopPage() {
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleAddToCart(product)}
-                          className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs text-white"
-                        >
-                          Panier
-                        </button>
-                        <GlowButton onClick={() => handleBuy(product.id)}>Acheter</GlowButton>
-                      </div>
+                      <span className="text-[11px] uppercase tracking-[0.3em] text-white/50">
+                        Voir
+                      </span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
           </div>
         </div>
@@ -583,30 +533,6 @@ export default function ShopPage() {
         onClose={() => setFilterSheetOpen(false)}
       />
 
-      {showPrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-white shadow-2xl">
-            <div className="text-lg font-bold">Connexion requise</div>
-            <p className="mt-2 text-sm text-white/70">
-              Connecte-toi ou crée un compte pour continuer.
-            </p>
-            <div className="mt-4 flex gap-3">
-              <GlowButton onClick={() => router.push(`/auth/login?next=${encodeURIComponent(nextPath)}`)}>
-                Se connecter
-              </GlowButton>
-              <GlowButton
-                onClick={() => router.push(`/auth/register?next=${encodeURIComponent(nextPath)}`)}
-                variant="secondary"
-              >
-                S'inscrire
-              </GlowButton>
-            </div>
-            <button onClick={() => setShowPrompt(false)} className="mt-4 text-xs text-white/50 hover:text-white">
-              Fermer
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
