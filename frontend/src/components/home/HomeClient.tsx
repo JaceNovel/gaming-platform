@@ -226,23 +226,16 @@ export default function HomeClient() {
 
   return (
     <main
-      className="relative min-h-dvh bg-black text-white sm:bg-transparent pb-[calc(64px+env(safe-area-inset-bottom))]"
+      className="relative min-h-dvh bg-[#0d0f1f] text-white pb-[calc(64px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}
     >
-      <div className="absolute inset-0 -z-20">
-        <div className="absolute inset-0 hidden sm:block">
-          <Image
-            src="/badboyshop-home.png"
-            alt="BADBOYSHOP background"
-            fill
-            className="object-cover object-center"
-            priority
-            sizes="100vw"
-          />
-          <div className="absolute inset-0 bg-black/25" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-black/60" />
-        </div>
-      </div>
+      <div
+        className="absolute inset-0 -z-20 hidden sm:block bg-cover bg-center"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, rgba(13,15,31,0.85) 0%, rgba(11,11,20,0.9) 100%), url('https://as1.ftcdn.net/v2/jpg/05/55/49/54/1000_F_555495493_eENKH9YSBt11mof5hAkC77aMFpoG5BdG.jpg')",
+        }}
+      />
 
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute left-1/2 top-[-120px] h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-fuchsia-500/20 blur-[80px]" />
