@@ -367,8 +367,13 @@ export default function ShopPage() {
               Connecte-toi ou crée un compte pour continuer.
             </p>
             <div className="mt-4 flex gap-3">
-              <GlowButton href={`/auth/login?next=${encodeURIComponent(nextPath)}`}>Se connecter</GlowButton>
-              <GlowButton href={`/auth/register?next=${encodeURIComponent(nextPath)}`} variant="secondary">
+              <GlowButton onClick={() => router.push(`/auth/login?next=${encodeURIComponent(nextPath)}`)}>
+                Se connecter
+              </GlowButton>
+              <GlowButton
+                onClick={() => router.push(`/auth/register?next=${encodeURIComponent(nextPath)}`)}
+                variant="secondary"
+              >
                 S'inscrire
               </GlowButton>
             </div>
