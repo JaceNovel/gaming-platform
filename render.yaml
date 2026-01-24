@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: badboyshop-frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://api.badboyshop.online/api
+
+  - type: web
+    name: badboyshop-backend
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_URL
+        value: https://api.badboyshop.online
+      - key: FRONTEND_URL
+        value: https://badboyshop.online
+      - key: CORS_SUPPORTS_CREDENTIALS
+        value: "true"
+      - key: SANCTUM_STATEFUL_DOMAINS
+        value: badboyshop.online
+      - key: SESSION_DOMAIN
+        value: .badboyshop.online

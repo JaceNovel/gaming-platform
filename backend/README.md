@@ -80,3 +80,21 @@ URL base API en prod: `https://TON_BACKEND_URL/api`
 - `curl https://api.badboyshop.online/api/health`
 - Tester `register/login` depuis https://badboyshop.online
 - Vérifier CORS (aucune erreur console)
+
+## Render
+
+Backend (Docker):
+- Utilise le Dockerfile dans `backend/`
+- Ne pas lancer les migrations dans le build
+- Commandes à lancer après déploiement: `php artisan migrate --force`
+
+Variables env minimales:
+- `APP_ENV=production`
+- `APP_DEBUG=false`
+- `APP_URL=https://api.badboyshop.online`
+- `FRONTEND_URL=https://badboyshop.online`
+- `DB_CONNECTION=mysql` (ou `pgsql`)
+- `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
+- `CORS_SUPPORTS_CREDENTIALS=true`
+- `SANCTUM_STATEFUL_DOMAINS=badboyshop.online`
+- `SESSION_DOMAIN=.badboyshop.online`
