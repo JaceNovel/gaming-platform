@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM composer:2 AS vendor
+FROM composer:2.7.7-php8.2 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
