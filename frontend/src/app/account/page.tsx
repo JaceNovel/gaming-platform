@@ -711,7 +711,7 @@ function AccountClient() {
         await new Promise((resolve) => setTimeout(resolve, 1200));
         setRechargeStatus("success");
         setRechargeMessage(
-          `CinetPay activé pour ${formatCurrency(amountValue, me.countryCode)} (mode démo).`,
+          `CinetPay activé pour ${formatCurrency(amountValue, me?.countryCode)} (mode démo).`,
         );
         setWalletBalanceState((prev) => prev + amountValue);
         setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: prev.walletBalanceFcfa + amountValue } : prev));
