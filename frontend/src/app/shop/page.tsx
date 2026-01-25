@@ -7,7 +7,6 @@ import Link from "next/link";
 import {
   Bell,
   Camera,
-  Crown,
   Gamepad2,
   Heart,
   Package,
@@ -87,30 +86,23 @@ const exampleProducts: ShopProduct[] = [
 ];
 
 const HERO_BACKDROP =
-  "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=2000&q=80";
+  "https://mir-s3-cdn-cf.behance.net/project_modules/1400_opt_1/fb50e7130191973.617aa5adee248.jpg";
 const HERO_TROPHY =
-  "https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=900&q=80";
+  "https://img.freepik.com/premium-photo/virtual-shopping-cart-filled-with-gaming-merchandise_1247965-24719.jpg";
 
-const sidebarItems = [
-  { label: "Comptes", icon: Gamepad2 },
-  { label: "Recharges", icon: Zap },
-  { label: "Pass", icon: Ticket },
-  { label: "Articles", icon: Package },
+const topJeuxFilters = [
+  { label: "Compte actifs", slug: "comptes", icon: Gamepad2 },
+  { label: "Recharges", slug: "recharges", icon: Zap },
+  { label: "Pass", slug: "pass", icon: Ticket },
+  { label: "Articles", slug: "articles", icon: Package },
 ];
 
-const favoriteFilters = ["Populaire", "Esport", "Portable", "Premium"];
+type PriceFilterKey = "all" | "low" | "mid" | "high";
 
-const desktopCategoryPills = [
-  { label: "Comptes", icon: Gamepad2 },
-  { label: "Recharges", icon: Zap },
-  { label: "Pass", icon: Ticket },
-  { label: "Articles", icon: Package },
-];
-
-const leaderboardEntries = [
-  { rank: 1, team: "Zen's Team", score: "23 500 pts" },
-  { rank: 2, team: "OC Squad", score: "18 200 pts" },
-  { rank: 3, team: "Masked Devils", score: "18 000 pts" },
+const PRICE_FILTERS: { label: string; value: PriceFilterKey; min?: number; max?: number }[] = [
+  { label: "1k - 5k FCFA", value: "low", min: 0, max: 5000 },
+  { label: "5k - 15k FCFA", value: "mid", min: 5000, max: 15000 },
+  { label: "15k+ FCFA", value: "high", min: 15000 },
 ];
 
 const slugifyCategory = (value?: string | null) =>
@@ -255,6 +247,7 @@ export default function ShopPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [priceFilter, setPriceFilter] = useState<PriceFilterKey>("all");
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [pendingCategory, setPendingCategory] = useState("all");
@@ -390,9 +383,12 @@ export default function ShopPage() {
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
+    const selectedPrice = PRICE_FILTERS.find((opt) => opt.value === priceFilter);
     return catalog.filter((product) => {
       const matchesQuery = normalizedQuery
-        ? product.name.toLowerCase().includes(normalizedQuery)
+        ? product.name.toLowerCase().includes(normalizedQuery) ||
+          (product.category ?? "").toLowerCase().includes(normalizedQuery) ||
+          (product.description ?? "").toLowerCase().includes(normalizedQuery)
         : true;
       const filterSlug = categoryFilter;
       const productSlug = product.categorySlug ?? slugifyCategory(product.category ?? "");
@@ -400,14 +396,20 @@ export default function ShopPage() {
         filterSlug === "all" ||
         productSlug === filterSlug ||
         product.category?.toLowerCase() === filterSlug;
-      return matchesQuery && matchesCategory;
+      const matchesPrice = (() => {
+        if (!selectedPrice || priceFilter === "all") return true;
+        const min = selectedPrice.min ?? 0;
+        const max = selectedPrice.max ?? Number.POSITIVE_INFINITY;
+        return product.priceValue >= min && product.priceValue <= max;
+      })();
+      return matchesQuery && matchesCategory && matchesPrice;
     });
-  }, [catalog, query, categoryFilter]);
+  }, [catalog, query, categoryFilter, priceFilter]);
 
   const groupedDeals = filtered.slice(0, 6);
   const dailyDeals = filtered.slice(0, 8);
   const forYou = filtered.slice(0, 12);
-  const desktopProducts = catalog.slice(0, 4);
+  const desktopProducts = filtered.slice(0, 4);
 
   const handleImageSearch = (file: File | null) => {
     if (!file) return;
@@ -434,7 +436,6 @@ export default function ShopPage() {
                     <p className="mt-2 text-sm text-white/60">Boosts, comptes rare, pass d'événement et services premium en livraison instantanée.</p>
                     <div className="mt-6 flex gap-3">
                       <button className="rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold tracking-wide text-white shadow-[0_0_30px_rgba(110,231,255,0.25)]">Explorer</button>
-                      <button className="rounded-2xl border border-white/10 bg-transparent px-6 py-3 text-sm font-semibold text-white/70">Voir les offres</button>
                     </div>
                   </div>
                   <div className="relative h-[280px] rounded-[32px] border border-white/5 bg-white/5/10">
@@ -445,93 +446,129 @@ export default function ShopPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-[280px_minmax(0,1fr)_280px] gap-6">
-              <aside className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur">
-                <div className="text-xs uppercase tracking-[0.5em] text-white/40">Top jeus</div>
-                <div className="mt-5 space-y-2">
-                  {sidebarItems.map(({ label, icon: Icon }) => (
+            <div className="grid grid-cols-[300px_minmax(0,1fr)] gap-8">
+              <aside className="rounded-[36px] border border-white/10 bg-gradient-to-b from-white/10 via-transparent to-black/20 p-6 backdrop-blur">
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.6em] text-cyan-200/70">Top Jeux</p>
+                    <h2 className="mt-2 text-3xl font-black leading-tight text-white">
+                      TOP <span className="text-cyan-300">JEUX</span>
+                    </h2>
+                    <p className="mt-2 text-sm text-white/60">
+                      Active un filtre pour ne voir que les comptes, recharges ou articles liés.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {topJeuxFilters.map(({ label, slug, icon: Icon }) => {
+                      const active = categoryFilter === slug;
+                      return (
+                        <button
+                          key={slug}
+                          onClick={() => setCategoryFilter(slug)}
+                          className={`flex w-full items-center justify-between rounded-3xl border px-4 py-3 text-sm font-semibold transition ${
+                            active
+                              ? "border-cyan-300/60 bg-cyan-500/15 text-white shadow-[0_0_25px_rgba(34,211,238,0.25)]"
+                              : "border-white/10 bg-white/5 text-white/70 hover:text-white"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Icon className="h-4 w-4" />
+                            {label}
+                          </span>
+                          {active && <span className="text-[11px] uppercase tracking-[0.4em] text-cyan-200">On</span>}
+                        </button>
+                      );
+                    })}
                     <button
-                      key={label}
-                      className={`flex w-full items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/40 ${
-                        label === "Comptes" ? "bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/10 border-cyan-300/40" : "bg-white/5"
-                      }`}
+                      onClick={() => setCategoryFilter("all")}
+                      className="w-full rounded-3xl border border-white/10 bg-white/5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/60 hover:text-white"
                     >
-                      <span className="flex items-center gap-2">
-                        <Icon className="h-4 w-4" />
-                        {label}
-                      </span>
-                      {label === "Comptes" && <span className="text-[11px] uppercase tracking-[0.4em] text-cyan-200">Actif</span>}
+                      Tous les articles
                     </button>
-                  ))}
-                </div>
-                <div className="mt-7">
-                  <div className="flex items-center justify-between text-xs text-white/60">
-                    <span>Plage de prix</span>
-                    <span>1k - 100k FCFA</span>
                   </div>
-                  <input type="range" min={1000} max={100000} className="mt-4 w-full accent-cyan-300" />
-                </div>
-                <div className="mt-7">
-                  <div className="text-xs uppercase tracking-[0.4em] text-white/40">Favoris les filtres</div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {favoriteFilters.map((filter) => (
-                      <button key={filter} className="rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs text-white/80">
-                        {filter}
-                      </button>
-                    ))}
+
+                  <div className="space-y-3">
+                    <p className="text-xs uppercase tracking-[0.4em] text-white/40">Plage de prix</p>
+                    <div className="space-y-2">
+                      {PRICE_FILTERS.map((band) => {
+                        const active = priceFilter === band.value;
+                        return (
+                          <button
+                            key={band.value}
+                            onClick={() => setPriceFilter(band.value)}
+                            className={`w-full rounded-3xl border px-4 py-2 text-sm font-semibold transition ${
+                              active
+                                ? "border-fuchsia-300/60 bg-fuchsia-500/10 text-white"
+                                : "border-white/10 bg-white/5 text-white/70 hover:text-white"
+                            }`}
+                          >
+                            {band.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      onClick={() => setPriceFilter("all")}
+                      className="w-full rounded-3xl border border-white/10 bg-transparent py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/60 hover:text-white"
+                    >
+                      Sans limite
+                    </button>
                   </div>
+
+                  <button
+                    onClick={() => {
+                      setCategoryFilter("all");
+                      setPriceFilter("all");
+                    }}
+                    className="w-full rounded-3xl border border-white/15 bg-white/5 py-3 text-sm font-semibold text-white/80 hover:text-white"
+                  >
+                    Réinitialiser les filtres
+                  </button>
                 </div>
               </aside>
 
-              <section className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur">
+              <section className="rounded-[36px] border border-white/10 bg-white/5 p-7 backdrop-blur">
                 <div className="flex items-center gap-4 text-sm font-semibold">
-                  <button className="rounded-3xl border border-white/20 bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/10 px-6 py-2">TOP PICKS</button>
-                  <button className="text-white/50">Sélection mobile</button>
+                  <button className="rounded-3xl border border-white/20 bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/10 px-6 py-2">
+                    TOP PICKS
+                  </button>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 gap-4">
-                  {["Rechercher un jeu", "Filtrer par bonus"].map((placeholder, idx) => (
-                    <div key={placeholder} className="flex items-center gap-3 rounded-3xl border border-white/10 bg-black/30 px-4 py-3">
-                      <Search className="h-4 w-4 text-white/40" />
-                      <input className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none" placeholder={placeholder} />
-                      {idx === 0 ? <Sparkles className="h-4 w-4 text-amber-300" /> : <Heart className="h-4 w-4 text-rose-300" />}
-                    </div>
-                  ))}
+                <div className="mt-6 rounded-3xl border border-white/10 bg-black/40 px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <Search className="h-4 w-4 text-white/40" />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+                      placeholder="Rechercher un jeu ou une catégorie"
+                    />
+                    <Sparkles className="h-4 w-4 text-amber-300" />
+                  </div>
                 </div>
 
-                <div className="mt-6 flex flex-wrap gap-3">
-                  {desktopCategoryPills.map(({ label, icon: Icon }, index) => (
-                    <button
-                      key={label}
-                      className={`flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] transition ${
-                        index === 0 ? "border-cyan-300/40 bg-cyan-500/10 text-white" : "border-white/10 bg-white/5 text-white/70 hover:text-white"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-8 grid grid-cols-4 gap-4">
+                <div className="mt-8 grid grid-cols-4 gap-5">
                   {desktopProducts.map((product) => (
                     <Link
                       key={product.id}
                       href={`/product/${product.id}`}
-                      className="group relative flex flex-col rounded-[28px] border border-white/10 bg-gradient-to-b from-white/10 to-black/50 p-4 shadow-[0_20px_80px_rgba(10,10,20,0.55)] transition hover:border-cyan-300/40 hover:shadow-[0_30px_90px_rgba(14,165,233,0.35)]"
+                      className="group relative flex flex-col gap-3 rounded-[24px] border border-white/10 bg-gradient-to-b from-white/10 to-black/60 p-5 shadow-[0_20px_70px_rgba(4,6,15,0.5)] transition hover:border-cyan-300/40 hover:shadow-[0_25px_90px_rgba(14,165,233,0.35)]"
                     >
-                      <div className="relative h-40 overflow-hidden rounded-2xl">
-                        <div className="absolute inset-0 bg-gradient-to-br from-[#ff8a00]/50 via-[#6d00ff]/40 to-transparent" />
-                        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=800&q=80')] bg-cover bg-center opacity-60" />
+                      <div className="relative h-32 overflow-hidden rounded-2xl">
+                        <div className="absolute inset-0 bg-gradient-to-br from-[#ff8a00]/45 via-[#6d00ff]/30 to-transparent" />
+                        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=800&q=80')] bg-cover bg-center opacity-70 transition duration-500 group-hover:scale-105" />
                       </div>
-                      <div className="mt-4 text-xs uppercase tracking-[0.4em] text-white/40">{product.category ?? "Offre"}</div>
-                      <div className="mt-2 text-base font-semibold leading-tight text-white line-clamp-2">{product.name}</div>
-                      <div className="mt-1 text-sm text-white/60 line-clamp-2">{product.description}</div>
-                      <div className="mt-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">{product.category ?? "Offre"}</p>
+                        <h3 className="mt-2 text-lg font-semibold leading-tight text-white line-clamp-2">{product.name}</h3>
+                        <p className="mt-1 text-xs text-white/60 line-clamp-2">{product.description}</p>
+                      </div>
+                      <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-lg font-bold text-cyan-200">{product.priceLabel}</div>
+                          <p className="text-base font-bold text-cyan-200">{product.priceLabel}</p>
                           {product.oldPrice && (
-                            <div className="text-xs text-white/40 line-through">{formatNumber(product.oldPrice)}</div>
+                            <p className="text-[11px] text-white/40 line-through">{formatNumber(product.oldPrice)}</p>
                           )}
                         </div>
                         <div className="flex items-center gap-1 text-xs text-white/60">
@@ -539,40 +576,14 @@ export default function ShopPage() {
                           {product.likes}
                         </div>
                       </div>
-                      <button className="mt-4 rounded-2xl border border-white/15 bg-white/10 py-2 text-sm font-semibold tracking-wide text-white">
+                      <button className="rounded-2xl border border-white/15 bg-white/10 py-2 text-xs font-semibold tracking-wide text-white">
                         {resolveProductAction(product.type)}
                       </button>
                     </Link>
                   ))}
                 </div>
               </section>
-
-              <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.5em] text-amber-200/70">Classement</p>
-                    <h3 className="text-xl font-bold">Top Teams</h3>
-                  </div>
-                  <Crown className="h-6 w-6 text-amber-300" />
-                </div>
-                <div className="mt-6 space-y-4">
-                  {leaderboardEntries.map((entry) => (
-                    <div key={entry.rank} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg font-black text-white/80">#{entry.rank}</span>
-                        <div>
-                          <div className="text-sm font-semibold text-white">{entry.team}</div>
-                          <div className="text-xs text-white/50">Compétitif</div>
-                        </div>
-                      </div>
-                      <span className="text-sm font-semibold text-amber-200">{entry.score}</span>
-                    </div>
-                  ))}
-                </div>
-                <button className="mt-6 w-full rounded-2xl border border-amber-200/40 bg-amber-400/10 py-2 text-sm font-semibold text-amber-100">Voir le classement complet</button>
-              </div>
             </div>
-          </div>
         </div>
       </section>
 
