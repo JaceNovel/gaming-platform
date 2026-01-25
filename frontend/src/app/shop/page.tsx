@@ -239,7 +239,7 @@ function FilterSheet({
 function DealCard({ product }: { product: ShopProduct }) {
   return (
     <div className="relative flex min-w-[180px] flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-      <div className="flex items-start justify-between text-[11px] uppercase tracking-[0.2em] text-white/60">
+      <div className="flex items-start justify-between text-xs font-medium text-white/70">
         <span className="flex items-center gap-1">
           <Tag className="h-3.5 w-3.5 text-amber-300" />
           Deal
@@ -463,9 +463,9 @@ function ProductCard({ product, onAddToCart, onView }: ProductCardProps) {
         </span>
       </div>
       <div className="mt-4 space-y-2">
-        <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">{product.category}</p>
+        <p className="text-xs font-medium text-white/60">{product.category}</p>
         <h4 className="text-lg font-semibold leading-tight text-white line-clamp-2">{product.name}</h4>
-        <p className="text-sm text-white/60 line-clamp-2">{product.description}</p>
+        <p className="text-sm text-white/70 line-clamp-2">{product.description}</p>
       </div>
       <div className="mt-4 flex items-center justify-between">
         <div>
@@ -488,9 +488,9 @@ function ProductCard({ product, onAddToCart, onView }: ProductCardProps) {
         </button>
         <button
           onClick={() => onView(product)}
-          className="w-full rounded-full border border-white/20 bg-white/5 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/80 hover:text-white"
+          className="w-full rounded-full border border-white/20 bg-white/5 px-5 py-2 text-sm font-medium text-white/80 hover:text-white"
         >
-          Voir
+          Voir le détail
         </button>
       </div>
     </div>
