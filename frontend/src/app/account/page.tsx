@@ -263,12 +263,6 @@ const statusBadgeClass = (status: Order["status"]) => {
 
 const VIP_PLANS = [
   {
-    level: "bronze",
-    label: "Bronze",
-    price: "6 000 FCFA",
-    perks: ["Cashback 3%", "Chat prioritaire"],
-  },
-  {
     level: "or",
     label: "Or",
     price: "10 000 FCFA",
@@ -316,13 +310,27 @@ function AccountClient() {
   const router = useRouter();
   const fallbackProfile = useMemo<Me | null>(() => {
     if (!user) return null;
+    const countryCode =
+      (typeof user.country_code === "string" && user.country_code.length > 0
+        ? user.country_code
+        : typeof user.country === "string"
+          ? user.country
+          : null) ?? null;
+    const walletRaw = Number(user.wallet_balance ?? user.walletBalance ?? 0);
+    const walletBalance = Number.isFinite(walletRaw) ? walletRaw : 0;
+    const premiumTierRaw = user.premiumTier ?? user.premium_tier ?? user.premium_level;
+    const premiumTierResolved = premiumTierRaw
+      ? String(premiumTierRaw)
+      : user.is_premium
+        ? "Platine"
+        : "Basic";
     return {
-      username: user.name ?? "BADBOY",
-      countryCode: "CI",
-      countryName: "Côte d'Ivoire",
+      username: user.name ?? user.username ?? "BADBOY",
+      countryCode,
+      countryName: user.country_name ?? null,
       avatarId: user.is_premium ? "cyber_samurai" : "neon_assassin",
-      walletBalanceFcfa: user.is_premium ? 150000 : 42000,
-      premiumTier: user.is_premium ? "Platine" : "Bronze",
+      walletBalanceFcfa: walletBalance,
+      premiumTier: premiumTierResolved,
     } satisfies Me;
   }, [user]);
 
@@ -355,6 +363,7 @@ function AccountClient() {
   const [rechargeProcessing, setRechargeProcessing] = useState(false);
   const [rechargeStatus, setRechargeStatus] = useState<"idle" | "success" | "error">("idle");
   const [rechargeMessage, setRechargeMessage] = useState("");
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
   const avatar = useMemo(() => {
     const id = me?.avatarId || "shadow_default";
@@ -568,6 +577,11 @@ function AccountClient() {
     if (menu === "Wallet") {
       setWalletModalOpen(true);
     }
+    if (menu === "Parametres") {
+      setSettingsModalOpen(true);
+    } else {
+      setSettingsModalOpen(false);
+    }
   };
 
   async function saveAvatar() {
@@ -626,8 +640,7 @@ function AccountClient() {
         prev
           ? {
               ...prev,
-              premiumTier:
-                vipForm.level === "platine" ? "Platine" : vipForm.level === "or" ? "Or" : "Bronze",
+              premiumTier: vipForm.level === "platine" ? "Platine" : "Or",
             }
           : prev,
       );
@@ -679,6 +692,13 @@ function AccountClient() {
 
   const closeWalletModal = () => {
     setWalletModalOpen(false);
+  };
+
+  const closeSettingsModal = () => {
+    setSettingsModalOpen(false);
+    if (activeMenu === "Parametres") {
+      setActiveMenu("Principal");
+    }
   };
 
   const handleAddFundsClick = () => {
@@ -861,120 +881,6 @@ function AccountClient() {
                 </p>
               )}
 
-              {activeMenu === "Parametres" && (
-                <div className="mt-6 space-y-4">
-                  <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
-                    <div className="font-semibold">Personnalisation</div>
-                    <div className="text-sm opacity-75 mt-1">
-                      Personnage actuel: <span className="font-semibold">{avatar.name}</span>
-                    </div>
-                    <button
-                      onClick={() => setPickerOpen(true)}
-                      className="mt-3 px-4 py-2 rounded-2xl bg-white/10 border border-white/15 hover:bg-white/15 transition text-sm"
-                    >
-                      Choisir un personnage
-                    </button>
-                  </div>
-
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <form
-                      onSubmit={handlePasswordSubmit}
-                      className="rounded-2xl bg-black/40 border border-white/10 p-5 backdrop-blur"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.3em] text-white/50">Sécurité</p>
-                          <h3 className="text-lg font-semibold">Changer mon mot de passe</h3>
-                        </div>
-                        <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 text-white/60">
-                          🔐 Compte
-                        </span>
-                      </div>
-                      <div className="mt-4 space-y-3">
-                        <label className="flex flex-col gap-1 text-sm">
-                          <span className="text-white/70">Mot de passe actuel</span>
-                          <input
-                            type="password"
-                            autoComplete="current-password"
-                            className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
-                            value={passwordForm.current}
-                            onChange={(e) =>
-                              setPasswordForm((prev) => ({ ...prev, current: e.target.value }))
-                            }
-                            disabled={disablePasswordForm || passwordSubmitting}
-                            required
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1 text-sm">
-                          <span className="text-white/70">Nouveau mot de passe</span>
-                          <input
-                            type="password"
-                            autoComplete="new-password"
-                            className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
-                            value={passwordForm.password}
-                            onChange={(e) =>
-                              setPasswordForm((prev) => ({ ...prev, password: e.target.value }))
-                            }
-                            disabled={disablePasswordForm || passwordSubmitting}
-                            required
-                            minLength={8}
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1 text-sm">
-                          <span className="text-white/70">Confirmer</span>
-                          <input
-                            type="password"
-                            autoComplete="new-password"
-                            className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
-                            value={passwordForm.confirm}
-                            onChange={(e) =>
-                              setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))
-                            }
-                            disabled={disablePasswordForm || passwordSubmitting}
-                            required
-                            minLength={8}
-                          />
-                        </label>
-                      </div>
-                      {passwordMessage && (
-                        <p
-                          className={`mt-3 text-sm ${
-                            passwordStatus === "success" ? "text-emerald-300" : "text-rose-300"
-                          }`}
-                        >
-                          {passwordMessage}
-                        </p>
-                      )}
-                      {disablePasswordForm && (
-                        <p className="mt-2 text-xs text-amber-200">
-                          API non configurée, modification désactivée en local.
-                        </p>
-                      )}
-                      <button
-                        type="submit"
-                        disabled={disablePasswordForm || passwordSubmitting}
-                        className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
-                      >
-                        {passwordSubmitting ? "Mise à jour..." : "Mettre à jour"}
-                      </button>
-                    </form>
-
-                    <div className="rounded-2xl bg-gradient-to-br from-rose-500/20 to-orange-500/10 border border-white/10 p-5">
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/60">Session</p>
-                      <h3 className="mt-2 text-xl font-semibold">Déconnexion rapide</h3>
-                      <p className="mt-2 text-sm text-white/70">
-                        Déconnecte-toi sur tous les appareils et sécurise ton compte avant de changer de poste.
-                      </p>
-                      <button
-                        onClick={handleLogout}
-                        className="mt-5 w-full rounded-2xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/20"
-                      >
-                        Se déconnecter
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {activeMenu === "MesCommandes" && (
@@ -1037,7 +943,7 @@ function AccountClient() {
       {walletModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeWalletModal} />
-          <div className="relative z-10 w-full max-w-4xl rounded-[32px] border border-white/20 bg-black/85 p-6 md:p-10 shadow-[0_40px_120px_rgba(0,0,0,0.85)]">
+          <div className="relative z-10 w-full max-w-3xl rounded-[32px] border border-white/20 bg-black/85 p-6 md:p-10 shadow-[0_40px_120px_rgba(0,0,0,0.85)]">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.5em] text-cyan-200/80">Wallet BADBOY</p>
@@ -1142,6 +1048,115 @@ function AccountClient() {
                       </div>
                     </div>
                   ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {settingsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeSettingsModal} />
+          <div className="relative z-10 w-full max-w-2xl rounded-[28px] border border-white/20 bg-[#05030c]/95 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.8)]">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Paramètres</p>
+                <h2 className="mt-2 text-2xl font-semibold">Mini cockpit sécurité</h2>
+                <p className="mt-1 text-sm text-white/60">Gère ton mot de passe et tes sessions depuis cette fenêtre.</p>
+              </div>
+              <button
+                className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
+                onClick={closeSettingsModal}
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-5">
+              <form
+                onSubmit={handlePasswordSubmit}
+                className="rounded-2xl bg-black/50 border border-white/10 p-5 backdrop-blur"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">Sécurité</p>
+                    <h3 className="text-lg font-semibold">Changer mon mot de passe</h3>
+                  </div>
+                  <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 text-white/60">🔐 Compte</span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-white/70">Mot de passe actuel</span>
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                      value={passwordForm.current}
+                      onChange={(e) => setPasswordForm((prev) => ({ ...prev, current: e.target.value }))}
+                      disabled={disablePasswordForm || passwordSubmitting}
+                      required
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-white/70">Nouveau mot de passe</span>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                      value={passwordForm.password}
+                      onChange={(e) => setPasswordForm((prev) => ({ ...prev, password: e.target.value }))}
+                      disabled={disablePasswordForm || passwordSubmitting}
+                      required
+                      minLength={8}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-white/70">Confirmer</span>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                      value={passwordForm.confirm}
+                      onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))}
+                      disabled={disablePasswordForm || passwordSubmitting}
+                      required
+                      minLength={8}
+                    />
+                  </label>
+                </div>
+                {passwordMessage && (
+                  <p
+                    className={`mt-3 text-sm ${
+                      passwordStatus === "success" ? "text-emerald-300" : "text-rose-300"
+                    }`}
+                  >
+                    {passwordMessage}
+                  </p>
+                )}
+                {disablePasswordForm && (
+                  <p className="mt-2 text-xs text-amber-200">API non configurée, modification désactivée en local.</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={disablePasswordForm || passwordSubmitting}
+                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                >
+                  {passwordSubmitting ? "Mise à jour..." : "Mettre à jour"}
+                </button>
+              </form>
+
+              <div className="rounded-2xl bg-gradient-to-br from-rose-500/20 to-orange-500/10 border border-white/10 p-5">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/60">Session</p>
+                <h3 className="mt-2 text-xl font-semibold">Déconnexion rapide</h3>
+                <p className="mt-2 text-sm text-white/70">
+                  Déconnecte-toi sur tous les appareils et sécurise ton compte avant de changer de poste.
+                </p>
+                <button
+                  onClick={handleLogout}
+                  className="mt-5 w-full rounded-2xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/20"
+                >
+                  Se déconnecter
+                </button>
               </div>
             </div>
           </div>
