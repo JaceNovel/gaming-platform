@@ -155,7 +155,7 @@ export default function RegisterClient() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur">
             <p className="text-sm font-semibold">Programme VIP multi-paliers</p>
             <p className="text-xs text-white/60 mt-1">
-              Bronze -> Argent -> Or -> Diamant. Chaque palier débloque du cashback et des délais de livraison réduits.
+              Bronze &gt; Argent &gt; Or &gt; Diamant. Chaque palier débloque du cashback et des délais de livraison réduits.
             </p>
           </div>
         </section>
