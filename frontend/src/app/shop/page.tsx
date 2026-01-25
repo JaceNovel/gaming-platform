@@ -1,23 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Orbitron } from "next/font/google";
 import {
   Bell,
   Camera,
   Crown,
-  Gamepad2,
   Heart,
-  Package,
   Search,
   ShoppingCart,
   SlidersHorizontal,
   Sparkles,
   Tag,
-  Ticket,
-  Zap,
 } from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
@@ -99,14 +96,10 @@ const COSMIC_OVERLAY =
 const FALLBACK_PRODUCT_IMAGE =
   "https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=600&q=80";
 
-type HeroTab = { label: string; slug: string; icon: ComponentType<{ className?: string }> };
-
-const topJeuxFilters: HeroTab[] = [
-  { label: "Compte actifs", slug: "comptes", icon: Gamepad2 },
-  { label: "Recharges", slug: "recharges", icon: Zap },
-  { label: "Pass", slug: "pass", icon: Ticket },
-  { label: "Articles", slug: "articles", icon: Package },
-];
+const orbitron = Orbitron({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+});
 
 type SortOption = "popular" | "recent" | "priceAsc" | "priceDesc";
 
@@ -263,47 +256,19 @@ function DealCard({ product }: { product: ShopProduct }) {
   );
 }
 
-type ShopHeroProps = {
-  tabs: HeroTab[];
-  activeTab: string;
-  onTabChange: (slug: string) => void;
-  onPrimaryAction: () => void;
-};
-
-function ShopHero({ tabs, activeTab, onTabChange, onPrimaryAction }: ShopHeroProps) {
+function ShopHero() {
   return (
     <div className="flex flex-col items-center text-center">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-white/10 text-cyan-200 shadow-[0_12px_40px_rgba(99,102,241,0.4)]">
         <Crown className="h-7 w-7" />
       </div>
       <p className="mt-6 text-xs uppercase tracking-[0.45em] text-cyan-200/80">BADBOYSHOP</p>
-      <h1 className="mt-4 text-4xl font-black leading-tight text-white">Boutique BADBOYSHOP</h1>
-      <p className="mt-3 max-w-2xl text-base text-white/70">
+      <h1 className="mt-4 text-5xl font-black uppercase tracking-[0.08em] text-white">Boutique BADBOYSHOP</h1>
+      <p className="mt-3 max-w-2xl text-base text-white/80">
         Recharge, abonnements et articles gaming au meilleur prix.
       </p>
-      <GlowButton className="mt-6 px-6" onClick={onPrimaryAction}>
-        Explorer les produits
-      </GlowButton>
-      <div className="mt-8 flex flex-wrap justify-center gap-3">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.slug;
-          return (
-            <button
-              key={tab.slug}
-              onClick={() => onTabChange(tab.slug)}
-              className={`flex items-center gap-2 rounded-full border px-5 py-2 text-sm font-semibold transition ${
-                isActive
-                  ? "border-cyan-300/60 bg-cyan-500/15 text-white shadow-[0_0_25px_rgba(34,211,238,0.25)]"
-                  : "border-white/10 bg-white/5 text-white/70 hover:text-white"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <div className="mt-8 h-px w-32 bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400" />
+      <p className="mt-4 text-sm uppercase tracking-[0.4em] text-white/60">Sélection premium</p>
     </div>
   );
 }
@@ -532,7 +497,6 @@ export default function ShopPage() {
   const [priceFilter, setPriceFilter] = useState<PriceFilterKey>("all");
   const [sortOrder, setSortOrder] = useState<SortOption>("popular");
   const [promoOnly, setPromoOnly] = useState(false);
-  const [activeHeroTab, setActiveHeroTab] = useState("all");
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [pendingCategory, setPendingCategory] = useState("all");
@@ -541,15 +505,6 @@ export default function ShopPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const filtersSectionRef = useRef<HTMLDivElement | null>(null);
-  const heroTabs = useMemo<HeroTab[]>(
-    () => [{ label: "Tout", slug: "all", icon: Sparkles }, ...topJeuxFilters],
-    []
-  );
-
-  useEffect(() => {
-    setActiveHeroTab(categoryFilter);
-  }, [categoryFilter]);
-
   useEffect(() => {
     let active = true;
     const loadProducts = async () => {
@@ -640,15 +595,6 @@ export default function ShopPage() {
   }, []);
 
   const catalog = products.length ? products : exampleProducts;
-
-  const handleHeroTabChange = (slug: string) => {
-    setCategoryFilter(slug);
-    setActiveHeroTab(slug);
-  };
-
-  const handleHeroPrimaryAction = () => {
-    filtersSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
 
   const handleAddToCart = (product: ShopProduct) => {
     router.push(`/product/${product.id}?action=add`);
@@ -746,8 +692,8 @@ export default function ShopPage() {
   };
 
   return (
-    <main className="min-h-[100dvh] bg-[#04020c] text-white">
-      <section className="hidden lg:block">
+    <main className="min-h-[100dvh] bg-[#04020c] text-white lg:bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]">
+      <section className={`${orbitron.className} hidden lg:block`}>
         <div className="mx-auto w-full max-w-6xl px-6 py-12">
           <div className="space-y-12">
             <div className="relative overflow-hidden rounded-[46px] border border-white/10 bg-[#090014] p-[1px] shadow-[0_35px_140px_rgba(4,6,35,0.65)]">
@@ -765,12 +711,7 @@ export default function ShopPage() {
                   <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-[#07001b]/70 to-transparent" />
                 </div>
                 <div className="relative grid items-center gap-12 px-12 py-16 lg:grid-cols-[minmax(0,1fr)_400px]">
-                  <ShopHero
-                    tabs={heroTabs}
-                    activeTab={activeHeroTab}
-                    onTabChange={handleHeroTabChange}
-                    onPrimaryAction={handleHeroPrimaryAction}
-                  />
+                  <ShopHero />
                   <div className="relative h-[360px]">
                     <div className="absolute inset-0 rounded-[38px] bg-gradient-to-br from-cyan-400/20 via-fuchsia-400/15 to-transparent blur-3xl" />
                     <div className="relative h-full overflow-hidden rounded-[34px] border border-white/10 bg-black/30">
