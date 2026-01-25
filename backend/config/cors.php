@@ -9,7 +9,7 @@ return [
         env('FRONTEND_URL'),
         env('FRONTEND_URL_WWW'),
         env('NEXT_PUBLIC_APP_URL'),
-        app()->environment('local') ? 'http://localhost:3000' : null,
+        env('APP_ENV') === 'local' ? 'http://localhost:3000' : null,
     ])),
     'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],
