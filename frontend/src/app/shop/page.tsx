@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Orbitron } from "next/font/google";
+import { Orbitron, Space_Grotesk } from "next/font/google";
 import {
   Bell,
   Camera,
@@ -99,6 +99,11 @@ const FALLBACK_PRODUCT_IMAGE =
 const orbitron = Orbitron({
   subsets: ["latin"],
   weight: ["400", "600", "700"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 type SortOption = "popular" | "recent" | "priceAsc" | "priceDesc";
@@ -258,7 +263,7 @@ function DealCard({ product }: { product: ShopProduct }) {
 
 function ShopHero() {
   return (
-    <div className="flex flex-col items-center text-center">
+    <div className={`${orbitron.className} flex flex-col items-center text-center`}>
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-white/10 text-cyan-200 shadow-[0_12px_40px_rgba(99,102,241,0.4)]">
         <Crown className="h-7 w-7" />
       </div>
@@ -408,17 +413,19 @@ type ProductGridProps = {
 
 function ProductGrid({ title, subtitle, products, onAddToCart, onView }: ProductGridProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.1),_rgba(10,3,28,0.95))] p-6 shadow-[0_25px_80px_rgba(4,6,35,0.6)]">
       <div className="flex flex-col gap-1">
         <h3 className="text-2xl font-bold text-white">{title}</h3>
-        {subtitle && <p className="text-sm text-white/60">{subtitle}</p>}
+        {subtitle && <p className="text-sm text-white/70">{subtitle}</p>}
       </div>
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-soft">
         {products.map((product) => (
-          <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} onView={onView} />
+          <div key={product.id} className="min-w-[320px] max-w-[320px] shrink-0">
+            <ProductCard product={product} onAddToCart={onAddToCart} onView={onView} />
+          </div>
         ))}
         {!products.length && (
-          <div className="col-span-full rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
+          <div className="min-w-full rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
             Aucun produit pour le moment.
           </div>
         )}
@@ -538,9 +545,9 @@ export default function ShopPage() {
             item?.media?.[0]?.url ??
             item?.game?.cover ??
             null;
-          return {
-            id: item.id,
-            name: item.name,
+          return (
+            <main className={`${spaceGrotesk.className} min-h-[100dvh] bg-[#04020c] text-white lg:bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]`}>
+              <section className="hidden lg:block">
             description: item?.details?.description ?? item?.details?.subtitle ?? item?.game?.name ?? "Produit premium",
             priceLabel: `${formatNumber(priceValue)} FCFA`,
             priceValue,
