@@ -19,7 +19,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   register: (payload: {
     name: string;
     email: string;
@@ -39,6 +39,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const pickUser = (payload: any): AuthUser | null => {
+    if (!payload) return null;
+    if (payload.user && typeof payload.user === "object") {
+      return payload.user as AuthUser;
+    }
+    if (typeof payload === "object" && "id" in payload && "email" in payload) {
+      return payload as AuthUser;
+    }
+    return null;
+  };
+
   const loadUser = async (nextToken: string) => {
     if (!HAS_API_ENV) {
       setUser(null);
@@ -50,18 +61,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/user`, {
+      const res = await fetch(`${API_BASE}/me`, {
         headers: { Authorization: `Bearer ${nextToken}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setUser(data);
-      } else {
-        setUser(null);
-        setToken(null);
-        if (typeof window !== "undefined") {
-          localStorage.removeItem(STORAGE_KEY);
+        const nextUser = pickUser(data);
+        if (nextUser) {
+          setUser(nextUser);
+          return;
         }
+      }
+      setUser(null);
+      setToken(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY);
       }
     } catch {
       setUser(null);
@@ -124,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!HAS_API_ENV) {
         throw new Error("API non configurée (NEXT_PUBLIC_API_URL manquant)");
       }
-      res = await fetch(`${API_BASE}/login`, {
+      res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -138,11 +152,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const data = await res.json();
+    const loggedUser = pickUser(data);
+    if (!loggedUser) {
+      throw new Error("Réponse utilisateur invalide");
+    }
     setToken(data.token);
-    setUser(data.user);
+    setUser(loggedUser);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, data.token);
     }
+    return loggedUser;
   };
 
   const register = async (payload: {
@@ -158,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!HAS_API_ENV) {
         throw new Error("API non configurée (NEXT_PUBLIC_API_URL manquant)");
       }
-      res = await fetch(`${API_BASE}/register`, {
+      res = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -173,7 +192,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const data = await res.json();
     setToken(data.token);
-    setUser(data.user);
+    const nextUser = pickUser(data);
+    setUser(nextUser);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, data.token);
     }
@@ -182,7 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       if (token) {
-        await authFetch(`${API_BASE}/logout`, { method: "POST" });
+        await authFetch(`${API_BASE}/auth/logout`, { method: "POST" });
       }
     } catch (error) {
       // best effort logout

@@ -21,6 +21,29 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminDashboardController extends Controller
 {
+    public function overview(Request $request)
+    {
+        $user = $request->user();
+
+        $totals = [
+            'orders' => Order::count(),
+            'paid_payments' => Payment::where('status', 'paid')->count(),
+            'users' => User::count(),
+            'active_premium' => PremiumMembership::where('is_active', true)
+                ->whereDate('expiration_date', '>=', Carbon::today())
+                ->count(),
+        ];
+
+        return response()->json([
+            'user' => [
+                'id' => $user->id,
+                'email' => $user->email,
+                'role' => $user->role,
+            ],
+            'totals' => $totals,
+        ]);
+    }
+
     public function summary(Request $request)
     {
         if (!$this->isSuperAdmin($request)) {

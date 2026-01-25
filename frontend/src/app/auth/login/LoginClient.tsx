@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { isAdminRole } from "@/components/auth/adminRoles";
 
 export default function LoginClient() {
   const { login } = useAuth();
@@ -21,8 +22,14 @@ export default function LoginClient() {
     setError(null);
     setLoading(true);
     try {
-      await login(email.trim(), password);
-      router.replace(next);
+      const authenticatedUser = await login(email.trim(), password);
+      const requestedNext = next.startsWith("/") ? next : "/";
+      if (isAdminRole(authenticatedUser.role)) {
+        router.replace("/admin/dashboard");
+        return;
+      }
+      const fallback = requestedNext.startsWith("/admin") ? "/" : requestedNext;
+      router.replace(fallback);
     } catch (err) {
       setError((err as Error).message);
     } finally {

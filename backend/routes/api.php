@@ -28,6 +28,14 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+Route::prefix('auth')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+});
+
+Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);
+
 Route::get('/health', function () {
     return response()->json([
         'ok' => true,
@@ -36,11 +44,6 @@ Route::get('/health', function () {
         'time' => now()->toIso8601String(),
     ]);
 });
-
-// Auth routes
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 
 // Public listing routes
 Route::apiResource('games', GameController::class)->only(['index', 'show']);
@@ -92,8 +95,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/wallet/topup/init', [WalletController::class, 'initTopup']);
 
     // Profile
-    Route::get('/me', [UserProfileController::class, 'show']);
-    Route::patch('/me', [UserProfileController::class, 'update']);
+    Route::get('/me/profile', [UserProfileController::class, 'show']);
+    Route::patch('/me/profile', [UserProfileController::class, 'update']);
 
     // Reviews
     Route::get('/reviews', [ReviewController::class, 'index']);
@@ -110,6 +113,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Admin routes
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    Route::get('/dashboard', [AdminDashboardController::class, 'overview']);
     Route::get('/dashboard/tables', [AdminDashboardController::class, 'tables']);
     Route::get('/dashboard/export', [AdminDashboardController::class, 'export']);
 

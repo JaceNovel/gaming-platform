@@ -33,10 +33,11 @@ class AuthController extends Controller
             'is_premium' => false,
         ]);
 
+        $user->refresh();
         $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([
-            'user' => $user,
+            'user' => $this->transformUser($user),
             'token' => $token,
         ], 201);
     }
@@ -59,15 +60,38 @@ class AuthController extends Controller
         $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([
-            'user' => $user,
+            'user' => $this->transformUser($user),
             'token' => $token,
         ]);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $token = $request->user()?->currentAccessToken();
+        if ($token) {
+            $token->delete();
+        }
 
         return response()->json(['message' => 'Logged out successfully']);
+    }
+
+    public function me(Request $request)
+    {
+        return response()->json([
+            'user' => $this->transformUser($request->user()),
+        ]);
+    }
+
+    private function transformUser(User $user): array
+    {
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role,
+            'is_premium' => (bool) $user->is_premium,
+            'premium_level' => $user->premium_level,
+            'premium_expiration' => optional($user->premium_expiration)?->toIso8601String(),
+        ];
     }
 }

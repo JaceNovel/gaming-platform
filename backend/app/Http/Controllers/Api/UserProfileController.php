@@ -17,16 +17,19 @@ class UserProfileController extends Controller
         $user = $request->user();
         $wallet = $this->walletService->getOrCreateWallet($user);
 
+        $profile = [
+            'username' => $user->game_username ?: $user->name,
+            'countryCode' => $user->country_code,
+            'countryName' => $user->country_name,
+            'avatarId' => $user->avatar_id ?? 'shadow_default',
+            'walletBalanceFcfa' => (float) $wallet->balance,
+            'premiumTier' => $user->premium_tier ?: $this->inferPremiumTier($user),
+            'role' => $user->role,
+        ];
+
         return response()->json([
-            'me' => [
-                'username' => $user->game_username ?: $user->name,
-                'countryCode' => $user->country_code,
-                'countryName' => $user->country_name,
-                'avatarId' => $user->avatar_id ?? 'shadow_default',
-                'walletBalanceFcfa' => (float) $wallet->balance,
-                'premiumTier' => $user->premium_tier ?: $this->inferPremiumTier($user),
-                'role' => $user->role,
-            ],
+            'profile' => $profile,
+            'me' => $profile,
         ]);
     }
 
@@ -54,16 +57,19 @@ class UserProfileController extends Controller
 
         $wallet = $this->walletService->getOrCreateWallet($user);
 
+        $profile = [
+            'username' => $user->game_username ?: $user->name,
+            'countryCode' => $user->country_code,
+            'countryName' => $user->country_name,
+            'avatarId' => $user->avatar_id ?? 'shadow_default',
+            'walletBalanceFcfa' => (float) $wallet->balance,
+            'premiumTier' => $user->premium_tier ?: $this->inferPremiumTier($user),
+            'role' => $user->role,
+        ];
+
         return response()->json([
-            'me' => [
-                'username' => $user->game_username ?: $user->name,
-                'countryCode' => $user->country_code,
-                'countryName' => $user->country_name,
-                'avatarId' => $user->avatar_id ?? 'shadow_default',
-                'walletBalanceFcfa' => (float) $wallet->balance,
-                'premiumTier' => $user->premium_tier ?: $this->inferPremiumTier($user),
-                'role' => $user->role,
-            ],
+            'profile' => $profile,
+            'me' => $profile,
         ]);
     }
 
