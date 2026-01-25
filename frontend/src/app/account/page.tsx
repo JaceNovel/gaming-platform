@@ -41,6 +41,86 @@ const AVATARS = [
 ];
 
 const thumbs = ["/thumbs/lol.png", "/thumbs/ml.png", "/thumbs/ff.png", "/thumbs/ff2.png"];
+const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
+
+const DEFAULT_ORDERS: Order[] = [
+  {
+    id: "BB-9001",
+    title: "Compte Légendaire",
+    game: "Free Fire",
+    priceFcfa: 18000,
+    status: "COMPLÉTÉ",
+    thumb: thumbs[0],
+  },
+  {
+    id: "BB-9002",
+    title: "Recharge Express 5k",
+    game: "Mobile Legends",
+    priceFcfa: 5000,
+    status: "EN_COURS",
+    thumb: thumbs[1],
+  },
+  {
+    id: "BB-9003",
+    title: "Pack Accessoires",
+    game: "Globale",
+    priceFcfa: 9500,
+    status: "ÉCHOUÉ",
+    thumb: thumbs[2],
+  },
+];
+
+const normalizeMe = (payload: any, baseline: Me | null): Me => {
+  const fallback =
+    baseline ??
+    ({
+      username: "BADBOY",
+      countryCode: "CI",
+      countryName: "Côte d'Ivoire",
+      avatarId: "shadow_default",
+      walletBalanceFcfa: 0,
+      premiumTier: "Bronze",
+    } satisfies Me);
+
+  return {
+    username: payload?.username ?? payload?.name ?? fallback.username,
+    countryCode: payload?.countryCode ?? payload?.country_code ?? fallback.countryCode ?? null,
+    countryName: payload?.countryName ?? payload?.country_name ?? fallback.countryName ?? null,
+    avatarId: payload?.avatarId ?? payload?.avatar_id ?? fallback.avatarId,
+    walletBalanceFcfa:
+      Number(
+        payload?.walletBalanceFcfa ??
+          payload?.wallet_balance_fcfa ??
+          payload?.wallet_balance ??
+          fallback.walletBalanceFcfa,
+      ) || 0,
+    premiumTier: payload?.premiumTier ?? payload?.premium_tier ?? payload?.premium_level ?? fallback.premiumTier,
+  } satisfies Me;
+};
+
+const statusBadgeClass = (status: Order["status"]) => {
+  if (status === "COMPLÉTÉ") return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
+  if (status === "ÉCHOUÉ") return "bg-rose-500/20 border-rose-400/30 text-rose-100";
+  return "bg-amber-400/20 border-amber-300/30 text-amber-100";
+};
+
+function ProfileLoading() {
+  return (
+    <div className="min-h-screen bg-[#020109] text-white flex items-center justify-center">
+      <div className="relative flex flex-col items-center gap-6">
+        <div className="relative h-32 w-32">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-400 via-fuchsia-500 to-amber-400 opacity-40 blur-2xl" />
+          <div className="absolute inset-[8px] rounded-full border border-white/20" />
+          <div className="absolute inset-0 rounded-full border-t-2 border-cyan-300 animate-[spin_6s_linear_infinite]" />
+        </div>
+        <div className="text-center">
+          <p className="text-xs tracking-[0.4em] text-white/60">MON COMPTE</p>
+          <p className="mt-3 text-lg font-semibold">Initialisation du cockpit joueur...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const formatFcfa = (n: number) => new Intl.NumberFormat("fr-FR").format(n) + " FCFA";
 const mapOrderStatus = (status?: string): Order["status"] => {
@@ -55,9 +135,21 @@ const mapOrderStatus = (status?: string): Order["status"] => {
 };
 
 function AccountClient() {
-  const { authFetch } = useAuth();
-  const [me, setMe] = useState<Me | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const { authFetch, user, loading: authLoading } = useAuth();
+  const fallbackProfile = useMemo<Me | null>(() => {
+    if (!user) return null;
+    return {
+      username: user.name ?? "BADBOY",
+      countryCode: "CI",
+      countryName: "Côte d'Ivoire",
+      avatarId: user.is_premium ? "cyber_samurai" : "neon_assassin",
+      walletBalanceFcfa: user.is_premium ? 150000 : 42000,
+      premiumTier: user.is_premium ? "Platine" : "Bronze",
+    } satisfies Me;
+  }, [user]);
+
+  const [me, setMe] = useState<Me | null>(fallbackProfile);
+  const [orders, setOrders] = useState<Order[]>(DEFAULT_ORDERS);
   const [activeMenu, setActiveMenu] = useState<
     "MesCommandes" | "Wallet" | "VIP" | "Principal" | "Parametres"
   >("Principal");
@@ -65,6 +157,8 @@ function AccountClient() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pendingAvatarId, setPendingAvatarId] = useState<string>("shadow_default");
   const [saving, setSaving] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(HAS_API_ENV);
+  const [loadingOrders, setLoadingOrders] = useState(HAS_API_ENV);
 
   const avatar = useMemo(() => {
     const id = me?.avatarId || "shadow_default";
@@ -72,40 +166,72 @@ function AccountClient() {
   }, [me?.avatarId]);
 
   useEffect(() => {
+    if (fallbackProfile && !me) {
+      setMe(fallbackProfile);
+    }
+  }, [fallbackProfile, me]);
+
+  useEffect(() => {
     let active = true;
+    if (!HAS_API_ENV) {
+      setLoadingProfile(false);
+      return () => {
+        active = false;
+      };
+    }
     (async () => {
-      const res = await authFetch(`${API_BASE}/me`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!active) return;
-      setMe(data.me);
+      try {
+        const res = await authFetch(`${API_BASE}/me`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!active) return;
+        if (data?.me || data) {
+          setMe(normalizeMe(data?.me ?? data, fallbackProfile));
+        }
+      } catch (error) {
+        console.warn("Profil indisponible", error);
+      } finally {
+        if (active) setLoadingProfile(false);
+      }
     })();
     return () => {
       active = false;
     };
-  }, [authFetch]);
+  }, [authFetch, fallbackProfile]);
 
   useEffect(() => {
     let active = true;
+    if (!HAS_API_ENV) {
+      setLoadingOrders(false);
+      return () => {
+        active = false;
+      };
+    }
     (async () => {
-      const res = await authFetch(`${API_BASE}/orders`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-      if (!active) return;
-      const mapped = items.map((order: any, idx: number) => {
-        const orderItems = order.orderItems ?? order.order_items ?? [];
-        const title = orderItems[0]?.product?.name ?? order.reference ?? `Commande ${order.id}`;
-        return {
-          id: String(order.reference ?? order.id),
-          title,
-          game: orderItems[0]?.product?.name ? "BADBOYSHOP" : "BADBOYSHOP",
-          priceFcfa: Number(order.total_price ?? 0),
-          status: mapOrderStatus(order.status),
-          thumb: thumbs[idx % thumbs.length],
-        } as Order;
-      });
-      setOrders(mapped);
+      try {
+        const res = await authFetch(`${API_BASE}/orders`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        if (!active) return;
+        const mapped = items.map((order: any, idx: number) => {
+          const orderItems = order.orderItems ?? order.order_items ?? [];
+          const title = orderItems[0]?.product?.name ?? order.reference ?? `Commande ${order.id}`;
+          return {
+            id: String(order.reference ?? order.id),
+            title,
+            game: orderItems[0]?.product?.name ? "BADBOYSHOP" : "BADBOYSHOP",
+            priceFcfa: Number(order.total_price ?? 0),
+            status: mapOrderStatus(order.status),
+            thumb: thumbs[idx % thumbs.length],
+          } as Order;
+        });
+        setOrders(mapped);
+      } catch (error) {
+        console.warn("Commandes indisponibles", error);
+      } finally {
+        if (active) setLoadingOrders(false);
+      }
     })();
     return () => {
       active = false;
@@ -135,12 +261,8 @@ function AccountClient() {
     }
   }
 
-  if (!me) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="animate-pulse opacity-70">Chargement...</div>
-      </div>
-    );
+  if (!me || authLoading || loadingProfile) {
+    return <ProfileLoading />;
   }
 
   const missingCountry = !me.countryCode;
@@ -197,8 +319,13 @@ function AccountClient() {
                 </div>
 
                 <div className="divide-y divide-white/10">
-                  {orders.map((o) => (
-                    <div key={o.id} className="grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-4 items-center">
+                  {(loadingOrders ? DEFAULT_ORDERS : orders).map((o) => (
+                    <div
+                      key={o.id}
+                      className={`grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-4 items-center ${
+                        loadingOrders ? "opacity-60 animate-pulse" : ""
+                      }`}
+                    >
                       <div className="flex items-center gap-3">
                         <div className="relative h-12 w-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
                           <Image src={o.thumb} alt="" fill className="object-cover" />
@@ -212,7 +339,11 @@ function AccountClient() {
                       </div>
                       <div className="text-right font-semibold">{formatFcfa(o.priceFcfa)}</div>
                       <div className="text-right">
-                        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-300/20 text-xs font-semibold">
+                        <span
+                          className={`inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ${
+                            statusBadgeClass(o.status)
+                          }`}
+                        >
                           {o.status}
                         </span>
                       </div>
