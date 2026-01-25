@@ -90,4 +90,33 @@ class PremiumController extends Controller
             'balance' => $wallet->balance,
         ]);
     }
+
+    public function cancel(Request $request)
+    {
+        $user = $request->user();
+        $membership = $user->premiumMemberships()->where('is_active', true)->latest()->first();
+
+        if (!$membership) {
+            return response()->json([
+                'message' => 'Aucun abonnement actif à résilier',
+            ], 400);
+        }
+
+        DB::transaction(function () use ($membership, $user) {
+            $membership->update([
+                'is_active' => false,
+                'expiration_date' => Carbon::now(),
+            ]);
+
+            $user->update([
+                'is_premium' => false,
+                'premium_level' => null,
+                'premium_expiration' => null,
+            ]);
+        });
+
+        return response()->json([
+            'message' => "Abonnement résilié. Aucun remboursement ne sera effectué.",
+        ]);
+    }
 }

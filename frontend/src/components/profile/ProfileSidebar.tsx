@@ -8,6 +8,8 @@ type ProfileSidebarProps = {
   countryCode?: string | null;
   activeMenu: "MesCommandes" | "Wallet" | "VIP" | "Principal" | "Parametres";
   onChangeMenu: (menu: "MesCommandes" | "Wallet" | "VIP" | "Principal" | "Parametres") => void;
+  onVipClick?: () => void;
+  onWalletClick?: () => void;
 };
 
 export default function ProfileSidebar({
@@ -16,6 +18,8 @@ export default function ProfileSidebar({
   countryCode,
   activeMenu,
   onChangeMenu,
+  onVipClick,
+  onWalletClick,
 }: ProfileSidebarProps) {
   const menu = [
     { id: "MesCommandes" as const, label: "Mes Commandes", icon: ShoppingBag },
@@ -39,7 +43,15 @@ export default function ProfileSidebar({
         {menu.map((item) => (
           <button
             key={item.id}
-            onClick={() => onChangeMenu(item.id)}
+            onClick={() => {
+              onChangeMenu(item.id);
+              if (item.id === "VIP") {
+                onVipClick?.();
+              }
+              if (item.id === "Wallet") {
+                onWalletClick?.();
+              }
+            }}
             className={`w-full text-left px-4 py-3 rounded-2xl border transition flex items-center gap-3 ${
               activeMenu === item.id
                 ? "bg-white/10 border-white/20"

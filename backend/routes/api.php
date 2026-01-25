@@ -32,6 +32,7 @@ Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+    Route::post('/password/update', [AuthController::class, 'updatePassword'])->middleware('auth:sanctum');
 });
 
 Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);
@@ -78,6 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);
     Route::post('/premium/subscribe', [PremiumController::class, 'subscribe']);
+    Route::post('/premium/cancel', [PremiumController::class, 'cancel']);
 
     // Chat
     Route::get('/chat/rooms', [ChatController::class, 'rooms']);

@@ -8,35 +8,28 @@ type Avatar = { id: string; name: string; src: string };
 type ProfileHeaderProps = {
   username: string;
   countryCode?: string | null;
-  premiumTier: string;
+  tierLabel: string;
   avatar: Avatar;
-  walletBalance: number;
+  walletDisplay: string;
+  walletCurrencyLabel: string;
   onChangeAvatar: () => void;
   onAddFunds: () => void;
   onUseFunds: () => void;
 };
 
-const flagEmoji = (cc: string) => {
-  const code = (cc || "FR").toUpperCase();
-  if (code.length !== 2) return "🏳️";
-  const A = 0x1f1e6;
-  return String.fromCodePoint(...code.split("").map((c) => A + c.charCodeAt(0) - 65));
-};
-
-const formatFcfa = (n: number) => new Intl.NumberFormat("fr-FR").format(n) + " FCFA";
-
 export default function ProfileHeader({
   username,
   countryCode,
-  premiumTier,
+  tierLabel,
   avatar,
-  walletBalance,
+  walletDisplay,
+  walletCurrencyLabel,
   onChangeAvatar,
   onAddFunds,
   onUseFunds,
 }: ProfileHeaderProps) {
-  const safeCode = countryCode || "FR";
-  const flag = flagEmoji(safeCode);
+  const safeCode = (countryCode ?? "FR").toUpperCase();
+  const countryTag = safeCode.length === 2 ? safeCode : "FR";
 
   return (
     <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-black/35 backdrop-blur-xl shadow-[0_30px_120px_rgba(95,45,255,0.35)]">
@@ -67,13 +60,17 @@ export default function ProfileHeader({
           <div className="text-center">
             <div className="text-xs uppercase tracking-[0.35em] text-white/60">Profil joueur</div>
             <div className="mt-3 flex items-center justify-center gap-4">
-              <span className="text-3xl">{flag}</span>
+              <span className="rounded-full border border-white/15 bg-white/10 px-4 py-1 text-sm font-semibold tracking-[0.4em]">
+                {countryTag}
+              </span>
               <div className="text-4xl md:text-6xl font-black tracking-[0.12em]">{username.toUpperCase()}</div>
-              <span className="text-3xl">{flag}</span>
+              <span className="rounded-full border border-white/15 bg-white/10 px-4 py-1 text-sm font-semibold tracking-[0.4em]">
+                {countryTag}
+              </span>
             </div>
             <div className="mt-4 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-yellow-500/15 border border-yellow-300/25">
               <span>🏆</span>
-              <span className="text-sm font-semibold">BADBOY {premiumTier}</span>
+              <span className="text-sm font-semibold">BADBOY {tierLabel}</span>
             </div>
 
             <div className="mt-7 rounded-3xl bg-white/8 border border-white/10 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -81,11 +78,10 @@ export default function ProfileHeader({
                 <div className="text-sm font-semibold opacity-90 flex items-center justify-center gap-2">
                   <Wallet className="h-4 w-4 text-emerald-200" /> BADBOY Wallet BD
                 </div>
-                <div className="mt-2 text-3xl md:text-4xl font-black">{formatFcfa(walletBalance)}</div>
-                <ul className="mt-2 text-xs opacity-70 space-y-1">
-                  <li>• Fonds utilisables pour achats & recharges</li>
-                  <li>• Anti-fraude : contrôle IP/Device</li>
-                </ul>
+                <div className="mt-2 text-3xl md:text-4xl font-black">{walletDisplay}</div>
+                <p className="mt-2 text-xs text-white/70">
+                  Affiché en {walletCurrencyLabel} — solde synchronisé avec la barre de navigation.
+                </p>
               </div>
               <div className="flex justify-center gap-3">
                 <button
