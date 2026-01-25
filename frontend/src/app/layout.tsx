@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
@@ -42,6 +43,7 @@ export default function RootLayout({
           {children}
           <BottomNavigation />
         </AuthProvider>
+        <Script src="//code.tidio.co/txhqas6mr4cvgvb9rm4hbz7rdvye2cjw.js" strategy="afterInteractive" async />
       </body>
     </html>
   );

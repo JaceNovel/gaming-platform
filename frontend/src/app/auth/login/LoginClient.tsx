@@ -29,8 +29,6 @@ const HERO_IMAGES = [
   "https://images.unsplash.com/photo-1511882150382-421056c89033?auto=format&fit=crop&w=900&q=80",
 ];
 
-const hasApiEnv = Boolean(process.env.NEXT_PUBLIC_API_URL);
-
 export default function LoginClient() {
   const { login } = useAuth();
   const router = useRouter();
@@ -42,15 +40,12 @@ export default function LoginClient() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">(
-    hasApiEnv ? "checking" : "offline",
-  );
+  const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">("checking");
 
-  const disableSubmit = loading || serverStatus !== "online";
+  const disableSubmit = loading;
 
   useEffect(() => {
     let active = true;
-    if (!hasApiEnv) return;
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
@@ -81,7 +76,7 @@ export default function LoginClient() {
       } as const;
     }
     return {
-      label: hasApiEnv ? "Serveur indisponible" : "API non configurée",
+      label: "Serveur indisponible",
       className: "text-rose-300 border-rose-400/40",
       icon: <WifiOff className="h-4 w-4" />,
     } as const;
@@ -89,10 +84,7 @@ export default function LoginClient() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (disableSubmit) {
-      setError("Connexion au serveur impossible pour le moment.");
-      return;
-    }
+    if (disableSubmit) return;
     setError(null);
     setLoading(true);
     try {
@@ -209,7 +201,7 @@ export default function LoginClient() {
 
               <div className="flex items-center justify-between text-xs text-white/60">
                 <span>Double authentification bientôt</span>
-                <Link href="/support" className="text-cyan-300 hover:text-cyan-200">
+                <Link href="/support" className="text-cyan-300 no-underline hover:text-cyan-200">
                   Besoin d'aide ?
                 </Link>
               </div>
@@ -227,13 +219,13 @@ export default function LoginClient() {
                 disabled={disableSubmit}
                 className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-orange-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(14,165,233,0.35)] transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading ? "Connexion en cours..." : serverStatus === "online" ? "Entrer dans le cockpit" : "Serveur indisponible"}
+                {loading ? "Connexion en cours..." : "Entrer dans le cockpit"}
               </button>
             </form>
 
             <p className="mt-6 text-center text-sm text-white/60">
               Pas encore de compte ? {" "}
-              <Link className="text-cyan-300" href={`/auth/register?next=${encodeURIComponent(next)}`}>
+              <Link className="text-cyan-300 no-underline" href={`/auth/register?next=${encodeURIComponent(next)}`}>
                 Crée ton profil BADBOY
               </Link>
             </p>

@@ -198,6 +198,29 @@ body {
   animation-delay: 0s;
 }
 
+.cart-flight-dot {
+  position: fixed;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #34d399, #22d3ee);
+  box-shadow: 0 10px 25px rgba(34, 211, 238, 0.45);
+  transform: translate(-50%, -50%);
+  animation: cartFlight 0.9s cubic-bezier(0.42, 0, 0.4, 1) forwards;
+  z-index: 95;
+}
+
+@keyframes cartFlight {
+  100% {
+    transform: translate(
+        calc(-50% + var(--cart-flight-dx)),
+        calc(-50% + var(--cart-flight-dy))
+      )
+      scale(0.3);
+    opacity: 0;
+  }
+}
+
 .hero-slide:nth-child(2) {
   animation-delay: 3s;
 }
@@ -312,5 +335,16 @@ body {
   100% {
     opacity: 0;
     transform: scale(1.08);
+  }
+}
+
+#tidio-chat iframe {
+  transition: transform 0.3s ease;
+}
+
+@media (max-width: 640px) {
+  #tidio-chat iframe {
+    transform: scale(0.85);
+    transform-origin: bottom right;
   }
 }

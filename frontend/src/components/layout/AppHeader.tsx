@@ -163,7 +163,7 @@ export default function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 hidden lg:block border-b border-white/10 bg-black/40 backdrop-blur">
+      <header className="fixed top-0 z-50 hidden w-full border-b border-white/10 bg-black/40 backdrop-blur lg:block">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-3">
             <div className="relative h-11 w-11 overflow-hidden rounded-2xl ring-1 ring-white/20">
@@ -335,6 +335,7 @@ export default function AppHeader() {
               href="/cart"
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
               aria-label="Panier"
+              data-cart-target="desktop"
             >
               <ShoppingCart className="h-4 w-4 text-white/80" />
             </Link>
@@ -342,7 +343,7 @@ export default function AppHeader() {
         </div>
       </header>
 
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-black/55 backdrop-blur lg:hidden">
+      <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-black/55 backdrop-blur lg:hidden">
         <div className="mx-auto flex w-full items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-purple-500 text-black shadow-[0_10px_30px_rgba(110,231,255,0.35)]">
@@ -391,12 +392,14 @@ export default function AppHeader() {
               href="/cart"
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
               aria-label="Panier"
+              data-cart-target="mobile"
             >
               <ShoppingCart className="h-4 w-4 text-white/80" />
             </Link>
           </div>
         </div>
       </header>
+      <div className="h-[70px] lg:h-[96px]" aria-hidden="true" />
     </>
   );
 }

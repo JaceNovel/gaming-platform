@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
+import { useCartFlight } from "@/hooks/useCartFlight";
 
 type ShopProduct = {
   id: number;
@@ -407,7 +408,7 @@ type ProductGridProps = {
   title: string;
   subtitle?: string;
   products: ShopProduct[];
-  onAddToCart: (product: ShopProduct) => void;
+  onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
   onView: (product: ShopProduct) => void;
 };
 
@@ -436,7 +437,7 @@ function ProductGrid({ title, subtitle, products, onAddToCart, onView }: Product
 
 type ProductCardProps = {
   product: ShopProduct;
-  onAddToCart: (product: ShopProduct) => void;
+  onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
   onView: (product: ShopProduct) => void;
 };
 
@@ -481,7 +482,7 @@ function ProductCard({ product, onAddToCart, onView }: ProductCardProps) {
       </div>
       <div className="mt-5 flex flex-col gap-2">
         <button
-          onClick={() => onAddToCart(product)}
+          onClick={(event: MouseEvent<HTMLButtonElement>) => onAddToCart(product, event.currentTarget)}
           className="w-full rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(14,165,233,0.4)] transition hover:brightness-110"
         >
           Ajouter au panier
@@ -499,6 +500,7 @@ function ProductCard({ product, onAddToCart, onView }: ProductCardProps) {
 
 export default function ShopPage() {
   const router = useRouter();
+  const { triggerFlight, overlay } = useCartFlight();
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState<PriceFilterKey>("all");
@@ -510,8 +512,10 @@ export default function ShopPage() {
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const filtersSectionRef = useRef<HTMLDivElement | null>(null);
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     let active = true;
     const loadProducts = async () => {
@@ -601,10 +605,50 @@ export default function ShopPage() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const catalog = products.length ? products : exampleProducts;
 
-  const handleAddToCart = (product: ShopProduct) => {
-    router.push(`/product/${product.id}?action=add`);
+  const handleAddToCart = (product: ShopProduct, origin?: HTMLElement | null) => {
+    if (typeof window === "undefined") return;
+    let nextCart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string }> = [];
+    const stored = localStorage.getItem("bbshop_cart");
+    if (stored) {
+      try {
+        nextCart = JSON.parse(stored);
+      } catch {
+        nextCart = [];
+      }
+    }
+
+    const existing = nextCart.find((item) => item.id === product.id);
+    if (existing) {
+      existing.quantity = Number(existing.quantity ?? 0) + 1;
+    } else {
+      nextCart.push({
+        id: product.id,
+        name: product.name,
+        description: product.description ?? "",
+        price: product.priceValue,
+        priceLabel: product.priceLabel,
+        type: product.type,
+        quantity: 1,
+      });
+    }
+
+    localStorage.setItem("bbshop_cart", JSON.stringify(nextCart));
+    triggerFlight(origin ?? null);
+    setStatusMessage(`${product.name} ajouté au panier`);
+    if (statusTimeoutRef.current) {
+      clearTimeout(statusTimeoutRef.current);
+    }
+    statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 2200);
   };
 
   const handleViewProduct = (product: ShopProduct) => {
@@ -700,6 +744,13 @@ export default function ShopPage() {
 
   return (
     <main className="min-h-[100dvh] bg-[#04020c] text-white lg:bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]">
+      {overlay}
+      {statusMessage && (
+        <div className="fixed right-4 top-[86px] z-50 mt-2 flex items-center gap-2 rounded-2xl border border-white/10 bg-black/80 px-4 py-2 text-sm font-semibold text-white shadow-[0_15px_40px_rgba(0,0,0,0.55)] backdrop-blur sm:top-[94px]">
+          <ShoppingCart className="h-4 w-4 text-cyan-300" />
+          <span className="max-w-[220px] truncate">{statusMessage}</span>
+        </div>
+      )}
       <section className={`${orbitron.className} hidden lg:block`}>
         <div className="mx-auto w-full max-w-6xl px-6 py-12">
           <div className="space-y-12">
@@ -774,7 +825,7 @@ export default function ShopPage() {
       </section>
 
       <div className="lg:hidden">
-        <header className="sticky top-0 z-40 bg-black/70 backdrop-blur-lg">
+        <header className="sticky top-[72px] z-40 bg-black/70 backdrop-blur-lg sm:top-[84px]">
         <div className="mobile-shell hidden items-center justify-between py-3 sm:flex">
           <Link href="/" className="text-lg font-black tracking-tight">
             BADBOY<span className="text-white/70">SHOP</span>

@@ -26,8 +26,6 @@ const HERO_STATS = [
   { label: "12", caption: "Pays couverts" },
 ];
 
-const hasApiEnv = Boolean(process.env.NEXT_PUBLIC_API_URL);
-
 export default function RegisterClient() {
   const { register } = useAuth();
   const router = useRouter();
@@ -44,15 +42,12 @@ export default function RegisterClient() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">(
-    hasApiEnv ? "checking" : "offline",
-  );
+  const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">("checking");
 
-  const disableSubmit = loading || serverStatus !== "online";
+  const disableSubmit = loading;
 
   useEffect(() => {
     let active = true;
-    if (!hasApiEnv) return;
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
@@ -83,7 +78,7 @@ export default function RegisterClient() {
       } as const;
     }
     return {
-      label: hasApiEnv ? "Serveur indisponible" : "API non configurée",
+      label: "Serveur indisponible",
       className: "text-rose-300 border-rose-400/40",
       icon: <WifiOff className="h-4 w-4" />,
     } as const;
@@ -91,10 +86,7 @@ export default function RegisterClient() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (disableSubmit) {
-      setError("Création de compte impossible pour le moment.");
-      return;
-    }
+    if (disableSubmit) return;
     setError(null);
     const cleanName = name.trim();
     const cleanEmail = email.trim();
@@ -290,13 +282,13 @@ export default function RegisterClient() {
                 disabled={disableSubmit}
                 className="w-full rounded-2xl bg-gradient-to-r from-emerald-300 via-cyan-400 to-fuchsia-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(16,185,129,0.35)] transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading ? "Création en cours..." : serverStatus === "online" ? "Activer mon cockpit" : "Serveur indisponible"}
+                {loading ? "Création en cours..." : "Activer mon cockpit"}
               </button>
             </form>
 
             <p className="mt-6 text-center text-sm text-white/60">
               Déjà membre ?{" "}
-              <Link className="text-cyan-300" href={`/auth/login?next=${encodeURIComponent(next)}`}>
+              <Link className="text-cyan-300 no-underline" href={`/auth/login?next=${encodeURIComponent(next)}`}>
                 Reviens te connecter
               </Link>
             </p>
