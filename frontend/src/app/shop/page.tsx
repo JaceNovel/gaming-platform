@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Bell,
   Camera,
+  Crown,
   Gamepad2,
   Heart,
   Package,
@@ -33,6 +34,7 @@ type ShopProduct = {
   category: string;
   categorySlug?: string | null;
   type: string;
+  imageUrl?: string | null;
 };
 
 type CategoryOption = {
@@ -56,6 +58,7 @@ const exampleProducts: ShopProduct[] = [
     category: "Comptes",
     categorySlug: "comptes",
     type: "account",
+    imageUrl: "https://images.unsplash.com/photo-1525182008055-f88b95ff7980?auto=format&fit=crop&w=600&q=80",
   },
   {
     id: 9002,
@@ -69,6 +72,7 @@ const exampleProducts: ShopProduct[] = [
     category: "Recharges",
     categorySlug: "recharges",
     type: "recharge",
+    imageUrl: "https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=600&q=80",
   },
   {
     id: 9003,
@@ -82,19 +86,35 @@ const exampleProducts: ShopProduct[] = [
     category: "Accessoires",
     categorySlug: "accessoires",
     type: "accessory",
+    imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80",
   },
 ];
 
 const HERO_BACKDROP =
-  "https://mir-s3-cdn-cf.behance.net/project_modules/1400_opt_1/fb50e7130191973.617aa5adee248.jpg";
+  "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=2000&q=80";
 const HERO_TROPHY =
   "https://img.freepik.com/premium-photo/virtual-shopping-cart-filled-with-gaming-merchandise_1247965-24719.jpg";
+const COSMIC_OVERLAY =
+  "bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.4),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(14,165,233,0.35),transparent_40%)]";
+const FALLBACK_PRODUCT_IMAGE =
+  "https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=600&q=80";
 
-const topJeuxFilters = [
+type HeroTab = { label: string; slug: string; icon: ComponentType<{ className?: string }> };
+
+const topJeuxFilters: HeroTab[] = [
   { label: "Compte actifs", slug: "comptes", icon: Gamepad2 },
   { label: "Recharges", slug: "recharges", icon: Zap },
   { label: "Pass", slug: "pass", icon: Ticket },
   { label: "Articles", slug: "articles", icon: Package },
+];
+
+type SortOption = "popular" | "recent" | "priceAsc" | "priceDesc";
+
+const SORT_OPTIONS: { label: string; value: SortOption }[] = [
+  { label: "Populaire", value: "popular" },
+  { label: "Récent", value: "recent" },
+  { label: "Prix croissant", value: "priceAsc" },
+  { label: "Prix décroissant", value: "priceDesc" },
 ];
 
 type PriceFilterKey = "all" | "low" | "mid" | "high";
@@ -243,11 +263,276 @@ function DealCard({ product }: { product: ShopProduct }) {
   );
 }
 
+type ShopHeroProps = {
+  tabs: HeroTab[];
+  activeTab: string;
+  onTabChange: (slug: string) => void;
+  onPrimaryAction: () => void;
+};
+
+function ShopHero({ tabs, activeTab, onTabChange, onPrimaryAction }: ShopHeroProps) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-white/10 text-cyan-200 shadow-[0_12px_40px_rgba(99,102,241,0.4)]">
+        <Crown className="h-7 w-7" />
+      </div>
+      <p className="mt-6 text-xs uppercase tracking-[0.45em] text-cyan-200/80">BADBOYSHOP</p>
+      <h1 className="mt-4 text-4xl font-black leading-tight text-white">Boutique BADBOYSHOP</h1>
+      <p className="mt-3 max-w-2xl text-base text-white/70">
+        Recharge, abonnements et articles gaming au meilleur prix.
+      </p>
+      <GlowButton className="mt-6 px-6" onClick={onPrimaryAction}>
+        Explorer les produits
+      </GlowButton>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.slug;
+          return (
+            <button
+              key={tab.slug}
+              onClick={() => onTabChange(tab.slug)}
+              className={`flex items-center gap-2 rounded-full border px-5 py-2 text-sm font-semibold transition ${
+                isActive
+                  ? "border-cyan-300/60 bg-cyan-500/15 text-white shadow-[0_0_25px_rgba(34,211,238,0.25)]"
+                  : "border-white/10 bg-white/5 text-white/70 hover:text-white"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type ShopFiltersProps = {
+  query: string;
+  onQueryChange: (value: string) => void;
+  category: string;
+  onCategoryChange: (value: string) => void;
+  categories: CategoryOption[];
+  sortOrder: SortOption;
+  onSortChange: (value: SortOption) => void;
+  promoOnly: boolean;
+  onPromoToggle: () => void;
+  priceFilter: PriceFilterKey;
+  onPriceChange: (value: PriceFilterKey) => void;
+};
+
+function ShopFilters({
+  query,
+  onQueryChange,
+  category,
+  onCategoryChange,
+  categories,
+  sortOrder,
+  onSortChange,
+  promoOnly,
+  onPromoToggle,
+  priceFilter,
+  onPriceChange,
+}: ShopFiltersProps) {
+  return (
+    <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <label className="text-left text-xs uppercase tracking-[0.3em] text-white/50">
+          Recherche
+          <div className="mt-2 flex items-center gap-2 rounded-2xl border border-white/15 bg-black/40 px-4 py-3">
+            <Search className="h-4 w-4 text-white/60" />
+            <input
+              value={query}
+              onChange={(e) => onQueryChange(e.target.value)}
+              placeholder="Nom du jeu, article, pack..."
+              className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+            />
+          </div>
+        </label>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="text-xs uppercase tracking-[0.3em] text-white/50">
+            Catégorie
+            <select
+              value={category}
+              onChange={(e) => onCategoryChange(e.target.value)}
+              className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white focus:outline-none"
+            >
+              <option value="all">Toutes les catégories</option>
+              {categories.map((opt) => (
+                <option key={opt.slug} value={opt.slug}>
+                  {opt.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs uppercase tracking-[0.3em] text-white/50">
+            Trier
+            <select
+              value={sortOrder}
+              onChange={(e) => onSortChange(e.target.value as SortOption)}
+              className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white focus:outline-none"
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-4">
+        <button
+          onClick={onPromoToggle}
+          className={`flex items-center gap-3 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+            promoOnly ? "border-emerald-300/60 bg-emerald-400/20 text-white" : "border-white/10 bg-white/5 text-white/70"
+          }`}
+        >
+          <span>En promo</span>
+          <span
+            className={`relative inline-flex h-5 w-10 items-center rounded-full transition ${
+              promoOnly ? "bg-emerald-400/80" : "bg-white/20"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${promoOnly ? "translate-x-5" : "translate-x-1"}`}
+            />
+          </span>
+        </button>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => onPriceChange("all")}
+            className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+              priceFilter === "all"
+                ? "border-cyan-300/60 bg-cyan-500/20 text-white"
+                : "border-white/10 bg-white/5 text-white/60"
+            }`}
+          >
+            Tous budgets
+          </button>
+          {PRICE_FILTERS.map((band) => {
+            const active = priceFilter === band.value;
+            return (
+              <button
+                key={band.value}
+                onClick={() => onPriceChange(band.value)}
+                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+                  active ? "border-fuchsia-300/60 bg-fuchsia-500/20 text-white" : "border-white/10 bg-white/5 text-white/60"
+                }`}
+              >
+                {band.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type ProductGridProps = {
+  title: string;
+  subtitle?: string;
+  products: ShopProduct[];
+  onAddToCart: (product: ShopProduct) => void;
+  onView: (product: ShopProduct) => void;
+};
+
+function ProductGrid({ title, subtitle, products, onAddToCart, onView }: ProductGridProps) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-2xl font-bold text-white">{title}</h3>
+        {subtitle && <p className="text-sm text-white/60">{subtitle}</p>}
+      </div>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {products.map((product) => (
+          <ProductCard key={product.id} product={product} onAddToCart={onAddToCart} onView={onView} />
+        ))}
+        {!products.length && (
+          <div className="col-span-full rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
+            Aucun produit pour le moment.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type ProductCardProps = {
+  product: ShopProduct;
+  onAddToCart: (product: ShopProduct) => void;
+  onView: (product: ShopProduct) => void;
+};
+
+function ProductCard({ product, onAddToCart, onView }: ProductCardProps) {
+  const badgeLabel = product.discountPercent
+    ? `-${product.discountPercent}%`
+    : product.likes > 30
+      ? "Populaire"
+      : product.category;
+
+  return (
+    <div className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-black/40 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-cyan-300/40 hover:shadow-[0_35px_90px_rgba(14,165,233,0.35)]">
+      <div className="relative h-40 w-full overflow-hidden rounded-2xl">
+        <Image
+          src={product.imageUrl ?? FALLBACK_PRODUCT_IMAGE}
+          alt={product.name}
+          fill
+          sizes="(min-width: 1024px) 300px, 100vw"
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent" />
+        <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+          {badgeLabel}
+        </span>
+      </div>
+      <div className="mt-4 space-y-2">
+        <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">{product.category}</p>
+        <h4 className="text-lg font-semibold leading-tight text-white line-clamp-2">{product.name}</h4>
+        <p className="text-sm text-white/60 line-clamp-2">{product.description}</p>
+      </div>
+      <div className="mt-4 flex items-center justify-between">
+        <div>
+          <p className="text-xl font-black text-cyan-200">{product.priceLabel}</p>
+          {product.oldPrice && (
+            <p className="text-xs text-white/40 line-through">{formatNumber(product.oldPrice)} FCFA</p>
+          )}
+        </div>
+        <div className="flex items-center gap-1 text-xs text-white/60">
+          <Heart className="h-4 w-4 text-rose-300" />
+          {product.likes}
+        </div>
+      </div>
+      <div className="mt-5 flex flex-col gap-2">
+        <button
+          onClick={() => onAddToCart(product)}
+          className="w-full rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(14,165,233,0.4)] transition hover:brightness-110"
+        >
+          Ajouter au panier
+        </button>
+        <button
+          onClick={() => onView(product)}
+          className="w-full rounded-full border border-white/20 bg-white/5 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/80 hover:text-white"
+        >
+          Voir
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ShopPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState<PriceFilterKey>("all");
+  const [sortOrder, setSortOrder] = useState<SortOption>("popular");
+  const [promoOnly, setPromoOnly] = useState(false);
+  const [activeHeroTab, setActiveHeroTab] = useState("all");
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [pendingCategory, setPendingCategory] = useState("all");
@@ -255,6 +540,15 @@ export default function ShopPage() {
   const [loading, setLoading] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const filtersSectionRef = useRef<HTMLDivElement | null>(null);
+  const heroTabs = useMemo<HeroTab[]>(
+    () => [{ label: "Tout", slug: "all", icon: Sparkles }, ...topJeuxFilters],
+    []
+  );
+
+  useEffect(() => {
+    setActiveHeroTab(categoryFilter);
+  }, [categoryFilter]);
 
   useEffect(() => {
     let active = true;
@@ -280,6 +574,15 @@ export default function ShopPage() {
                 : "Accessoires";
           const categoryName = item?.category ?? item?.category_entity?.name ?? fallbackCategory;
           const categorySlug = item?.category_entity?.slug ?? (categoryName ? slugifyCategory(categoryName) : null);
+          const imageUrl =
+            item?.image_url ??
+            item?.cover ??
+            item?.banner ??
+            item?.details?.image ??
+            item?.details?.cover ??
+            item?.media?.[0]?.url ??
+            item?.game?.cover ??
+            null;
           return {
             id: item.id,
             name: item.name,
@@ -292,6 +595,7 @@ export default function ShopPage() {
             category: categoryName,
             categorySlug,
             type: String(item?.type ?? ""),
+            imageUrl: imageUrl ?? FALLBACK_PRODUCT_IMAGE,
           } as ShopProduct;
         });
         setProducts(mapped);
@@ -337,12 +641,21 @@ export default function ShopPage() {
 
   const catalog = products.length ? products : exampleProducts;
 
-  const resolveProductAction = (type: string) => {
-    const normalized = type?.toLowerCase() ?? "";
-    if (normalized.includes("recharge")) return "Recharger";
-    if (normalized.includes("pass")) return "Rejoindre";
-    if (normalized.includes("article")) return "Ajouter";
-    return "Acheter";
+  const handleHeroTabChange = (slug: string) => {
+    setCategoryFilter(slug);
+    setActiveHeroTab(slug);
+  };
+
+  const handleHeroPrimaryAction = () => {
+    filtersSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleAddToCart = (product: ShopProduct) => {
+    router.push(`/product/${product.id}?action=add`);
+  };
+
+  const handleViewProduct = (product: ShopProduct) => {
+    router.push(`/product/${product.id}`);
   };
 
   const derivedCategories = useMemo(() => {
@@ -384,7 +697,7 @@ export default function ShopPage() {
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const selectedPrice = PRICE_FILTERS.find((opt) => opt.value === priceFilter);
-    return catalog.filter((product) => {
+    let result = catalog.filter((product) => {
       const matchesQuery = normalizedQuery
         ? product.name.toLowerCase().includes(normalizedQuery) ||
           (product.category ?? "").toLowerCase().includes(normalizedQuery) ||
@@ -402,14 +715,29 @@ export default function ShopPage() {
         const max = selectedPrice.max ?? Number.POSITIVE_INFINITY;
         return product.priceValue >= min && product.priceValue <= max;
       })();
-      return matchesQuery && matchesCategory && matchesPrice;
+      const matchesPromo = promoOnly ? Number(product.discountPercent ?? 0) > 0 : true;
+      return matchesQuery && matchesCategory && matchesPrice && matchesPromo;
     });
-  }, [catalog, query, categoryFilter, priceFilter]);
+
+    if (sortOrder === "popular") {
+      result = [...result].sort((a, b) => b.likes - a.likes);
+    } else if (sortOrder === "recent") {
+      result = [...result].sort((a, b) => b.id - a.id);
+    } else if (sortOrder === "priceAsc") {
+      result = [...result].sort((a, b) => a.priceValue - b.priceValue);
+    } else if (sortOrder === "priceDesc") {
+      result = [...result].sort((a, b) => b.priceValue - a.priceValue);
+    }
+
+    return result;
+  }, [catalog, query, categoryFilter, priceFilter, promoOnly, sortOrder]);
 
   const groupedDeals = filtered.slice(0, 6);
   const dailyDeals = filtered.slice(0, 8);
   const forYou = filtered.slice(0, 12);
-  const desktopProducts = filtered.slice(0, 4);
+  const popularProducts = useMemo(() => [...filtered].sort((a, b) => b.likes - a.likes).slice(0, 6), [filtered]);
+  const promoProducts = useMemo(() => filtered.filter((p) => Number(p.discountPercent ?? 0) > 0).slice(0, 6), [filtered]);
+  const latestProducts = useMemo(() => [...filtered].sort((a, b) => b.id - a.id).slice(0, 6), [filtered]);
 
   const handleImageSearch = (file: File | null) => {
     if (!file) return;
@@ -419,170 +747,79 @@ export default function ShopPage() {
 
   return (
     <main className="min-h-[100dvh] bg-[#04020c] text-white">
-      <section className="hidden min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.25),_transparent_55%),radial-gradient(circle_at_20%_20%,rgba(14,165,233,0.18),transparent_50%),#04020c] lg:block">
-        <div className="mx-auto w-full max-w-6xl px-6 py-10">
-          <div className="space-y-10">
-            <div className="relative overflow-hidden rounded-[36px] border border-white/5 bg-gradient-to-r from-[#150423] via-[#10021c] to-[#090013] p-1">
-              <div className="relative overflow-hidden rounded-[32px]">
+      <section className="hidden lg:block">
+        <div className="mx-auto w-full max-w-6xl px-6 py-12">
+          <div className="space-y-12">
+            <div className="relative overflow-hidden rounded-[46px] border border-white/10 bg-[#090014] p-[1px] shadow-[0_35px_140px_rgba(4,6,35,0.65)]">
+              <div className="relative overflow-hidden rounded-[44px] bg-gradient-to-br from-[#05000b] via-[#070014] to-[#04020c]">
                 <div className="absolute inset-0">
-                  <Image src={HERO_BACKDROP} alt="Cosmic background" fill className="object-cover" sizes="(min-width: 1024px) 1200px, 100vw" priority />
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-[#0b0120]/80 to-transparent" />
+                  <Image
+                    src={HERO_BACKDROP}
+                    alt="Fond cosmique"
+                    fill
+                    className="object-cover opacity-40"
+                    sizes="(min-width: 1024px) 1200px, 100vw"
+                    priority
+                  />
+                  <div className={`absolute inset-0 ${COSMIC_OVERLAY}`} />
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-[#07001b]/70 to-transparent" />
                 </div>
-                <div className="relative grid gap-10 px-10 py-14 lg:grid-cols-[minmax(0,1fr)_360px]">
-                  <div className="max-w-xl">
-                    <p className="text-sm font-semibold uppercase tracking-[0.6em] text-cyan-200/70">Boutique élite</p>
-                    <h1 className="mt-4 text-5xl font-black tracking-tight">BOUTIQUE</h1>
-                    <p className="mt-3 text-lg text-white/80">Recharge ton compte, affûte tes skills. Découvre tes packs gaming.</p>
-                    <p className="mt-2 text-sm text-white/60">Boosts, comptes rare, pass d'événement et services premium en livraison instantanée.</p>
-                    <div className="mt-6 flex gap-3">
-                      <button className="rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-sm font-semibold tracking-wide text-white shadow-[0_0_30px_rgba(110,231,255,0.25)]">Explorer</button>
+                <div className="relative grid items-center gap-12 px-12 py-16 lg:grid-cols-[minmax(0,1fr)_400px]">
+                  <ShopHero
+                    tabs={heroTabs}
+                    activeTab={activeHeroTab}
+                    onTabChange={handleHeroTabChange}
+                    onPrimaryAction={handleHeroPrimaryAction}
+                  />
+                  <div className="relative h-[360px]">
+                    <div className="absolute inset-0 rounded-[38px] bg-gradient-to-br from-cyan-400/20 via-fuchsia-400/15 to-transparent blur-3xl" />
+                    <div className="relative h-full overflow-hidden rounded-[34px] border border-white/10 bg-black/30">
+                      <Image src={HERO_TROPHY} alt="Trophée" fill className="object-cover" sizes="400px" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent" />
                     </div>
-                  </div>
-                  <div className="relative h-[280px] rounded-[32px] border border-white/5 bg-white/5/10">
-                    <Image src={HERO_TROPHY} alt="Trophée" fill className="object-cover" sizes="360px" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent" />
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-[300px_minmax(0,1fr)] gap-8">
-              <aside className="rounded-[36px] border border-white/10 bg-gradient-to-b from-white/10 via-transparent to-black/20 p-6 backdrop-blur">
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.6em] text-cyan-200/70">Top Jeux</p>
-                    <h2 className="mt-2 text-3xl font-black leading-tight text-white">
-                      TOP <span className="text-cyan-300">JEUX</span>
-                    </h2>
-                    <p className="mt-2 text-sm text-white/60">
-                      Active un filtre pour ne voir que les comptes, recharges ou articles liés.
-                    </p>
-                  </div>
+            <div ref={filtersSectionRef}>
+              <ShopFilters
+                query={query}
+                onQueryChange={setQuery}
+                category={categoryFilter}
+                onCategoryChange={(slug) => setCategoryFilter(slug)}
+                categories={categoryChipOptions}
+                sortOrder={sortOrder}
+                onSortChange={setSortOrder}
+                promoOnly={promoOnly}
+                onPromoToggle={() => setPromoOnly((prev) => !prev)}
+                priceFilter={priceFilter}
+                onPriceChange={setPriceFilter}
+              />
+            </div>
 
-                  <div className="space-y-2">
-                    {topJeuxFilters.map(({ label, slug, icon: Icon }) => {
-                      const active = categoryFilter === slug;
-                      return (
-                        <button
-                          key={slug}
-                          onClick={() => setCategoryFilter(slug)}
-                          className={`flex w-full items-center justify-between rounded-3xl border px-4 py-3 text-sm font-semibold transition ${
-                            active
-                              ? "border-cyan-300/60 bg-cyan-500/15 text-white shadow-[0_0_25px_rgba(34,211,238,0.25)]"
-                              : "border-white/10 bg-white/5 text-white/70 hover:text-white"
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <Icon className="h-4 w-4" />
-                            {label}
-                          </span>
-                          {active && <span className="text-[11px] uppercase tracking-[0.4em] text-cyan-200">On</span>}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => setCategoryFilter("all")}
-                      className="w-full rounded-3xl border border-white/10 bg-white/5 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/60 hover:text-white"
-                    >
-                      Tous les articles
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <p className="text-xs uppercase tracking-[0.4em] text-white/40">Plage de prix</p>
-                    <div className="space-y-2">
-                      {PRICE_FILTERS.map((band) => {
-                        const active = priceFilter === band.value;
-                        return (
-                          <button
-                            key={band.value}
-                            onClick={() => setPriceFilter(band.value)}
-                            className={`w-full rounded-3xl border px-4 py-2 text-sm font-semibold transition ${
-                              active
-                                ? "border-fuchsia-300/60 bg-fuchsia-500/10 text-white"
-                                : "border-white/10 bg-white/5 text-white/70 hover:text-white"
-                            }`}
-                          >
-                            {band.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <button
-                      onClick={() => setPriceFilter("all")}
-                      className="w-full rounded-3xl border border-white/10 bg-transparent py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white/60 hover:text-white"
-                    >
-                      Sans limite
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setCategoryFilter("all");
-                      setPriceFilter("all");
-                    }}
-                    className="w-full rounded-3xl border border-white/15 bg-white/5 py-3 text-sm font-semibold text-white/80 hover:text-white"
-                  >
-                    Réinitialiser les filtres
-                  </button>
-                </div>
-              </aside>
-
-              <section className="rounded-[36px] border border-white/10 bg-white/5 p-7 backdrop-blur">
-                <div className="flex items-center gap-4 text-sm font-semibold">
-                  <button className="rounded-3xl border border-white/20 bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/10 px-6 py-2">
-                    TOP PICKS
-                  </button>
-                </div>
-
-                <div className="mt-6 rounded-3xl border border-white/10 bg-black/40 px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <Search className="h-4 w-4 text-white/40" />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
-                      placeholder="Rechercher un jeu ou une catégorie"
-                    />
-                    <Sparkles className="h-4 w-4 text-amber-300" />
-                  </div>
-                </div>
-
-                <div className="mt-8 grid grid-cols-4 gap-5">
-                  {desktopProducts.map((product) => (
-                    <Link
-                      key={product.id}
-                      href={`/product/${product.id}`}
-                      className="group relative flex flex-col gap-3 rounded-[24px] border border-white/10 bg-gradient-to-b from-white/10 to-black/60 p-5 shadow-[0_20px_70px_rgba(4,6,15,0.5)] transition hover:border-cyan-300/40 hover:shadow-[0_25px_90px_rgba(14,165,233,0.35)]"
-                    >
-                      <div className="relative h-32 overflow-hidden rounded-2xl">
-                        <div className="absolute inset-0 bg-gradient-to-br from-[#ff8a00]/45 via-[#6d00ff]/30 to-transparent" />
-                        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=800&q=80')] bg-cover bg-center opacity-70 transition duration-500 group-hover:scale-105" />
-                      </div>
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">{product.category ?? "Offre"}</p>
-                        <h3 className="mt-2 text-lg font-semibold leading-tight text-white line-clamp-2">{product.name}</h3>
-                        <p className="mt-1 text-xs text-white/60 line-clamp-2">{product.description}</p>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-base font-bold text-cyan-200">{product.priceLabel}</p>
-                          {product.oldPrice && (
-                            <p className="text-[11px] text-white/40 line-through">{formatNumber(product.oldPrice)}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-white/60">
-                          <Heart className="h-4 w-4 text-rose-300" />
-                          {product.likes}
-                        </div>
-                      </div>
-                      <button className="rounded-2xl border border-white/15 bg-white/10 py-2 text-xs font-semibold tracking-wide text-white">
-                        {resolveProductAction(product.type)}
-                      </button>
-                    </Link>
-                  ))}
-                </div>
-              </section>
+            <div className="space-y-12">
+              <ProductGrid
+                title="Produits populaires"
+                subtitle="Les comptes et recharges les plus likés par la communauté."
+                products={popularProducts}
+                onAddToCart={handleAddToCart}
+                onView={handleViewProduct}
+              />
+              <ProductGrid
+                title="Promotions cosmiques"
+                subtitle="Réductions limitées sur les meilleures offres du moment."
+                products={promoProducts}
+                onAddToCart={handleAddToCart}
+                onView={handleViewProduct}
+              />
+              <ProductGrid
+                title="Derniers ajouts"
+                subtitle="Comptes fraîchement listés et recharges spéciales."
+                products={latestProducts}
+                onAddToCart={handleAddToCart}
+                onView={handleViewProduct}
+              />
             </div>
           </div>
         </div>
