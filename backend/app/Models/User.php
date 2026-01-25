@@ -16,6 +16,13 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    public const ADMIN_ROLES = [
+        'admin',
+        'admin_super',
+        'admin_article',
+        'admin_client',
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -155,5 +162,10 @@ class User extends Authenticatable
     public function adminLogs(): HasMany
     {
         return $this->hasMany(AdminLog::class, 'admin_id');
+    }
+
+    public function isAdmin(): bool
+    {
+        return in_array($this->role, self::ADMIN_ROLES, true);
     }
 }

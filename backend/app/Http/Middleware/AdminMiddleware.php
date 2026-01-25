@@ -15,13 +15,40 @@ class AdminMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $role = $request->user()?->role;
-        $allowed = ['admin', 'admin_super', 'admin_article', 'admin_client'];
+        $user = $request->user();
 
-        if (!$role || !in_array($role, $allowed, true)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (!$user) {
+            return $this->deny($request, Response::HTTP_UNAUTHORIZED);
+        }
+
+        if (!$user->isAdmin()) {
+            return $this->deny($request, Response::HTTP_FORBIDDEN);
+        }
+
+        if ($this->ipIsBlocked($request)) {
+            return $this->deny($request, Response::HTTP_FORBIDDEN, 'IP not allowed');
         }
 
         return $next($request);
+    }
+
+    private function ipIsBlocked(Request $request): bool
+    {
+        $allowedIps = config('admin.allowed_ips', []);
+
+        if (empty($allowedIps)) {
+            return false;
+        }
+
+        return !in_array($request->ip(), $allowedIps, true);
+    }
+
+    private function deny(Request $request, int $status, string $message = 'Unauthorized'): Response
+    {
+        if ($request->expectsJson() || $request->is('api/*')) {
+            return response()->json(['message' => $message], $status);
+        }
+
+        return redirect()->guest(route('login'));
     }
 }
