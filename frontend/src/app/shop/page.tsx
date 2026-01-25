@@ -545,9 +545,9 @@ export default function ShopPage() {
             item?.media?.[0]?.url ??
             item?.game?.cover ??
             null;
-          return (
-            <main className={`${spaceGrotesk.className} min-h-[100dvh] bg-[#04020c] text-white lg:bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]`}>
-              <section className="hidden lg:block">
+          return {
+            id: item.id,
+            name: item.name,
             description: item?.details?.description ?? item?.details?.subtitle ?? item?.game?.name ?? "Produit premium",
             priceLabel: `${formatNumber(priceValue)} FCFA`,
             priceValue,
