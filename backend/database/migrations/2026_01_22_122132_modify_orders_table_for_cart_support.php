@@ -16,20 +16,27 @@ return new class extends Migration
 
         if (Schema::hasColumn('orders', 'product_id')) {
             if ($driver === 'pgsql') {
-                DB::statement('ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_product_id_foreign');
-            } else {
-                Schema::table('orders', function (Blueprint $table) {
-                    $table->dropForeign(['product_id']);
-                });
+                DB::statement(<<<'SQL'
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'orders_product_id_foreign') THEN
+        ALTER TABLE orders DROP CONSTRAINT orders_product_id_foreign;
+    END IF;
+END $$;
+SQL);
             }
+
+            Schema::table('orders', function (Blueprint $table) {
+                $table->dropForeign(['product_id']);
+            });
         }
 
-        Schema::table('orders', function (Blueprint $table) {
-            $columnsToDrop = array_filter(
-                ['product_id', 'quantity', 'game_user_id'],
-                fn ($column) => Schema::hasColumn('orders', $column)
-            );
+        $columnsToDrop = array_filter(
+            ['product_id', 'quantity', 'game_user_id'],
+            fn ($column) => Schema::hasColumn('orders', $column)
+        );
 
+        Schema::table('orders', function (Blueprint $table) use ($columnsToDrop) {
             if (!empty($columnsToDrop)) {
                 $table->dropColumn($columnsToDrop);
             }
@@ -45,11 +52,38 @@ return new class extends Migration
      */
     public function down(): void
     {
+        $missingProductId = !Schema::hasColumn('orders', 'product_id');
+        $missingQuantity = !Schema::hasColumn('orders', 'quantity');
+        $missingGameUserId = !Schema::hasColumn('orders', 'game_user_id');
+        $hasItems = Schema::hasColumn('orders', 'items');
+
+        Schema::table('orders', function (Blueprint $table) use (
+            $missingProductId,
+            $missingQuantity,
+            $missingGameUserId,
+            $hasItems
+        ) {
+            if ($missingProductId) {
+                $table->foreignId('product_id');
+            }
+
+            if ($missingQuantity) {
+                $table->integer('quantity')->default(1);
+            }
+
+            if ($missingGameUserId) {
+                $table->json('game_user_id')->nullable();
+            }
+
+            if ($hasItems) {
+                $table->dropColumn('items');
+            }
+        });
+
         Schema::table('orders', function (Blueprint $table) {
-            $table->foreignId('product_id')->constrained()->onDelete('cascade');
-            $table->integer('quantity')->default(1);
-            $table->json('game_user_id')->nullable();
-            $table->dropColumn('items');
+            if (Schema::hasColumn('orders', 'product_id')) {
+                $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
+            }
         });
     }
 };
