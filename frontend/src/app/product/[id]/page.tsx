@@ -118,7 +118,7 @@ export default function ProductPage() {
 
   const proceedToCheckout = () => {
     if (!user) {
-      router.push(`/auth/login?next=/product/${id}`);
+      router.push(`/auth/login?next=/produits/${id}`);
       return;
     }
     router.push(`/checkout?product=${id}`);

@@ -491,7 +491,7 @@ function ProductCard({ product, onAddToCart, onView }: ProductCardProps) {
           onClick={() => onView(product)}
           className="w-full rounded-full border border-white/20 bg-white/5 px-5 py-2 text-sm font-medium text-white/80 hover:text-white"
         >
-          Voir le détail
+          Voir plus
         </button>
       </div>
     </div>
@@ -652,7 +652,7 @@ export default function ShopPage() {
   };
 
   const handleViewProduct = (product: ShopProduct) => {
-    router.push(`/product/${product.id}`);
+    router.push(`/produits/${product.id}`);
   };
 
   const derivedCategories = useMemo(() => {
@@ -957,7 +957,7 @@ export default function ShopPage() {
               : forYou.map((product) => (
                   <Link
                     key={product.id}
-                    href={`/product/${product.id}`}
+                    href={`/produits/${product.id}`}
                     className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-cyan-300/40 hover:bg-white/10"
                   >
                     <div className="h-24 rounded-xl bg-white/10" />
