@@ -1,13 +1,13 @@
 "use client";
 
-import { Crown, Home, Settings, ShoppingBag, Wallet } from "lucide-react";
+import { DASHBOARD_MENU, type DashboardMenuId } from "./dashboardMenu";
 
 type ProfileSidebarProps = {
   username: string;
   premiumTier: string;
   countryCode?: string | null;
-  activeMenu: "MesCommandes" | "Wallet" | "VIP" | "Principal" | "Parametres";
-  onChangeMenu: (menu: "MesCommandes" | "Wallet" | "VIP" | "Principal" | "Parametres") => void;
+  activeMenu: DashboardMenuId;
+  onChangeMenu: (menu: DashboardMenuId) => void;
   onVipClick?: () => void;
   onWalletClick?: () => void;
 };
@@ -21,14 +21,6 @@ export default function ProfileSidebar({
   onVipClick,
   onWalletClick,
 }: ProfileSidebarProps) {
-  const menu = [
-    { id: "MesCommandes" as const, label: "Mes Commandes", icon: ShoppingBag },
-    { id: "Wallet" as const, label: "Wallet BD", icon: Wallet },
-    { id: "VIP" as const, label: "BADBOY VIP", icon: Crown },
-    { id: "Principal" as const, label: "Principal", icon: Home },
-    { id: "Parametres" as const, label: "Paramètres", icon: Settings },
-  ];
-
   return (
     <aside className="rounded-3xl bg-black/35 border border-white/10 backdrop-blur-xl p-4">
       <div className="flex items-center gap-3 p-2">
@@ -40,7 +32,7 @@ export default function ProfileSidebar({
       </div>
 
       <div className="mt-4 space-y-2">
-        {menu.map((item) => (
+        {DASHBOARD_MENU.map((item) => (
           <button
             key={item.id}
             onClick={() => {

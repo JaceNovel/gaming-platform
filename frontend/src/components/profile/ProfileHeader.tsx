@@ -37,11 +37,6 @@ export default function ProfileHeader({
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.2),rgba(0,0,0,0.8))]" />
 
       <div className="relative p-6 md:p-10">
-        <div className="mb-6 flex flex-wrap items-center justify-center gap-3 text-xs">
-          <span className="px-3 py-1 rounded-full bg-white/8 border border-white/15">🔒 Sécurité sécurisée</span>
-          <span className="px-3 py-1 rounded-full bg-white/8 border border-white/15">⚡ Livraison instantanée</span>
-          <span className="px-3 py-1 rounded-full bg-white/8 border border-white/15">🧠 Anti-fraude actif</span>
-        </div>
 
         <div className="grid gap-8 lg:grid-cols-[320px_1fr] items-center">
           <div className="flex flex-col items-center gap-4">
@@ -51,10 +46,11 @@ export default function ProfileHeader({
             </div>
             <button
               onClick={onChangeAvatar}
-              className="w-full max-w-[260px] px-4 py-2 rounded-2xl bg-white/10 border border-white/15 hover:bg-white/15 transition text-sm"
+              className="hidden w-full max-w-[260px] px-4 py-2 rounded-2xl bg-white/10 border border-white/15 hover:bg-white/15 transition text-sm md:block"
             >
               Changer de personnage
             </button>
+            <p className="text-xs text-white/70 md:hidden">Choisis ton personnage depuis un ordinateur.</p>
           </div>
 
           <div className="text-center">

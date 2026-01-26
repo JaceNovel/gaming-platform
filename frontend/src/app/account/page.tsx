@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { Globe, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
@@ -9,6 +8,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import ProfileHeader from "@/components/profile/ProfileHeader";
 import ProfileSidebar from "@/components/profile/ProfileSidebar";
 import AvatarPickerModal from "@/components/profile/AvatarPickerModal";
+import { DASHBOARD_MENU, type DashboardMenuId } from "@/components/profile/dashboardMenu";
 import { API_BASE } from "@/lib/config";
 
 type Me = {
@@ -29,7 +29,7 @@ type Order = {
   thumb: string;
 };
 
-type MenuKey = "MesCommandes" | "Wallet" | "VIP" | "Principal" | "Parametres";
+type MenuKey = DashboardMenuId;
 
 type WalletTransaction = {
   id: string;
@@ -419,11 +419,6 @@ function AccountClient() {
   const disablePasswordForm = !HAS_API_ENV;
   const disableCountryForm = !HAS_API_ENV;
   const [vipModalOpen, setVipModalOpen] = useState(false);
-  const [vipProcessing, setVipProcessing] = useState(false);
-  const [vipMessage, setVipMessage] = useState("");
-  const [vipStatus, setVipStatus] = useState<"idle" | "success" | "error">("idle");
-  const [vipForm, setVipForm] = useState({ level: "or", gameId: "", gameUsername: "" });
-  const vipDisabled = !HAS_API_ENV;
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [rechargeModalOpen, setRechargeModalOpen] = useState(false);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>(DEFAULT_WALLET_TRANSACTIONS);
@@ -433,7 +428,7 @@ function AccountClient() {
   const [rechargeProcessing, setRechargeProcessing] = useState(false);
   const [rechargeStatus, setRechargeStatus] = useState<"idle" | "success" | "error">("idle");
   const [rechargeMessage, setRechargeMessage] = useState("");
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [ordersModalOpen, setOrdersModalOpen] = useState(false);
   const [countryFormCode, setCountryFormCode] = useState(me?.countryCode ?? "CI");
   const [countrySubmitting, setCountrySubmitting] = useState(false);
   const [countryStatus, setCountryStatus] = useState<"idle" | "success" | "error">("idle");
@@ -531,12 +526,6 @@ function AccountClient() {
       setCountryFormCode(me.countryCode);
     }
   }, [me?.countryCode]);
-
-  useEffect(() => {
-    if (currentPlan) {
-      setVipForm((prev) => ({ ...prev, level: currentPlan.level }));
-    }
-  }, [currentPlan]);
 
   useEffect(() => {
     setWalletBalanceState(me?.walletBalanceFcfa ?? 0);
@@ -695,18 +684,19 @@ function AccountClient() {
   };
 
   const handleMenuChange = (menu: MenuKey) => {
-    setActiveMenu(menu);
     if (menu === "VIP") {
       setVipModalOpen(true);
+      return;
     }
     if (menu === "Wallet") {
       setWalletModalOpen(true);
+      return;
     }
-    if (menu === "Parametres") {
-      setSettingsModalOpen(true);
-    } else {
-      setSettingsModalOpen(false);
+    if (menu === "MesCommandes") {
+      setOrdersModalOpen(true);
+      return;
     }
+    setActiveMenu(menu);
   };
 
   async function saveAvatar() {
@@ -730,85 +720,6 @@ function AccountClient() {
 
   const closeVipModal = () => {
     setVipModalOpen(false);
-    setVipStatus("idle");
-    setVipMessage("");
-  };
-
-  const handleVipSubscribe = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (vipDisabled) {
-      setVipStatus("error");
-      setVipMessage("API indisponible : impossible d'activer BADBOY VIP.");
-      return;
-    }
-    setVipProcessing(true);
-    setVipStatus("idle");
-    setVipMessage("");
-    try {
-      const res = await authFetch(`${API_BASE}/premium/subscribe`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tier: vipForm.level,
-          game_id: vipForm.gameId,
-          game_username: vipForm.gameUsername,
-        }),
-      });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
-        const msg = payload?.message ?? "Impossible d'activer BADBOY VIP";
-        throw new Error(msg);
-      }
-      setVipStatus("success");
-      setVipMessage(payload?.message ?? "Bienvenue dans BADBOY VIP");
-      setMe((prev) =>
-        prev
-          ? {
-              ...prev,
-              premiumTier: vipForm.level === "platine" ? "Platine" : "Or",
-            }
-          : prev,
-      );
-    } catch (error: any) {
-      setVipStatus("error");
-      setVipMessage(error?.message ?? "Erreur inattendue");
-    } finally {
-      setVipProcessing(false);
-    }
-  };
-
-  const handleVipCancel = async () => {
-    if (vipDisabled) {
-      setVipStatus("error");
-      setVipMessage("API indisponible : impossible de résilier.");
-      return;
-    }
-    const confirmed = window.confirm(
-      "Résilier BADBOY VIP immédiatement ? Aucun remboursement ne sera effectué.",
-    );
-    if (!confirmed) return;
-    setVipProcessing(true);
-    setVipStatus("idle");
-    setVipMessage("");
-    try {
-      const res = await authFetch(`${API_BASE}/premium/cancel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
-        const msg = payload?.message ?? "Impossible de résilier BADBOY VIP";
-        throw new Error(msg);
-      }
-      setVipStatus("success");
-      setVipMessage(payload?.message ?? "Abonnement BADBOY VIP résilié");
-      setMe((prev) => (prev ? { ...prev, premiumTier: "Bronze" } : prev));
-    } catch (error: any) {
-      setVipStatus("error");
-      setVipMessage(error?.message ?? "Erreur inattendue");
-    } finally {
-      setVipProcessing(false);
-    }
   };
 
   const handleUseFunds = () => {
@@ -817,13 +728,6 @@ function AccountClient() {
 
   const closeWalletModal = () => {
     setWalletModalOpen(false);
-  };
-
-  const closeSettingsModal = () => {
-    setSettingsModalOpen(false);
-    if (activeMenu === "Parametres") {
-      setActiveMenu("Principal");
-    }
   };
 
   const handleAddFundsClick = () => {
@@ -944,114 +848,154 @@ function AccountClient() {
               onAddFunds={handleAddFundsClick}
               onUseFunds={handleUseFunds}
             />
+            <div className="lg:hidden">
+              <div className="mt-4 rounded-3xl border border-white/10 bg-black/40 p-4">
+                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Navigation mobile</p>
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                  {DASHBOARD_MENU.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeMenu === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleMenuChange(item.id)}
+                        className={`flex min-w-[140px] flex-shrink-0 items-center gap-2 rounded-2xl border px-4 py-3 text-sm transition ${
+                          isActive
+                            ? "border-white/30 bg-white/15 text-white"
+                            : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span className="font-medium">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            {activeMenu === "Parametres" && (
+              <div className="rounded-[32px] border border-white/10 bg-black/50 p-6 backdrop-blur">
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs uppercase tracking-[0.4em] text-white/40">Centre paramètres</p>
+                  <h2 className="text-2xl font-semibold">Gestion du compte</h2>
+                  <p className="text-sm text-white/60">Pays, sécurité et session depuis cette page.</p>
+                </div>
 
-            {activeMenu === "MesCommandes" && (
-              <div className="rounded-[32px] border border-white/15 bg-black/60 p-6 backdrop-blur-xl">
-                <div className="flex flex-wrap items-center gap-3 justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.4em] text-white/40">Historique complet</p>
-                    <h2 className="text-2xl font-semibold">Toutes mes commandes</h2>
-                    <p className="text-sm text-white/70">
-                      {orderSource.length} opération{orderSource.length > 1 ? "s" : ""} enregistrée{orderSource.length > 1 ? "s" : ""} sur BADBOYSHOP.
-                    </p>
-                  </div>
+                <div className="mt-6 grid gap-5 lg:grid-cols-2">
+                  <form onSubmit={handleCountrySubmit} className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.3em] text-white/50">Profil joueur</p>
+                        <h3 className="text-lg font-semibold">Changer de pays</h3>
+                      </div>
+                      <Globe className="h-5 w-5 text-white/60" />
+                    </div>
+                    <label className="mt-4 flex flex-col gap-2 text-white/70">
+                      Pays principal
+                      <select
+                        value={countryFormCode}
+                        onChange={(e) => setCountryFormCode(e.target.value)}
+                        disabled={disableCountryForm || countrySubmitting}
+                        className="rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                      >
+                        {COUNTRY_OPTIONS.map((opt) => (
+                          <option key={opt.code} value={opt.code}>
+                            {opt.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {countryMessage && (
+                      <p className={`mt-3 text-sm ${countryStatus === "success" ? "text-emerald-300" : "text-rose-300"}`}>
+                        {countryMessage}
+                      </p>
+                    )}
+                    {disableCountryForm && (
+                      <p className="mt-2 text-xs text-amber-200">API non configurée, modification désactivée en local.</p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={disableCountryForm || countrySubmitting}
+                      className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                    >
+                      {countrySubmitting ? "Mise à jour..." : "Mettre à jour"}
+                    </button>
+                  </form>
+
+                  <form onSubmit={handlePasswordSubmit} className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.3em] text-white/50">Sécurité</p>
+                        <h3 className="text-lg font-semibold">Mot de passe</h3>
+                      </div>
+                      <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 text-white/60">🔐</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      <input
+                        type="password"
+                        autoComplete="current-password"
+                        placeholder="Actuel"
+                        className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                        value={passwordForm.current}
+                        onChange={(e) => setPasswordForm((prev) => ({ ...prev, current: e.target.value }))}
+                        disabled={disablePasswordForm || passwordSubmitting}
+                        required
+                      />
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="Nouveau"
+                        className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                        value={passwordForm.password}
+                        onChange={(e) => setPasswordForm((prev) => ({ ...prev, password: e.target.value }))}
+                        disabled={disablePasswordForm || passwordSubmitting}
+                        required
+                        minLength={8}
+                      />
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="Confirmer"
+                        className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                        value={passwordForm.confirm}
+                        onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))}
+                        disabled={disablePasswordForm || passwordSubmitting}
+                        required
+                        minLength={8}
+                      />
+                    </div>
+                    {passwordMessage && (
+                      <p className={`mt-3 text-sm ${passwordStatus === "success" ? "text-emerald-300" : "text-rose-300"}`}>
+                        {passwordMessage}
+                      </p>
+                    )}
+                    {disablePasswordForm && (
+                      <p className="mt-2 text-xs text-amber-200">API non configurée, modification désactivée en local.</p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={disablePasswordForm || passwordSubmitting}
+                      className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                    >
+                      {passwordSubmitting ? "Mise à jour..." : "Mettre à jour"}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-white/10 bg-gradient-to-r from-rose-500/20 to-orange-500/10 p-5">
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/60">Session</p>
+                  <p className="mt-2 text-sm text-white/70">Déconnexion immédiate sur tous les appareils.</p>
                   <button
-                    className="text-sm text-white/70 hover:text-white"
-                    onClick={() => handleMenuChange("Principal")}
+                    onClick={handleLogout}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
                   >
-                    Retour dashboard →
+                    <LogOut className="h-4 w-4" />
+                    Se déconnecter
                   </button>
                 </div>
-
-                <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
-                  <div className="grid grid-cols-[140px_1fr_140px_120px] gap-3 px-4 py-3 text-xs uppercase tracking-[0.3em] text-white/60 bg-white/5">
-                    <div>ID</div>
-                    <div>Produit</div>
-                    <div className="text-right">Montant</div>
-                    <div className="text-right">Status</div>
-                  </div>
-
-                  <div className="divide-y divide-white/10">
-                    {orderSource.map((order) => (
-                      <div key={order.id} className="grid grid-cols-[140px_1fr_140px_120px] gap-3 px-4 py-4 items-center">
-                        <div className="text-sm font-semibold text-white/70">{order.id}</div>
-                        <div>
-                          <div className="font-semibold">{order.title}</div>
-                          <div className="text-xs text-white/60">{order.game}</div>
-                        </div>
-                        <div className="text-right font-semibold">{formatCurrency(order.priceFcfa, me.countryCode)}</div>
-                        <div className="text-right">
-                          <span
-                            className={`inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ${
-                              statusBadgeClass(order.status)
-                            }`}
-                          >
-                            {order.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {!orderSource.length && (
-                  <p className="mt-4 text-sm text-white/60">Aucune commande pour le moment.</p>
-                )}
               </div>
             )}
-
-            <div className="rounded-[32px] bg-black/40 border border-white/10 backdrop-blur-xl p-6">
-              <div className="flex flex-col gap-2">
-                <p className="text-xs uppercase tracking-[0.4em] text-white/40">Historique rapide</p>
-                <h2 className="text-lg font-bold">4 dernières commandes</h2>
-                <p className="text-sm text-white/60">
-                  Consulter tout l'historique via le menu Mes commandes dans la colonne gauche.
-                </p>
-              </div>
-
-              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
-                <div className="grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-3 text-xs uppercase tracking-wider opacity-70 bg-white/5">
-                  <div>Commande</div>
-                  <div className="text-right">Prix</div>
-                  <div className="text-right">Status</div>
-                </div>
-
-                <div className="divide-y divide-white/10">
-                  {(recentOrders.length ? recentOrders : orderSource).map((o) => (
-                    <div
-                      key={o.id}
-                      className={`grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-4 items-center ${
-                        loadingOrders ? "opacity-60 animate-pulse" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="relative h-12 w-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-                          <Image src={o.thumb} alt="" fill className="object-cover" />
-                        </div>
-                        <div>
-                          <div className="font-semibold">
-                            {o.title} <span className="opacity-70 font-normal">/ {o.game}</span>
-                          </div>
-                          <div className="text-xs opacity-60">Commande {o.id}</div>
-                        </div>
-                      </div>
-                      <div className="text-right font-semibold">{formatCurrency(o.priceFcfa, me.countryCode)}</div>
-                      <div className="text-right">
-                        <span
-                          className={`inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ${
-                            statusBadgeClass(o.status)
-                          }`}
-                        >
-                          {o.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {!recentOrders.length && (
-                <p className="mt-3 text-xs text-white/60">Aucune commande récente pour l'instant.</p>
-              )}
-            </div>
           </section>
         </div>
       </main>
@@ -1164,153 +1108,6 @@ function AccountClient() {
         </div>
       )}
 
-      {settingsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeSettingsModal} />
-          <div className="relative z-10 w-full max-w-lg rounded-[26px] border border-white/15 bg-[#05030c]/95 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.85)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Paramètres</p>
-                <h2 className="mt-1 text-2xl font-semibold">Mini cockpit sécurité</h2>
-                <p className="text-sm text-white/60">Toutes les actions critiques dans une seule fenêtre.</p>
-              </div>
-              <button
-                className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
-                onClick={closeSettingsModal}
-              >
-                Fermer
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-4">
-              <form
-                onSubmit={handleCountrySubmit}
-                className="rounded-2xl border border-white/10 bg-black/50 p-4 text-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">Profil</p>
-                    <h3 className="text-lg font-semibold">Changer de pays</h3>
-                  </div>
-                  <Globe className="h-5 w-5 text-white/60" />
-                </div>
-                <label className="mt-4 flex flex-col gap-2 text-white/70">
-                  Pays principal
-                  <select
-                    value={countryFormCode}
-                    onChange={(e) => setCountryFormCode(e.target.value)}
-                    disabled={disableCountryForm || countrySubmitting}
-                    className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  >
-                    {COUNTRY_OPTIONS.map((opt) => (
-                      <option key={opt.code} value={opt.code}>
-                        {opt.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {countryMessage && (
-                  <p
-                    className={`mt-3 text-sm ${
-                      countryStatus === "success" ? "text-emerald-300" : "text-rose-300"
-                    }`}
-                  >
-                    {countryMessage}
-                  </p>
-                )}
-                {disableCountryForm && (
-                  <p className="mt-2 text-xs text-amber-200">API non configurée, modification désactivée en local.</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={disableCountryForm || countrySubmitting}
-                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
-                >
-                  {countrySubmitting ? "Mise à jour..." : "Mettre à jour"}
-                </button>
-              </form>
-
-              <form
-                onSubmit={handlePasswordSubmit}
-                className="rounded-2xl border border-white/10 bg-black/60 p-4 text-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">Sécurité</p>
-                    <h3 className="text-lg font-semibold">Mot de passe</h3>
-                  </div>
-                  <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 text-white/60">🔐</span>
-                </div>
-                <div className="mt-4 space-y-3">
-                  <input
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="Actuel"
-                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
-                    value={passwordForm.current}
-                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, current: e.target.value }))}
-                    disabled={disablePasswordForm || passwordSubmitting}
-                    required
-                  />
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    placeholder="Nouveau"
-                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
-                    value={passwordForm.password}
-                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, password: e.target.value }))}
-                    disabled={disablePasswordForm || passwordSubmitting}
-                    required
-                    minLength={8}
-                  />
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    placeholder="Confirmer"
-                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
-                    value={passwordForm.confirm}
-                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))}
-                    disabled={disablePasswordForm || passwordSubmitting}
-                    required
-                    minLength={8}
-                  />
-                </div>
-                {passwordMessage && (
-                  <p
-                    className={`mt-3 text-sm ${
-                      passwordStatus === "success" ? "text-emerald-300" : "text-rose-300"
-                    }`}
-                  >
-                    {passwordMessage}
-                  </p>
-                )}
-                {disablePasswordForm && (
-                  <p className="mt-2 text-xs text-amber-200">API non configurée, modification désactivée en local.</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={disablePasswordForm || passwordSubmitting}
-                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
-                >
-                  {passwordSubmitting ? "Mise à jour..." : "Mettre à jour"}
-                </button>
-              </form>
-
-              <div className="rounded-2xl border border-white/10 bg-gradient-to-r from-rose-500/20 to-orange-500/10 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-white/60">Session</p>
-                <p className="mt-2 text-sm text-white/70">Déconnexion immédiate sur tous les appareils.</p>
-                <button
-                  onClick={handleLogout}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Se déconnecter
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {rechargeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -1371,139 +1168,34 @@ function AccountClient() {
       {vipModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeVipModal} />
-          <div className="relative z-10 w-full max-w-5xl rounded-[32px] border border-white/20 bg-black/85 p-6 md:p-10 shadow-[0_40px_120px_rgba(0,0,0,0.8)]">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="relative z-10 w-full max-w-md rounded-[28px] border border-white/15 bg-black/90 p-6 text-white shadow-[0_30px_120px_rgba(0,0,0,0.8)]">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.5em] text-fuchsia-300/80">BADBOY VIP</p>
-                <h2 className="mt-2 text-3xl font-bold">Mini cockpit des abonnements</h2>
-                <p className="mt-2 text-sm text-white/70">
-                  Choisis ton palier, profites des boosts cashback et résilie quand tu veux (sans remboursement).
-                </p>
+                <p className="text-xs uppercase tracking-[0.5em] text-fuchsia-200/80">BADBOY VIP</p>
+                <h2 className="mt-2 text-2xl font-semibold">Section réservée desktop</h2>
               </div>
               <button
-                className="self-end rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
+                className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
                 onClick={closeVipModal}
               >
                 Fermer
               </button>
             </div>
-
-            <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 space-y-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.4em] text-white/50">Statut actuel</p>
-                  <p className="mt-2 text-2xl font-semibold">
-                    {vipActive ? `VIP ${currentPlan?.label ?? me.premiumTier}` : "Standard"}
-                  </p>
-                </div>
-                <div className="text-sm text-white/70">
-                  {vipActive
-                    ? "Tes avantages sont actifs tant que le prélèvement reste valide."
-                    : "Active BADBOY VIP pour débloquer les remises immédiates et priorités support."}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleVipCancel}
-                  disabled={!vipActive || vipProcessing}
-                  className="w-full rounded-2xl border border-white/20 px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10"
-                >
-                  Résilier BADBOY VIP
-                </button>
-                {!vipActive && (
-                  <p className="text-xs text-white/60">
-                    Pas encore membre ? Choisis ton plan pour rejoindre le cercle BADBOY.
-                  </p>
-                )}
-              </div>
-
-              <form
-                onSubmit={handleVipSubscribe}
-                className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#120018] via-[#050312] to-[#02020a] p-5 space-y-6"
-              >
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {VIP_PLANS.map((plan) => {
-                    const selected = vipForm.level === plan.level;
-                    return (
-                      <label
-                        key={plan.level}
-                        className={`rounded-2xl border px-4 py-4 text-left text-sm transition cursor-pointer ${
-                          selected ? "border-fuchsia-400 bg-white/10" : "border-white/10 bg-white/5 hover:border-white/20"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="vip-level"
-                          value={plan.level}
-                          className="hidden"
-                          checked={selected}
-                          onChange={() => setVipForm((prev) => ({ ...prev, level: plan.level }))}
-                        />
-                        <div className="text-xs uppercase tracking-[0.3em] text-white/60">{plan.label}</div>
-                        <div className="mt-2 text-lg font-semibold">{plan.price}</div>
-                        <ul className="mt-3 space-y-1 text-white/70">
-                          {plan.perks.map((perk) => (
-                            <li key={perk}>• {perk}</li>
-                          ))}
-                        </ul>
-                      </label>
-                    );
-                  })}
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="text-sm text-white/70">
-                    ID de jeu / UID
-                    <input
-                      type="text"
-                      value={vipForm.gameId}
-                      onChange={(e) => setVipForm((prev) => ({ ...prev, gameId: e.target.value }))}
-                      className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 focus:border-cyan-300 focus:outline-none"
-                      placeholder="123456789"
-                      required
-                    />
-                  </label>
-                  <label className="text-sm text-white/70">
-                    Pseudo in-game
-                    <input
-                      type="text"
-                      value={vipForm.gameUsername}
-                      onChange={(e) =>
-                        setVipForm((prev) => ({ ...prev, gameUsername: e.target.value }))
-                      }
-                      className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 focus:border-cyan-300 focus:outline-none"
-                      placeholder="BADBOY_225"
-                      required
-                    />
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={vipProcessing}
-                  className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
-                >
-                  {vipProcessing ? "Traitement..." : "Activer / mettre à jour BADBOY VIP"}
-                </button>
-                {vipDisabled && (
-                  <p className="text-xs text-amber-300">
-                    API hors-ligne : la souscription est simulée uniquement sur cette preview.
-                  </p>
-                )}
-              </form>
-            </div>
-
-            {vipMessage && (
-              <p
-                className={`mt-4 text-sm ${
-                  vipStatus === "success" ? "text-emerald-300" : "text-rose-300"
-                }`}
-              >
-                {vipMessage}
+            <div className="mt-5 space-y-4 text-sm text-white/70">
+              <p>
+                Ton statut actuel : <span className="font-semibold text-white">{vipActive ? `VIP ${currentPlan?.label ?? me.premiumTier}` : "Standard"}</span>.
               </p>
-            )}
-            <p className="mt-4 text-xs text-amber-200">
-              ⚠️ Résiliation immédiate, aucun remboursement n’est émis même si la période n’est pas terminée.
-            </p>
+              <p>
+                Pour gérer BADBOY VIP (activation, changement de palier ou résiliation), connecte-toi depuis un ordinateur. Cette fonctionnalité n’est pas disponible sur mobile pour des raisons de sécurité.
+              </p>
+              <p className="text-xs text-white/50">Repasse sur desktop pour profiter du cockpit complet.</p>
+            </div>
+            <button
+              className="mt-6 w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/20"
+              onClick={closeVipModal}
+            >
+              Compris
+            </button>
           </div>
         </div>
       )}

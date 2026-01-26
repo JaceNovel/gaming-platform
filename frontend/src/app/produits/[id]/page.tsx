@@ -196,13 +196,13 @@ export default function ProductDetailsPage() {
   const renderImage = () => {
     if (mainImage) {
       return (
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
           <Image src={mainImage} alt={product?.name ?? "Produit"} fill sizes="(min-width:1024px) 60vw, 100vw" className="object-cover" />
         </div>
       );
     }
     return (
-      <div className="flex aspect-[4/3] w-full items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-100 text-base font-semibold text-slate-400 shadow-inner">
+      <div className="flex aspect-[4/3] w-full items-center justify-center rounded-3xl border border-dashed border-white/20 bg-white/5 text-base font-semibold text-white/60 shadow-inner">
         Aucune image
       </div>
     );
@@ -216,11 +216,11 @@ export default function ProductDetailsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
+    <main className="min-h-screen bg-[#05030d] text-white">
       {overlay}
       {statusMessage && (
-        <div className="fixed right-4 top-[88px] z-50 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-800 shadow-xl">
-          <ShoppingCart className="h-4 w-4 text-rose-500" />
+        <div className="fixed right-4 top-[88px] z-50 flex items-center gap-2 rounded-2xl border border-white/15 bg-black/80 px-4 py-2 text-sm font-semibold text-white shadow-[0_20px_60px_rgba(0,0,0,0.65)]">
+          <ShoppingCart className="h-4 w-4 text-rose-400" />
           <span>{statusMessage}</span>
         </div>
       )}
@@ -229,26 +229,26 @@ export default function ProductDetailsPage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="text-sm font-medium text-slate-500 transition hover:text-slate-900"
+            className="text-sm font-medium text-white/70 transition hover:text-white"
           >
             ← Retour boutique
           </button>
-          <Link href="/shop" className="text-sm text-rose-600 hover:text-rose-700">
+          <Link href="/shop" className="text-sm text-rose-300 transition hover:text-rose-200">
             Voir toutes les offres
           </Link>
         </div>
 
         {loading && (
-          <div className="mt-20 rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500 shadow-sm">
+          <div className="mt-20 rounded-3xl border border-white/10 bg-white/5 p-10 text-center text-white/60 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
             Chargement du produit...
           </div>
         )}
 
         {!loading && error && (
-          <div className="mt-20 rounded-3xl border border-rose-200 bg-rose-50 p-10 text-center text-rose-600">
+          <div className="mt-20 rounded-3xl border border-rose-500/40 bg-rose-500/10 p-10 text-center text-rose-100">
             {error}
             <div className="mt-6">
-              <Link href="/shop" className="text-sm font-semibold text-rose-600 underline">
+              <Link href="/shop" className="text-sm font-semibold text-rose-200 underline">
                 Retourner à la boutique
               </Link>
             </div>
@@ -260,18 +260,18 @@ export default function ProductDetailsPage() {
             {renderImage()}
 
             <div className="space-y-6">
-              <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-                <h1 className="text-3xl font-bold text-slate-900">{product.name ?? product.title ?? "Produit"}</h1>
-                <p className="mt-3 text-3xl font-bold text-[#d71933]">{formatPrice(priceValue)}</p>
-                <p className="mt-4 text-base text-slate-600">{description}</p>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+                <h1 className="text-3xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
+                <p className="mt-3 text-3xl font-bold text-[#ff4b63]">{formatPrice(priceValue)}</p>
+                <p className="mt-4 text-base text-white/70">{description}</p>
 
                 <div className="mt-6">
-                  <h2 className="text-lg font-semibold text-slate-900">Informations</h2>
-                  <div className="mt-4 divide-y divide-slate-100 text-sm">
+                  <h2 className="text-lg font-semibold text-white">Informations</h2>
+                  <div className="mt-4 divide-y divide-white/10 text-sm">
                     {infoRows.map((row) => (
                       <div key={row.label} className="flex items-center justify-between py-3">
-                        <span className="text-slate-500">{row.label}</span>
-                        <span className="font-semibold text-slate-900 text-right">{row.value}</span>
+                        <span className="text-white/60">{row.label}</span>
+                        <span className="text-right font-semibold text-white">{row.value}</span>
                       </div>
                     ))}
                   </div>
@@ -281,22 +281,22 @@ export default function ProductDetailsPage() {
                   <button
                     type="button"
                     onClick={handleAddToCart}
-                    className="rounded-full bg-[#d71933] px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-[#b51229]"
+                    className="rounded-full bg-[#d71933] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:bg-[#b51229]"
                   >
                     Ajouter au panier
                   </button>
                   <button
                     type="button"
                     onClick={handleBuyNow}
-                    className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-700"
+                    className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-700"
                   >
                     Acheter maintenant
                   </button>
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
                   <p>
-                    <span className="font-semibold">Livraison estimée :</span> 7-10 jours ouvrés. Vous serez notifié par email et SMS à
+                    <span className="font-semibold text-white">Livraison estimée :</span> 7-10 jours ouvrés. Vous serez notifié par email et SMS à
                     l&apos;arrivée de votre commande.
                   </p>
                 </div>
