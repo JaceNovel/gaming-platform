@@ -338,13 +338,22 @@ body {
   }
 }
 
+#tidio-chat {
+  z-index: 80 !important;
+}
+
 #tidio-chat iframe {
   transition: transform 0.3s ease;
+  top: auto !important;
+  bottom: 32px !important;
+  right: 28px !important;
 }
 
 @media (max-width: 640px) {
   #tidio-chat iframe {
     transform: scale(0.85);
     transform-origin: bottom right;
+    bottom: 96px !important;
+    right: 18px !important;
   }
 }

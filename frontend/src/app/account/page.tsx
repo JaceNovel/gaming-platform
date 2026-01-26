@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { Globe, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -52,6 +53,8 @@ const COUNTRY_CURRENCIES: Record<string, CurrencyInfo> = {
   BJ: { iso: "XOF", label: "FCFA" },
   SN: { iso: "XOF", label: "FCFA" },
   ML: { iso: "XOF", label: "FCFA" },
+  CM: { iso: "XAF", label: "FCFA" },
+  GN: { iso: "GNF", label: "GNF" },
   FR: { iso: "EUR", label: "€" },
   BE: { iso: "EUR", label: "€" },
   DE: { iso: "EUR", label: "€" },
@@ -76,16 +79,56 @@ const formatCurrency = (amount: number, countryCode?: string | null) => {
 };
 
 const AVATARS = [
-  { id: "shadow_default", name: "Shadow", src: "/avatars/shadow.png" },
-  { id: "neon_assassin", name: "Neon Assassin", src: "/avatars/neon_assassin.png" },
-  { id: "cyber_samurai", name: "Cyber Samurai", src: "/avatars/cyber_samurai.png" },
-  { id: "space_valkyrie", name: "Space Valkyrie", src: "/avatars/space_valkyrie.png" },
-  { id: "void_mage", name: "Void Mage", src: "/avatars/void_mage.png" },
-  { id: "arc_reaper", name: "Arc Reaper", src: "/avatars/arc_reaper.png" },
-  { id: "nova_ranger", name: "Nova Ranger", src: "/avatars/nova_ranger.png" },
-  { id: "plasma_knight", name: "Plasma Knight", src: "/avatars/plasma_knight.png" },
-  { id: "glitch_hunter", name: "Glitch Hunter", src: "/avatars/glitch_hunter.png" },
-  { id: "star_merc", name: "Star Merc", src: "/avatars/star_merc.png" },
+  {
+    id: "nova_ghost",
+    name: "Nova Ghost",
+    src: "https://images.unsplash.com/photo-1542751110-97427bbecf20?auto=format&fit=crop&w=500&q=80",
+  },
+  {
+    id: "plasma_ronin",
+    name: "Plasma Ronin",
+    src: "https://images.unsplash.com/photo-1525182008055-f88b95ff7980?auto=format&fit=crop&w=500&q=80",
+  },
+  {
+    id: "cyber_warden",
+    name: "Cyber Warden",
+    src: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=500&q=80",
+  },
+  {
+    id: "stellar_viper",
+    name: "Stellar Viper",
+    src: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=500&q=80",
+  },
+  {
+    id: "ember_rider",
+    name: "Ember Rider",
+    src: "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=500&q=80",
+  },
+  {
+    id: "void_huntress",
+    name: "Void Huntress",
+    src: "https://images.unsplash.com/photo-1472457897821-70d3819a0e24?auto=format&fit=crop&w=500&q=80",
+  },
+  {
+    id: "quantum_blade",
+    name: "Quantum Blade",
+    src: "https://images.unsplash.com/photo-1458640904116-093b74971de9?auto=format&fit=crop&w=500&q=80",
+  },
+  {
+    id: "orbit_scout",
+    name: "Orbit Scout",
+    src: "https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=500&q=80",
+  },
+  {
+    id: "neon_rifter",
+    name: "Neon Rifter",
+    src: "https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?auto=format&fit=crop&w=500&q=80",
+  },
+  {
+    id: "rift_paladin",
+    name: "Rift Paladin",
+    src: "https://images.unsplash.com/photo-1520116468816-00a92d84fdf9?auto=format&fit=crop&w=500&q=80",
+  },
 ];
 
 const thumbs = ["/thumbs/lol.png", "/thumbs/ml.png", "/thumbs/ff.png", "/thumbs/ff2.png"];
@@ -227,6 +270,19 @@ const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [
   },
 ];
 
+const COUNTRY_OPTIONS = [
+  { code: "CI", name: "Côte d'Ivoire" },
+  { code: "TG", name: "Togo" },
+  { code: "BJ", name: "Bénin" },
+  { code: "SN", name: "Sénégal" },
+  { code: "CM", name: "Cameroun" },
+  { code: "GN", name: "Guinée" },
+  { code: "ML", name: "Mali" },
+  { code: "FR", name: "France" },
+  { code: "BE", name: "Belgique" },
+  { code: "US", name: "États-Unis" },
+];
+
 const normalizeMe = (payload: any, baseline: Me | null): Me => {
   const fallback =
     baseline ??
@@ -234,7 +290,7 @@ const normalizeMe = (payload: any, baseline: Me | null): Me => {
       username: "BADBOY",
       countryCode: "CI",
       countryName: "Côte d'Ivoire",
-      avatarId: "shadow_default",
+      avatarId: "nova_ghost",
       walletBalanceFcfa: 0,
       premiumTier: "Bronze",
     } satisfies Me);
@@ -341,7 +397,7 @@ function AccountClient() {
       username: user.name ?? legacyUser.username ?? "BADBOY",
       countryCode,
       countryName: legacyUser.country_name ?? null,
-      avatarId: legacyUser.is_premium ? "cyber_samurai" : "neon_assassin",
+      avatarId: legacyUser.is_premium ? "stellar_viper" : "nova_ghost",
       walletBalanceFcfa: walletBalance,
       premiumTier: premiumTierResolved,
     } satisfies Me;
@@ -352,7 +408,7 @@ function AccountClient() {
   const [activeMenu, setActiveMenu] = useState<MenuKey>("Principal");
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pendingAvatarId, setPendingAvatarId] = useState<string>("shadow_default");
+  const [pendingAvatarId, setPendingAvatarId] = useState<string>("nova_ghost");
   const [saving, setSaving] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(HAS_API_ENV);
   const [loadingOrders, setLoadingOrders] = useState(HAS_API_ENV);
@@ -361,6 +417,7 @@ function AccountClient() {
   const [passwordStatus, setPasswordStatus] = useState<"idle" | "success" | "error">("idle");
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const disablePasswordForm = !HAS_API_ENV;
+  const disableCountryForm = !HAS_API_ENV;
   const [vipModalOpen, setVipModalOpen] = useState(false);
   const [vipProcessing, setVipProcessing] = useState(false);
   const [vipMessage, setVipMessage] = useState("");
@@ -377,9 +434,13 @@ function AccountClient() {
   const [rechargeStatus, setRechargeStatus] = useState<"idle" | "success" | "error">("idle");
   const [rechargeMessage, setRechargeMessage] = useState("");
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [countryFormCode, setCountryFormCode] = useState(me?.countryCode ?? "CI");
+  const [countrySubmitting, setCountrySubmitting] = useState(false);
+  const [countryStatus, setCountryStatus] = useState<"idle" | "success" | "error">("idle");
+  const [countryMessage, setCountryMessage] = useState("");
 
   const avatar = useMemo(() => {
-    const id = me?.avatarId || "shadow_default";
+    const id = me?.avatarId || "nova_ghost";
     return AVATARS.find((a) => a.id === id) || AVATARS[0];
   }, [me?.avatarId]);
   const currentTier = (me?.premiumTier ?? "").toLowerCase();
@@ -464,6 +525,12 @@ function AccountClient() {
   useEffect(() => {
     if (me?.avatarId) setPendingAvatarId(me.avatarId);
   }, [me?.avatarId]);
+
+  useEffect(() => {
+    if (me?.countryCode) {
+      setCountryFormCode(me.countryCode);
+    }
+  }, [me?.countryCode]);
 
   useEffect(() => {
     if (currentPlan) {
@@ -574,6 +641,51 @@ function AccountClient() {
       setPasswordMessage(error?.message ?? "Erreur inattendue");
     } finally {
       setPasswordSubmitting(false);
+    }
+  };
+
+  const handleCountrySubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!me) return;
+    if (disableCountryForm) {
+      setCountryStatus("error");
+      setCountryMessage("API indisponible : impossible de changer le pays.");
+      return;
+    }
+    setCountrySubmitting(true);
+    setCountryStatus("idle");
+    setCountryMessage("");
+    try {
+      const selected = COUNTRY_OPTIONS.find((opt) => opt.code === countryFormCode);
+      const res = await authFetch(`${API_BASE}/me`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          countryCode: countryFormCode,
+          countryName: selected?.name ?? countryFormCode,
+        }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = payload?.message ?? "Impossible de mettre à jour le pays.";
+        throw new Error(msg);
+      }
+      setCountryStatus("success");
+      setCountryMessage(payload?.message ?? "Pays mis à jour.");
+      setMe((prev) =>
+        prev
+          ? {
+              ...prev,
+              countryCode: countryFormCode,
+              countryName: selected?.name ?? prev.countryName,
+            }
+          : prev,
+      );
+    } catch (error: any) {
+      setCountryStatus("error");
+      setCountryMessage(error?.message ?? "Erreur inattendue");
+    } finally {
+      setCountrySubmitting(false);
     }
   };
 
@@ -785,12 +897,11 @@ function AccountClient() {
   const missingCountry = !me.countryCode;
   const orderSource = loadingOrders ? DEFAULT_ORDERS : orders;
   const recentOrders = orderSource.slice(0, 4);
-  const hasMoreOrders = orderSource.length > 4;
   const tierLabel = vipActive ? currentPlan?.label ?? me.premiumTier : "Basic";
   const sidebarTierLabel = vipActive ? me.premiumTier : "Basic";
   const walletDisplay = formatCurrency(walletBalanceState, me.countryCode);
   const walletCurrencyLabel = getCurrencyInfo(me.countryCode).label;
-  const walletHistory = walletTransactions.slice(0, 10);
+  const lastWalletTransaction = walletTransactions[0];
   const isTogoPlayer = (me.countryCode ?? "").toUpperCase() === "TG";
 
   return (
@@ -833,68 +944,6 @@ function AccountClient() {
               onAddFunds={handleAddFundsClick}
               onUseFunds={handleUseFunds}
             />
-
-            <div className="rounded-[32px] bg-black/40 border border-white/10 backdrop-blur-xl p-6">
-              <div className="flex flex-wrap items-center gap-3 justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.4em] text-white/40">Historique rapide</p>
-                  <h2 className="text-lg font-bold">Mes commandes (4 dernières)</h2>
-                </div>
-                <button
-                  className="text-sm opacity-70 hover:opacity-100"
-                  onClick={() => handleMenuChange("MesCommandes")}
-                >
-                  Voir plus →
-                </button>
-              </div>
-
-              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
-                <div className="grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-3 text-xs uppercase tracking-wider opacity-70 bg-white/5">
-                  <div>Commande</div>
-                  <div className="text-right">Prix</div>
-                  <div className="text-right">Status</div>
-                </div>
-
-                <div className="divide-y divide-white/10">
-                  {(recentOrders.length ? recentOrders : orderSource).map((o) => (
-                    <div
-                      key={o.id}
-                      className={`grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-4 items-center ${
-                        loadingOrders ? "opacity-60 animate-pulse" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="relative h-12 w-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-                          <Image src={o.thumb} alt="" fill className="object-cover" />
-                        </div>
-                        <div>
-                          <div className="font-semibold">
-                            {o.title} <span className="opacity-70 font-normal">/ {o.game}</span>
-                          </div>
-                          <div className="text-xs opacity-60">Commande {o.id}</div>
-                        </div>
-                      </div>
-                      <div className="text-right font-semibold">{formatCurrency(o.priceFcfa, me.countryCode)}</div>
-                      <div className="text-right">
-                        <span
-                          className={`inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ${
-                            statusBadgeClass(o.status)
-                          }`}
-                        >
-                          {o.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {!hasMoreOrders && (
-                <p className="mt-3 text-xs text-white/60">
-                  En attente de nouvelles commandes pour alimenter cet aperçu.
-                </p>
-              )}
-
-            </div>
 
             {activeMenu === "MesCommandes" && (
               <div className="rounded-[32px] border border-white/15 bg-black/60 p-6 backdrop-blur-xl">
@@ -949,6 +998,60 @@ function AccountClient() {
                 )}
               </div>
             )}
+
+            <div className="rounded-[32px] bg-black/40 border border-white/10 backdrop-blur-xl p-6">
+              <div className="flex flex-col gap-2">
+                <p className="text-xs uppercase tracking-[0.4em] text-white/40">Historique rapide</p>
+                <h2 className="text-lg font-bold">4 dernières commandes</h2>
+                <p className="text-sm text-white/60">
+                  Consulter tout l'historique via le menu Mes commandes dans la colonne gauche.
+                </p>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
+                <div className="grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-3 text-xs uppercase tracking-wider opacity-70 bg-white/5">
+                  <div>Commande</div>
+                  <div className="text-right">Prix</div>
+                  <div className="text-right">Status</div>
+                </div>
+
+                <div className="divide-y divide-white/10">
+                  {(recentOrders.length ? recentOrders : orderSource).map((o) => (
+                    <div
+                      key={o.id}
+                      className={`grid grid-cols-[1fr_140px_140px] gap-3 px-4 py-4 items-center ${
+                        loadingOrders ? "opacity-60 animate-pulse" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="relative h-12 w-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden">
+                          <Image src={o.thumb} alt="" fill className="object-cover" />
+                        </div>
+                        <div>
+                          <div className="font-semibold">
+                            {o.title} <span className="opacity-70 font-normal">/ {o.game}</span>
+                          </div>
+                          <div className="text-xs opacity-60">Commande {o.id}</div>
+                        </div>
+                      </div>
+                      <div className="text-right font-semibold">{formatCurrency(o.priceFcfa, me.countryCode)}</div>
+                      <div className="text-right">
+                        <span
+                          className={`inline-flex items-center justify-center px-3 py-1 rounded-full border text-xs font-semibold ${
+                            statusBadgeClass(o.status)
+                          }`}
+                        >
+                          {o.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {!recentOrders.length && (
+                <p className="mt-3 text-xs text-white/60">Aucune commande récente pour l'instant.</p>
+              )}
+            </div>
           </section>
         </div>
       </main>
@@ -956,34 +1059,34 @@ function AccountClient() {
       {walletModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeWalletModal} />
-          <div className="relative z-10 w-full max-w-3xl rounded-[32px] border border-white/20 bg-black/85 p-6 md:p-10 shadow-[0_40px_120px_rgba(0,0,0,0.85)]">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="relative z-10 w-full max-w-lg rounded-[28px] border border-white/15 bg-black/90 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.85)]">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.5em] text-cyan-200/80">Wallet BADBOY</p>
-                <h2 className="mt-2 text-3xl font-bold">Dernières transactions</h2>
-                <p className="mt-2 text-sm text-white/70">Synchronisé avec le montant affiché dans le navbar.</p>
+                <p className="text-xs uppercase tracking-[0.4em] text-cyan-200/80">Wallet express</p>
+                <h2 className="mt-1 text-2xl font-bold">BADBOY Wallet</h2>
+                <p className="text-sm text-white/60">Pilotage rapide sans quitter le dashboard.</p>
               </div>
               <button
-                className="self-end rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
+                className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
                 onClick={closeWalletModal}
               >
                 Fermer
               </button>
             </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-[1fr_240px]">
+            <div className="mt-6 space-y-5">
               <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Solde actuel</p>
-                <p className="mt-2 text-3xl font-semibold">{walletDisplay}</p>
-                <p className="mt-2 text-xs text-white/60">Unité: {walletCurrencyLabel}</p>
-                <div className="mt-4 flex flex-wrap gap-3">
+                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Solde actif</p>
+                <p className="mt-2 text-4xl font-semibold">{walletDisplay}</p>
+                <p className="mt-1 text-xs text-white/60">Libellé: {walletCurrencyLabel}</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={() => {
                       closeWalletModal();
                       handleAddFundsClick();
                     }}
-                    className="flex-1 rounded-2xl border border-yellow-300/20 bg-yellow-500/20 px-4 py-2 text-sm font-semibold hover:bg-yellow-500/30"
+                    className="rounded-2xl border border-yellow-300/30 bg-yellow-500/20 px-4 py-2.5 text-sm font-semibold hover:bg-yellow-500/30"
                   >
                     Recharger via CinetPay
                   </button>
@@ -993,75 +1096,69 @@ function AccountClient() {
                       closeWalletModal();
                       handleUseFunds();
                     }}
-                    className="flex-1 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+                    className="rounded-2xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20"
                   >
                     Aller à la boutique
                   </button>
                 </div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-white/80">
-                <p>Utilise ton solde pour des comptes, recharges et drops exclusifs.</p>
-                <p className="mt-3 text-xs text-amber-200">
-                  NB: Les accessoires gaming BADBOY sont uniquement disponibles pour le TOGO.
-                </p>
-                {!isTogoPlayer && (
-                  <p className="mt-2 text-xs text-amber-300">
-                    Passe ton pays sur TOGO pour accéder à ces accessoires exclusifs.
-                  </p>
-                )}
-              </div>
-            </div>
 
-            <div className="mt-8 rounded-3xl border border-white/10 bg-black/40">
-              <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
-                <p className="text-xs uppercase tracking-[0.4em] text-white/50">10 dernières opérations</p>
-                <span className="text-xs text-white/60">Actualisé en temps réel</span>
-              </div>
-              <div className="max-h-[45vh] overflow-y-auto divide-y divide-white/10">
+              <div className="rounded-3xl border border-white/10 bg-black/40 p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.4em] text-white/50">Dernière opération</p>
+                    {lastWalletTransaction && (
+                      <p className="text-xs text-white/60">
+                        {new Date(lastWalletTransaction.createdAt).toLocaleString("fr-FR")}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[11px] rounded-full border border-white/15 px-3 py-1 text-white/60">Temps réel</span>
+                </div>
                 {walletHistoryLoading && (
-                  <div className="space-y-3 px-5 py-4">
-                    {Array.from({ length: 4 }).map((_, idx) => (
+                  <div className="mt-4 space-y-3">
+                    {Array.from({ length: 2 }).map((_, idx) => (
                       <div key={idx} className="h-12 w-full animate-pulse rounded-2xl bg-white/5" />
                     ))}
                   </div>
                 )}
-                {!walletHistoryLoading && walletHistory.length === 0 && (
-                  <div className="px-5 py-6 text-center text-sm text-white/60">
-                    Aucune transaction pour le moment.
-                  </div>
-                )}
-                {!walletHistoryLoading &&
-                  walletHistory.map((tx) => (
-                    <div key={tx.id} className="grid grid-cols-[1fr_auto] gap-4 px-5 py-4 text-sm">
+                {!walletHistoryLoading && lastWalletTransaction && (
+                  <div className="mt-5 space-y-2">
+                    <div className="flex items-center justify-between text-sm">
                       <div>
-                        <p className="font-semibold text-white/90">{tx.label}</p>
-                        <p className="text-xs text-white/60">
-                          {new Date(tx.createdAt).toLocaleString("fr-FR")}
-                        </p>
+                        <p className="font-semibold text-white/90">{lastWalletTransaction.label}</p>
+                        <p className="text-xs text-white/60">{lastWalletTransaction.currency}</p>
                       </div>
-                      <div
-                        className={`text-right text-base font-semibold ${
-                          tx.type === "credit" ? "text-emerald-300" : "text-rose-300"
+                      <p
+                        className={`text-base font-semibold ${
+                          lastWalletTransaction.type === "credit" ? "text-emerald-300" : "text-rose-300"
                         }`}
                       >
-                        {tx.type === "credit" ? "+" : "-"}
-                        {formatCurrency(Math.abs(tx.amount), me.countryCode)}
-                      </div>
-                      <div className="col-span-2 flex items-center justify-between text-xs text-white/60">
-                        <span>{tx.currency}</span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 border text-[11px] ${
-                            tx.status === "success"
-                              ? "border-emerald-400/40 text-emerald-200"
-                              : "border-amber-300/40 text-amber-200"
-                          }`}
-                        >
-                          {tx.status === "success" ? "Validé" : "En cours"}
-                        </span>
-                      </div>
+                        {lastWalletTransaction.type === "credit" ? "+" : "-"}
+                        {formatCurrency(Math.abs(lastWalletTransaction.amount), me.countryCode)}
+                      </p>
                     </div>
-                  ))}
+                    <p className="text-xs text-white/60">
+                      {lastWalletTransaction.status === "success" ? "Transaction validée" : "En cours de validation"}
+                    </p>
+                  </div>
+                )}
+                {!walletHistoryLoading && !lastWalletTransaction && (
+                  <p className="mt-4 text-sm text-white/60">Aucune transaction enregistrée pour l'instant.</p>
+                )}
               </div>
+
+              <div className="rounded-3xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                <p>Utilise ton solde pour des comptes, recharges et drops exclusifs.</p>
+                <p className="mt-2 text-xs">
+                  Les accessoires physiques restent livrés uniquement au TOGO.
+                  {!isTogoPlayer && " Mets ton pays sur TOGO pour les débloquer."}
+                </p>
+              </div>
+
+              <p className="text-center text-xs text-white/50">
+                Historique complet disponible depuis l'entrée Wallet du menu latéral.
+              </p>
             </div>
           </div>
         </div>
@@ -1070,12 +1167,12 @@ function AccountClient() {
       {settingsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeSettingsModal} />
-          <div className="relative z-10 w-full max-w-2xl rounded-[28px] border border-white/20 bg-[#05030c]/95 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.8)]">
-            <div className="flex items-start justify-between">
+          <div className="relative z-10 w-full max-w-lg rounded-[26px] border border-white/15 bg-[#05030c]/95 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.85)]">
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.4em] text-white/50">Paramètres</p>
-                <h2 className="mt-2 text-2xl font-semibold">Mini cockpit sécurité</h2>
-                <p className="mt-1 text-sm text-white/60">Gère ton mot de passe et tes sessions depuis cette fenêtre.</p>
+                <h2 className="mt-1 text-2xl font-semibold">Mini cockpit sécurité</h2>
+                <p className="text-sm text-white/60">Toutes les actions critiques dans une seule fenêtre.</p>
               </div>
               <button
                 className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
@@ -1085,57 +1182,98 @@ function AccountClient() {
               </button>
             </div>
 
-            <div className="mt-5 space-y-5">
+            <div className="mt-5 space-y-4">
+              <form
+                onSubmit={handleCountrySubmit}
+                className="rounded-2xl border border-white/10 bg-black/50 p-4 text-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">Profil</p>
+                    <h3 className="text-lg font-semibold">Changer de pays</h3>
+                  </div>
+                  <Globe className="h-5 w-5 text-white/60" />
+                </div>
+                <label className="mt-4 flex flex-col gap-2 text-white/70">
+                  Pays principal
+                  <select
+                    value={countryFormCode}
+                    onChange={(e) => setCountryFormCode(e.target.value)}
+                    disabled={disableCountryForm || countrySubmitting}
+                    className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                  >
+                    {COUNTRY_OPTIONS.map((opt) => (
+                      <option key={opt.code} value={opt.code}>
+                        {opt.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {countryMessage && (
+                  <p
+                    className={`mt-3 text-sm ${
+                      countryStatus === "success" ? "text-emerald-300" : "text-rose-300"
+                    }`}
+                  >
+                    {countryMessage}
+                  </p>
+                )}
+                {disableCountryForm && (
+                  <p className="mt-2 text-xs text-amber-200">API non configurée, modification désactivée en local.</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={disableCountryForm || countrySubmitting}
+                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                >
+                  {countrySubmitting ? "Mise à jour..." : "Mettre à jour"}
+                </button>
+              </form>
+
               <form
                 onSubmit={handlePasswordSubmit}
-                className="rounded-2xl bg-black/50 border border-white/10 p-5 backdrop-blur"
+                className="rounded-2xl border border-white/10 bg-black/60 p-4 text-sm"
               >
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-white/50">Sécurité</p>
-                    <h3 className="text-lg font-semibold">Changer mon mot de passe</h3>
+                    <h3 className="text-lg font-semibold">Mot de passe</h3>
                   </div>
-                  <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 text-white/60">🔐 Compte</span>
+                  <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 text-white/60">🔐</span>
                 </div>
                 <div className="mt-4 space-y-3">
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-white/70">Mot de passe actuel</span>
-                    <input
-                      type="password"
-                      autoComplete="current-password"
-                      className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
-                      value={passwordForm.current}
-                      onChange={(e) => setPasswordForm((prev) => ({ ...prev, current: e.target.value }))}
-                      disabled={disablePasswordForm || passwordSubmitting}
-                      required
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-white/70">Nouveau mot de passe</span>
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
-                      value={passwordForm.password}
-                      onChange={(e) => setPasswordForm((prev) => ({ ...prev, password: e.target.value }))}
-                      disabled={disablePasswordForm || passwordSubmitting}
-                      required
-                      minLength={8}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="text-white/70">Confirmer</span>
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
-                      value={passwordForm.confirm}
-                      onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))}
-                      disabled={disablePasswordForm || passwordSubmitting}
-                      required
-                      minLength={8}
-                    />
-                  </label>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="Actuel"
+                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                    value={passwordForm.current}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, current: e.target.value }))}
+                    disabled={disablePasswordForm || passwordSubmitting}
+                    required
+                  />
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="Nouveau"
+                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                    value={passwordForm.password}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, password: e.target.value }))}
+                    disabled={disablePasswordForm || passwordSubmitting}
+                    required
+                    minLength={8}
+                  />
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="Confirmer"
+                    className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                    value={passwordForm.confirm}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))}
+                    disabled={disablePasswordForm || passwordSubmitting}
+                    required
+                    minLength={8}
+                  />
                 </div>
                 {passwordMessage && (
                   <p
@@ -1152,22 +1290,20 @@ function AccountClient() {
                 <button
                   type="submit"
                   disabled={disablePasswordForm || passwordSubmitting}
-                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
                 >
                   {passwordSubmitting ? "Mise à jour..." : "Mettre à jour"}
                 </button>
               </form>
 
-              <div className="rounded-2xl bg-gradient-to-br from-rose-500/20 to-orange-500/10 border border-white/10 p-5">
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-r from-rose-500/20 to-orange-500/10 p-4">
                 <p className="text-xs uppercase tracking-[0.3em] text-white/60">Session</p>
-                <h3 className="mt-2 text-xl font-semibold">Déconnexion rapide</h3>
-                <p className="mt-2 text-sm text-white/70">
-                  Déconnecte-toi sur tous les appareils et sécurise ton compte avant de changer de poste.
-                </p>
+                <p className="mt-2 text-sm text-white/70">Déconnexion immédiate sur tous les appareils.</p>
                 <button
                   onClick={handleLogout}
-                  className="mt-5 w-full rounded-2xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold text-white hover:bg-white/20"
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
                 >
+                  <LogOut className="h-4 w-4" />
                   Se déconnecter
                 </button>
               </div>

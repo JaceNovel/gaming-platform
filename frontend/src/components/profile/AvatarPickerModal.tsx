@@ -84,7 +84,7 @@ export default function AvatarPickerModal({
           </div>
 
           <div className="mt-4 text-xs opacity-70">
-            Note: par défaut à l’inscription on met <span className="font-semibold">avatarId="shadow_default"</span>.
+            Note: par défaut à l’inscription on met <span className="font-semibold">avatarId="nova_ghost"</span>.
           </div>
         </div>
       </div>
