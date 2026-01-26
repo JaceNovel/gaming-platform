@@ -143,6 +143,7 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::get('/redeem/stats', [AdminRedeemCodeController::class, 'stats'])->middleware('permission:redeems.view');
     Route::get('/redeem', [AdminRedeemCodeController::class, 'index'])->middleware('permission:redeems.view');
     Route::get('/redeem/used', [AdminRedeemCodeController::class, 'used'])->middleware('permission:redeems.view');
+    Route::get('/redeem/export', [AdminRedeemCodeController::class, 'export'])->middleware('permission:redeems.view');
     Route::post('/redeem', [AdminRedeemCodeController::class, 'store'])->middleware('permission:redeems.manage');
     Route::post('/redeem/import', [AdminRedeemCodeController::class, 'import'])->middleware('permission:redeems.manage');
     Route::post('/redeem/{redeemCode}/invalidate', [AdminRedeemCodeController::class, 'invalidate'])->middleware('permission:redeems.manage');
@@ -169,12 +170,29 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         Route::delete('/categories/{category}', [AdminCategoryController::class, 'destroy']);
     });
 
+    Route::get('/coupons', [\App\Http\Controllers\Api\AdminCouponController::class, 'index'])
+        ->middleware('permission:coupons.manage');
+    Route::post('/coupons', [\App\Http\Controllers\Api\AdminCouponController::class, 'store'])
+        ->middleware('permission:coupons.manage');
+    Route::patch('/coupons/{coupon}', [\App\Http\Controllers\Api\AdminCouponController::class, 'update'])
+        ->middleware('permission:coupons.manage');
+    Route::delete('/coupons/{coupon}', [\App\Http\Controllers\Api\AdminCouponController::class, 'destroy'])
+        ->middleware('permission:coupons.manage');
+
     Route::middleware('requireRole:admin_super')->group(function () {
         Route::get('/audit-logs', [AdminAuditLogController::class, 'index']);
     });
 
     Route::get('/email-logs', [\App\Http\Controllers\Api\AdminEmailLogsController::class, 'index'])
         ->middleware('permission:email.view');
+    Route::get('/email-templates', [\App\Http\Controllers\Api\AdminEmailTemplateController::class, 'index'])
+        ->middleware('permission:email.manage');
+    Route::post('/email-templates', [\App\Http\Controllers\Api\AdminEmailTemplateController::class, 'store'])
+        ->middleware('permission:email.manage');
+    Route::patch('/email-templates/{emailTemplate}', [\App\Http\Controllers\Api\AdminEmailTemplateController::class, 'update'])
+        ->middleware('permission:email.manage');
+    Route::delete('/email-templates/{emailTemplate}', [\App\Http\Controllers\Api\AdminEmailTemplateController::class, 'destroy'])
+        ->middleware('permission:email.manage');
 
     Route::get('/support/tickets', [\App\Http\Controllers\Api\AdminSupportController::class, 'index'])
         ->middleware('permission:support.view');
@@ -183,10 +201,24 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::patch('/support/tickets/{ticket}', [\App\Http\Controllers\Api\AdminSupportController::class, 'update'])
         ->middleware('permission:support.manage');
 
+    Route::get('/stock/movements', [\App\Http\Controllers\Api\AdminStockController::class, 'movements'])
+        ->middleware('permission:stock.manage');
+    Route::post('/stock/products/{product}/adjust', [\App\Http\Controllers\Api\AdminStockController::class, 'adjustProduct'])
+        ->middleware('permission:stock.manage');
+    Route::get('/stock/movements/export', [\App\Http\Controllers\Api\AdminStockController::class, 'export'])
+        ->middleware('permission:stock.manage');
+
     Route::get('/payments', [\App\Http\Controllers\Api\AdminPaymentsController::class, 'index'])
         ->middleware('permission:payments.view');
     Route::post('/payments/{payment}/resync', [\App\Http\Controllers\Api\AdminPaymentsController::class, 'resync'])
         ->middleware('permission:payments.resync');
+
+    Route::get('/users', [\App\Http\Controllers\Api\AdminUsersController::class, 'index'])
+        ->middleware('permission:users.view');
+    Route::patch('/users/{user}', [\App\Http\Controllers\Api\AdminUsersController::class, 'update'])
+        ->middleware('permission:users.manage');
+    Route::get('/users/export', [\App\Http\Controllers\Api\AdminUsersController::class, 'export'])
+        ->middleware('permission:users.view');
 });
 
 // SSE streaming endpoint (auth handled inside controller to allow token query param)

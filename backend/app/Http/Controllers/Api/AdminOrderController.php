@@ -140,6 +140,15 @@ class AdminOrderController extends Controller
 
         RedeemCode::whereIn('id', $codes->pluck('id')->all())->update(['last_resend_at' => now()]);
 
+        \App\Models\EmailLog::create([
+            'user_id' => $order->user_id,
+            'to' => $order->user->email,
+            'type' => 'redeem_code_resend',
+            'subject' => 'Votre code de recharge BADBOYSHOP',
+            'status' => 'queued',
+            'sent_at' => now(),
+        ]);
+
         $auditLogger->log(
             $request->user(),
             'redeem_resend',

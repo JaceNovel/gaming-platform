@@ -25,6 +25,7 @@ class Product extends Model
         'discount_percent',
         'deal_type',
         'stock_type',
+        'stock_mode',
         'delivery_eta_days',
         'purchases_count',
         'cart_adds_count',
@@ -32,6 +33,8 @@ class Product extends Model
         'rating_count',
         'sold_count',
         'stock',
+        'price_fcfa',
+        'redeem_sku',
         'is_active',
         'details',
         'description',
@@ -43,6 +46,7 @@ class Product extends Model
         'discount_price' => 'decimal:2',
         'old_price' => 'decimal:2',
         'rating_avg' => 'decimal:2',
+        'price_fcfa' => 'integer',
     ];
 
     public function images()

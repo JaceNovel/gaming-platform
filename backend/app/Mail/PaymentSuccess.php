@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\SiteSetting;
+use App\Services\EmailTemplateRenderer;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -38,5 +39,29 @@ class PaymentSuccess extends Mailable
                 'logo' => $this->logo,
             ]
         );
+    }
+
+    public function build(): self
+    {
+        $renderer = app(EmailTemplateRenderer::class);
+        $fallbackHtml = view('emails.payment_success', [
+            'order' => $this->order,
+            'logo' => $this->logo,
+        ])->render();
+
+        $context = [
+            'order' => $this->order->toArray(),
+            'user' => $this->order->user?->toArray() ?? [],
+        ];
+
+        $rendered = $renderer->render(
+            'payment_success',
+            $context,
+            'Paiement réussi - BADBOYSHOP',
+            $fallbackHtml
+        );
+
+        return $this->subject($rendered['subject'])
+            ->html($rendered['html'] ?? $fallbackHtml);
     }
 }

@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\RedeemCode;
 use App\Models\RedeemDenomination;
 use App\Services\AdminAuditLogger;
+use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminRedeemCodeController extends Controller
 {
@@ -38,7 +40,7 @@ class AdminRedeemCodeController extends Controller
         return response()->json($query->paginate($perPage));
     }
 
-    public function store(Request $request, AdminAuditLogger $auditLogger)
+    public function store(Request $request, AdminAuditLogger $auditLogger, StockService $stockService)
     {
         $data = $request->validate([
             'denomination_id' => 'required|exists:redeem_denominations,id',
@@ -51,6 +53,10 @@ class AdminRedeemCodeController extends Controller
             'status' => 'available',
             'imported_by' => $request->user()->id,
             'imported_at' => now(),
+        ]);
+
+        $stockService->logRedeemImport($code->denomination, 1, $request->user(), [
+            'source' => 'redeem_manual',
         ]);
 
         $auditLogger->log(
@@ -114,6 +120,59 @@ class AdminRedeemCodeController extends Controller
 
         return response()->json($query->latest('assigned_at')->paginate($perPage));
     }
+
+    public function export(Request $request)
+    {
+        $query = RedeemCode::with(['denomination', 'assignedOrder', 'assignedUser'])
+            ->latest('id');
+
+        if ($request->filled('category')) {
+            $category = $request->query('category');
+            $query->whereHas('denomination', fn ($q) => $q->where('code', $category));
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->query('status'));
+        }
+
+        $filename = 'redeem-codes-' . now()->format('Ymd_His') . '.csv';
+
+        return new StreamedResponse(function () use ($query) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, [
+                'id',
+                'denomination',
+                'code',
+                'status',
+                'order_id',
+                'user_email',
+                'assigned_at',
+                'sent_at',
+                'imported_at',
+            ]);
+
+            $query->chunk(500, function ($rows) use ($handle) {
+                foreach ($rows as $row) {
+                    fputcsv($handle, [
+                        $row->id,
+                        $row->denomination?->code,
+                        $row->code,
+                        $row->status,
+                        $row->assigned_order_id,
+                        $row->assignedUser?->email,
+                        optional($row->assigned_at)->toIso8601String(),
+                        optional($row->sent_at)->toIso8601String(),
+                        optional($row->imported_at)->toIso8601String(),
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
     public function denominations(Request $request)
     {
         $denominations = RedeemDenomination::with('product:id,name,sku')
@@ -131,7 +190,7 @@ class AdminRedeemCodeController extends Controller
         ]);
     }
 
-    public function import(Request $request, AdminAuditLogger $auditLogger)
+    public function import(Request $request, AdminAuditLogger $auditLogger, StockService $stockService)
     {
         $data = $request->validate([
             'denomination_id' => 'required|exists:redeem_denominations,id',
@@ -185,6 +244,10 @@ class AdminRedeemCodeController extends Controller
                 RedeemCode::insert($chunk);
             }
         });
+
+        $stockService->logRedeemImport($denomination, count($insertPayload), $request->user(), [
+            'source' => 'redeem_import',
+        ]);
 
         $auditLogger->log(
             $request->user(),
