@@ -174,6 +174,8 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
 
     Route::get('/coupons', [\App\Http\Controllers\Api\AdminCouponController::class, 'index'])
         ->middleware('permission:coupons.manage');
+    Route::get('/coupons/{coupon}', [\App\Http\Controllers\Api\AdminCouponController::class, 'show'])
+        ->middleware('permission:coupons.manage');
     Route::post('/coupons', [\App\Http\Controllers\Api\AdminCouponController::class, 'store'])
         ->middleware('permission:coupons.manage');
     Route::patch('/coupons/{coupon}', [\App\Http\Controllers\Api\AdminCouponController::class, 'update'])

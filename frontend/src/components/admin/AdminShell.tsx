@@ -46,7 +46,15 @@ const MENU_ITEMS = [
       { label: "Ajouter", href: "/admin/promotions/add" },
     ],
   },
-  { label: "Codes Promo", icon: Gift, href: "/admin/coupons" },
+  {
+    label: "Codes Promo",
+    icon: Gift,
+    href: "/admin/coupons",
+    children: [
+      { label: "Liste", href: "/admin/coupons/list" },
+      { label: "Ajouter", href: "/admin/coupons/add" },
+    ],
+  },
   { label: "Offres", icon: Heart, href: "/admin/offers" },
   { label: "Email", icon: Mail, href: "/admin/email" },
   { label: "Support Client", icon: Headset, href: "/admin/support" },
