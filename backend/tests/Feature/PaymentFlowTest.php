@@ -13,11 +13,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
 
 class PaymentFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    #[Test]
     public function test_user_can_initiate_cinetpay_payment_from_order()
     {
         $user = User::factory()->create();
@@ -42,12 +44,19 @@ class PaymentFlowTest extends TestCase
         $this->assertEquals($expectedTotal, (float) $orderResponse->json('order.total_price'));
 
         $this->mock(CinetPayService::class, function ($mock) {
-            $mock->shouldReceive('initiatePayment')->andReturn('https://pay.test/123');
+            $mock->shouldReceive('initPayment')->andReturn([
+                'payment_url' => 'https://pay.test/123',
+                'transaction_id' => 'TX-123',
+                'raw' => [],
+            ]);
         });
 
         $resp = $this->postJson('/api/payments/cinetpay/init', [
             'order_id' => $orderId,
             'payment_method' => 'cinetpay',
+            'amount' => $expectedTotal,
+            'currency' => 'XOF',
+            'customer_email' => $user->email,
         ])->assertStatus(200);
 
         $this->assertTrue($resp->json('success'));
@@ -62,6 +71,7 @@ class PaymentFlowTest extends TestCase
         $this->assertEquals($payment->id, $order->payment_id);
     }
 
+    #[Test]
     public function test_webhook_is_idempotent_and_updates_statuses()
     {
         Queue::fake();
@@ -102,7 +112,9 @@ class PaymentFlowTest extends TestCase
         $order->update(['payment_id' => $payment->id]);
 
         $this->mock(CinetPayService::class, function ($mock) {
-            $mock->shouldReceive('validateWebhook')->andReturn(true);
+            $mock->shouldReceive('verifyWebhookSignature')->twice()->andReturn(true);
+            $mock->shouldReceive('verifyTransaction')->once()->andReturn(['data' => ['amount' => 2000]]);
+            $mock->shouldReceive('normalizeStatus')->once()->andReturn('paid');
         });
 
         $payload = [

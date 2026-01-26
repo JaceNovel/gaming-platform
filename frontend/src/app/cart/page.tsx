@@ -20,7 +20,7 @@ type CartItem = {
 };
 
 function CartScreen() {
-  const { authFetch } = useAuth();
+  const { authFetch, user } = useAuth();
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -84,16 +84,35 @@ function CartScreen() {
       }
 
       const orderData = await orderRes.json();
-      const orderId = orderData?.order?.id;
+      const order = orderData?.order;
+      const orderId = order?.id;
 
       if (!orderId) {
         setStatus("Commande invalide.");
         return;
       }
 
+      const amountToCharge = Number(Number(order?.total_price ?? total).toFixed(2));
+      if (!Number.isFinite(amountToCharge) || amountToCharge <= 0) {
+        setStatus("Montant de commande invalide.");
+        return;
+      }
+      const currency = String(order?.currency ?? "XOF").toUpperCase();
+
       const payRes = await authFetch(`${API_BASE}/payments/cinetpay/init`, {
         method: "POST",
-        body: JSON.stringify({ order_id: orderId, payment_method: "cinetpay" }),
+        body: JSON.stringify({
+          order_id: orderId,
+          payment_method: "cinetpay",
+          amount: amountToCharge,
+          currency,
+          customer_email: user?.email,
+          metadata: {
+            source: "cart",
+            item_count: cartItems.length,
+            cart_items: cartItems.map((item) => ({ id: item.id, quantity: item.quantity })),
+          },
+        }),
       });
 
       if (!payRes.ok) {

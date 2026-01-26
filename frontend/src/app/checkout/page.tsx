@@ -9,7 +9,7 @@ import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
 
 function CheckoutScreen() {
-  const { authFetch } = useAuth();
+  const { authFetch, user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const productId = Number(searchParams.get("product"));
@@ -67,15 +67,35 @@ function CheckoutScreen() {
       }
 
       const data = await res.json();
-      const orderId = data?.order?.id;
+      const order = data?.order;
+      const orderId = order?.id;
       if (!orderId) {
         setStatus("Commande invalide.");
         return;
       }
 
+      const amountToCharge = Number(Number(order?.total_price ?? 0).toFixed(2));
+      if (!Number.isFinite(amountToCharge) || amountToCharge <= 0) {
+        setStatus("Montant de commande invalide.");
+        return;
+      }
+      const currency = String(order?.currency ?? "XOF").toUpperCase();
+
       const payRes = await authFetch(`${API_BASE}/payments/cinetpay/init`, {
         method: "POST",
-        body: JSON.stringify({ order_id: orderId, payment_method: "cinetpay" }),
+        body: JSON.stringify({
+          order_id: orderId,
+          payment_method: "cinetpay",
+          amount: amountToCharge,
+          currency,
+          customer_email: user?.email,
+          metadata: {
+            source: "checkout",
+            product_id: productId,
+            quantity,
+            game_id: gameId || undefined,
+          },
+        }),
       });
 
       if (!payRes.ok) {

@@ -2,98 +2,122 @@
 
 namespace App\Services;
 
-use App\Models\Payment;
+use App\Models\Order;
+use App\Models\User;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class CinetPayService
 {
-    protected $apiKey;
-    protected $siteId;
-    protected $secret;
-    protected $baseUrl;
-    protected $webhookSecret;
+    private string $apiKey;
+    private string $siteId;
+    private string $secret;
+    private string $baseUrl;
+    private string $webhookSecret;
+    private int $timeout;
+    private string $defaultCurrency;
+    private string $defaultChannels;
 
     public function __construct()
     {
-        $this->apiKey = config('services.cinetpay.api_key');
-        $this->siteId = config('services.cinetpay.site_id');
-        $this->secret = config('services.cinetpay.secret');
-        $this->webhookSecret = config('services.cinetpay.webhook_secret');
-        $this->baseUrl = rtrim(config('services.cinetpay.base_url', 'https://client.cinetpay.com/v1'), '/') . '/';
+        $config = config('cinetpay');
+
+        $this->apiKey = (string) ($config['api_key'] ?? '');
+        $this->siteId = (string) ($config['site_id'] ?? '');
+        $this->secret = (string) ($config['secret'] ?? '');
+        $this->webhookSecret = (string) ($config['webhook_secret'] ?? $this->secret);
+        $this->baseUrl = rtrim((string) ($config['base_url'] ?? 'https://api-checkout.cinetpay.com/v2'), '/');
+        $this->timeout = (int) ($config['timeout'] ?? 15);
+        $this->defaultCurrency = strtoupper((string) ($config['default_currency'] ?? 'XOF'));
+        $this->defaultChannels = (string) ($config['default_channels'] ?? 'MOBILE_MONEY');
     }
 
-    public function initiatePayment(Payment $payment, array $options = []): string
+    public function initPayment(Order $order, User $user, array $meta = []): array
     {
-        $notifyUrl = $options['notify_url'] ?? route('api.payments.cinetpay.webhook');
-        $description = $options['description'] ?? ('BADBOYSHOP Order #' . ($payment->order->id ?? ''));
-        $returnUrl = $options['return_url'] ?? (config('app.url') . '/payment/success');
-        $cancelUrl = $options['cancel_url'] ?? (config('app.url') . '/payment/cancel');
-        $currency = $options['currency'] ?? 'XAF';
-        $channels = $options['channels'] ?? 'MOBILE_MONEY';
+        $transactionId = $meta['transaction_id'] ?? $this->generateTransactionId($order);
+        $amount = (float) ($meta['amount'] ?? $order->total_price);
+        $currency = strtoupper($meta['currency'] ?? $this->defaultCurrency);
 
         $payload = [
             'apikey' => $this->apiKey,
             'site_id' => $this->siteId,
-            'transaction_id' => $payment->id . '_' . Str::random(8),
-            'amount' => $payment->amount,
+            'transaction_id' => $transactionId,
+            'amount' => number_format($amount, 2, '.', ''),
             'currency' => $currency,
-            'description' => $description,
-            'customer_name' => $payment->order->user->name,
-            'customer_email' => $payment->order->user->email,
-            'customer_phone_number' => '', // Optional
-            'notify_url' => $notifyUrl,
-            'return_url' => $returnUrl,
-            'cancel_url' => $cancelUrl,
-            'channels' => $channels,
-            'lang' => 'fr',
+            'description' => $meta['description'] ?? sprintf('BADBOYSHOP Order #%s', $order->reference ?? $order->id),
+            'customer_name' => $meta['customer_name'] ?? trim($user->name ?? $user->username ?? 'Client'),
+            'customer_email' => $meta['customer_email'] ?? $user->email,
+            'customer_phone_number' => $meta['customer_phone'] ?? Arr::get($order->meta ?? [], 'phone'),
+            'notify_url' => $meta['notify_url'] ?? route('api.payments.cinetpay.webhook'),
+            'return_url' => $meta['return_url'] ?? config('cinetpay.return_url'),
+            'cancel_url' => $meta['cancel_url'] ?? config('cinetpay.cancel_url'),
+            'channels' => $meta['channels'] ?? $this->defaultChannels,
+            'lang' => $meta['lang'] ?? 'fr',
         ];
 
-        $response = Http::post($this->baseUrl . 'payment', $payload);
-
-        if ($response->successful()) {
-            $data = $response->json();
-
-            if ($data['code'] === '201') {
-                // Update payment with transaction_id
-                $payment->update([
-                    'transaction_id' => $payload['transaction_id'],
-                ]);
-
-                return $data['data']['payment_url'];
-            } else {
-                throw new \Exception('CinetPay API error: ' . $data['message']);
-            }
-        } else {
-            throw new \Exception('CinetPay API request failed: ' . $response->body());
-        }
-    }
-
-    public function validateWebhook(array $data): bool
-    {
-        // CinetPay typically uses HMAC signature
-        // This is a simplified version - adjust based on actual CinetPay webhook format
-
-        if (!isset($data['signature'])) {
-            return false;
+        if (!empty($meta['metadata'])) {
+            $payload['metadata'] = $meta['metadata'];
         }
 
-        // Create signature from relevant fields
-        $signatureData = [
-            'cpm_trans_id' => $data['cpm_trans_id'] ?? '',
-            'cpm_amount' => $data['cpm_amount'] ?? '',
-            'cpm_currency' => $data['cpm_currency'] ?? '',
-            'cpm_trans_status' => $data['cpm_trans_status'] ?? '',
+        $payload = array_filter($payload, static fn ($value) => !is_null($value));
+
+        Log::info('cinetpay:init', [
+            'order_id' => $order->id,
+            'transaction_id' => $transactionId,
+            'payload' => Arr::except($payload, ['apikey']),
+        ]);
+
+        $response = $this->http()->post($this->endpoint('payment'), $payload);
+
+        if (!$response->successful()) {
+            Log::error('cinetpay:error', [
+                'stage' => 'init',
+                'order_id' => $order->id,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            throw new \RuntimeException('CinetPay API request failed');
+        }
+
+        $data = $response->json();
+        $code = $data['code'] ?? null;
+
+        if (!in_array($code, ['00', '201'], true)) {
+            Log::error('cinetpay:error', [
+                'stage' => 'init',
+                'order_id' => $order->id,
+                'code' => $code,
+                'message' => $data['message'] ?? 'unknown',
+            ]);
+
+            throw new \RuntimeException('CinetPay API error: ' . ($data['message'] ?? 'unknown'));
+        }
+
+        $paymentUrl = Arr::get($data, 'data.payment_url');
+
+        if (!$paymentUrl) {
+            Log::error('cinetpay:error', [
+                'stage' => 'init',
+                'order_id' => $order->id,
+                'response' => $data,
+            ]);
+
+            throw new \RuntimeException('CinetPay did not return a payment link');
+        }
+
+        return [
+            'transaction_id' => $transactionId,
+            'payment_url' => $paymentUrl,
+            'payment_token' => Arr::get($data, 'data.payment_token'),
+            'raw' => $data,
         ];
-
-        $signatureString = implode('', array_values($signatureData));
-        $expectedSignature = hash_hmac('sha256', $signatureString, $this->webhookSecret);
-
-        return hash_equals($expectedSignature, $data['signature']);
     }
 
-    public function checkPaymentStatus(string $transactionId): array
+    public function verifyTransaction(string $transactionId): array
     {
         $payload = [
             'apikey' => $this->apiKey,
@@ -101,12 +125,92 @@ class CinetPayService
             'transaction_id' => $transactionId,
         ];
 
-        $response = Http::post($this->baseUrl . 'payment/check', $payload);
+        Log::info('cinetpay:verify', ['transaction_id' => $transactionId]);
 
-        if ($response->successful()) {
-            return $response->json();
+        $response = $this->http()->post($this->endpoint('payment/check'), $payload);
+
+        if (!$response->successful()) {
+            Log::error('cinetpay:error', [
+                'stage' => 'verify',
+                'transaction_id' => $transactionId,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            throw new \RuntimeException('CinetPay verification failed');
         }
 
-        throw new \Exception('Failed to check payment status');
+        return $response->json();
+    }
+
+    public function verifyWebhookSignature(array $payload): bool
+    {
+        if (empty($this->webhookSecret)) {
+            return false;
+        }
+
+        $signature = $payload['signature']
+            ?? $payload['cpm_signature']
+            ?? $payload['cpm_trans_signature']
+            ?? null;
+
+        if (!$signature) {
+            return false;
+        }
+
+        $signatureString = implode('', [
+            $payload['cpm_trans_id'] ?? '',
+            $payload['cpm_amount'] ?? '',
+            $payload['cpm_currency'] ?? '',
+            $payload['cpm_site_id'] ?? ($payload['site_id'] ?? ''),
+        ]);
+
+        $expected = hash_hmac('sha256', $signatureString, $this->webhookSecret);
+
+        return hash_equals($expected, $signature);
+    }
+
+    public function normalizeStatus(array $payload, ?string $fallback = null): string
+    {
+        $candidates = array_filter(array_map(function ($value) {
+            return $value ? strtoupper((string) $value) : null;
+        }, [
+            Arr::get($payload, 'data.status'),
+            Arr::get($payload, 'data.payment_status'),
+            Arr::get($payload, 'data.cpm_trans_status'),
+            $fallback,
+        ]));
+
+        $paidStatuses = ['ACCEPTED', 'SUCCESS', 'PAID', 'APPROVED', 'COMPLETED'];
+        $failedStatuses = ['REFUSED', 'FAILED', 'CANCELED', 'CANCELLED', 'ERROR', 'EXPIRED'];
+
+        foreach ($candidates as $candidate) {
+            if (in_array($candidate, $paidStatuses, true)) {
+                return 'paid';
+            }
+
+            if (in_array($candidate, $failedStatuses, true)) {
+                return 'failed';
+            }
+        }
+
+        return 'pending';
+    }
+
+    public function generateTransactionId(Order $order): string
+    {
+        return sprintf('BB-%s-%s', $order->id, strtoupper(Str::random(10)));
+    }
+
+    private function http(): PendingRequest
+    {
+        return Http::timeout($this->timeout)
+            ->acceptJson()
+            ->asJson();
+    }
+
+    private function endpoint(string $path): string
+    {
+        return $this->baseUrl . '/' . ltrim($path, '/');
     }
 }

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\GameController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\PremiumController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\UserProfileController;
@@ -59,8 +60,9 @@ Route::get('/stats/overview', [PublicStatsController::class, 'overview']);
 Route::get('/likes/stats', [LikeController::class, 'stats']);
 
 // Webhooks (no auth required)
-Route::post('/payments/cinetpay/webhook', [PaymentController::class, 'webhookCinetpay'])->name('api.payments.cinetpay.webhook');
-Route::post('/payments/webhook', [PaymentController::class, 'webhook'])->name('api.payments.webhook');
+Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.cinetpay.webhook');
+Route::post('/payments/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.webhook');
+Route::get('/payments/cinetpay/return', [PaymentWebhookController::class, 'redirect'])->name('api.payments.cinetpay.return');
 Route::post('/wallet/topup/webhook', [WalletController::class, 'webhookTopup'])->name('api.wallet.topup.webhook');
 
 // Protected routes
@@ -78,7 +80,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cart/add', [CartController::class, 'add']);
 
     // Payments
-    Route::post('/payments/cinetpay/init', [PaymentController::class, 'initCinetpay']);
+    Route::post('/payments/cinetpay/init', [PaymentController::class, 'init']);
+    Route::get('/payments/cinetpay/status', [PaymentController::class, 'status']);
 
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);

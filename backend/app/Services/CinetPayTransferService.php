@@ -17,11 +17,14 @@ class CinetPayTransferService
 
     public function __construct()
     {
-        $this->apiKey = config('services.cinetpay.api_key');
-        $this->siteId = config('services.cinetpay.site_id');
-        $this->secret = config('services.cinetpay.secret');
-        $this->transferWebhookSecret = config('services.cinetpay.transfer_webhook_secret', $this->secret);
-        $this->baseUrl = rtrim(config('services.cinetpay.base_url', 'https://client.cinetpay.com/v1'), '/') . '/';
+        $config = config('cinetpay');
+
+        $this->apiKey = (string) ($config['api_key'] ?? '');
+        $this->siteId = (string) ($config['site_id'] ?? '');
+        $this->secret = (string) ($config['secret'] ?? '');
+        $this->transferWebhookSecret = (string) ($config['transfer_webhook_secret'] ?? $this->secret);
+        $base = $config['transfer_base_url'] ?? $config['base_url'] ?? 'https://api-checkout.cinetpay.com/v2';
+        $this->baseUrl = rtrim((string) $base, '/') . '/';
     }
 
     public function getToken(): string

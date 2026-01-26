@@ -41,7 +41,7 @@ return [
         'secret' => env('CINETPAY_SECRET'),
         'webhook_secret' => env('CINETPAY_WEBHOOK_SECRET', env('CINETPAY_SECRET')),
         'transfer_webhook_secret' => env('CINETPAY_TRANSFER_WEBHOOK_SECRET', env('CINETPAY_SECRET')),
-        'base_url' => env('CINETPAY_BASE_URL', 'https://client.cinetpay.com/v1'),
+        'base_url' => env('CINETPAY_BASE_URL', 'https://api-checkout.cinetpay.com/v2'),
     ],
 
 ];
