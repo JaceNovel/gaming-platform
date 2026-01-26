@@ -315,6 +315,7 @@ function AccountClient() {
         country_code?: string;
         country?: string;
         country_name?: string;
+        username?: string;
         wallet_balance?: number;
         walletBalance?: number;
         premiumTier?: string;
