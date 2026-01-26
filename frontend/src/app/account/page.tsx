@@ -78,7 +78,9 @@ const getCurrencyInfo = (code?: string | null) => {
 
 const formatCurrency = (value: number, code?: string | null) => {
   const info = getCurrencyInfo(code);
-  return new Intl.NumberFormat(info.locale, { style: "currency", currency: info.label }).format(value);
+  const currency = info.label === "FCFA" ? "XOF" : info.label;
+  const formatted = new Intl.NumberFormat(info.locale, { style: "currency", currency }).format(value);
+  return info.label === "FCFA" ? formatted.replace("XOF", "FCFA") : formatted;
 };
 
 const mapOrderStatus = (status?: string | null): OrderStatus => {
