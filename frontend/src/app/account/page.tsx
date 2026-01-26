@@ -78,9 +78,14 @@ const getCurrencyInfo = (code?: string | null) => {
 
 const formatCurrency = (value: number, code?: string | null) => {
   const info = getCurrencyInfo(code);
-  const currency = info.label === "FCFA" ? "XOF" : info.label;
-  const formatted = new Intl.NumberFormat(info.locale, { style: "currency", currency }).format(value);
-  return info.label === "FCFA" ? formatted.replace("XOF", "FCFA") : formatted;
+  if (info.label === "FCFA") {
+    const formatted = new Intl.NumberFormat(info.locale, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+    return `${formatted} FCFA`;
+  }
+  return new Intl.NumberFormat(info.locale, { style: "currency", currency: info.label }).format(value);
 };
 
 const mapOrderStatus = (status?: string | null): OrderStatus => {
@@ -294,7 +299,8 @@ function AccountClient() {
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
         if (!active) return;
         const mapped = items.map((order: any) => {
-          const orderItems = order.orderItems ?? order.order_items ?? [];
+          const orderItemsRaw = order.orderItems ?? order.order_items ?? [];
+          const orderItems = Array.isArray(orderItemsRaw) ? orderItemsRaw : [];
           const title = orderItems[0]?.product?.name ?? order.reference ?? `Commande ${order.id}`;
           const hasPhysicalItems = orderItems.some(
             (item: any) => item?.is_physical || item?.product?.shipping_required,
