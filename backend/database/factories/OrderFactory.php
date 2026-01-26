@@ -18,11 +18,10 @@ class OrderFactory extends Factory
     {
         return [
             'user_id' => \App\Models\User::factory(),
-            'product_id' => \App\Models\Product::factory(),
-            'quantity' => 1,
             'total_price' => $this->faker->numberBetween(1000, 50000),
             'status' => 'pending',
-            'game_user_id' => null,
+            'items' => [],
+            'reference' => 'ORD-' . strtoupper($this->faker->lexify('??????')),
         ];
     }
 }

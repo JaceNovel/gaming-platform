@@ -25,6 +25,8 @@ class ProductFactory extends Factory
             'stock' => $this->faker->numberBetween(0, 100),
             'is_active' => true,
             'details' => [],
+            'shipping_required' => false,
+            'delivery_type' => null,
         ];
     }
 }

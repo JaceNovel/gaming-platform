@@ -30,7 +30,7 @@ class ProcessRedeemFulfillment implements ShouldQueue
 
     public function handle(RedeemCodeAllocator $allocator, RedeemStockAlertService $alertService): void
     {
-        $order = Order::with(['user', 'orderItems.redeemDenomination', 'orderItems.redeemCode'])
+        $order = Order::with(['user', 'orderItems.redeemDenomination', 'orderItems.redeemCode', 'orderItems.product'])
             ->find($this->orderId);
 
         if (!$order || !$order->requiresRedeemFulfillment()) {
@@ -76,9 +76,15 @@ class ProcessRedeemFulfillment implements ShouldQueue
             return;
         }
 
-        $order->update([
-            'status' => 'fulfilled',
-        ]);
+        if ($order->hasPhysicalItems()) {
+            $order->update([
+                'status' => 'paid',
+            ]);
+        } else {
+            $order->update([
+                'status' => 'fulfilled',
+            ]);
+        }
 
         Mail::to($order->user->email)->queue(new RedeemCodeDelivery($order, $assignedCodes));
 

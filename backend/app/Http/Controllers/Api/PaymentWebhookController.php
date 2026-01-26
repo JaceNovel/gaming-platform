@@ -8,6 +8,7 @@ use App\Jobs\ProcessRedeemFulfillment;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Services\CinetPayService;
+use App\Services\ShippingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -136,7 +137,11 @@ class PaymentWebhookController extends Controller
             );
 
             if ($normalized === 'paid' && $payment->order->type !== 'wallet_topup') {
-                $payment->order->loadMissing('orderItems');
+                $payment->order->loadMissing('orderItems.product');
+
+                if ($payment->order->hasPhysicalItems()) {
+                    app(ShippingService::class)->computeShippingForOrder($payment->order);
+                }
 
                 if ($payment->order->requiresRedeemFulfillment()) {
                     ProcessRedeemFulfillment::dispatch($payment->order->id);

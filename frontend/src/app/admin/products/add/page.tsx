@@ -47,6 +47,9 @@ export default function AdminProductsAddPage() {
   const [categoryId, setCategoryId] = useState("");
   const [gameId, setGameId] = useState("");
   const [type, setType] = useState("account");
+  const [shippingRequired, setShippingRequired] = useState(false);
+  const [deliveryType, setDeliveryType] = useState("in_stock");
+  const [deliveryEtaDays, setDeliveryEtaDays] = useState("2");
   const [isActive, setIsActive] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -114,6 +117,9 @@ export default function AdminProductsAddPage() {
         game_id: Number(gameId),
         type,
         is_active: isActive,
+        shipping_required: shippingRequired,
+        delivery_type: shippingRequired ? deliveryType : undefined,
+        delivery_eta_days: shippingRequired ? Number(deliveryEtaDays) : undefined,
       };
 
       const res = await fetch(`${API_BASE}/admin/products`, {
@@ -157,6 +163,9 @@ export default function AdminProductsAddPage() {
       setCategoryId("");
       setGameId("");
       setType("account");
+      setShippingRequired(false);
+      setDeliveryType("in_stock");
+      setDeliveryEtaDays("2");
       setIsActive(true);
       setImagePreview(null);
       setImageFile(null);
@@ -309,6 +318,40 @@ export default function AdminProductsAddPage() {
                   <option value="subscription">subscription</option>
                 </select>
               </div>
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={shippingRequired}
+                  onChange={(e) => setShippingRequired(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                Livraison requise (article physique)
+              </label>
+              {shippingRequired && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium">Type de livraison</label>
+                    <select
+                      value={deliveryType}
+                      onChange={(e) => setDeliveryType(e.target.value)}
+                      className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                    >
+                      <option value="in_stock">in_stock</option>
+                      <option value="preorder">preorder</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">ETA (jours)</label>
+                    <input
+                      value={deliveryEtaDays}
+                      onChange={(e) => setDeliveryEtaDays(e.target.value)}
+                      type="number"
+                      min="1"
+                      className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
               <label className="flex items-center gap-2 text-sm text-slate-600">
                 <input
                   type="checkbox"

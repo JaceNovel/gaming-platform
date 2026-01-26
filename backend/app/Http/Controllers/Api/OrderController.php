@@ -10,6 +10,7 @@ use App\Models\RedeemDenomination;
 use App\Models\RedeemCode;
 use App\Models\RedeemCodeDelivery;
 use App\Models\Coupon;
+use App\Services\ShippingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -88,12 +89,17 @@ class OrderController extends Controller
             'items.*.qty' => 'nullable|integer|min:1',
             'items.*.game_id' => 'nullable|string|max:255',
             'items.*.redeem_denomination_id' => 'nullable|exists:redeem_denominations,id',
+            'shipping_address_line1' => 'nullable|string|max:255',
+            'shipping_city' => 'nullable|string|max:80',
+            'shipping_country_code' => 'nullable|string|max:2',
+            'shipping_phone' => 'nullable|string|max:32',
         ]);
 
         $user = $request->user();
         $totalAmount = 0;
         $validatedItems = [];
         $requiresRedeemFulfillment = false;
+        $hasPhysicalItems = false;
 
         foreach ($data['items'] as $item) {
             $quantity = $item['quantity'] ?? $item['qty'] ?? null;
@@ -173,6 +179,24 @@ class OrderController extends Controller
             $lineTotal = $unitPrice * $quantity;
             $totalAmount += $lineTotal;
 
+            $isPhysical = (bool) ($product->shipping_required ?? false);
+            if ($isPhysical) {
+                $hasPhysicalItems = true;
+            }
+
+            $deliveryType = $product->delivery_type;
+            if (!$deliveryType && !empty($product->stock_type)) {
+                $deliveryType = strtoupper((string) $product->stock_type) === 'PREORDER' ? 'preorder' : 'in_stock';
+            }
+            if (!$deliveryType && $isPhysical) {
+                $deliveryType = 'in_stock';
+            }
+
+            $deliveryEtaDays = $product->delivery_eta_days;
+            if (!$deliveryEtaDays && $isPhysical) {
+                $deliveryEtaDays = $deliveryType === 'preorder' ? 14 : 2;
+            }
+
             $validatedItems[] = [
                 'product_id' => $product->id,
                 'redeem_denomination_id' => $redeemDenomination->id ?? null,
@@ -180,14 +204,17 @@ class OrderController extends Controller
                 'price' => $unitPrice,
                 'game_id' => $item['game_id'] ?? null,
                 'type' => $product->type,
+                'is_physical' => $isPhysical,
+                'delivery_type' => $deliveryType,
+                'delivery_eta_days' => $deliveryEtaDays,
             ];
         }
 
-        $order = DB::transaction(function () use ($user, $validatedItems, $totalAmount, $requiresRedeemFulfillment) {
+        $order = DB::transaction(function () use ($data, $user, $validatedItems, $totalAmount, $requiresRedeemFulfillment, $hasPhysicalItems) {
             $promotionSummary = $this->buildPromotionSummary($user, $totalAmount);
             $finalTotal = max(0, $totalAmount - $promotionSummary['total_discount']);
 
-            $order = Order::create([
+            $payload = [
                 'user_id' => $user->id,
                 'type' => $requiresRedeemFulfillment ? 'redeem_purchase' : 'purchase',
                 'total_price' => $finalTotal,
@@ -197,7 +224,17 @@ class OrderController extends Controller
                     ? array_merge(['requires_redeem' => true], $promotionSummary['meta'])
                     : $promotionSummary['meta'],
                 'reference' => 'ORD-' . strtoupper(uniqid()),
-            ]);
+                'shipping_address_line1' => $data['shipping_address_line1'] ?? null,
+                'shipping_city' => $data['shipping_city'] ?? null,
+                'shipping_country_code' => $data['shipping_country_code'] ?? null,
+                'shipping_phone' => $data['shipping_phone'] ?? null,
+            ];
+
+            if ($hasPhysicalItems) {
+                $payload['shipping_status'] = 'pending';
+            }
+
+            $order = Order::create($payload);
 
             foreach ($validatedItems as $item) {
                 OrderItem::create([
@@ -208,6 +245,9 @@ class OrderController extends Controller
                     'price' => $item['price'],
                     'game_user_id' => $item['game_id'],
                     'delivery_status' => 'pending',
+                    'is_physical' => $item['is_physical'] ?? false,
+                    'delivery_type' => $item['delivery_type'] ?? null,
+                    'delivery_eta_days' => $item['delivery_eta_days'] ?? null,
                 ]);
 
                 Product::where('id', $item['product_id'])->increment('purchases_count');
@@ -221,6 +261,10 @@ class OrderController extends Controller
 
             return $order;
         });
+
+        if ($hasPhysicalItems) {
+            app(ShippingService::class)->computeShippingForOrder($order);
+        }
 
         return response()->json([
             'order' => $order->load('orderItems.product'),

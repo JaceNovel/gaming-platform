@@ -39,6 +39,8 @@ class Product extends Model
         'stock_low_threshold',
         'stock_alert_channel',
         'stock_alert_emails',
+        'shipping_required',
+        'delivery_type',
         'is_active',
         'details',
         'description',
@@ -53,6 +55,7 @@ class Product extends Model
         'price_fcfa' => 'integer',
         'redeem_code_delivery' => 'boolean',
         'stock_low_threshold' => 'integer',
+        'shipping_required' => 'boolean',
     ];
 
     public function images()

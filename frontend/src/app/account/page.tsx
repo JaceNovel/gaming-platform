@@ -28,6 +28,10 @@ type Order = {
   priceFcfa: number;
   status: "COMPLÉTÉ" | "EN_COURS" | "ÉCHOUÉ";
   thumb: string;
+  shippingStatus?: string | null;
+  shippingEtaDays?: number | null;
+  shippingEstimatedDate?: string | null;
+  hasPhysicalItems?: boolean;
 };
 
 type MenuKey = DashboardMenuId;
@@ -498,6 +502,9 @@ function AccountClient() {
         const mapped = items.map((order: any, idx: number) => {
           const orderItems = order.orderItems ?? order.order_items ?? [];
           const title = orderItems[0]?.product?.name ?? order.reference ?? `Commande ${order.id}`;
+          const hasPhysicalItems = orderItems.some(
+            (item: any) => item?.is_physical || item?.product?.shipping_required,
+          );
           return {
             id: String(order.reference ?? order.id),
             title,
@@ -505,6 +512,10 @@ function AccountClient() {
             priceFcfa: Number(order.total_price ?? 0),
             status: mapOrderStatus(order.status),
             thumb: thumbs[idx % thumbs.length],
+            shippingStatus: order.shipping_status ?? null,
+            shippingEtaDays: order.shipping_eta_days ?? null,
+            shippingEstimatedDate: order.shipping_estimated_date ?? null,
+            hasPhysicalItems,
           } as Order;
         });
         setOrders(mapped);
@@ -1339,6 +1350,12 @@ function AccountClient() {
                         <p className="mt-2 text-lg font-semibold text-amber-200">
                           {formatCurrency(order.priceFcfa, me.countryCode)}
                         </p>
+                        {order.hasPhysicalItems && (
+                          <p className="mt-2 text-xs text-white/60">
+                            Livraison estimée: {order.shippingEtaDays ? `${order.shippingEtaDays} jours` : "—"}
+                            {order.shippingEstimatedDate ? ` • ${order.shippingEstimatedDate}` : ""}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1382,6 +1399,12 @@ function AccountClient() {
                           {order.status}
                         </span>
                         <p className="mt-1 text-sm font-semibold text-amber-200">{formatCurrency(order.priceFcfa, me.countryCode)}</p>
+                        {order.hasPhysicalItems && (
+                          <p className="mt-1 text-[11px] text-white/60">
+                            Livraison estimée: {order.shippingEtaDays ? `${order.shippingEtaDays} jours` : "—"}
+                            {order.shippingEstimatedDate ? ` • ${order.shippingEstimatedDate}` : ""}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

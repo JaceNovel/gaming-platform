@@ -33,6 +33,7 @@ class ProcessOrderDelivery implements ShouldQueue
         try {
             // Process each order item
             $hasProcessing = false;
+            $hasPhysical = false;
 
             foreach ($this->order->orderItems as $orderItem) {
                 $product = $orderItem->product;
@@ -43,13 +44,20 @@ class ProcessOrderDelivery implements ShouldQueue
                     $this->deliverTopup($orderItem);
                     $hasProcessing = true;
                 } else {
-                    $this->deliverArticle($orderItem);
+                    $isPhysical = (bool) ($orderItem->is_physical ?? false) || (bool) ($product->shipping_required ?? false);
+                    if ($isPhysical) {
+                        $hasPhysical = true;
+                    }
+                    $this->deliverArticle($orderItem, $isPhysical);
                 }
             }
 
-            $this->order->update([
-                'status' => $hasProcessing ? 'processing' : 'delivered',
-            ]);
+            $newStatus = $hasProcessing ? 'processing' : ($hasPhysical ? 'paid' : 'delivered');
+            $payload = ['status' => $newStatus];
+            if ($hasPhysical) {
+                $payload['shipping_status'] = $this->order->shipping_status ?: 'pending';
+            }
+            $this->order->update($payload);
 
             Log::info('Order delivery processed', ['order_id' => $this->order->id]);
 
@@ -127,11 +135,11 @@ class ProcessOrderDelivery implements ShouldQueue
         ]);
     }
 
-    protected function deliverArticle($orderItem)
+    protected function deliverArticle($orderItem, bool $isPhysical)
     {
         // For physical/digital articles - send confirmation
         $orderItem->update([
-            'delivery_status' => 'delivered',
+            'delivery_status' => $isPhysical ? 'shipping_pending' : 'delivered',
         ]);
 
         Mail::to($this->order->user->email)->send(new \App\Mail\ArticleConfirmation($this->order, $orderItem));

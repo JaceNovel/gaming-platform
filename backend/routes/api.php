@@ -142,6 +142,12 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->middleware('permission:orders.manage');
     Route::post('/orders/{order}/delivery-note-pdf', [AdminOrderController::class, 'deliveryNotePdf']);
     Route::post('/orders/{order}/resend-code', [AdminOrderController::class, 'resendCode']);
+    Route::post('/orders/{order}/shipping/generate-document', [AdminOrderController::class, 'generateShippingDocument'])
+        ->middleware('permission:orders.manage');
+    Route::get('/orders/{order}/shipping/document', [AdminOrderController::class, 'downloadShippingDocument'])
+        ->middleware('permission:orders.view');
+    Route::patch('/orders/{order}/shipping/status', [AdminOrderController::class, 'updateShippingStatus'])
+        ->middleware('permission:orders.manage');
 
     // Redeem inventory
     Route::get('/redeem/denominations', [AdminRedeemCodeController::class, 'denominations'])->middleware('permission:redeems.view');

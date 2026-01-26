@@ -32,6 +32,8 @@ class AdminProductController extends Controller
             'stock_low_threshold' => 'nullable|integer|min:0',
             'stock_alert_channel' => 'nullable|string|max:20',
             'stock_alert_emails' => 'nullable|string',
+            'shipping_required' => 'nullable|boolean',
+            'delivery_type' => 'nullable|string|in:in_stock,preorder',
             'delivery_eta_days' => 'nullable|integer|min:1',
             'stock' => 'required|integer|min:0',
             'price_fcfa' => 'nullable|integer|min:0',
@@ -44,6 +46,14 @@ class AdminProductController extends Controller
         $data['title'] = $data['title'] ?? $data['name'];
         $data['slug'] = $data['slug'] ?? str($data['title'])->slug()->value();
         $this->syncCategoryName($data);
+
+        if (!empty($data['shipping_required'])) {
+            $deliveryType = $data['delivery_type'] ?? 'in_stock';
+            $data['delivery_type'] = $deliveryType;
+            if (empty($data['delivery_eta_days'])) {
+                $data['delivery_eta_days'] = $deliveryType === 'preorder' ? 14 : 2;
+            }
+        }
 
         $product = Product::create($data);
 
@@ -71,6 +81,8 @@ class AdminProductController extends Controller
             'stock_low_threshold' => 'nullable|integer|min:0',
             'stock_alert_channel' => 'nullable|string|max:20',
             'stock_alert_emails' => 'nullable|string',
+            'shipping_required' => 'nullable|boolean',
+            'delivery_type' => 'nullable|string|in:in_stock,preorder',
             'delivery_eta_days' => 'nullable|integer|min:1',
             'stock' => 'sometimes|integer|min:0',
             'price_fcfa' => 'nullable|integer|min:0',
@@ -80,6 +92,14 @@ class AdminProductController extends Controller
         ]);
 
         $this->syncCategoryName($data);
+
+        if (array_key_exists('shipping_required', $data) && $data['shipping_required']) {
+            $deliveryType = $data['delivery_type'] ?? ($product->delivery_type ?? 'in_stock');
+            $data['delivery_type'] = $deliveryType;
+            if (empty($data['delivery_eta_days'])) {
+                $data['delivery_eta_days'] = $deliveryType === 'preorder' ? 14 : 2;
+            }
+        }
 
         $product->update($data);
 

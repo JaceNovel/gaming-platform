@@ -12,6 +12,15 @@ class Order extends Model
         'user_id',
         'type',
         'status',
+        'shipping_status',
+        'shipping_eta_days',
+        'shipping_estimated_date',
+        'shipping_document_path',
+        'delivered_at',
+        'shipping_address_line1',
+        'shipping_city',
+        'shipping_country_code',
+        'shipping_phone',
         'total_price',
         'payment_id',
         'items',
@@ -23,6 +32,8 @@ class Order extends Model
         'total_price' => 'decimal:2',
         'items' => 'array',
         'meta' => 'array',
+        'shipping_estimated_date' => 'datetime',
+        'delivered_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -62,5 +73,16 @@ class Order extends Model
         }
 
         return $this->redeemItems()->exists();
+    }
+
+    public function hasPhysicalItems(): bool
+    {
+        if ($this->relationLoaded('orderItems')) {
+            return $this->orderItems->contains(function ($item) {
+                return (bool) ($item->is_physical ?? false) || (bool) ($item->product?->shipping_required ?? false);
+            });
+        }
+
+        return $this->orderItems()->where('is_physical', true)->exists();
     }
 }

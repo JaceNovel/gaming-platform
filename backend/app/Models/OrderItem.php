@@ -15,6 +15,9 @@ class OrderItem extends Model
         'product_id',
         'redeem_denomination_id',
         'redeem_code_id',
+        'is_physical',
+        'delivery_type',
+        'delivery_eta_days',
         'quantity',
         'price',
         'game_user_id',
@@ -26,6 +29,8 @@ class OrderItem extends Model
         'price' => 'decimal:2',
         'game_user_id' => 'array',
         'delivery_payload' => 'array',
+        'is_physical' => 'boolean',
+        'delivery_eta_days' => 'integer',
     ];
 
     public function order(): BelongsTo

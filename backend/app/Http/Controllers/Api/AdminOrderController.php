@@ -7,10 +7,12 @@ use App\Mail\RedeemCodeDelivery;
 use App\Models\Order;
 use App\Models\RedeemCode;
 use App\Services\AdminAuditLogger;
+use App\Services\ShippingService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 class AdminOrderController extends Controller
 {
@@ -120,6 +122,61 @@ class AdminOrderController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="delivery-note-'.$order->id.'.pdf"',
         ]);
+    }
+
+    public function generateShippingDocument(Request $request, Order $order, ShippingService $shippingService)
+    {
+        if (!$order->hasPhysicalItems()) {
+            return response()->json(['message' => 'Order has no physical items'], 422);
+        }
+
+        if (!in_array($order->status, ['paid', 'fulfilled'], true)) {
+            return response()->json(['message' => 'Order not paid'], 422);
+        }
+
+        try {
+            $result = $shippingService->generateDeliveryNotePdf($order);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Unable to generate document'], 500);
+        }
+
+        return response()->json([
+            'data' => [
+                'path' => $result['path'],
+                'url' => $result['url'],
+            ],
+        ]);
+    }
+
+    public function downloadShippingDocument(Request $request, Order $order)
+    {
+        if (!$order->shipping_document_path) {
+            return response()->json(['message' => 'Document not found'], 404);
+        }
+
+        if (!Storage::disk('public')->exists($order->shipping_document_path)) {
+            return response()->json(['message' => 'Document not found'], 404);
+        }
+
+        $path = Storage::disk('public')->path($order->shipping_document_path);
+
+        return response()->download($path, 'bon-livraison-'.$order->id.'.pdf');
+    }
+
+    public function updateShippingStatus(Request $request, Order $order)
+    {
+        $data = $request->validate([
+            'shipping_status' => 'required|string|in:pending,ready_for_pickup,out_for_delivery,delivered,canceled',
+        ]);
+
+        $updates = ['shipping_status' => $data['shipping_status']];
+        if ($data['shipping_status'] === 'delivered') {
+            $updates['delivered_at'] = now();
+        }
+
+        $order->update($updates);
+
+        return response()->json(['data' => $order->fresh()]);
     }
 
     public function resendCode(Request $request, Order $order, AdminAuditLogger $auditLogger)
