@@ -3,14 +3,13 @@
 namespace App\Jobs;
 
 use App\Exceptions\RedeemStockDepletedException;
-use App\Mail\RedeemCodeDelivery;
 use App\Mail\OutOfStockMail;
-use App\Models\EmailLog;
 use App\Models\Order;
 use App\Models\RedeemCode;
 use App\Models\RedeemCodeDelivery;
 use App\Services\RedeemCodeAllocator;
 use App\Services\RedeemStockAlertService;
+use App\Services\NotificationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -28,7 +27,7 @@ class ProcessRedeemFulfillment implements ShouldQueue
         $this->onQueue('redeem-fulfillment');
     }
 
-    public function handle(RedeemCodeAllocator $allocator, RedeemStockAlertService $alertService): void
+    public function handle(RedeemCodeAllocator $allocator, RedeemStockAlertService $alertService, NotificationService $notificationService): void
     {
         $order = Order::with(['user', 'orderItems.redeemDenomination', 'orderItems.redeemCode', 'orderItems.product'])
             ->find($this->orderId);
@@ -86,7 +85,13 @@ class ProcessRedeemFulfillment implements ShouldQueue
             ]);
         }
 
-        Mail::to($order->user->email)->queue(new RedeemCodeDelivery($order, $assignedCodes));
+        $codesText = collect($assignedCodes)
+            ->map(fn ($code) => $code->code)
+            ->filter()
+            ->values()
+            ->implode("\n");
+        $message = "Vos codes de recharge pour la commande {$order->reference} :\n{$codesText}\nGuide: " . url('/api/guides/shop2game-freefire');
+        $notificationService->notifyUser($order->user_id, 'redeem_code', $message);
 
         $codeIds = collect($assignedCodes)->pluck('id')->all();
         if (!empty($codeIds)) {
@@ -95,15 +100,6 @@ class ProcessRedeemFulfillment implements ShouldQueue
                 'sent_at' => now(),
             ]);
         }
-
-        EmailLog::create([
-            'user_id' => $order->user_id,
-            'to' => $order->user->email,
-            'type' => 'redeem_code_delivery',
-            'subject' => 'Votre code de recharge BADBOYSHOP',
-            'status' => 'queued',
-            'sent_at' => now(),
-        ]);
 
         Log::info('Redeem fulfillment completed', [
             'order_id' => $order->id,

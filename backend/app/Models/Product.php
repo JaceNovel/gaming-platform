@@ -41,6 +41,7 @@ class Product extends Model
         'stock_alert_emails',
         'shipping_required',
         'delivery_type',
+        'display_section',
         'is_active',
         'details',
         'description',

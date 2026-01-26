@@ -12,268 +12,8 @@ import PlayerProfileCard from "@/components/profile/PlayerProfileCard";
 import { DASHBOARD_MENU, type DashboardMenuId } from "@/components/profile/dashboardMenu";
 import { API_BASE } from "@/lib/config";
 
-type Me = {
-  username: string;
-  countryCode: string | null;
-  countryName?: string | null;
-  avatarId: string;
-  walletBalanceFcfa: number;
-  premiumTier: "Bronze" | "Or" | "Platine" | string;
-};
-
-type Order = {
-  id: string;
-  title: string;
-  game: string;
-  priceFcfa: number;
-  status: "COMPLÉTÉ" | "EN_COURS" | "ÉCHOUÉ";
-  thumb: string;
-  shippingStatus?: string | null;
-  shippingEtaDays?: number | null;
-  shippingEstimatedDate?: string | null;
-  hasPhysicalItems?: boolean;
-};
-
-type MenuKey = DashboardMenuId;
-
-type WalletTransaction = {
-  id: string;
-  label: string;
-  amount: number;
-  currency: string;
-  createdAt: string;
-  type: "credit" | "debit";
-  status: "success" | "pending";
-};
-
-type CurrencyInfo = {
-  iso: string;
-  label: string;
-};
-
-const DEFAULT_CURRENCY: CurrencyInfo = { iso: "XOF", label: "FCFA" };
-const COUNTRY_CURRENCIES: Record<string, CurrencyInfo> = {
-  CI: { iso: "XOF", label: "FCFA" },
-  TG: { iso: "XOF", label: "FCFA" },
-  BJ: { iso: "XOF", label: "FCFA" },
-  SN: { iso: "XOF", label: "FCFA" },
-  ML: { iso: "XOF", label: "FCFA" },
-  CM: { iso: "XAF", label: "FCFA" },
-  GN: { iso: "GNF", label: "GNF" },
-  FR: { iso: "EUR", label: "€" },
-  BE: { iso: "EUR", label: "€" },
-  DE: { iso: "EUR", label: "€" },
-  US: { iso: "USD", label: "$" },
-  GB: { iso: "GBP", label: "£" },
-};
-
-const getCurrencyInfo = (countryCode?: string | null): CurrencyInfo => {
-  if (!countryCode) return DEFAULT_CURRENCY;
-  return COUNTRY_CURRENCIES[countryCode.toUpperCase()] ?? DEFAULT_CURRENCY;
-};
-
-const formatCurrency = (amount: number, countryCode?: string | null) => {
-  const info = getCurrencyInfo(countryCode);
-  const formatted = new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: info.iso,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-  return info.label === info.iso ? formatted : formatted.replace(info.iso, info.label);
-};
-
-const AVATARS = [
-  {
-    id: "nova_ghost",
-    name: "Nova Ghost",
-    src: "https://images.unsplash.com/photo-1542751110-97427bbecf20?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: "plasma_ronin",
-    name: "Plasma Ronin",
-    src: "https://images.unsplash.com/photo-1525182008055-f88b95ff7980?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: "cyber_warden",
-    name: "Cyber Warden",
-    src: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: "stellar_viper",
-    name: "Stellar Viper",
-    src: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: "ember_rider",
-    name: "Ember Rider",
-    src: "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: "void_huntress",
-    name: "Void Huntress",
-    src: "https://images.unsplash.com/photo-1472457897821-70d3819a0e24?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: "quantum_blade",
-    name: "Quantum Blade",
-    src: "https://images.unsplash.com/photo-1458640904116-093b74971de9?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: "orbit_scout",
-    name: "Orbit Scout",
-    src: "https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: "neon_rifter",
-    name: "Neon Rifter",
-    src: "https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: "rift_paladin",
-    name: "Rift Paladin",
-    src: "https://images.unsplash.com/photo-1520116468816-00a92d84fdf9?auto=format&fit=crop&w=500&q=80",
-  },
-];
-
-const thumbs = ["/thumbs/lol.png", "/thumbs/ml.png", "/thumbs/ff.png", "/thumbs/ff2.png"];
-const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
-
-const DEFAULT_ORDERS: Order[] = [
-  {
-    id: "BB-9001",
-    title: "Compte Légendaire Diamond",
-    game: "Free Fire",
-    priceFcfa: 18000,
-    status: "COMPLÉTÉ",
-    thumb: thumbs[0],
-  },
-  {
-    id: "BB-9002",
-    title: "Recharge Express 5 000",
-    game: "Mobile Legends",
-    priceFcfa: 5000,
-    status: "EN_COURS",
-    thumb: thumbs[1],
-  },
-  {
-    id: "BB-9003",
-    title: "Pack Accessoires Elite",
-    game: "Globale",
-    priceFcfa: 9500,
-    status: "ÉCHOUÉ",
-    thumb: thumbs[2],
-  },
-  {
-    id: "BB-9004",
-    title: "Boost Rang Mythique",
-    game: "Mobile Legends",
-    priceFcfa: 22000,
-    status: "COMPLÉTÉ",
-    thumb: thumbs[3 % thumbs.length],
-  },
-  {
-    id: "BB-9005",
-    title: "Carte Cadeau 10k",
-    game: "BADBOYSHOP",
-    priceFcfa: 10000,
-    status: "COMPLÉTÉ",
-    thumb: thumbs[4 % thumbs.length],
-  },
-];
-
-const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [
-  {
-    id: "TX-001",
-    label: "Recharge CinetPay",
-    amount: 15000,
-    currency: "FCFA",
-    createdAt: "2026-01-22T14:30:00Z",
-    type: "credit",
-    status: "success",
-  },
-  {
-    id: "TX-002",
-    label: "Commande #BB-9001",
-    amount: -18000,
-    currency: "FCFA",
-    createdAt: "2026-01-21T18:10:00Z",
-    type: "debit",
-    status: "success",
-  },
-  {
-    id: "TX-003",
-    label: "Cashback BADBOY VIP",
-    amount: 1200,
-    currency: "FCFA",
-    createdAt: "2026-01-20T09:12:00Z",
-    type: "credit",
-    status: "success",
-  },
-  {
-    id: "TX-004",
-    label: "Recharge Mobile Legends",
-    amount: -5000,
-    currency: "FCFA",
-    createdAt: "2026-01-19T20:45:00Z",
-    type: "debit",
-    status: "success",
-  },
-  {
-    id: "TX-005",
-    label: "Bonus parrainage",
-    amount: 2500,
-    currency: "FCFA",
-    createdAt: "2026-01-18T16:20:00Z",
-    type: "credit",
-    status: "success",
-  },
-  {
-    id: "TX-006",
-    label: "Accessoires gaming (TG)",
-    amount: -12000,
-    currency: "FCFA",
-    createdAt: "2026-01-17T12:15:00Z",
-    type: "debit",
-    status: "success",
-  },
-  {
-    id: "TX-007",
-    label: "Recharge CinetPay",
-    amount: 8000,
-    currency: "FCFA",
-    createdAt: "2026-01-15T10:05:00Z",
-    type: "credit",
-    status: "success",
-  },
-  {
-    id: "TX-008",
-    label: "Commande #BB-9002",
-    amount: -5000,
-    currency: "FCFA",
-    createdAt: "2026-01-14T22:00:00Z",
-    type: "debit",
-    status: "pending",
-  },
-  {
-    id: "TX-009",
-    label: "Cashback drop exclusif",
-    amount: 900,
-    currency: "FCFA",
-    createdAt: "2026-01-13T08:00:00Z",
-    type: "credit",
-    status: "success",
-  },
-  {
-    id: "TX-010",
-    label: "Carte cadeau BADBOY",
-    amount: -10000,
-    currency: "FCFA",
-    createdAt: "2026-01-12T19:30:00Z",
-    type: "debit",
-    status: "success",
-  },
-];
+const DEFAULT_ORDERS: Order[] = [];
+const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
 
 const COUNTRY_OPTIONS = [
   { code: "CI", name: "Côte d'Ivoire" },
@@ -322,9 +62,26 @@ const statusBadgeClass = (status: Order["status"]) => {
   return "bg-amber-400/20 border-amber-300/30 text-amber-100";
 };
 
-const DEFAULT_ORDERS: Order[] = [];
-
-const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
+function AccountClient() {
+  const { authFetch, user, loading: authLoading, logout } = useAuth();
+  const router = useRouter();
+  const fallbackProfile = useMemo<Me | null>(() => {
+    if (!user) return null;
+    const legacyUser =
+      user as typeof user & {
+        username?: string;
+        country_code?: string;
+        country?: string;
+        country_name?: string;
+        wallet_balance?: number;
+        walletBalance?: number;
+        premiumTier?: string;
+        premium_tier?: string;
+        premium_level?: string;
+        is_premium?: boolean;
+      };
+    const countryCode =
+      (typeof legacyUser.country_code === "string" && legacyUser.country_code.length > 0
         ? legacyUser.country_code
         : typeof legacyUser.country === "string"
           ? legacyUser.country
@@ -396,6 +153,12 @@ const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
   }, [fallbackProfile, me]);
 
   useEffect(() => {
+    if (me?.countryCode) {
+      setCountryFormCode(me.countryCode);
+    }
+  }, [me?.countryCode]);
+
+  useEffect(() => {
     let active = true;
     if (!HAS_API_ENV) {
       setLoadingProfile(false);
@@ -438,19 +201,27 @@ const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
         const data = await res.json();
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
         if (!active) return;
-        const mapped = items.map((order: any, idx: number) => {
+        const mapped = items.map((order: any) => {
           const orderItems = order.orderItems ?? order.order_items ?? [];
           const title = orderItems[0]?.product?.name ?? order.reference ?? `Commande ${order.id}`;
           const hasPhysicalItems = orderItems.some(
             (item: any) => item?.is_physical || item?.product?.shipping_required,
           );
+          const product = orderItems[0]?.product ?? {};
+          const thumb =
+            product?.image_url ??
+            product?.imageUrl ??
+            product?.cover ??
+            product?.details?.cover ??
+            product?.game?.cover ??
+            "/images/badboyshop-logo.png";
           return {
             id: String(order.reference ?? order.id),
             title,
             game: orderItems[0]?.product?.name ? "BADBOYSHOP" : "BADBOYSHOP",
             priceFcfa: Number(order.total_price ?? 0),
             status: mapOrderStatus(order.status),
-            thumb: thumbs[idx % thumbs.length],
+            thumb,
             shippingStatus: order.shipping_status ?? null,
             shippingEtaDays: order.shipping_eta_days ?? null,
             shippingEstimatedDate: order.shipping_estimated_date ?? null,
@@ -833,7 +604,6 @@ const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
                   username={me.username}
                   countryTag={countryTag}
                   tierLabel={tierLabel}
-                  onAction={() => setWalletModalOpen(true)}
                 />
               </div>
             )}
@@ -850,7 +620,6 @@ const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
                     username={me.username}
                     countryTag={countryTag}
                     tierLabel={tierLabel}
-                    onAction={() => setWalletModalOpen(true)}
                   />
                   <form onSubmit={handleCountrySubmit} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
                     <div className="flex items-center justify-between">
@@ -1167,9 +936,9 @@ const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
             </div>
           </div>
         ) : (
-          <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeWalletModal} />
-            <div className="relative z-10 max-h-[85vh] w-full rounded-t-[36px] border border-white/10 bg-[#05030d] p-5 text-white shadow-[0_-20px_80px_rgba(0,0,0,0.85)]">
+            <div className="relative z-10 w-full max-w-lg max-h-[80vh] rounded-[28px] border border-white/10 bg-[#05030d] p-5 text-white shadow-[0_30px_120px_rgba(0,0,0,0.85)]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.4em] text-white/40">Wallet BD</p>
@@ -1184,20 +953,6 @@ const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
                 </button>
               </div>
               <div className="mt-5 space-y-4 overflow-y-auto pr-1">
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Profil joueur</p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-lg font-semibold">{me.username}</p>
-                      <div className="mt-1 inline-flex items-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-500/15 px-3 py-1 text-[11px] font-semibold text-yellow-100">
-                        🏆 BADBOY {tierLabel}
-                      </div>
-                    </div>
-                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold tracking-[0.4em]">
-                      {countryTag}
-                    </span>
-                  </div>
-                </div>
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
                   <p className="text-xs uppercase tracking-[0.3em] text-white/50">BADBOY Wallet</p>
                   <p className="mt-2 text-3xl font-black">{walletDisplay}</p>

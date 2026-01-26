@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Bell,
   Boxes,
@@ -65,7 +66,7 @@ const MENU_ITEMS = [
   },
   { label: "Offres", icon: Heart, href: "/admin/offers" },
   { label: "Email", icon: Mail, href: "/admin/email" },
-  { label: "Support Client", icon: Headset, href: "/admin/support" },
+  { label: "Notifications", icon: Bell, href: "/admin/notifications" },
   { label: "Demandes d'Importation", icon: Boxes, href: "/admin/redeem" },
   { label: "Avis Clients", icon: Star, href: "/admin/reviews" },
   { label: "Paramètres", icon: Settings, href: "/admin/settings" },
@@ -96,6 +97,30 @@ export default function AdminShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
+
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4">
+        <div className="max-w-sm w-full rounded-2xl border border-white/10 bg-black/70 p-6 text-center">
+          <div className="text-sm uppercase tracking-[0.3em] text-white/50">BADBOYSHOP</div>
+          <h1 className="mt-3 text-xl font-semibold">Accès admin limité</h1>
+          <p className="mt-2 text-sm text-white/70">
+            Connectez-vous sur un PC pour accéder à l'administration.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">

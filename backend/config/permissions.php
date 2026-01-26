@@ -25,6 +25,7 @@ return [
         'email.manage',
         'reviews.view',
         'settings.manage',
+        'notifications.manage',
         'audit.view',
     ],
     'roles' => [
@@ -44,6 +45,7 @@ return [
             'redeems.manage',
             'stock.manage',
             'email.view',
+            'notifications.manage',
         ],
         'admin_support' => [
             'dashboard.view',

@@ -48,6 +48,18 @@ body {
   }
 }
 
+@media (max-width: 1023px) {
+  #tidio-chat-iframe,
+  .tidio-chat-iframe,
+  #tidio-chat,
+  .tidio-chat {
+    bottom: calc(var(--bottom-nav-height) + 8px) !important;
+    right: 12px !important;
+    transform: scale(0.85);
+    transform-origin: bottom right;
+  }
+}
+
 .glass-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -107,6 +119,25 @@ body {
 .card-hover:hover {
   transform: translateY(-4px);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+}
+
+.notify-bounce {
+  animation: notifyBounce 1.1s ease-in-out infinite;
+}
+
+.notify-dot {
+  animation: notifyPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes notifyBounce {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-2px); }
+  65% { transform: translateY(0); }
+}
+
+@keyframes notifyPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
 }
 
 .wallet-card {

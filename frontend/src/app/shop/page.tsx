@@ -43,50 +43,6 @@ type CategoryOption = {
   productsCount: number;
 };
 
-const exampleProducts: ShopProduct[] = [
-  {
-    id: 9001,
-    name: "Compte Free Fire Légendaire",
-    description: "Skin rare + diamant bonus",
-    priceLabel: "12 000 FCFA",
-    priceValue: 12000,
-    oldPrice: 18000,
-    discountPercent: 33,
-    likes: 42,
-    category: "Comptes",
-    categorySlug: "comptes",
-    type: "account",
-    imageUrl: "https://images.unsplash.com/photo-1525182008055-f88b95ff7980?auto=format&fit=crop&w=600&q=80",
-  },
-  {
-    id: 9002,
-    name: "Recharge 1000 diamants",
-    description: "Livraison instantanée",
-    priceLabel: "4 000 FCFA",
-    priceValue: 4000,
-    oldPrice: 5200,
-    discountPercent: 23,
-    likes: 28,
-    category: "Recharges",
-    categorySlug: "recharges",
-    type: "recharge",
-    imageUrl: "https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=600&q=80",
-  },
-  {
-    id: 9003,
-    name: "Pack accessoires gaming",
-    description: "Contrôleur + bonus",
-    priceLabel: "7 000 FCFA",
-    priceValue: 7000,
-    oldPrice: 9800,
-    discountPercent: 29,
-    likes: 19,
-    category: "Accessoires",
-    categorySlug: "accessoires",
-    type: "accessory",
-    imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80",
-  },
-];
 
 const HERO_BACKDROP =
   "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=2000&q=80";
@@ -619,7 +575,7 @@ export default function ShopPage() {
     };
   }, []);
 
-  const catalog = products.length ? products : exampleProducts;
+  const catalog = products;
 
   const handleAddToCart = (product: ShopProduct, origin?: HTMLElement | null) => {
     if (typeof window === "undefined") return;
@@ -780,9 +736,9 @@ export default function ShopPage() {
   const groupedDeals = filtered.slice(0, 6);
   const dailyDeals = filtered.slice(0, 8);
   const forYou = filtered.slice(0, 12);
-  const popularProducts = useMemo(() => [...filtered].sort((a, b) => b.likes - a.likes).slice(0, 6), [filtered]);
-  const promoProducts = useMemo(() => filtered.filter((p) => Number(p.discountPercent ?? 0) > 0).slice(0, 6), [filtered]);
-  const latestProducts = useMemo(() => [...filtered].sort((a, b) => b.id - a.id).slice(0, 6), [filtered]);
+  const popularProducts = useMemo(() => filtered.filter((p: any) => p.display_section === "popular").slice(0, 6), [filtered]);
+  const promoProducts = useMemo(() => filtered.filter((p: any) => p.display_section === "cosmic_promo").slice(0, 6), [filtered]);
+  const latestProducts = useMemo(() => filtered.filter((p: any) => p.display_section === "latest").slice(0, 6), [filtered]);
 
   const handleImageSearch = (file: File | null) => {
     if (!file) return;

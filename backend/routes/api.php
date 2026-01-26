@@ -247,6 +247,9 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::patch('/support/tickets/{ticket}', [\App\Http\Controllers\Api\AdminSupportController::class, 'update'])
         ->middleware('permission:support.manage');
 
+    Route::post('/notifications/broadcast', [\App\Http\Controllers\Api\AdminNotificationController::class, 'broadcast'])
+        ->middleware('permission:notifications.manage');
+
     Route::get('/stock/movements', [\App\Http\Controllers\Api\AdminStockController::class, 'movements'])
         ->middleware('permission:stock.manage');
     Route::post('/stock/products/{product}/adjust', [\App\Http\Controllers\Api\AdminStockController::class, 'adjustProduct'])

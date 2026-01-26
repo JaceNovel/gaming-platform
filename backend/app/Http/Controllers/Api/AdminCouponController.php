@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Coupon;
 use App\Services\AdminAuditLogger;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 class AdminCouponController extends Controller
@@ -31,7 +32,7 @@ class AdminCouponController extends Controller
         return response()->json(['data' => $coupon]);
     }
 
-    public function store(Request $request, AdminAuditLogger $auditLogger)
+    public function store(Request $request, AdminAuditLogger $auditLogger, NotificationService $notificationService)
     {
         $data = $request->validate([
             'name' => 'required|string|max:120',
@@ -56,6 +57,13 @@ class AdminCouponController extends Controller
         }
 
         $coupon = Coupon::create($data);
+
+        if (($coupon->is_active ?? true) && !empty($coupon->code)) {
+            $notificationService->broadcast(
+                'promo',
+                "Nouvelle promotion : utilisez le code promo {$coupon->code}."
+            );
+        }
 
         $auditLogger->log(
             $request->user(),

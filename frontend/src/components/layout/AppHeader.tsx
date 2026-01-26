@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Bell, Coins, Crown, Mail, ShoppingCart, User, Swords } from "lucide-react";
@@ -14,26 +15,19 @@ const navItems = [
 
 export default function AppHeader() {
   const pathname = usePathname();
-  const { authFetch, token } = useAuth();
+  const { authFetch, token, user } = useAuth();
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [walletCurrency, setWalletCurrency] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<
-    Array<{ id: number; message: string; is_read: boolean; created_at: string }>
+    Array<{ id: number; message: string; is_read: boolean; created_at: string; type?: string | null }>
   >([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [supportTickets, setSupportTickets] = useState<
-    Array<{
-      id: number;
-      subject: string;
-      status: string;
-      last_message: string | null;
-      last_message_at: string | null;
-      unread_count: number;
-    }>
+  const [inboxItems, setInboxItems] = useState<
+    Array<{ id: number; message: string; is_read: boolean; created_at: string }>
   >([]);
-  const [supportUnread, setSupportUnread] = useState(0);
-  const [showSupport, setShowSupport] = useState(false);
+  const [inboxUnread, setInboxUnread] = useState(0);
+  const [showInbox, setShowInbox] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -65,27 +59,27 @@ export default function AppHeader() {
 
   useEffect(() => {
     let active = true;
-    const loadSupportInbox = async () => {
+    const loadInbox = async () => {
       if (!token) {
-        setSupportTickets([]);
-        setSupportUnread(0);
+        setInboxItems([]);
+        setInboxUnread(0);
         return;
       }
       try {
-        const res = await authFetch(`${API_BASE}/support/inbox?limit=6`);
+        const res = await authFetch(`${API_BASE}/notifications?limit=6&type=redeem_code`);
         if (!res.ok) return;
         const data = await res.json();
         if (!active) return;
-        setSupportTickets(Array.isArray(data?.tickets) ? data.tickets : []);
-        setSupportUnread(Number(data?.unread ?? 0));
+        setInboxItems(Array.isArray(data?.notifications) ? data.notifications : []);
+        setInboxUnread(Number(data?.unread ?? 0));
       } catch {
         if (!active) return;
-        setSupportTickets([]);
-        setSupportUnread(0);
+        setInboxItems([]);
+        setInboxUnread(0);
       }
     };
 
-    loadSupportInbox();
+    loadInbox();
     return () => {
       active = false;
     };
@@ -104,8 +98,10 @@ export default function AppHeader() {
         if (!res.ok) return;
         const data = await res.json();
         if (!active) return;
-        setNotifications(Array.isArray(data?.notifications) ? data.notifications : []);
-        setUnreadCount(Number(data?.unread ?? 0));
+        const list = Array.isArray(data?.notifications) ? data.notifications : [];
+        const filteredList = list.filter((item: any) => item?.type !== "redeem_code");
+        setNotifications(filteredList);
+        setUnreadCount(filteredList.filter((item: any) => !item?.is_read).length);
       } catch {
         if (!active) return;
         setNotifications([]);
@@ -124,28 +120,31 @@ export default function AppHeader() {
     return unreadCount > 9 ? "9+" : String(unreadCount);
   }, [unreadCount]);
 
-  const supportBadge = useMemo(() => {
-    if (supportUnread <= 0) return null;
-    return supportUnread > 9 ? "9+" : String(supportUnread);
-  }, [supportUnread]);
+  const inboxBadge = useMemo(() => {
+    if (inboxUnread <= 0) return null;
+    return inboxUnread > 9 ? "9+" : String(inboxUnread);
+  }, [inboxUnread]);
 
   const handleToggleNotifications = async () => {
     const next = !showNotifications;
     setShowNotifications(next);
     if (next && unreadCount > 0) {
-      await authFetch(`${API_BASE}/notifications/read-all`, { method: "POST" });
+      await Promise.all([
+        authFetch(`${API_BASE}/notifications/read-all?type=promo`, { method: "POST" }),
+        authFetch(`${API_BASE}/notifications/read-all?type=update`, { method: "POST" }),
+      ]);
       setUnreadCount(0);
       setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
     }
   };
 
-  const handleToggleSupport = async () => {
-    const next = !showSupport;
-    setShowSupport(next);
-    if (next && supportUnread > 0) {
-      await authFetch(`${API_BASE}/support/inbox/read-all`, { method: "POST" });
-      setSupportUnread(0);
-      setSupportTickets((prev) => prev.map((item) => ({ ...item, unread_count: 0 })));
+  const handleToggleInbox = async () => {
+    const next = !showInbox;
+    setShowInbox(next);
+    if (next && inboxUnread > 0) {
+      await authFetch(`${API_BASE}/notifications/read-all?type=redeem_code`, { method: "POST" });
+      setInboxUnread(0);
+      setInboxItems((prev) => prev.map((item) => ({ ...item, is_read: true })));
     }
   };
 
@@ -153,17 +152,32 @@ export default function AppHeader() {
     walletBalance === null ? "—" : walletBalance.toLocaleString("fr-FR");
   const walletCurrencyLabel = walletCurrency ?? "FCFA";
 
+  const vipLabel = useMemo(() => {
+    if (!user?.is_premium) return "VIP 0";
+    const levelRaw = (user as any)?.premium_level ?? (user as any)?.premium_tier ?? (user as any)?.premiumTier;
+    if (typeof levelRaw === "number") {
+      return levelRaw >= 2 ? "VIP 2" : "VIP 1";
+    }
+    const normalized = String(levelRaw ?? "").toLowerCase();
+    if (normalized.includes("platine")) return "VIP 2";
+    if (normalized.includes("basic") || normalized.includes("bronze")) return "VIP 1";
+    return "VIP 1";
+  }, [user]);
+
   return (
     <>
       <header className="fixed top-0 z-50 hidden w-full border-b border-white/10 bg-black/40 backdrop-blur lg:block">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-3">
-            <div className="relative h-11 w-11 overflow-hidden rounded-2xl ring-1 ring-white/20">
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-400/70 via-fuchsia-400/30 to-cyan-400/20" />
-              <div className="absolute inset-[1px] rounded-[15px] bg-black/55" />
-              <span className="relative flex h-full w-full items-center justify-center text-white">
-                <Crown className="h-5 w-5 text-amber-300" />
-              </span>
+            <div className="relative h-11 w-11 overflow-hidden rounded-2xl ring-1 ring-white/20 bg-black/30">
+              <Image
+                src="/images/badboyshop-logo.png"
+                alt="BADBOYSHOP"
+                width={44}
+                height={44}
+                className="h-full w-full object-contain"
+                priority
+              />
             </div>
             <div className="text-lg font-extrabold tracking-tight text-white">
               BADBOY<span className="text-white/70">SHOP</span>
@@ -173,7 +187,7 @@ export default function AppHeader() {
           <div className="flex items-center gap-4 rounded-full bg-white/5 px-4 py-2 ring-1 ring-white/10 backdrop-blur-md">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/90 ring-1 ring-white/15">
               <Crown className="h-3.5 w-3.5 text-amber-300" />
-              VIP 2
+              {vipLabel}
             </span>
             <nav className="flex items-center gap-5 text-xs font-medium text-white/80">
               {navItems.map((item) => {
@@ -214,57 +228,49 @@ export default function AppHeader() {
             <div className="relative">
               <button
                 type="button"
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
-                aria-label="Support"
-                onClick={handleToggleSupport}
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 ${
+                  inboxBadge ? "notify-bounce" : ""
+                }`}
+                aria-label="Boîte de réception"
+                onClick={handleToggleInbox}
               >
                 <Mail className="h-4 w-4 text-white/80" />
-                {supportBadge ? (
-                  <span className="absolute -right-1 -top-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-semibold text-black">
-                    {supportBadge}
+                {inboxBadge ? (
+                  <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white notify-dot">
+                    {inboxBadge}
                   </span>
                 ) : null}
               </button>
 
-              {showSupport && (
+              {showInbox && (
                 <div className="absolute right-0 mt-3 w-80 rounded-2xl border border-white/10 bg-black/90 p-3 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
                   <div className="flex items-center justify-between pb-2">
-                    <span className="text-xs uppercase tracking-[0.25em] text-white/50">Boîte support</span>
+                    <span className="text-xs uppercase tracking-[0.25em] text-white/50">Boîte mail</span>
                     <button
                       type="button"
                       className="text-xs text-white/60 hover:text-white"
-                      onClick={() => setShowSupport(false)}
+                      onClick={() => setShowInbox(false)}
                     >
                       Fermer
                     </button>
                   </div>
                   <div className="space-y-2">
-                    {supportTickets.length === 0 ? (
+                    {inboxItems.length === 0 ? (
                       <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                        Aucun ticket pour le moment.
+                        Aucun message pour le moment.
                       </div>
                     ) : (
-                      supportTickets.map((ticket) => (
+                      inboxItems.map((item) => (
                         <div
-                          key={ticket.id}
-                          className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70"
+                          key={item.id}
+                          className={`rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 ${
+                            item.is_read ? "opacity-70" : ""
+                          }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold text-white/90">{ticket.subject}</p>
-                            {ticket.unread_count > 0 && (
-                              <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] text-amber-200">
-                                +{ticket.unread_count}
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-1 text-white/70 line-clamp-2">
-                            {ticket.last_message ?? "Message en attente"}
+                          <p className="whitespace-pre-wrap text-white/90">{item.message}</p>
+                          <p className="mt-1 text-[10px] text-white/40">
+                            {new Date(item.created_at).toLocaleString("fr-FR")}
                           </p>
-                          {ticket.last_message_at && (
-                            <p className="mt-1 text-[10px] text-white/40">
-                              {new Date(ticket.last_message_at).toLocaleString("fr-FR")}
-                            </p>
-                          )}
                         </div>
                       ))
                     )}
@@ -275,13 +281,15 @@ export default function AppHeader() {
             <div className="relative">
               <button
                 type="button"
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 ${
+                  unreadBadge ? "notify-bounce" : ""
+                }`}
                 aria-label="Notifications"
                 onClick={handleToggleNotifications}
               >
                 <Bell className="h-4 w-4 text-white/80" />
                 {unreadBadge ? (
-                  <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white notify-dot">
                     {unreadBadge}
                   </span>
                 ) : null}
@@ -338,8 +346,15 @@ export default function AppHeader() {
       <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-black/55 backdrop-blur lg:hidden">
         <div className="mx-auto flex w-full items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-purple-500 text-black shadow-[0_10px_30px_rgba(110,231,255,0.35)]">
-              <Swords className="h-4 w-4" />
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-black/30 ring-1 ring-white/15">
+              <Image
+                src="/images/badboyshop-logo.png"
+                alt="BADBOYSHOP"
+                width={36}
+                height={36}
+                className="h-7 w-7 object-contain"
+                priority
+              />
             </span>
             <span className="text-sm font-extrabold tracking-tight text-white">
               BADBOY<span className="text-white/70">SHOP</span>
@@ -357,19 +372,21 @@ export default function AppHeader() {
             <div className="relative">
               <button
                 type="button"
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 ${
+                  unreadBadge ? "notify-bounce" : ""
+                }`}
                 aria-label="Notifications"
                 onClick={handleToggleNotifications}
               >
                 <Bell className="h-4 w-4 text-white/80" />
                 {unreadBadge ? (
-                  <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white notify-dot">
                     {unreadBadge}
                   </span>
                 ) : null}
               </button>
               {showNotifications && (
-                <div className="absolute right-0 top-12 w-[calc(100vw-32px)] max-w-[18rem] rounded-2xl border border-white/10 bg-black/95 p-3 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur lg:hidden">
+                <div className="absolute left-1/2 top-12 w-[calc(100vw-32px)] max-w-[18rem] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/95 p-3 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur lg:hidden">
                   <div className="flex items-center justify-between pb-2">
                     <span className="text-xs uppercase tracking-[0.25em] text-white/50">Notifications</span>
                     <button
@@ -407,56 +424,48 @@ export default function AppHeader() {
             <div className="relative">
               <button
                 type="button"
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
-                aria-label="Support"
-                onClick={handleToggleSupport}
+                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 ${
+                  inboxBadge ? "notify-bounce" : ""
+                }`}
+                aria-label="Boîte de réception"
+                onClick={handleToggleInbox}
               >
                 <Mail className="h-4 w-4 text-white/80" />
-                {supportBadge ? (
-                  <span className="absolute -right-1 -top-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-semibold text-black">
-                    {supportBadge}
+                {inboxBadge ? (
+                  <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white notify-dot">
+                    {inboxBadge}
                   </span>
                 ) : null}
               </button>
-              {showSupport && (
-                <div className="absolute right-0 top-12 w-[calc(100vw-32px)] max-w-[18rem] rounded-2xl border border-white/10 bg-black/95 p-3 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur lg:hidden">
+              {showInbox && (
+                <div className="absolute left-1/2 top-12 w-[calc(100vw-32px)] max-w-[18rem] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/95 p-3 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur lg:hidden">
                   <div className="flex items-center justify-between pb-2">
-                    <span className="text-xs uppercase tracking-[0.25em] text-white/50">Boîte support</span>
+                    <span className="text-xs uppercase tracking-[0.25em] text-white/50">Boîte mail</span>
                     <button
                       type="button"
                       className="text-xs text-white/60 hover:text-white"
-                      onClick={() => setShowSupport(false)}
+                      onClick={() => setShowInbox(false)}
                     >
                       Fermer
                     </button>
                   </div>
                   <div className="space-y-2">
-                    {supportTickets.length === 0 ? (
+                    {inboxItems.length === 0 ? (
                       <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                        Aucun ticket pour le moment.
+                        Aucun message pour le moment.
                       </div>
                     ) : (
-                      supportTickets.map((ticket) => (
+                      inboxItems.map((item) => (
                         <div
-                          key={ticket.id}
-                          className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70"
+                          key={item.id}
+                          className={`rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 ${
+                            item.is_read ? "opacity-70" : ""
+                          }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold text-white/90">{ticket.subject}</p>
-                            {ticket.unread_count > 0 && (
-                              <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] text-amber-200">
-                                +{ticket.unread_count}
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-1 text-white/70 line-clamp-2">
-                            {ticket.last_message ?? "Message en attente"}
+                          <p className="whitespace-pre-wrap text-white/90">{item.message}</p>
+                          <p className="mt-1 text-[10px] text-white/40">
+                            {new Date(item.created_at).toLocaleString("fr-FR")}
                           </p>
-                          {ticket.last_message_at && (
-                            <p className="mt-1 text-[10px] text-white/40">
-                              {new Date(ticket.last_message_at).toLocaleString("fr-FR")}
-                            </p>
-                          )}
                         </div>
                       ))
                     )}

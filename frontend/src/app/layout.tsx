@@ -17,6 +17,32 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "BADBOYSHOP - Gaming Platform",
   description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
+  icons: {
+    icon: "/images/badboyshop-logo.png",
+    shortcut: "/images/badboyshop-logo.png",
+    apple: "/images/badboyshop-logo.png",
+  },
+  openGraph: {
+    title: "BADBOYSHOP - Gaming Platform",
+    description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
+    url: "https://badboyshop.com",
+    siteName: "BADBOYSHOP",
+    images: [
+      {
+        url: "/images/badboyshop-logo.png",
+        width: 512,
+        height: 512,
+        alt: "BADBOYSHOP",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BADBOYSHOP - Gaming Platform",
+    description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
+    images: ["/images/badboyshop-logo.png"],
+  },
 };
 
 export const viewport = {
