@@ -317,6 +317,7 @@ function AccountClient() {
         country_name?: string;
         wallet_balance?: number;
         walletBalance?: number;
+        premiumTier?: string;
         premium_tier?: string;
         premium_level?: string;
         is_premium?: boolean;
