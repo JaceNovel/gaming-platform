@@ -75,9 +75,7 @@ export default function ProfileHeader({
                   <Wallet className="h-4 w-4 text-emerald-200" /> BADBOY Wallet BD
                 </div>
                 <div className="mt-2 text-3xl md:text-4xl font-black">{walletDisplay}</div>
-                <p className="mt-2 text-xs text-white/70">
-                  Affiché en {walletCurrencyLabel} — solde synchronisé avec la barre de navigation.
-                </p>
+                <p className="mt-2 text-xs text-white/70">Affiché en {walletCurrencyLabel}.</p>
               </div>
               <div className="flex justify-center gap-3">
                 <button
