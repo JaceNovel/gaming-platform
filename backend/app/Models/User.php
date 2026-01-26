@@ -21,6 +21,7 @@ class User extends Authenticatable
         'admin_super',
         'admin_article',
         'admin_client',
+        'staff',
     ];
 
     /**

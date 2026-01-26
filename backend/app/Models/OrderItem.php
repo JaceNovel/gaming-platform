@@ -13,6 +13,8 @@ class OrderItem extends Model
     protected $fillable = [
         'order_id',
         'product_id',
+        'redeem_denomination_id',
+        'redeem_code_id',
         'quantity',
         'price',
         'game_user_id',
@@ -34,5 +36,15 @@ class OrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function redeemDenomination(): BelongsTo
+    {
+        return $this->belongsTo(RedeemDenomination::class, 'redeem_denomination_id');
+    }
+
+    public function redeemCode(): BelongsTo
+    {
+        return $this->belongsTo(RedeemCode::class, 'redeem_code_id');
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessOrderDelivery;
+use App\Jobs\ProcessRedeemFulfillment;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\CinetPayService;
@@ -86,7 +87,7 @@ class PaymentController extends Controller
             $status = strtoupper($request->input('cpm_trans_status'));
             $amount = (float) $request->input('cpm_amount');
 
-            $payment = Payment::with('order')->where('transaction_id', $transactionId)->first();
+            $payment = Payment::with(['order.orderItems'])->where('transaction_id', $transactionId)->first();
 
             if (!$payment) {
                 Log::warning('Payment not found for transaction', ['transaction_id' => $transactionId]);
@@ -122,7 +123,13 @@ class PaymentController extends Controller
                 ]);
 
                 if ($isSuccess && $payment->order->type !== 'wallet_topup') {
-                    ProcessOrderDelivery::dispatch($payment->order);
+                    $payment->order->loadMissing('orderItems');
+
+                    if ($payment->order->requiresRedeemFulfillment()) {
+                        ProcessRedeemFulfillment::dispatch($payment->order->id);
+                    } else {
+                        ProcessOrderDelivery::dispatch($payment->order);
+                    }
                 }
             });
 
@@ -140,5 +147,10 @@ class PaymentController extends Controller
             ]);
             return response()->json(['message' => 'Processing failed'], 500);
         }
+    }
+
+    public function webhook(Request $request)
+    {
+        return $this->webhookCinetpay($request);
     }
 }

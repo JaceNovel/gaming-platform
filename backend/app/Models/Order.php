@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
@@ -39,8 +40,22 @@ class Order extends Model
         return $this->belongsTo(Payment::class);
     }
 
-    public function orderItems()
+    public function orderItems(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function redeemItems(): HasMany
+    {
+        return $this->orderItems()->whereNotNull('redeem_denomination_id');
+    }
+
+    public function requiresRedeemFulfillment(): bool
+    {
+        if ($this->relationLoaded('orderItems')) {
+            return $this->orderItems->contains(fn ($item) => !empty($item->redeem_denomination_id));
+        }
+
+        return $this->redeemItems()->exists();
     }
 }

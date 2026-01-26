@@ -5,6 +5,9 @@ use App\Http\Controllers\Api\AdminDashboardController;
 use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminSettingsController;
 use App\Http\Controllers\Api\AdminOrderController;
+use App\Http\Controllers\Api\AdminRedeemCodeController;
+use App\Http\Controllers\Api\AdminMeController;
+use App\Http\Controllers\Api\AdminAuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\GameController;
@@ -57,6 +60,7 @@ Route::get('/likes/stats', [LikeController::class, 'stats']);
 
 // Webhooks (no auth required)
 Route::post('/payments/cinetpay/webhook', [PaymentController::class, 'webhookCinetpay'])->name('api.payments.cinetpay.webhook');
+Route::post('/payments/webhook', [PaymentController::class, 'webhook'])->name('api.payments.webhook');
 Route::post('/wallet/topup/webhook', [WalletController::class, 'webhookTopup'])->name('api.wallet.topup.webhook');
 
 // Protected routes
@@ -114,29 +118,37 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Admin routes
-Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin,staff'])->prefix('admin')->group(function () {
+    Route::get('/me', AdminMeController::class);
     Route::get('/dashboard', [AdminDashboardController::class, 'overview']);
     Route::get('/dashboard/tables', [AdminDashboardController::class, 'tables']);
     Route::get('/dashboard/export', [AdminDashboardController::class, 'export']);
+    Route::get('/dashboard/summary', [AdminDashboardController::class, 'summary']);
+    Route::get('/dashboard/charts', [AdminDashboardController::class, 'charts']);
 
-    Route::middleware('role:admin,admin_super')->group(function () {
-        Route::get('/dashboard/summary', [AdminDashboardController::class, 'summary']);
-        Route::get('/dashboard/charts', [AdminDashboardController::class, 'charts']);
+    // Orders + fulfillment
+    Route::get('/orders', [AdminOrderController::class, 'index']);
+    Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
+    Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']);
+    Route::post('/orders/{order}/delivery-note-pdf', [AdminOrderController::class, 'deliveryNotePdf']);
+    Route::post('/orders/{order}/resend-code', [AdminOrderController::class, 'resendCode']);
 
+    // Redeem inventory
+    Route::get('/redeem/denominations', [AdminRedeemCodeController::class, 'denominations']);
+    Route::post('/redeem/import', [AdminRedeemCodeController::class, 'import']);
+
+    // Chat moderation
+    Route::post('/chat/rooms/{room}/mute', [ChatController::class, 'muteUser']);
+    Route::post('/chat/rooms/{room}/ban', [ChatController::class, 'banUser']);
+
+    // Settings reserved for admins (admin + super)
+    Route::middleware('requireRole:admin_super,admin')->group(function () {
         Route::get('/settings', [AdminSettingsController::class, 'show']);
         Route::post('/settings', [AdminSettingsController::class, 'update']);
         Route::post('/settings/logo', [AdminSettingsController::class, 'uploadLogo']);
-
-        // Orders
-        Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']);
-        Route::post('/orders/{order}/delivery-note-pdf', [AdminOrderController::class, 'deliveryNotePdf']);
-
-        // Chat moderation
-        Route::post('/chat/rooms/{room}/mute', [ChatController::class, 'muteUser']);
-        Route::post('/chat/rooms/{room}/ban', [ChatController::class, 'banUser']);
     });
 
-    Route::middleware('role:admin,admin_super,admin_article')->group(function () {
+    Route::middleware('requireRole:admin_super,admin,staff,admin_article')->group(function () {
         Route::post('/products', [AdminProductController::class, 'store']);
         Route::patch('/products/{product}', [AdminProductController::class, 'update']);
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
@@ -145,6 +157,10 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
         Route::post('/categories', [AdminCategoryController::class, 'store']);
         Route::patch('/categories/{category}', [AdminCategoryController::class, 'update']);
         Route::delete('/categories/{category}', [AdminCategoryController::class, 'destroy']);
+    });
+
+    Route::middleware('requireRole:admin_super')->group(function () {
+        Route::get('/audit-logs', [AdminAuditLogController::class, 'index']);
     });
 });
 

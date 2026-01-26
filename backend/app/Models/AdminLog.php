@@ -10,7 +10,17 @@ class AdminLog extends Model
     protected $fillable = [
         'admin_id',
         'action',
+        'action_type',
         'details',
+        'metadata',
+        'ip_address',
+        'user_agent',
+        'performed_at',
+    ];
+
+    protected $casts = [
+        'metadata' => 'array',
+        'performed_at' => 'datetime',
     ];
 
     public function admin(): BelongsTo
