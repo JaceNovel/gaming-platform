@@ -35,12 +35,12 @@ export default function RootLayout({
   return (
     <html lang="fr" className="dark" suppressHydrationWarning>
       <head>
-        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-DV77SB5QR1" />
+        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-66BKKJ3F7B" />
         <Script id="gtag-init">
           {`window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
-gtag('config', 'G-DV77SB5QR1');`}
+gtag('config', 'G-66BKKJ3F7B');`}
         </Script>
       </head>
       <body
