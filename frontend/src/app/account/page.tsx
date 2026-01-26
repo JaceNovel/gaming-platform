@@ -310,9 +310,10 @@ function AccountClient() {
   const router = useRouter();
   const fallbackProfile = useMemo<Me | null>(() => {
     if (!user) return null;
+    const legacyUser = user as typeof user & { country_code?: string };
     const countryCode =
-      (typeof user.country_code === "string" && user.country_code.length > 0
-        ? user.country_code
+      (typeof legacyUser.country_code === "string" && legacyUser.country_code.length > 0
+        ? legacyUser.country_code
         : typeof user.country === "string"
           ? user.country
           : null) ?? null;
