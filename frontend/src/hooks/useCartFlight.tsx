@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface FlightConfig {
   id: number;
@@ -58,18 +58,24 @@ export function useCartFlight() {
   const overlay = useMemo(
     () => (
       <div className="pointer-events-none fixed inset-0 z-[95]">
-        {flights.map((flight) => (
+        {flights.map((flight) => {
+          const style: CSSProperties & {
+            "--cart-flight-dx"?: string;
+            "--cart-flight-dy"?: string;
+          } = {
+            left: `${flight.startX}px`,
+            top: `${flight.startY}px`,
+            "--cart-flight-dx": `${flight.deltaX}px`,
+            "--cart-flight-dy": `${flight.deltaY}px`,
+          };
+          return (
           <span
             key={flight.id}
             className="cart-flight-dot"
-            style={{
-              left: `${flight.startX}px`,
-              top: `${flight.startY}px`,
-              ["--cart-flight-dx" as "--cart-flight-dx"]: `${flight.deltaX}px`,
-              ["--cart-flight-dy" as "--cart-flight-dy"]: `${flight.deltaY}px`,
-            }}
+              style={style}
           />
-        ))}
+          );
+        })}
       </div>
     ),
     [flights],
