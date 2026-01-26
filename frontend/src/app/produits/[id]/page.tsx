@@ -256,53 +256,104 @@ export default function ProductDetailsPage() {
         )}
 
         {!loading && !error && product && (
-          <div className="mt-10 grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
-            {renderImage()}
-
-            <div className="space-y-6">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-                <h1 className="text-3xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
-                <p className="mt-3 text-3xl font-bold text-[#ff4b63]">{formatPrice(priceValue)}</p>
-                <p className="mt-4 text-base text-white/70">{description}</p>
-
-                <div className="mt-6">
-                  <h2 className="text-lg font-semibold text-white">Informations</h2>
-                  <div className="mt-4 divide-y divide-white/10 text-sm">
-                    {infoRows.map((row) => (
-                      <div key={row.label} className="flex items-center justify-between py-3">
+          <>
+            <div className="mt-8 space-y-5 md:hidden">
+              <div className="rounded-[32px] border border-white/10 bg-white/5 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+                {mainImage ? (
+                  <div className="relative aspect-square w-full overflow-hidden rounded-[30px] border border-white/10 bg-black/50">
+                    <Image src={mainImage} alt={product.name ?? "Produit"} fill sizes="100vw" className="object-cover" />
+                  </div>
+                ) : (
+                  <div className="flex aspect-square w-full items-center justify-center rounded-[30px] border border-dashed border-white/20 text-sm text-white/60">
+                    Image indisponible
+                  </div>
+                )}
+              </div>
+              <div className="space-y-4 rounded-[32px] border border-white/10 bg-black/40 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
+                <div className="space-y-2">
+                  <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">{categoryLabel}</p>
+                  <h1 className="text-2xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
+                  <p className="text-2xl font-black text-[#ff4b63]">{formatPrice(priceValue)}</p>
+                </div>
+                <p className="text-sm text-white/70">{description}</p>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                  <p className="text-[11px] uppercase tracking-[0.35em] text-white/40">Infos</p>
+                  <div className="mt-3 space-y-2">
+                    {infoRows.slice(0, 3).map((row) => (
+                      <div key={row.label} className="flex items-center justify-between text-xs">
                         <span className="text-white/60">{row.label}</span>
-                        <span className="text-right font-semibold text-white">{row.value}</span>
+                        <span className="font-semibold text-white">{row.value}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-
-                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={handleAddToCart}
-                    className="rounded-full bg-[#d71933] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:bg-[#b51229]"
+                    className="w-full rounded-2xl bg-[#d71933] px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(215,25,51,0.45)]"
                   >
                     Ajouter au panier
                   </button>
                   <button
                     type="button"
                     onClick={handleBuyNow}
-                    className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-700"
+                    className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(16,185,129,0.45)]"
                   >
                     Acheter maintenant
                   </button>
                 </div>
+              </div>
+            </div>
 
-                <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                  <p>
-                    <span className="font-semibold text-white">Livraison estimée :</span> 7-10 jours ouvrés. Vous serez notifié par email et SMS à
-                    l&apos;arrivée de votre commande.
-                  </p>
+            <div className="mt-10 hidden gap-10 md:grid lg:grid-cols-[1.15fr_0.85fr]">
+              {renderImage()}
+
+              <div className="space-y-6">
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+                  <h1 className="text-3xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
+                  <p className="mt-3 text-3xl font-bold text-[#ff4b63]">{formatPrice(priceValue)}</p>
+                  <p className="mt-4 text-base text-white/70">{description}</p>
+
+                  <div className="mt-6">
+                    <h2 className="text-lg font-semibold text-white">Informations</h2>
+                    <div className="mt-4 divide-y divide-white/10 text-sm">
+                      {infoRows.map((row) => (
+                        <div key={row.label} className="flex items-center justify-between py-3">
+                          <span className="text-white/60">{row.label}</span>
+                          <span className="text-right font-semibold text-white">{row.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={handleAddToCart}
+                      className="rounded-full bg-[#d71933] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:bg-[#b51229]"
+                    >
+                      Ajouter au panier
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleBuyNow}
+                      className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-700"
+                    >
+                      Acheter maintenant
+                    </button>
+                  </div>
+
+                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                    <p>
+                      <span className="font-semibold text-white">Livraison estimée :</span> 7-10 jours ouvrés. Vous serez notifié par email et SMS à
+                      l&apos;arrivée de votre commande.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </main>

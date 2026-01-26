@@ -743,7 +743,7 @@ export default function ShopPage() {
   };
 
   return (
-    <main className="min-h-[100dvh] bg-[#04020c] text-white lg:bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]">
+    <main className="min-h-[100dvh] bg-[#04020c] text-white bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]">
       {overlay}
       {statusMessage && (
         <div className="fixed right-4 top-[86px] z-50 mt-2 flex items-center gap-2 rounded-2xl border border-white/10 bg-black/80 px-4 py-2 text-sm font-semibold text-white shadow-[0_15px_40px_rgba(0,0,0,0.55)] backdrop-blur sm:top-[94px]">
@@ -856,10 +856,10 @@ export default function ShopPage() {
             </button>
             <button
               onClick={openFilterSheet}
-              className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white sm:hidden"
+              className="rounded-xl border border-white/10 bg-white/10 p-2 text-white sm:hidden"
+              aria-label="Filtrer"
             >
               <SlidersHorizontal className="h-4 w-4" />
-              Filtrer
             </button>
             <input
               ref={imageInputRef}
