@@ -887,32 +887,6 @@ function AccountClient() {
                 />
               </div>
             )}
-            <div className="lg:hidden">
-              <div className="mt-4 rounded-3xl border border-white/10 bg-black/40 p-4">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Navigation mobile</p>
-                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                  {DASHBOARD_MENU.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = activeMenu === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleMenuChange(item.id)}
-                        className={`flex min-w-[140px] flex-shrink-0 items-center gap-2 rounded-2xl border px-4 py-3 text-sm transition ${
-                          isActive
-                            ? "border-white/30 bg-white/15 text-white"
-                            : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
-                        }`}
-                      >
-                        <Icon className="h-4 w-4" />
-                        <span className="font-medium">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
             {activeMenu === "Parametres" && (
               <div className="rounded-[32px] border border-white/10 bg-black/50 p-6 backdrop-blur">
                 <div className="hidden flex-col gap-1 md:flex">
@@ -1311,27 +1285,6 @@ function AccountClient() {
                     Mes commandes
                   </button>
                 </div>
-                {lastWalletTransaction && (
-                  <div className="rounded-3xl border border-white/10 bg-black/40 p-4 text-sm">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-white/50">Dernière opération</p>
-                        <p className="text-white/80">{lastWalletTransaction.label}</p>
-                      </div>
-                      <p
-                        className={`text-base font-semibold ${
-                          lastWalletTransaction.type === "credit" ? "text-emerald-300" : "text-rose-300"
-                        }`}
-                      >
-                        {lastWalletTransaction.type === "credit" ? "+" : "-"}
-                        {formatCurrency(Math.abs(lastWalletTransaction.amount), me.countryCode)}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-xs text-white/60">
-                      {new Date(lastWalletTransaction.createdAt).toLocaleString("fr-FR")}
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -1394,9 +1347,9 @@ function AccountClient() {
             </div>
           </div>
         ) : (
-          <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur" onClick={closeOrdersModal} />
-            <div className="relative z-10 max-h-[80vh] w-full rounded-t-[36px] border border-white/10 bg-[#05030d] p-5 text-white shadow-[0_-20px_80px_rgba(0,0,0,0.85)]">
+            <div className="relative z-10 w-full max-w-lg max-h-[80vh] rounded-[32px] border border-white/10 bg-[#05030d] p-5 text-white shadow-[0_30px_120px_rgba(0,0,0,0.85)]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.4em] text-white/40">Mes commandes</p>

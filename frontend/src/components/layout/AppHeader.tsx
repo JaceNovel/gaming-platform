@@ -3,16 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Bell,
-  Coins,
-  Crown,
-  Mail,
-  MessageCircle,
-  ShoppingCart,
-  User,
-  Swords,
-} from "lucide-react";
+import { Bell, Coins, Crown, Mail, ShoppingCart, User, Swords } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
 
@@ -363,13 +354,6 @@ export default function AppHeader() {
               <span className="tracking-wide">{walletLabel}</span>
               <span className="text-[10px] text-white/70">{walletCurrencyLabel}</span>
             </div>
-            <Link
-              href="/chat"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-fuchsia-500 text-black shadow-[0_10px_30px_rgba(236,72,153,0.35)] ring-1 ring-white/20"
-              aria-label="Chat live"
-            >
-              <MessageCircle className="h-4 w-4" />
-            </Link>
             <div className="relative">
               <button
                 type="button"
