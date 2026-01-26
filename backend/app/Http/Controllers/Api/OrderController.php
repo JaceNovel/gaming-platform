@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\OrderItem;
 use App\Models\RedeemDenomination;
 use App\Models\RedeemCode;
+use App\Models\RedeemCodeDelivery;
 use App\Models\Coupon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,53 @@ class OrderController extends Controller
 
         $order->load(['orderItems.product', 'payment']);
         return response()->json($order);
+    }
+
+    public function redeemCodes(Request $request, Order $order)
+    {
+        if ($order->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        if (!in_array($order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock'], true)) {
+            return response()->json([
+                'status' => $order->status,
+                'codes' => [],
+            ]);
+        }
+
+        if ($order->status === 'paid_but_out_of_stock') {
+            return response()->json([
+                'status' => $order->status,
+                'codes' => [],
+            ]);
+        }
+
+        $deliveries = RedeemCodeDelivery::with(['redeemCode.denomination'])
+            ->where('order_id', $order->id)
+            ->orderBy('id')
+            ->get();
+
+        $codes = $deliveries->map(fn ($delivery) => [
+            'code' => $delivery->redeemCode?->code,
+            'label' => $delivery->redeemCode?->denomination?->label,
+            'diamonds' => $delivery->redeemCode?->denomination?->diamonds,
+            'quantity_index' => $delivery->quantity_index,
+        ])->filter(fn ($row) => !empty($row['code']))->values();
+
+        RedeemCodeDelivery::whereIn('id', $deliveries->pluck('id'))
+            ->where('delivered_via', 'email')
+            ->update(['delivered_via' => 'both']);
+
+        RedeemCode::whereIn('id', $deliveries->pluck('redeem_code_id'))
+            ->whereNull('revealed_at')
+            ->update(['revealed_at' => now()]);
+
+        return response()->json([
+            'status' => $order->status,
+            'codes' => $codes,
+            'guide_url' => url('/api/guides/shop2game-freefire'),
+        ]);
     }
 
     public function store(Request $request)
@@ -79,11 +127,16 @@ class OrderController extends Controller
                 ]);
             }
 
-            if (($product->stock_mode ?? 'manual') === 'redeem_pool') {
-                if ($quantity > 1) {
-                    throw ValidationException::withMessages([
-                        'items' => 'Redeem products must be purchased one at a time',
-                    ]);
+            if ($product->redeem_code_delivery && !$denominationId) {
+                $denominationId = RedeemDenomination::where('product_id', $product->id)
+                    ->where('active', true)
+                    ->orderByDesc('diamonds')
+                    ->value('id');
+            }
+
+            if (($product->stock_mode ?? 'manual') === 'redeem_pool' || $product->redeem_code_delivery) {
+                    if ($quantity > 1) {
+                        // Allow multi-quantity for redeem code delivery.
                 }
                 if (!$denominationId) {
                     throw ValidationException::withMessages([

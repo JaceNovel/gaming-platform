@@ -410,9 +410,10 @@ type ProductGridProps = {
   products: ShopProduct[];
   onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
   onView: (product: ShopProduct) => void;
+  onLike: (product: ShopProduct) => void;
 };
 
-function ProductGrid({ title, subtitle, products, onAddToCart, onView }: ProductGridProps) {
+function ProductGrid({ title, subtitle, products, onAddToCart, onView, onLike }: ProductGridProps) {
   return (
     <div className="space-y-4 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.1),_rgba(10,3,28,0.95))] p-6 shadow-[0_25px_80px_rgba(4,6,35,0.6)]">
       <div className="flex flex-col gap-1">
@@ -422,7 +423,7 @@ function ProductGrid({ title, subtitle, products, onAddToCart, onView }: Product
       <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-soft">
         {products.map((product) => (
           <div key={product.id} className="min-w-[320px] max-w-[320px] shrink-0">
-            <ProductCard product={product} onAddToCart={onAddToCart} onView={onView} />
+            <ProductCard product={product} onAddToCart={onAddToCart} onView={onView} onLike={onLike} />
           </div>
         ))}
         {!products.length && (
@@ -439,9 +440,10 @@ type ProductCardProps = {
   product: ShopProduct;
   onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
   onView: (product: ShopProduct) => void;
+  onLike: (product: ShopProduct) => void;
 };
 
-function ProductCard({ product, onAddToCart, onView }: ProductCardProps) {
+function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps) {
   const badgeLabel = product.discountPercent
     ? `-${product.discountPercent}%`
     : product.likes > 30
@@ -475,10 +477,14 @@ function ProductCard({ product, onAddToCart, onView }: ProductCardProps) {
             <p className="text-xs text-white/40 line-through">{formatNumber(product.oldPrice)} FCFA</p>
           )}
         </div>
-        <div className="flex items-center gap-1 text-xs text-white/60">
+        <button
+          type="button"
+          onClick={() => onLike(product)}
+          className="flex items-center gap-1 text-xs text-white/60 hover:text-rose-200"
+        >
           <Heart className="h-4 w-4 text-rose-300" />
           {product.likes}
-        </div>
+        </button>
       </div>
       <div className="mt-5 flex flex-col gap-2">
         <button
@@ -655,6 +661,48 @@ export default function ShopPage() {
     router.push(`/produits/${product.id}`);
   };
 
+  const handleToggleLike = async (product: ShopProduct) => {
+    if (typeof window === "undefined") return;
+    const token = localStorage.getItem("bbshop_token");
+    if (!token) {
+      setStatusMessage("Connectez-vous pour liker un article");
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+      statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 2200);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/likes/toggle`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ product_id: product.id }),
+      });
+
+      if (!res.ok) {
+        setStatusMessage("Impossible de liker cet article");
+        return;
+      }
+
+      const payload = await res.json();
+      const nextCount = Number(payload?.likes_count ?? product.likes);
+      setProducts((prev) =>
+        prev.map((item) => (item.id === product.id ? { ...item, likes: nextCount } : item))
+      );
+      setStatusMessage(payload?.liked ? "Ajouté aux likes" : "Like retiré");
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+      statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 2200);
+    } catch {
+      setStatusMessage("Impossible de liker cet article");
+    }
+  };
+
   const derivedCategories = useMemo(() => {
     const registry = new Map<string, CategoryOption>();
     catalog.forEach((product) => {
@@ -804,6 +852,7 @@ export default function ShopPage() {
                 products={popularProducts}
                 onAddToCart={handleAddToCart}
                 onView={handleViewProduct}
+                onLike={handleToggleLike}
               />
               <ProductGrid
                 title="Promotions cosmiques"
@@ -811,6 +860,7 @@ export default function ShopPage() {
                 products={promoProducts}
                 onAddToCart={handleAddToCart}
                 onView={handleViewProduct}
+                onLike={handleToggleLike}
               />
               <ProductGrid
                 title="Derniers ajouts"
@@ -818,6 +868,7 @@ export default function ShopPage() {
                 products={latestProducts}
                 onAddToCart={handleAddToCart}
                 onView={handleViewProduct}
+                onLike={handleToggleLike}
               />
             </div>
           </div>

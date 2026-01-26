@@ -26,6 +26,11 @@ class AdminEmailTemplateController extends Controller
         return response()->json($query->paginate($perPage));
     }
 
+    public function show(EmailTemplate $emailTemplate)
+    {
+        return response()->json(['data' => $emailTemplate->load('editor')]);
+    }
+
     public function store(Request $request, AdminAuditLogger $auditLogger)
     {
         $data = $request->validate([

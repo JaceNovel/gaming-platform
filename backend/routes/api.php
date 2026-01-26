@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminCategoryController;
 use App\Http\Controllers\Api\AdminDashboardController;
+use App\Http\Controllers\Api\AdminOfferController;
 use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminSettingsController;
 use App\Http\Controllers\Api\AdminOrderController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\PremiumController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\GuideController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\WalletController;
@@ -64,6 +66,8 @@ Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'han
 Route::get('/payments/cinetpay/return', [PaymentWebhookController::class, 'redirect'])->name('api.payments.cinetpay.return');
 Route::post('/wallet/topup/webhook', [WalletController::class, 'webhookTopup'])->name('api.wallet.topup.webhook');
 
+Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFreeFire']);
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -73,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Orders
     Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'store']);
+    Route::get('/orders/{order}/redeem-codes', [OrderController::class, 'redeemCodes']);
 
     // Cart
     Route::get('/cart', [CartController::class, 'index']);
@@ -147,6 +152,17 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::post('/redeem', [AdminRedeemCodeController::class, 'store'])->middleware('permission:redeems.manage');
     Route::post('/redeem/import', [AdminRedeemCodeController::class, 'import'])->middleware('permission:redeems.manage');
     Route::post('/redeem/{redeemCode}/invalidate', [AdminRedeemCodeController::class, 'invalidate'])->middleware('permission:redeems.manage');
+    Route::get('/redeem/low-stock', [AdminRedeemCodeController::class, 'lowStockProducts'])->middleware('permission:redeems.view');
+
+    Route::get('/redeem-codes', [AdminRedeemCodeController::class, 'index'])->middleware('permission:redeems.view');
+    Route::get('/redeem-codes/used', [AdminRedeemCodeController::class, 'used'])->middleware('permission:redeems.view');
+    Route::get('/redeem-codes/stats', [AdminRedeemCodeController::class, 'stats'])->middleware('permission:redeems.view');
+    Route::get('/redeem-codes/denominations', [AdminRedeemCodeController::class, 'denominations'])->middleware('permission:redeems.view');
+    Route::get('/redeem-codes/low-stock', [AdminRedeemCodeController::class, 'lowStockProducts'])->middleware('permission:redeems.view');
+    Route::get('/redeem-codes/export', [AdminRedeemCodeController::class, 'export'])->middleware('permission:redeems.view');
+    Route::post('/redeem-codes', [AdminRedeemCodeController::class, 'store'])->middleware('permission:redeems.manage');
+    Route::post('/redeem-codes/import', [AdminRedeemCodeController::class, 'import'])->middleware('permission:redeems.manage');
+    Route::post('/redeem-codes/{redeemCode}/invalidate', [AdminRedeemCodeController::class, 'invalidate'])->middleware('permission:redeems.manage');
 
     // Chat moderation
     Route::post('/chat/rooms/{room}/mute', [ChatController::class, 'muteUser']);
@@ -164,6 +180,8 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         Route::patch('/products/{product}', [AdminProductController::class, 'update']);
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
         Route::post('/products/{product}/image', [AdminProductController::class, 'uploadImage']);
+
+        Route::post('/offers/likes', [AdminOfferController::class, 'boostLikes']);
 
         Route::get('/categories', [AdminCategoryController::class, 'index']);
         Route::post('/categories', [AdminCategoryController::class, 'store']);
@@ -201,6 +219,8 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::get('/email-logs', [\App\Http\Controllers\Api\AdminEmailLogsController::class, 'index'])
         ->middleware('permission:email.view');
     Route::get('/email-templates', [\App\Http\Controllers\Api\AdminEmailTemplateController::class, 'index'])
+        ->middleware('permission:email.manage');
+    Route::get('/email-templates/{emailTemplate}', [\App\Http\Controllers\Api\AdminEmailTemplateController::class, 'show'])
         ->middleware('permission:email.manage');
     Route::post('/email-templates', [\App\Http\Controllers\Api\AdminEmailTemplateController::class, 'store'])
         ->middleware('permission:email.manage');

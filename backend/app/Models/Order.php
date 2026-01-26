@@ -50,6 +50,11 @@ class Order extends Model
         return $this->orderItems()->whereNotNull('redeem_denomination_id');
     }
 
+    public function redeemCodeDeliveries(): HasMany
+    {
+        return $this->hasMany(RedeemCodeDelivery::class);
+    }
+
     public function requiresRedeemFulfillment(): bool
     {
         if ($this->relationLoaded('orderItems')) {

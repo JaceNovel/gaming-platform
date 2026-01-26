@@ -44,4 +44,8 @@ return [
         'base_url' => env('CINETPAY_BASE_URL', 'https://api-checkout.cinetpay.com/v2'),
     ],
 
+    'discord' => [
+        'webhook' => env('DISCORD_WEBHOOK_URL'),
+    ],
+
 ];

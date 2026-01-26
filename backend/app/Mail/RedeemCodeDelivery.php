@@ -40,11 +40,13 @@ class RedeemCodeDelivery extends Mailable
             'order' => $this->order->toArray(),
             'user' => $this->order->user?->toArray() ?? [],
             'codes_html' => "<ul>{$codesHtml}</ul>",
+            'guide_url' => url('/api/guides/shop2game-freefire'),
         ];
 
         $fallbackHtml = view('emails.redeem-code-delivery', [
             'order' => $this->order,
             'codes' => $this->codes,
+            'guideUrl' => url('/api/guides/shop2game-freefire'),
         ])->render();
 
         $rendered = $renderer->render(

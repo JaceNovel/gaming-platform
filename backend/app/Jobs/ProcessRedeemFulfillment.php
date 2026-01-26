@@ -4,10 +4,13 @@ namespace App\Jobs;
 
 use App\Exceptions\RedeemStockDepletedException;
 use App\Mail\RedeemCodeDelivery;
+use App\Mail\OutOfStockMail;
 use App\Models\EmailLog;
 use App\Models\Order;
 use App\Models\RedeemCode;
+use App\Models\RedeemCodeDelivery;
 use App\Services\RedeemCodeAllocator;
+use App\Services\RedeemStockAlertService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -25,12 +28,16 @@ class ProcessRedeemFulfillment implements ShouldQueue
         $this->onQueue('redeem-fulfillment');
     }
 
-    public function handle(RedeemCodeAllocator $allocator): void
+    public function handle(RedeemCodeAllocator $allocator, RedeemStockAlertService $alertService): void
     {
         $order = Order::with(['user', 'orderItems.redeemDenomination', 'orderItems.redeemCode'])
             ->find($this->orderId);
 
         if (!$order || !$order->requiresRedeemFulfillment()) {
+            return;
+        }
+
+        if (RedeemCodeDelivery::where('order_id', $order->id)->exists()) {
             return;
         }
 
@@ -46,8 +53,10 @@ class ProcessRedeemFulfillment implements ShouldQueue
             }
 
             try {
-                $code = $allocator->assignCode($orderItem->redeemDenomination, $order, $orderItem);
-                $assignedCodes[] = $code;
+                $quantity = max(1, (int) ($orderItem->quantity ?? 1));
+                $codes = $allocator->assignCodes($orderItem->redeemDenomination, $order, $orderItem, $quantity);
+                $assignedCodes = array_merge($assignedCodes, $codes);
+                $alertService->notifyIfLowStock($orderItem->redeemDenomination);
             } catch (RedeemStockDepletedException $e) {
                 Log::warning('Redeem stock depleted during fulfillment', [
                     'order_id' => $order->id,
@@ -55,7 +64,9 @@ class ProcessRedeemFulfillment implements ShouldQueue
                     'denomination_id' => $orderItem->redeem_denomination_id,
                 ]);
 
-                $order->update(['status' => 'paid_pending_stock']);
+                $order->update(['status' => 'paid_but_out_of_stock']);
+
+                Mail::to($order->user->email)->queue(new OutOfStockMail($order));
 
                 return;
             }

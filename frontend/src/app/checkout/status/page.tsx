@@ -28,6 +28,12 @@ function CheckoutStatusScreen() {
   const [message, setMessage] = useState("Vérification du paiement en cours...");
   const [details, setDetails] = useState<{ transactionId?: string; orderId?: number }>({});
   const [checking, setChecking] = useState(false);
+  const [redeemCodes, setRedeemCodes] = useState<
+    Array<{ code: string; label?: string | null; diamonds?: number | null; quantity_index?: number }>
+  >([]);
+  const [guideUrl, setGuideUrl] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [outOfStock, setOutOfStock] = useState(false);
 
   const transactionId = searchParams.get("transaction_id");
   const orderId = searchParams.get("order_id");
@@ -55,6 +61,7 @@ function CheckoutStatusScreen() {
       }
 
       const paymentStatus = (payload?.data?.payment_status ?? "pending").toLowerCase();
+      const orderStatus = (payload?.data?.order_status ?? "").toLowerCase();
       setDetails({
         transactionId: payload?.data?.transaction_id ?? transactionId ?? undefined,
         orderId: payload?.data?.order_id ?? (orderId ? Number(orderId) : undefined),
@@ -62,7 +69,24 @@ function CheckoutStatusScreen() {
 
       if (paymentStatus === "paid") {
         setStatus("success");
-        setMessage("Paiement confirmé ! Ta commande est en préparation.");
+        if (orderStatus === "paid_but_out_of_stock") {
+          setOutOfStock(true);
+          setMessage("Commande payée – en attente de réapprovisionnement.");
+          setShowModal(true);
+          return;
+        }
+
+        setMessage("Paiement confirmé ! Voici vos codes.");
+        const resolvedOrderId = payload?.data?.order_id ?? (orderId ? Number(orderId) : undefined);
+        if (resolvedOrderId) {
+          const codesRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}/redeem-codes`);
+          const codesPayload = await codesRes.json().catch(() => null);
+          if (codesRes.ok && codesPayload?.codes) {
+            setRedeemCodes(codesPayload.codes);
+            setGuideUrl(codesPayload?.guide_url ?? null);
+            setShowModal(true);
+          }
+        }
       } else if (paymentStatus === "failed") {
         setStatus("failed");
         setMessage("Paiement refusé ou expiré. Merci de réessayer.");
@@ -92,6 +116,13 @@ function CheckoutStatusScreen() {
           : "text-white";
 
   const handleOrdersRedirect = () => router.push("/account");
+  const handleCopy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // ignore
+    }
+  };
 
   return (
     <div className="mobile-shell min-h-screen space-y-6 py-6 pb-24">
@@ -139,6 +170,68 @@ function CheckoutStatusScreen() {
           )}
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#0b0b16] p-6 text-white shadow-2xl">
+            {outOfStock ? (
+              <>
+                <h3 className="text-xl font-semibold">En attente de réapprovisionnement</h3>
+                <p className="mt-2 text-sm text-white/70">
+                  Vos codes seront envoyés dès que le stock est réapprovisionné.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-semibold">Vos codes sont prêts</h3>
+                <p className="mt-2 text-sm text-white/70">
+                  Copiez vos codes ci-dessous. Gardez-les en sécurité.
+                </p>
+                <div className="mt-4 space-y-3">
+                  {redeemCodes.map((code, index) => (
+                    <div key={`${code.code}-${index}`} className="rounded-xl border border-white/10 p-3">
+                      <div className="text-xs text-white/50">
+                        {code.label ?? "Recharge"} {code.diamonds ? `(${code.diamonds} diamants)` : ""}
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span className="font-mono text-sm text-white">{code.code}</span>
+                        <button
+                          onClick={() => handleCopy(code.code)}
+                          className="rounded-full border border-white/20 px-3 py-1 text-xs"
+                        >
+                          Copier
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleCopy(redeemCodes.map((c) => c.code).join("\n"))}
+                    className="rounded-full bg-white/10 px-4 py-2 text-xs"
+                  >
+                    Copier tout
+                  </button>
+                  {guideUrl && (
+                    <a
+                      href={guideUrl}
+                      className="rounded-full bg-emerald-500/80 px-4 py-2 text-xs text-white"
+                    >
+                      Télécharger le guide
+                    </a>
+                  )}
+                </div>
+              </>
+            )}
+            <button
+              onClick={() => setShowModal(false)}
+              className="mt-4 w-full rounded-full bg-white/10 px-4 py-2 text-sm"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

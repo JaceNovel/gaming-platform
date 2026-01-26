@@ -35,6 +35,10 @@ class Product extends Model
         'stock',
         'price_fcfa',
         'redeem_sku',
+        'redeem_code_delivery',
+        'stock_low_threshold',
+        'stock_alert_channel',
+        'stock_alert_emails',
         'is_active',
         'details',
         'description',
@@ -47,6 +51,8 @@ class Product extends Model
         'old_price' => 'decimal:2',
         'rating_avg' => 'decimal:2',
         'price_fcfa' => 'integer',
+        'redeem_code_delivery' => 'boolean',
+        'stock_low_threshold' => 'integer',
     ];
 
     public function images()
@@ -72,5 +78,10 @@ class Product extends Model
     public function likes(): HasMany
     {
         return $this->hasMany(Like::class, 'product_id');
+    }
+
+    public function redeemDenominations(): HasMany
+    {
+        return $this->hasMany(RedeemDenomination::class);
     }
 }

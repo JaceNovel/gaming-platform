@@ -15,6 +15,8 @@ Votre paiement pour la commande **{{ $order->reference }}** est confirmé. Voici
 2. Sélectionnez "Utiliser un code" puis saisissez le code ci-dessus.
 3. Validez pour recevoir instantanément vos diamants.
 
+Télécharger le guide Shop2Game : {{ $guideUrl ?? url('/api/guides/shop2game-freefire') }}
+
 Besoin d'aide ? Répondez simplement à cet email.
 
 Merci,

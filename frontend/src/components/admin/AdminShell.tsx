@@ -61,7 +61,16 @@ const MENU_ITEMS = [
   { label: "Demandes d'Importation", icon: Boxes, href: "/admin/redeem" },
   { label: "Avis Clients", icon: Star, href: "/admin/reviews" },
   { label: "Paramètres", icon: Settings, href: "/admin/settings" },
-  { label: "Redeem Codes", icon: Key, href: "/admin/redeem" },
+  {
+    label: "Redeem Codes",
+    icon: Key,
+    href: "/admin/redeem-codes",
+    children: [
+      { label: "Liste", href: "/admin/redeem-codes/list" },
+      { label: "Ajouter", href: "/admin/redeem-codes/add" },
+      { label: "Low Stock", href: "/admin/redeem-codes/low-stock" },
+    ],
+  },
   { label: "Commandes", icon: ShoppingCart, href: "/admin/orders" },
   { label: "Paiements", icon: CreditCard, href: "/admin/payments" },
   { label: "Stock / Inventaire", icon: Boxes, href: "/admin/stock" },

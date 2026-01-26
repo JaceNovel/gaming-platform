@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\RedeemCode;
 use App\Models\RedeemDenomination;
+use App\Models\Product;
 use App\Services\AdminAuditLogger;
+use App\Services\RedeemStockAlertService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +19,11 @@ class AdminRedeemCodeController extends Controller
     {
         $query = RedeemCode::with(['denomination', 'assignedOrder', 'assignedUser'])
             ->latest('id');
+
+        if ($request->filled('product_id')) {
+            $productId = $request->query('product_id');
+            $query->whereHas('denomination', fn ($q) => $q->where('product_id', $productId));
+        }
 
         if ($request->filled('category')) {
             $category = $request->query('category');
@@ -190,7 +197,7 @@ class AdminRedeemCodeController extends Controller
         ]);
     }
 
-    public function import(Request $request, AdminAuditLogger $auditLogger, StockService $stockService)
+    public function import(Request $request, AdminAuditLogger $auditLogger, StockService $stockService, RedeemStockAlertService $alertService)
     {
         $data = $request->validate([
             'denomination_id' => 'required|exists:redeem_denominations,id',
@@ -249,6 +256,8 @@ class AdminRedeemCodeController extends Controller
             'source' => 'redeem_import',
         ]);
 
+        $alertService->notifyIfLowStock($denomination);
+
         $auditLogger->log(
             $request->user(),
             'redeem_import',
@@ -276,6 +285,7 @@ class AdminRedeemCodeController extends Controller
             'codes as reserved_count' => fn ($query) => $query->where('status', 'reserved'),
             'codes as assigned_count' => fn ($query) => $query->whereIn('status', ['assigned', 'sent', 'used']),
         ])
+            ->when(request()->filled('product_id'), fn ($query) => $query->where('product_id', request()->query('product_id')))
             ->orderBy('diamonds')
             ->get()
             ->map(fn ($denom) => [
@@ -291,6 +301,28 @@ class AdminRedeemCodeController extends Controller
 
         return response()->json([
             'data' => $denominations,
+        ]);
+    }
+
+    public function lowStockProducts()
+    {
+        $denominations = RedeemDenomination::with(['product'])
+            ->withCount([
+                'codes as available_count' => fn ($query) => $query->where('status', 'available'),
+            ])
+            ->get()
+            ->filter(fn ($denom) => $denom->available_count < ($denom->low_stock_threshold ?? $denom->product?->stock_low_threshold ?? 0))
+            ->values();
+
+        return response()->json([
+            'data' => $denominations->map(fn ($denom) => [
+                'denomination_id' => $denom->id,
+                'product_id' => $denom->product_id,
+                'product_name' => $denom->product?->name,
+                'label' => $denom->label,
+                'available' => (int) $denom->available_count,
+                'threshold' => $denom->low_stock_threshold ?? $denom->product?->stock_low_threshold,
+            ]),
         ]);
     }
 
