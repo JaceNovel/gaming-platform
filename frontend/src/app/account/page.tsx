@@ -322,70 +322,9 @@ const statusBadgeClass = (status: Order["status"]) => {
   return "bg-amber-400/20 border-amber-300/30 text-amber-100";
 };
 
-const VIP_PLANS = [
-  {
-    level: "or",
-    label: "Or",
-    price: "10 000 FCFA",
-    perks: ["Cashback 5%", "Support 24/7", "Badge doré"],
-  },
-  {
-    level: "platine",
-    label: "Platine",
-    price: "13 000 FCFA",
-    perks: ["Cashback 7%", "Conciergerie", "Drop exclusifs"],
-  },
-];
+const DEFAULT_ORDERS: Order[] = [];
 
-function ProfileLoading() {
-  return (
-    <div className="min-h-screen bg-[#020109] text-white flex items-center justify-center">
-      <div className="relative flex flex-col items-center gap-6">
-        <div className="relative h-32 w-32">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-400 via-fuchsia-500 to-amber-400 opacity-40 blur-2xl" />
-          <div className="absolute inset-[8px] rounded-full border border-white/20" />
-          <div className="absolute inset-0 rounded-full border-t-2 border-cyan-300 animate-[spin_6s_linear_infinite]" />
-        </div>
-        <div className="text-center">
-          <p className="text-xs tracking-[0.4em] text-white/60">MON COMPTE</p>
-          <p className="mt-3 text-lg font-semibold">Initialisation du cockpit joueur...</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const mapOrderStatus = (status?: string): Order["status"] => {
-  const normalized = (status ?? "").toLowerCase();
-  if (normalized === "paid" || normalized === "delivered" || normalized === "success") {
-    return "COMPLÉTÉ";
-  }
-  if (normalized === "failed" || normalized === "canceled") {
-    return "ÉCHOUÉ";
-  }
-  return "EN_COURS";
-};
-
-function AccountClient() {
-  const { authFetch, user, loading: authLoading, logout } = useAuth();
-  const router = useRouter();
-  const fallbackProfile = useMemo<Me | null>(() => {
-    if (!user) return null;
-    const legacyUser =
-      user as typeof user & {
-        country_code?: string;
-        country?: string;
-        country_name?: string;
-        username?: string;
-        wallet_balance?: number;
-        walletBalance?: number;
-        premiumTier?: string;
-        premium_tier?: string;
-        premium_level?: string;
-        is_premium?: boolean;
-      };
-    const countryCode =
-      (typeof legacyUser.country_code === "string" && legacyUser.country_code.length > 0
+const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
         ? legacyUser.country_code
         : typeof legacyUser.country === "string"
           ? legacyUser.country

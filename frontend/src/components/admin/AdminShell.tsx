@@ -36,7 +36,15 @@ const MENU_ITEMS = [
       { label: "Ajouter", href: "/admin/products/add" },
     ],
   },
-  { label: "Catégories", icon: Tags, href: "/admin/categories" },
+  {
+    label: "Catégories",
+    icon: Tags,
+    href: "/admin/categories",
+    children: [
+      { label: "Catégories", href: "/admin/categories" },
+      { label: "Jeux", href: "/admin/games" },
+    ],
+  },
   {
     label: "Promotions",
     icon: TicketPercent,
