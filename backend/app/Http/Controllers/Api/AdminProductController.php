@@ -14,7 +14,7 @@ class AdminProductController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'game_id' => 'required|exists:games,id',
+            'game_id' => 'nullable|exists:games,id',
             'name' => 'required|string|max:255',
             'title' => 'nullable|string|max:255',
             'slug' => 'nullable|string|max:255',
@@ -63,7 +63,7 @@ class AdminProductController extends Controller
     public function update(Request $request, Product $product)
     {
         $data = $request->validate([
-            'game_id' => 'sometimes|exists:games,id',
+            'game_id' => 'sometimes|nullable|exists:games,id',
             'name' => 'sometimes|string|max:255',
             'title' => 'sometimes|string|max:255',
             'slug' => 'sometimes|string|max:255',
