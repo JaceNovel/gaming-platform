@@ -338,7 +338,7 @@ function AccountClient() {
         ? "Platine"
         : "Basic";
     return {
-      username: user.name ?? user.username ?? "BADBOY",
+      username: user.name ?? legacyUser.username ?? "BADBOY",
       countryCode,
       countryName: legacyUser.country_name ?? null,
       avatarId: legacyUser.is_premium ? "cyber_samurai" : "neon_assassin",
