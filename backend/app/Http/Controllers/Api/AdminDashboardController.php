@@ -11,6 +11,7 @@ use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\PremiumMembership;
 use App\Models\Product;
+use App\Models\RedeemDenomination;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,6 +22,88 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminDashboardController extends Controller
 {
+    public function statsOverview(Request $request)
+    {
+        $revenueTotal = (float) Payment::where('status', 'paid')->sum('amount');
+        $totalOrders = Order::count();
+        $totalProducts = Product::count();
+        $totalCustomers = User::where('role', 'user')->count();
+        $avgOrderValue = $totalOrders > 0 ? round($revenueTotal / $totalOrders, 2) : 0;
+        $failedPaymentsCount = Payment::where('status', 'failed')->count();
+        $pendingOrdersCount = Order::where('status', 'pending')->count();
+
+        $availableRedeems = RedeemDenomination::withCount([
+            'codes as available_count' => fn ($query) => $query->where('status', 'available'),
+        ])
+            ->orderBy('diamonds')
+            ->get()
+            ->mapWithKeys(fn ($denom) => [
+                $denom->code => (int) $denom->available_count,
+            ]);
+
+        $conversionRate = null;
+        $totalUsers = User::count();
+        if ($totalUsers > 0) {
+            $paidUsers = Order::where('status', 'paid')->distinct('user_id')->count('user_id');
+            $conversionRate = round(($paidUsers / $totalUsers) * 100, 2);
+        }
+
+        return response()->json([
+            'data' => [
+                'revenue_total' => $revenueTotal,
+                'total_orders' => $totalOrders,
+                'total_products' => $totalProducts,
+                'total_customers' => $totalCustomers,
+                'conversion_rate' => $conversionRate,
+                'avg_order_value' => $avgOrderValue,
+                'failed_payments_count' => $failedPaymentsCount,
+                'pending_orders_count' => $pendingOrdersCount,
+                'available_redeems_by_category' => $availableRedeems,
+            ],
+        ]);
+    }
+
+    public function revenue(Request $request)
+    {
+        $range = $request->query('range', 'month');
+
+        [$start, $end, $groupBy, $format] = match ($range) {
+            'week' => [Carbon::today()->subDays(6), Carbon::today(), 'day', 'd M'],
+            'year' => [Carbon::today()->subMonths(11)->startOfMonth(), Carbon::today()->endOfMonth(), 'month', 'M Y'],
+            default => [Carbon::today()->subDays(29), Carbon::today(), 'day', 'd M'],
+        };
+
+        $labels = [];
+        $cursor = $start->copy();
+        while ($cursor <= $end) {
+            $labels[] = $cursor->format($format);
+            $cursor = $groupBy === 'month' ? $cursor->addMonth() : $cursor->addDay();
+        }
+
+        $groupExpr = $groupBy === 'month' ? "date_trunc('month', created_at)" : "date_trunc('day', created_at)";
+
+        $rows = Payment::query()
+            ->selectRaw("{$groupExpr} as bucket, SUM(amount) as total")
+            ->where('status', 'paid')
+            ->whereBetween('created_at', [$start->startOfDay(), $end->endOfDay()])
+            ->groupBy('bucket')
+            ->orderBy('bucket')
+            ->get();
+
+        $lookup = $rows->mapWithKeys(function ($row) use ($groupBy, $format) {
+            $bucket = Carbon::parse($row->bucket)->format($format);
+            return [$bucket => (float) $row->total];
+        });
+
+        $values = array_map(fn ($label) => $lookup[$label] ?? 0, $labels);
+
+        return response()->json([
+            'data' => [
+                'labels' => $labels,
+                'values' => $values,
+            ],
+        ]);
+    }
     public function overview(Request $request)
     {
         $user = $request->user();

@@ -11,6 +11,109 @@ use Illuminate\Support\Facades\DB;
 
 class AdminRedeemCodeController extends Controller
 {
+    public function index(Request $request)
+    {
+        $query = RedeemCode::with(['denomination', 'assignedOrder', 'assignedUser'])
+            ->latest('id');
+
+        if ($request->filled('category')) {
+            $category = $request->query('category');
+            $query->whereHas('denomination', fn ($q) => $q->where('code', $category));
+        }
+
+        if ($request->filled('denomination_id')) {
+            $query->where('denomination_id', $request->query('denomination_id'));
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->query('status'));
+        }
+
+        if ($request->filled('code')) {
+            $query->where('code', 'like', '%' . $request->query('code') . '%');
+        }
+
+        $perPage = $request->integer('per_page', 30);
+
+        return response()->json($query->paginate($perPage));
+    }
+
+    public function store(Request $request, AdminAuditLogger $auditLogger)
+    {
+        $data = $request->validate([
+            'denomination_id' => 'required|exists:redeem_denominations,id',
+            'code' => 'required|string|max:191',
+        ]);
+
+        $code = RedeemCode::create([
+            'denomination_id' => $data['denomination_id'],
+            'code' => trim($data['code']),
+            'status' => 'available',
+            'imported_by' => $request->user()->id,
+            'imported_at' => now(),
+        ]);
+
+        $auditLogger->log(
+            $request->user(),
+            'redeem_add',
+            [
+                'message' => 'Manual add redeem code',
+                'redeem_id' => $code->id,
+            ],
+            actionType: 'redeem_stock',
+            request: $request
+        );
+
+        return response()->json([
+            'data' => $code,
+        ], 201);
+    }
+
+    public function invalidate(Request $request, RedeemCode $redeemCode, AdminAuditLogger $auditLogger)
+    {
+        if (in_array($redeemCode->status, ['used', 'sent', 'assigned'], true)) {
+            return response()->json(['message' => 'Cannot invalidate assigned/used code'], 422);
+        }
+
+        $redeemCode->update([
+            'status' => 'expired',
+            'meta' => array_merge((array) $redeemCode->meta, [
+                'invalidated_by' => $request->user()->id,
+                'invalidated_at' => now()->toIso8601String(),
+            ]),
+        ]);
+
+        $auditLogger->log(
+            $request->user(),
+            'redeem_invalidate',
+            [
+                'message' => 'Invalidated redeem code',
+                'redeem_id' => $redeemCode->id,
+            ],
+            actionType: 'redeem_stock',
+            request: $request
+        );
+
+        return response()->json(['message' => 'Redeem code invalidated']);
+    }
+
+    public function used(Request $request)
+    {
+        $query = RedeemCode::with(['denomination', 'assignedOrder', 'assignedUser'])
+            ->whereIn('status', ['assigned', 'sent', 'used']);
+
+        if ($request->filled('from')) {
+            $query->whereDate('assigned_at', '>=', $request->query('from'));
+        }
+
+        if ($request->filled('to')) {
+            $query->whereDate('assigned_at', '<=', $request->query('to'));
+        }
+
+        $perPage = $request->integer('per_page', 30);
+
+        return response()->json($query->latest('assigned_at')->paginate($perPage));
+    }
     public function denominations(Request $request)
     {
         $denominations = RedeemDenomination::with('product:id,name,sku')
@@ -100,6 +203,31 @@ class AdminRedeemCodeController extends Controller
             'message' => 'Codes imported',
             'imported' => count($insertPayload),
             'duplicates' => $existingSet->count(),
+        ]);
+    }
+
+    public function stats()
+    {
+        $denominations = RedeemDenomination::withCount([
+            'codes as available_count' => fn ($query) => $query->where('status', 'available'),
+            'codes as reserved_count' => fn ($query) => $query->where('status', 'reserved'),
+            'codes as assigned_count' => fn ($query) => $query->whereIn('status', ['assigned', 'sent', 'used']),
+        ])
+            ->orderBy('diamonds')
+            ->get()
+            ->map(fn ($denom) => [
+                'id' => $denom->id,
+                'code' => $denom->code,
+                'label' => $denom->label,
+                'diamonds' => $denom->diamonds,
+                'available' => (int) $denom->available_count,
+                'reserved' => (int) $denom->reserved_count,
+                'assigned' => (int) $denom->assigned_count,
+                'low_stock' => $denom->is_low_stock,
+            ]);
+
+        return response()->json([
+            'data' => $denominations,
         ]);
     }
 

@@ -27,7 +27,7 @@ class ProcessRedeemFulfillment implements ShouldQueue
 
     public function handle(RedeemCodeAllocator $allocator): void
     {
-        $order = Order::with(['user', 'orderItems.redeemDenomination'])
+        $order = Order::with(['user', 'orderItems.redeemDenomination', 'orderItems.redeemCode'])
             ->find($this->orderId);
 
         if (!$order || !$order->requiresRedeemFulfillment()) {
@@ -38,6 +38,10 @@ class ProcessRedeemFulfillment implements ShouldQueue
 
         foreach ($order->orderItems as $orderItem) {
             if (!$orderItem->redeem_denomination_id || !$orderItem->redeemDenomination) {
+                continue;
+            }
+
+            if ($orderItem->redeem_code_id) {
                 continue;
             }
 

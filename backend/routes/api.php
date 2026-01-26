@@ -120,24 +120,32 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Admin routes
-Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin,staff'])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manager,admin_support,admin_marketing,viewer,admin,staff,admin_article,admin_client'])->prefix('admin')->group(function () {
     Route::get('/me', AdminMeController::class);
     Route::get('/dashboard', [AdminDashboardController::class, 'overview']);
+    Route::get('/stats/overview', [AdminDashboardController::class, 'statsOverview'])->middleware('permission:stats.view');
+    Route::get('/stats/revenue', [AdminDashboardController::class, 'revenue'])->middleware('permission:stats.view');
     Route::get('/dashboard/tables', [AdminDashboardController::class, 'tables']);
     Route::get('/dashboard/export', [AdminDashboardController::class, 'export']);
     Route::get('/dashboard/summary', [AdminDashboardController::class, 'summary']);
     Route::get('/dashboard/charts', [AdminDashboardController::class, 'charts']);
 
     // Orders + fulfillment
-    Route::get('/orders', [AdminOrderController::class, 'index']);
+    Route::get('/orders', [AdminOrderController::class, 'index'])->middleware('permission:orders.view');
+    Route::get('/orders/recent', [AdminOrderController::class, 'recent'])->middleware('permission:orders.view');
     Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
-    Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus']);
+    Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->middleware('permission:orders.manage');
     Route::post('/orders/{order}/delivery-note-pdf', [AdminOrderController::class, 'deliveryNotePdf']);
     Route::post('/orders/{order}/resend-code', [AdminOrderController::class, 'resendCode']);
 
     // Redeem inventory
-    Route::get('/redeem/denominations', [AdminRedeemCodeController::class, 'denominations']);
-    Route::post('/redeem/import', [AdminRedeemCodeController::class, 'import']);
+    Route::get('/redeem/denominations', [AdminRedeemCodeController::class, 'denominations'])->middleware('permission:redeems.view');
+    Route::get('/redeem/stats', [AdminRedeemCodeController::class, 'stats'])->middleware('permission:redeems.view');
+    Route::get('/redeem', [AdminRedeemCodeController::class, 'index'])->middleware('permission:redeems.view');
+    Route::get('/redeem/used', [AdminRedeemCodeController::class, 'used'])->middleware('permission:redeems.view');
+    Route::post('/redeem', [AdminRedeemCodeController::class, 'store'])->middleware('permission:redeems.manage');
+    Route::post('/redeem/import', [AdminRedeemCodeController::class, 'import'])->middleware('permission:redeems.manage');
+    Route::post('/redeem/{redeemCode}/invalidate', [AdminRedeemCodeController::class, 'invalidate'])->middleware('permission:redeems.manage');
 
     // Chat moderation
     Route::post('/chat/rooms/{room}/mute', [ChatController::class, 'muteUser']);
@@ -150,7 +158,7 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin,staff
         Route::post('/settings/logo', [AdminSettingsController::class, 'uploadLogo']);
     });
 
-    Route::middleware('requireRole:admin_super,admin,staff,admin_article')->group(function () {
+    Route::middleware('requireRole:admin_super,admin,staff,admin_article,admin_manager,admin_marketing')->group(function () {
         Route::post('/products', [AdminProductController::class, 'store']);
         Route::patch('/products/{product}', [AdminProductController::class, 'update']);
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
@@ -164,6 +172,21 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin,staff
     Route::middleware('requireRole:admin_super')->group(function () {
         Route::get('/audit-logs', [AdminAuditLogController::class, 'index']);
     });
+
+    Route::get('/email-logs', [\App\Http\Controllers\Api\AdminEmailLogsController::class, 'index'])
+        ->middleware('permission:email.view');
+
+    Route::get('/support/tickets', [\App\Http\Controllers\Api\AdminSupportController::class, 'index'])
+        ->middleware('permission:support.view');
+    Route::post('/support/tickets/{ticket}/reply', [\App\Http\Controllers\Api\AdminSupportController::class, 'reply'])
+        ->middleware('permission:support.manage');
+    Route::patch('/support/tickets/{ticket}', [\App\Http\Controllers\Api\AdminSupportController::class, 'update'])
+        ->middleware('permission:support.manage');
+
+    Route::get('/payments', [\App\Http\Controllers\Api\AdminPaymentsController::class, 'index'])
+        ->middleware('permission:payments.view');
+    Route::post('/payments/{payment}/resync', [\App\Http\Controllers\Api\AdminPaymentsController::class, 'resync'])
+        ->middleware('permission:payments.resync');
 });
 
 // SSE streaming endpoint (auth handled inside controller to allow token query param)

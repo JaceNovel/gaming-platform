@@ -19,9 +19,13 @@ class User extends Authenticatable
     public const ADMIN_ROLES = [
         'admin',
         'admin_super',
+        'admin_manager',
+        'admin_support',
+        'admin_marketing',
         'admin_article',
         'admin_client',
         'staff',
+        'viewer',
     ];
 
     /**
@@ -33,6 +37,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
         'game_username',
         'country_code',
         'country_name',
@@ -167,5 +172,25 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return in_array($this->role, self::ADMIN_ROLES, true);
+    }
+
+    public function permissions(): array
+    {
+        $role = (string) $this->role;
+        $map = config('permissions.roles', []);
+        $permissions = $map[$role] ?? [];
+
+        if (in_array('*', $permissions, true)) {
+            $all = config('permissions.all', []);
+            return array_values(array_unique($all));
+        }
+
+        return $permissions;
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        $permissions = $this->permissions();
+        return in_array($permission, $permissions, true);
     }
 }

@@ -19,6 +19,14 @@ class AdminOrderController extends Controller
         $query = Order::with(['user', 'payment', 'orderItems.product', 'orderItems.redeemDenomination', 'orderItems.redeemCode'])
             ->latest('id');
 
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->query('from'));
+        }
+
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->query('to'));
+        }
+
         if ($status = $request->query('status')) {
             $query->where('status', $status);
         }
@@ -32,7 +40,50 @@ class AdminOrderController extends Controller
             $query->whereHas('user', fn ($q) => $q->where('email', 'like', "%{$email}%"));
         }
 
-        return response()->json($query->paginate(30));
+        if ($paymentStatus = $request->query('payment_status')) {
+            $query->whereHas('payment', fn ($q) => $q->where('status', $paymentStatus));
+        }
+
+        if ($country = $request->query('country')) {
+            $query->whereHas('user', fn ($q) => $q->where('country_code', $country));
+        }
+
+        if ($productType = $request->query('product_type')) {
+            $query->whereHas('orderItems.product', fn ($q) => $q->where('type', $productType));
+        }
+
+        $perPage = $request->integer('per_page', 30);
+
+        return response()->json($query->paginate($perPage));
+    }
+
+    public function recent(Request $request)
+    {
+        $limit = $request->integer('limit', 10);
+
+        $orders = Order::with(['user', 'payment', 'orderItems.product'])
+            ->latest('id')
+            ->limit(min($limit, 50))
+            ->get()
+            ->map(function (Order $order) {
+                return [
+                    'order_id' => $order->id,
+                    'reference' => $order->reference,
+                    'customer' => [
+                        'name' => $order->user?->name,
+                        'email' => $order->user?->email,
+                    ],
+                    'products' => $order->orderItems->map(fn ($item) => $item->product?->name)->filter()->values(),
+                    'date' => $order->created_at?->toIso8601String(),
+                    'amount' => (float) $order->total_price,
+                    'status' => $order->status,
+                    'payment_status' => $order->payment?->status,
+                ];
+            });
+
+        return response()->json([
+            'data' => $orders,
+        ]);
     }
 
     public function show(Order $order)
