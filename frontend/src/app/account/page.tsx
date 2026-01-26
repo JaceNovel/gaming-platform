@@ -310,26 +310,36 @@ function AccountClient() {
   const router = useRouter();
   const fallbackProfile = useMemo<Me | null>(() => {
     if (!user) return null;
-    const legacyUser = user as typeof user & { country_code?: string; country?: string; country_name?: string };
+    const legacyUser =
+      user as typeof user & {
+        country_code?: string;
+        country?: string;
+        country_name?: string;
+        wallet_balance?: number;
+        walletBalance?: number;
+        premium_tier?: string;
+        premium_level?: string;
+        is_premium?: boolean;
+      };
     const countryCode =
       (typeof legacyUser.country_code === "string" && legacyUser.country_code.length > 0
         ? legacyUser.country_code
         : typeof legacyUser.country === "string"
           ? legacyUser.country
           : null) ?? null;
-    const walletRaw = Number(user.wallet_balance ?? user.walletBalance ?? 0);
+    const walletRaw = Number(legacyUser.wallet_balance ?? legacyUser.walletBalance ?? 0);
     const walletBalance = Number.isFinite(walletRaw) ? walletRaw : 0;
-    const premiumTierRaw = user.premiumTier ?? user.premium_tier ?? user.premium_level;
+    const premiumTierRaw = legacyUser.premiumTier ?? legacyUser.premium_tier ?? legacyUser.premium_level;
     const premiumTierResolved = premiumTierRaw
       ? String(premiumTierRaw)
-      : user.is_premium
+      : legacyUser.is_premium
         ? "Platine"
         : "Basic";
     return {
       username: user.name ?? user.username ?? "BADBOY",
       countryCode,
       countryName: legacyUser.country_name ?? null,
-      avatarId: user.is_premium ? "cyber_samurai" : "neon_assassin",
+      avatarId: legacyUser.is_premium ? "cyber_samurai" : "neon_assassin",
       walletBalanceFcfa: walletBalance,
       premiumTier: premiumTierResolved,
     } satisfies Me;
