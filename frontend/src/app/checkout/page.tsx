@@ -114,7 +114,11 @@ function CheckoutScreen() {
 
       window.location.href = paymentUrl;
     } catch (error) {
-      setStatus("Connexion au serveur impossible.");
+      if (error instanceof Error && error.message) {
+        setStatus(error.message);
+      } else {
+        setStatus("Connexion au serveur impossible.");
+      }
     } finally {
       setLoading(false);
     }

@@ -1,15 +1,74 @@
-'use client';
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarRange, Download, RefreshCw } from "lucide-react";
+import {
+  Bell,
+  Boxes,
+  CreditCard,
+  Gift,
+  Headset,
+  Heart,
+  Key,
+  LayoutDashboard,
+  Menu,
+  Package,
+  Search,
+  Settings,
+  ShoppingCart,
+  Star,
+  Tags,
+  TicketPercent,
+  Users,
+  Mail,
+} from "lucide-react";
 import Link from "next/link";
-import { MetricGrid } from "@/components/admin/MetricGrid";
-import { ChartGrid } from "@/components/admin/ChartGrid";
-import { TablesGrid } from "@/components/admin/TablesGrid";
-import { SettingsPanel } from "@/components/admin/SettingsPanel";
-import { ProductManager } from "@/components/admin/ProductManager";
-import { Charts, Settings, Summary, Tables } from "@/components/admin/types";
 import { API_BASE } from "@/lib/config";
+
+type OverviewResponse = {
+  data: {
+    revenue_total: number;
+    total_orders: number;
+    total_products: number;
+    total_customers: number;
+    conversion_rate: number | null;
+    avg_order_value: number;
+    failed_payments_count: number;
+    pending_orders_count: number;
+    available_redeems_by_category: Record<string, number>;
+  };
+};
+
+type RevenueResponse = {
+  data: {
+    labels: string[];
+    values: number[];
+  };
+};
+
+type RecentOrder = {
+  order_id: number;
+  reference?: string | null;
+  customer?: { name?: string | null; email?: string | null };
+  products: string[];
+  date?: string | null;
+  amount: number;
+  status?: string | null;
+  payment_status?: string | null;
+};
+
+type RecentOrdersResponse = {
+  data: RecentOrder[];
+};
+
+type AdminMeResponse = {
+  data: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+    permissions: string[];
+  };
+};
 
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
@@ -29,40 +88,63 @@ const buildUrl = (path: string, params: Record<string, string> = {}) => {
   return url.toString();
 };
 
+const MENU_ITEMS = [
+  { label: "Tableau de bord", icon: LayoutDashboard, href: "/admin/dashboard" },
+  { label: "Utilisateurs", icon: Users, href: "/admin/users" },
+  { label: "Produits", icon: Package, href: "/admin/products" },
+  { label: "Catégories", icon: Tags, href: "/admin/categories" },
+  { label: "Promotions", icon: TicketPercent, href: "/admin/promotions" },
+  { label: "Codes Promo", icon: Gift, href: "/admin/coupons" },
+  { label: "Offres / VIP", icon: Heart, href: "/admin/offers" },
+  { label: "Redeem Codes", icon: Key, href: "/admin/redeem" },
+  { label: "Commandes", icon: ShoppingCart, href: "/admin/orders" },
+  { label: "Paiements", icon: CreditCard, href: "/admin/payments" },
+  { label: "Stock / Inventaire", icon: Boxes, href: "/admin/stock" },
+  { label: "Email", icon: Mail, href: "/admin/email" },
+  { label: "Support Client", icon: Headset, href: "/admin/support" },
+  { label: "Avis Clients", icon: Star, href: "/admin/reviews" },
+  { label: "Paramètres", icon: Settings, href: "/admin/settings" },
+];
+
+const formatAmount = (value?: number | null) => {
+  if (!value && value !== 0) return "—";
+  return `${Math.round(value).toLocaleString()} FCFA`;
+};
+
+const statusColor = (status?: string | null) => {
+  const normalized = String(status ?? "").toLowerCase();
+  if (["paid", "success", "completed", "fulfilled"].includes(normalized)) {
+    return "bg-emerald-100 text-emerald-700";
+  }
+  if (["failed", "canceled", "cancelled"].includes(normalized)) {
+    return "bg-rose-100 text-rose-700";
+  }
+  return "bg-amber-100 text-amber-700";
+};
+
+const buildLinePath = (values: number[], width = 520, height = 180) => {
+  if (!values.length) return "";
+  const max = Math.max(...values, 1);
+  const step = width / (values.length - 1 || 1);
+  return values
+    .map((value, index) => {
+      const x = index * step;
+      const y = height - (value / max) * height;
+      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+    })
+    .join(" ");
+};
+
 export default function AdminDashboardPage() {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [charts, setCharts] = useState<Charts | null>(null);
-  const [tables, setTables] = useState<Tables | null>(null);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [role, setRole] = useState<string>("");
+  const [overview, setOverview] = useState<OverviewResponse | null>(null);
+  const [revenue, setRevenue] = useState<RevenueResponse | null>(null);
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
+  const [adminProfile, setAdminProfile] = useState<AdminMeResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
-  const [exportType, setExportType] = useState("orders");
 
-  const dateParams = useMemo(() => ({ from, to }), [from, to]);
-
-  const fetchJson = useCallback(
-    async <T,>(path: string): Promise<T> => {
-      const res = await fetch(buildUrl(path, dateParams), {
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error(`Erreur ${res.status}`);
-      }
-
-      return res.json();
-    },
-    [dateParams],
-  );
-
-  const fetchUser = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/user`, {
+  const fetchJson = useCallback(async <T,>(path: string, params: Record<string, string> = {}): Promise<T> => {
+    const res = await fetch(buildUrl(path, params), {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeaders(),
@@ -70,7 +152,7 @@ export default function AdminDashboardPage() {
     });
 
     if (!res.ok) {
-      return null;
+      throw new Error(`Erreur ${res.status}`);
     }
 
     return res.json();
@@ -80,22 +162,19 @@ export default function AdminDashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [s, c, t, st, me] = await Promise.all([
-        fetchJson<Summary>('/admin/dashboard/summary').catch(() => null),
-        fetchJson<Charts>('/admin/dashboard/charts').catch(() => null),
-        fetchJson<Tables>('/admin/dashboard/tables'),
-        fetchJson<Settings>('/admin/settings').catch(() => null),
-        fetchUser(),
+      const [overviewRes, revenueRes, recentRes, meRes] = await Promise.all([
+        fetchJson<OverviewResponse>("/admin/stats/overview"),
+        fetchJson<RevenueResponse>("/admin/stats/revenue", { range: "month" }),
+        fetchJson<RecentOrdersResponse>("/admin/orders/recent", { limit: "10" }),
+        fetchJson<AdminMeResponse>("/admin/me"),
       ]);
-      setSummary(s);
-      setCharts(c);
-      setTables(t);
-      setSettings(st);
-      if (me?.role) {
-        setRole(me.role);
-      }
+
+      setOverview(overviewRes);
+      setRevenue(revenueRes);
+      setRecentOrders(recentRes?.data ?? []);
+      setAdminProfile(meRes);
     } catch (err) {
-      setError('Impossible de charger le dashboard. Vérifie le token admin.');
+      setError("Impossible de charger le dashboard admin.");
     } finally {
       setLoading(false);
     }
@@ -105,180 +184,192 @@ export default function AdminDashboardPage() {
     loadAll();
   }, [loadAll]);
 
-  const handleExport = async () => {
-    const res = await fetch(buildUrl('/admin/dashboard/export', { ...dateParams, type: exportType }), {
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) {
-      setError('Export impossible');
-      return;
-    }
-    const blob = await res.blob();
-    const filename = `${exportType}-${new Date().toISOString().slice(0, 10)}.csv`;
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  };
+  const chartLabels = revenue?.data?.labels ?? [];
+  const chartValues = revenue?.data?.values ?? [];
+  const chartPath = useMemo(() => buildLinePath(chartValues), [chartValues]);
 
-  const saveSettings = async (payload: Partial<Settings>) => {
-    const res = await fetch(buildUrl('/admin/settings'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setSettings(data);
-    }
-  };
-
-  const uploadLogo = async (file: File) => {
-    const form = new FormData();
-    form.append('logo', file);
-    const res = await fetch(buildUrl('/admin/settings/logo'), {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: form,
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setSettings((prev) => ({ ...(prev ?? {}), logo_url: data.logo_url }));
-    }
-  };
-
-  const isSuperAdmin = role === "admin" || role === "admin_super";
-  const isArticleAdmin = role === "admin_article";
-  const isClientAdmin = role === "admin_client";
-  const roleLabel = isSuperAdmin
-    ? "Admin supérieur"
-    : isArticleAdmin
-      ? "Admin article"
-      : isClientAdmin
-        ? "Admin client"
-        : "Admin";
-
-  const exportOptions = useMemo(() => {
-    if (isArticleAdmin) {
-      return [{ value: "products", label: "Products" }];
-    }
-    if (isClientAdmin) {
-      return [
-        { value: "orders", label: "Orders" },
-        { value: "payments", label: "Payments" },
-        { value: "users", label: "Users" },
-        { value: "email_logs", label: "Delivery emails" },
-      ];
-    }
+  const kpis = useMemo(() => {
+    const data = overview?.data;
     return [
-      { value: "orders", label: "Orders" },
-      { value: "payments", label: "Payments" },
-      { value: "users", label: "Users" },
-      { value: "premium_memberships", label: "Premium" },
-      { value: "products", label: "Products" },
-      { value: "likes", label: "Likes" },
-      { value: "chat_messages", label: "Chat" },
-      { value: "email_logs", label: "Delivery emails" },
+      {
+        label: "Revenu Total",
+        value: formatAmount(data?.revenue_total),
+        icon: CreditCard,
+        accent: "bg-emerald-100 text-emerald-600",
+      },
+      {
+        label: "Total des Commandes",
+        value: data?.total_orders ?? "—",
+        icon: ShoppingCart,
+        accent: "bg-blue-100 text-blue-600",
+      },
+      {
+        label: "Total des Produits",
+        value: data?.total_products ?? "—",
+        icon: Package,
+        accent: "bg-orange-100 text-orange-600",
+      },
+      {
+        label: "Total des Clients",
+        value: data?.total_customers ?? "—",
+        icon: Users,
+        accent: "bg-purple-100 text-purple-600",
+      },
     ];
-  }, [isArticleAdmin, isClientAdmin]);
-
-  useEffect(() => {
-    if (!exportOptions.find((opt) => opt.value === exportType)) {
-      setExportType(exportOptions[0]?.value ?? "orders");
-    }
-  }, [exportOptions, exportType]);
-
-  const visibleTables = useMemo(() => {
-    if (isArticleAdmin) {
-      return ["products"];
-    }
-    if (isClientAdmin) {
-      return ["orders", "payments", "users", "email_logs"];
-    }
-    return undefined;
-  }, [isArticleAdmin, isClientAdmin]);
+  }, [overview]);
 
   return (
-    <div className="space-y-6 bg-[radial-gradient(circle_at_top,_#111927_0%,_#020617_45%,_#0f172a_100%)] px-4 py-6 text-white">
-      <header className="flex flex-col gap-4 rounded-3xl border border-white/5 bg-gradient-to-r from-slate-900/80 to-slate-800/60 p-6 shadow-2xl shadow-emerald-500/10 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="text-xs uppercase tracking-[0.35em] text-emerald-300">BADBOYSHOP</div>
-          <h1 className="mt-1 text-3xl font-black">Admin Dashboard</h1>
-          <p className="text-sm text-white/70">Pilotage temps réel : ventes, paiements, premium, modération.</p>
-          <div className="mt-2 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-white/70">
-            {roleLabel}
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="flex">
+        <aside className="hidden min-h-screen w-64 flex-col border-r border-slate-200 bg-white px-5 py-6 lg:flex">
+          <div className="flex items-center gap-3 text-lg font-semibold text-slate-900">
+            <div className="h-10 w-10 rounded-2xl bg-slate-100" />
+            Admin
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {(isSuperAdmin || isClientAdmin) && (
-            <Link
-              href="/admin/clients"
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80"
-            >
-              Clients
-            </Link>
+          <nav className="mt-8 space-y-1">
+            {MENU_ITEMS.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="mt-auto pt-6 text-xs text-slate-400">Powered by Gestionnaire</div>
+        </aside>
+
+        <main className="flex-1 px-6 py-6">
+          <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-4">
+            <div className="flex items-center gap-3">
+              <button className="rounded-lg border border-slate-200 p-2 lg:hidden">
+                <Menu className="h-4 w-4" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-semibold text-red-500">Tableau de bord administratif</h1>
+                <p className="text-sm text-slate-500">Bienvenue ! Voici votre aperçu.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 md:flex">
+                <Search className="h-4 w-4" />
+                Rechercher...
+              </div>
+              <button className="rounded-full border border-slate-200 p-2 text-slate-500">
+                <Bell className="h-4 w-4" />
+              </button>
+              <button className="rounded-full border border-slate-200 p-2 text-slate-500">
+                <Heart className="h-4 w-4" />
+              </button>
+              <div className="h-9 w-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center text-xs font-semibold">
+                {adminProfile?.data?.name?.slice(0, 2)?.toUpperCase() ?? "AD"}
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {error}
+            </div>
           )}
-          <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
-            <CalendarRange className="h-4 w-4 text-emerald-300" />
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="bg-transparent text-white outline-none"
-            />
-            <span className="text-white/50">→</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="bg-transparent text-white outline-none"
-            />
-          </label>
-          <button
-            onClick={loadAll}
-            className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold shadow-lg shadow-emerald-500/40"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm">
-            <select
-              className="bg-transparent text-white outline-none"
-              value={exportType}
-              onChange={(e) => setExportType(e.target.value)}
-            >
-              {exportOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <button onClick={handleExport} className="rounded-lg bg-white/10 px-3 py-2 text-white">
-              <Download className="h-4 w-4" />
-            </button>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {kpis.map((card) => (
+              <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-400">{card.label}</p>
+                    <p className="mt-2 text-2xl font-semibold">{card.value}</p>
+                  </div>
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-full ${card.accent}`}>
+                    <card.icon className="h-5 w-5" />
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-emerald-500">↑ 0.0%</p>
+              </div>
+            ))}
           </div>
-        </div>
-      </header>
 
-      {error && (
-        <div className="rounded-xl border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-          {error}
-        </div>
-      )}
+          <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">Aperçu des Revenus</h2>
+                <span className="text-xs text-slate-400">30 derniers jours</span>
+              </div>
+              <div className="mt-6">
+                <svg viewBox="0 0 520 180" className="h-48 w-full">
+                  <path d={chartPath} fill="none" stroke="#3b82f6" strokeWidth="3" />
+                  {chartValues.map((value, index) => {
+                    const max = Math.max(...chartValues, 1);
+                    const x = (520 / (chartValues.length - 1 || 1)) * index;
+                    const y = 180 - (value / max) * 180;
+                    return <circle key={`${x}-${y}`} cx={x} cy={y} r={4} fill="#3b82f6" />;
+                  })}
+                </svg>
+                <div className="mt-4 flex justify-between text-xs text-slate-400">
+                  {chartLabels.slice(0, 6).map((label) => (
+                    <span key={label}>{label}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-      {isSuperAdmin && <MetricGrid summary={summary} />}
-      {isSuperAdmin && <ChartGrid charts={charts} />}
-      {(isArticleAdmin || isSuperAdmin) && (
-        <ProductManager products={tables?.products?.data ?? []} onRefresh={loadAll} />
-      )}
-      <TablesGrid tables={tables} visibleTables={visibleTables} />
-      {isSuperAdmin && (
-        <SettingsPanel settings={settings} onSave={saveSettings} onUploadLogo={uploadLogo} loading={loading} />
-      )}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">Commandes Récentes</h2>
+                <span className="text-xs text-slate-400">Derniers achats</span>
+              </div>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-xs text-slate-400">
+                    <tr>
+                      <th className="pb-2">ID de commande</th>
+                      <th className="pb-2">Client</th>
+                      <th className="pb-2">Produit</th>
+                      <th className="pb-2">Date</th>
+                      <th className="pb-2">Montant</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentOrders.map((order) => (
+                      <tr key={order.order_id} className="border-t border-slate-100">
+                        <td className="py-3 text-slate-700">{order.reference ?? order.order_id}</td>
+                        <td className="py-3 text-slate-700">
+                          <div className="font-medium">{order.customer?.name ?? "—"}</div>
+                          <div className="text-xs text-slate-400">{order.customer?.email ?? ""}</div>
+                        </td>
+                        <td className="py-3 text-slate-700">
+                          {order.products?.[0] ?? "—"}
+                        </td>
+                        <td className="py-3 text-slate-500">
+                          {order.date ? new Date(order.date).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="py-3 font-semibold text-slate-700">
+                          {formatAmount(order.amount)}
+                          <span
+                            className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] ${statusColor(order.payment_status)}`}
+                          >
+                            {order.payment_status ?? "pending"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {!recentOrders.length && (
+                      <tr>
+                        <td className="py-6 text-center text-sm text-slate-400" colSpan={5}>
+                          {loading ? "Chargement..." : "Aucune commande récente"}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
