@@ -76,7 +76,7 @@ export default function ProductDetailsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | number | null>(null);
   const [product, setProduct] = useState<ApiProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
