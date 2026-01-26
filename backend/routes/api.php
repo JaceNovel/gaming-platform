@@ -61,7 +61,6 @@ Route::get('/likes/stats', [LikeController::class, 'stats']);
 
 // Webhooks (no auth required)
 Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.cinetpay.webhook');
-Route::post('/payments/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.webhook');
 Route::get('/payments/cinetpay/return', [PaymentWebhookController::class, 'redirect'])->name('api.payments.cinetpay.return');
 Route::post('/wallet/topup/webhook', [WalletController::class, 'webhookTopup'])->name('api.wallet.topup.webhook');
 
@@ -80,8 +79,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cart/add', [CartController::class, 'add']);
 
     // Payments
-    Route::post('/payments/cinetpay/init', [PaymentController::class, 'init']);
-    Route::get('/payments/cinetpay/status', [PaymentController::class, 'status']);
+    Route::post('/payments/cinetpay/init', [PaymentController::class, 'init'])->name('api.payments.cinetpay.init');
+    Route::get('/payments/cinetpay/status', [PaymentController::class, 'status'])->name('api.payments.cinetpay.status');
 
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);

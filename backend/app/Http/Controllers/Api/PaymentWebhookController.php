@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
 use App\Models\Payment;
+use App\Models\PaymentAttempt;
 use App\Services\CinetPayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -39,9 +40,16 @@ class PaymentWebhookController extends Controller
             $query->with('orderItems');
         }])->where('transaction_id', $transactionId)->first();
 
+        $attempt = PaymentAttempt::where('transaction_id', $transactionId)->first();
+
         if (!$payment) {
             Log::warning('cinetpay:error', ['stage' => 'webhook-missing', 'transaction_id' => $transactionId]);
             return response()->json(['message' => 'Payment not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        if ($attempt && in_array($attempt->status, ['paid', 'failed'], true)) {
+            Log::info('cinetpay:webhook-idempotent', ['transaction_id' => $transactionId, 'status' => $attempt->status]);
+            return response()->json(['success' => true, 'message' => 'Webhook already processed']);
         }
 
         if (in_array($payment->status, ['paid', 'failed'], true)) {
@@ -64,6 +72,21 @@ class PaymentWebhookController extends Controller
         $normalized = $this->cinetPayService->normalizeStatus($verification, strtoupper($request->input('cpm_trans_status')));
 
         if ($normalized === 'pending') {
+            PaymentAttempt::updateOrCreate(
+                ['transaction_id' => $transactionId],
+                [
+                    'order_id' => $payment->order_id,
+                    'amount' => (float) $payment->amount,
+                    'currency' => strtoupper((string) ($payment->order->currency ?? config('cinetpay.default_currency', 'XOF'))),
+                    'status' => 'pending',
+                    'provider' => 'cinetpay',
+                    'raw_payload' => [
+                        'webhook' => $payload,
+                        'verification' => $verification,
+                    ],
+                ]
+            );
+
             return response()->json(['success' => true, 'message' => 'Payment pending'], Response::HTTP_ACCEPTED);
         }
 
@@ -80,7 +103,7 @@ class PaymentWebhookController extends Controller
             return response()->json(['message' => 'Amount mismatch'], Response::HTTP_BAD_REQUEST);
         }
 
-        DB::transaction(function () use ($payment, $normalized, $payload, $verification) {
+        DB::transaction(function () use ($payment, $normalized, $payload, $verification, $transactionId) {
             $meta = $payment->webhook_data ?? [];
             if (!is_array($meta)) {
                 $meta = [];
@@ -95,6 +118,22 @@ class PaymentWebhookController extends Controller
 
             $orderStatus = $normalized === 'paid' ? 'paid' : 'failed';
             $payment->order->update(['status' => $orderStatus]);
+
+            PaymentAttempt::updateOrCreate(
+                ['transaction_id' => $transactionId],
+                [
+                    'order_id' => $payment->order_id,
+                    'amount' => (float) $payment->amount,
+                    'currency' => strtoupper((string) ($payment->order->currency ?? config('cinetpay.default_currency', 'XOF'))),
+                    'status' => $normalized,
+                    'provider' => 'cinetpay',
+                    'processed_at' => now(),
+                    'raw_payload' => [
+                        'webhook' => $payload,
+                        'verification' => $verification,
+                    ],
+                ]
+            );
 
             if ($normalized === 'paid' && $payment->order->type !== 'wallet_topup') {
                 $payment->order->loadMissing('orderItems');

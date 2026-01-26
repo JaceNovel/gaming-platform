@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\PaymentAttempt;
 use App\Services\CinetPayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,8 @@ class PaymentController extends Controller
             'currency' => ['required', 'string', 'size:3'],
             'customer_phone' => ['nullable', 'string', 'max:32'],
             'customer_email' => ['nullable', 'email'],
+            'description' => ['nullable', 'string', 'max:191'],
+            'customer_name' => ['nullable', 'string', 'max:191'],
             'metadata' => ['sometimes', 'array'],
         ]);
 
@@ -61,7 +64,7 @@ class PaymentController extends Controller
         $transactionId = $order->payment?->transaction_id ?? $this->cinetPayService->generateTransactionId($order);
 
         try {
-            $payment = DB::transaction(function () use ($order, $transactionId, $expectedAmount) {
+            $payment = DB::transaction(function () use ($order, $transactionId, $expectedAmount, $currency) {
                 $payment = $order->payment ?? new Payment();
 
                 $payment->fill([
@@ -77,6 +80,17 @@ class PaymentController extends Controller
                 $order->payment_id = $payment->id;
                 $order->save();
 
+                PaymentAttempt::updateOrCreate(
+                    ['transaction_id' => $transactionId],
+                    [
+                        'order_id' => $order->id,
+                        'amount' => $expectedAmount,
+                        'currency' => $currency,
+                        'status' => 'pending',
+                        'provider' => 'cinetpay',
+                    ]
+                );
+
                 return $payment->fresh(['order']);
             });
 
@@ -84,6 +98,8 @@ class PaymentController extends Controller
                 'transaction_id' => $transactionId,
                 'amount' => $expectedAmount,
                 'currency' => $currency,
+                'description' => $validated['description'] ?? null,
+                'customer_name' => $validated['customer_name'] ?? null,
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'customer_email' => $validated['customer_email'] ?? $user->email,
                 'notify_url' => route('api.payments.cinetpay.webhook'),
@@ -106,6 +122,17 @@ class PaymentController extends Controller
             $payment->update([
                 'status' => 'initiated',
                 'webhook_data' => $meta,
+            ]);
+
+            PaymentAttempt::where('transaction_id', $transactionId)->update([
+                'raw_payload' => [
+                    'init_request' => [
+                        'order_id' => $order->id,
+                        'amount' => $expectedAmount,
+                        'currency' => $currency,
+                    ],
+                    'init_response' => $initResult['raw'] ?? null,
+                ],
             ]);
 
             return response()->json([
