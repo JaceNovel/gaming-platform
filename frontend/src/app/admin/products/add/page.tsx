@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
@@ -59,14 +59,12 @@ export default function AdminProductsAddPage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const authHeaders = useMemo(() => getAuthHeaders(), []);
-
   const loadCategories = useCallback(async () => {
     try {
       const res = await fetch(buildUrl("/admin/categories"), {
         headers: {
           "Content-Type": "application/json",
-          ...authHeaders,
+          ...getAuthHeaders(),
         },
       });
       if (!res.ok) return;
@@ -75,7 +73,7 @@ export default function AdminProductsAddPage() {
     } catch {
       // ignore
     }
-  }, [authHeaders]);
+  }, []);
 
   const loadGames = useCallback(async () => {
     try {
@@ -128,15 +126,22 @@ export default function AdminProductsAddPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...authHeaders,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        const errorPayload = await res.json().catch(() => ({}));
-        setStatus(errorPayload?.message ?? "Création impossible");
-        return;
+          const errorText = await res.text().catch(() => "");
+          let message = "Création impossible";
+          try {
+            const parsed = errorText ? JSON.parse(errorText) : null;
+            message = parsed?.message ?? message;
+          } catch {
+            if (errorText) message = errorText;
+          }
+          setStatus(`${message} (HTTP ${res.status})`);
+          return;
       }
 
       const created = await res.json().catch(() => ({}));
@@ -148,7 +153,7 @@ export default function AdminProductsAddPage() {
         const upload = await fetch(`${API_BASE}/admin/products/${productId}/image`, {
           method: "POST",
           headers: {
-            ...authHeaders,
+            ...getAuthHeaders(),
           },
           body: formData,
         });
