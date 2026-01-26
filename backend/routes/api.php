@@ -215,6 +215,8 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
 
     Route::get('/users', [\App\Http\Controllers\Api\AdminUsersController::class, 'index'])
         ->middleware('permission:users.view');
+    Route::get('/users/{user}', [\App\Http\Controllers\Api\AdminUsersController::class, 'show'])
+        ->middleware('permission:users.view');
     Route::patch('/users/{user}', [\App\Http\Controllers\Api\AdminUsersController::class, 'update'])
         ->middleware('permission:users.manage');
     Route::get('/users/export', [\App\Http\Controllers\Api\AdminUsersController::class, 'export'])

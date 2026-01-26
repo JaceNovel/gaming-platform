@@ -7,12 +7,16 @@ use App\Models\User;
 use App\Services\AdminAuditLogger;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Models\Order;
 
 class AdminUsersController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::query()->latest('id');
+        $query = User::query()
+            ->withSum('orders as total_spent', 'total_price')
+            ->withMax('orders as last_order_at', 'created_at')
+            ->latest('id');
 
         if ($request->filled('role')) {
             $query->where('role', $request->query('role'));
@@ -63,6 +67,41 @@ class AdminUsersController extends Controller
         }
 
         return response()->json(['data' => $user]);
+    }
+
+    public function show(User $user)
+    {
+        $user->loadCount('orders');
+
+        $orders = Order::with(['payment', 'orderItems.product'])
+            ->where('user_id', $user->id)
+            ->latest('id')
+            ->limit(10)
+            ->get();
+
+        $latestOrder = $orders->first();
+        $meta = (array) ($latestOrder?->meta ?? []);
+        $gameUserId = $orders
+            ->flatMap(fn ($order) => $order->orderItems ?? collect())
+            ->pluck('game_user_id')
+            ->filter()
+            ->first();
+
+        $profile = [
+            'phone' => $meta['phone'] ?? null,
+            'billing_address' => $meta['billing_address'] ?? null,
+            'shipping_address' => $meta['shipping_address'] ?? null,
+            'last_order_at' => $latestOrder?->created_at?->toIso8601String(),
+            'game_user_id' => $gameUserId,
+        ];
+
+        return response()->json([
+            'data' => [
+                'user' => $user,
+                'profile' => $profile,
+                'orders' => $orders,
+            ],
+        ]);
     }
 
     public function export(Request $request)
