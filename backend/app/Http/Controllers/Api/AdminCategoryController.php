@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class AdminCategoryController extends Controller
 {
@@ -62,5 +63,19 @@ class AdminCategoryController extends Controller
         $category->delete();
 
         return response()->json(['message' => 'Category deleted']);
+    }
+
+    public function uploadImage(Request $request, Category $category)
+    {
+        $data = $request->validate([
+            'image' => 'required|image|max:4096',
+        ]);
+
+        $path = $data['image']->store('categories', 'public');
+        $url = Storage::disk('public')->url($path);
+
+        $category->update(['icon' => $url]);
+
+        return response()->json(['data' => $category]);
     }
 }

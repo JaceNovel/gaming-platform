@@ -163,11 +163,13 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         Route::post('/products', [AdminProductController::class, 'store']);
         Route::patch('/products/{product}', [AdminProductController::class, 'update']);
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
+        Route::post('/products/{product}/image', [AdminProductController::class, 'uploadImage']);
 
         Route::get('/categories', [AdminCategoryController::class, 'index']);
         Route::post('/categories', [AdminCategoryController::class, 'store']);
         Route::patch('/categories/{category}', [AdminCategoryController::class, 'update']);
         Route::delete('/categories/{category}', [AdminCategoryController::class, 'destroy']);
+        Route::post('/categories/{category}/image', [AdminCategoryController::class, 'uploadImage']);
     });
 
     Route::get('/coupons', [\App\Http\Controllers\Api\AdminCouponController::class, 'index'])
@@ -177,6 +179,17 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::patch('/coupons/{coupon}', [\App\Http\Controllers\Api\AdminCouponController::class, 'update'])
         ->middleware('permission:coupons.manage');
     Route::delete('/coupons/{coupon}', [\App\Http\Controllers\Api\AdminCouponController::class, 'destroy'])
+        ->middleware('permission:coupons.manage');
+
+    Route::get('/promotions', [\App\Http\Controllers\Api\AdminCouponController::class, 'index'])
+        ->middleware('permission:coupons.manage');
+    Route::get('/promotions/{coupon}', [\App\Http\Controllers\Api\AdminCouponController::class, 'show'])
+        ->middleware('permission:coupons.manage');
+    Route::post('/promotions', [\App\Http\Controllers\Api\AdminCouponController::class, 'store'])
+        ->middleware('permission:coupons.manage');
+    Route::patch('/promotions/{coupon}', [\App\Http\Controllers\Api\AdminCouponController::class, 'update'])
+        ->middleware('permission:coupons.manage');
+    Route::delete('/promotions/{coupon}', [\App\Http\Controllers\Api\AdminCouponController::class, 'destroy'])
         ->middleware('permission:coupons.manage');
 
     Route::middleware('requireRole:admin_super')->group(function () {

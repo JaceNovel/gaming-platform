@@ -37,7 +37,15 @@ const MENU_ITEMS = [
     ],
   },
   { label: "Catégories", icon: Tags, href: "/admin/categories" },
-  { label: "Promotions", icon: TicketPercent, href: "/admin/promotions" },
+  {
+    label: "Promotions",
+    icon: TicketPercent,
+    href: "/admin/promotions",
+    children: [
+      { label: "Liste", href: "/admin/promotions/list" },
+      { label: "Ajouter", href: "/admin/promotions/add" },
+    ],
+  },
   { label: "Codes Promo", icon: Gift, href: "/admin/coupons" },
   { label: "Offres", icon: Heart, href: "/admin/offers" },
   { label: "Email", icon: Mail, href: "/admin/email" },

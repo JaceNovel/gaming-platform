@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\OrderItem;
 use App\Models\RedeemDenomination;
 use App\Models\RedeemCode;
+use App\Models\Coupon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -130,13 +131,18 @@ class OrderController extends Controller
         }
 
         $order = DB::transaction(function () use ($user, $validatedItems, $totalAmount, $requiresRedeemFulfillment) {
+            $promotionSummary = $this->buildPromotionSummary($user, $totalAmount);
+            $finalTotal = max(0, $totalAmount - $promotionSummary['total_discount']);
+
             $order = Order::create([
                 'user_id' => $user->id,
                 'type' => $requiresRedeemFulfillment ? 'redeem_purchase' : 'purchase',
-                'total_price' => $totalAmount,
+                'total_price' => $finalTotal,
                 'status' => 'pending',
                 'items' => $validatedItems,
-                'meta' => $requiresRedeemFulfillment ? ['requires_redeem' => true] : null,
+                'meta' => $requiresRedeemFulfillment
+                    ? array_merge(['requires_redeem' => true], $promotionSummary['meta'])
+                    : $promotionSummary['meta'],
                 'reference' => 'ORD-' . strtoupper(uniqid()),
             ]);
 
@@ -155,6 +161,11 @@ class OrderController extends Controller
                 Product::where('id', $item['product_id'])->increment('sold_count', $item['quantity']);
             }
 
+            if (!empty($promotionSummary['applied_ids'])) {
+                Coupon::whereIn('id', $promotionSummary['applied_ids'])
+                    ->increment('uses_count');
+            }
+
             return $order;
         });
 
@@ -162,5 +173,77 @@ class OrderController extends Controller
             'order' => $order->load('orderItems.product'),
             'message' => 'Order created successfully'
         ], 201);
+    }
+
+    private function buildPromotionSummary($user, float $totalAmount): array
+    {
+        $vipPercent = $this->vipDiscountPercent($user);
+
+        $promotions = Coupon::query()
+            ->where('is_active', true)
+            ->where(function ($query) {
+                $query->whereNull('starts_at')
+                    ->orWhere('starts_at', '<=', now());
+            })
+            ->where(function ($query) {
+                $query->whereNull('ends_at')
+                    ->orWhere('ends_at', '>=', now())
+                    ->orWhere(function ($sub) {
+                        $sub->whereNull('ends_at')
+                            ->whereNotNull('expires_at')
+                            ->where('expires_at', '>=', now());
+                    });
+            })
+            ->where(function ($query) {
+                $query->whereNull('max_uses')
+                    ->orWhereColumn('uses_count', '<', 'max_uses');
+            })
+            ->get();
+
+        $promoPercent = 0.0;
+        $promoFixed = 0.0;
+        $appliedCodes = [];
+        $appliedIds = [];
+
+        foreach ($promotions as $promotion) {
+            $appliedCodes[] = $promotion->code;
+            $appliedIds[] = $promotion->id;
+            if (($promotion->type ?? 'percent') === 'fixed') {
+                $promoFixed += (float) ($promotion->discount_value ?? 0);
+            } else {
+                $promoPercent += (float) ($promotion->discount_percent ?? 0);
+            }
+        }
+
+        $totalPercent = $promoPercent + $vipPercent;
+        $percentDiscount = $totalAmount * ($totalPercent / 100);
+        $totalDiscount = min($totalAmount, $percentDiscount + $promoFixed);
+
+        return [
+            'total_discount' => $totalDiscount,
+            'applied_ids' => $appliedIds,
+            'meta' => [
+                'promotion' => [
+                    'vip_percent' => $vipPercent,
+                    'promo_percent' => $promoPercent,
+                    'promo_fixed' => $promoFixed,
+                    'total_discount' => round($totalDiscount, 2),
+                    'applied_codes' => $appliedCodes,
+                ],
+            ],
+        ];
+    }
+
+    private function vipDiscountPercent($user): float
+    {
+        if (!$user?->is_premium) {
+            return 0.0;
+        }
+
+        return match ((int) ($user->premium_level ?? 1)) {
+            3 => 7.0,
+            2 => 5.0,
+            default => 3.0,
+        };
     }
 }

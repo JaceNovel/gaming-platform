@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductImage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class AdminProductController extends Controller
 {
@@ -81,6 +83,24 @@ class AdminProductController extends Controller
         $product->delete();
 
         return response()->json(['message' => 'Product deleted']);
+    }
+
+    public function uploadImage(Request $request, Product $product)
+    {
+        $data = $request->validate([
+            'image' => 'required|image|max:4096',
+        ]);
+
+        $path = $data['image']->store('products', 'public');
+        $url = Storage::disk('public')->url($path);
+
+        $image = ProductImage::create([
+            'product_id' => $product->id,
+            'url' => $url,
+            'position' => 1,
+        ]);
+
+        return response()->json(['data' => $image], 201);
     }
 
     private function generateSku(): string

@@ -49,6 +49,7 @@ export default function AdminProductsAddPage() {
   const [type, setType] = useState("account");
   const [isActive, setIsActive] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [status, setStatus] = useState("");
@@ -94,6 +95,7 @@ export default function AdminProductsAddPage() {
     if (!file) return;
     const preview = URL.createObjectURL(file);
     setImagePreview(preview);
+    setImageFile(file);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -129,6 +131,24 @@ export default function AdminProductsAddPage() {
         return;
       }
 
+      const created = await res.json().catch(() => ({}));
+      const productId = created?.id ?? created?.data?.id;
+
+      if (productId && imageFile) {
+        const formData = new FormData();
+        formData.append("image", imageFile);
+        const upload = await fetch(`${API_BASE}/admin/products/${productId}/image`, {
+          method: "POST",
+          headers: {
+            ...authHeaders,
+          },
+          body: formData,
+        });
+        if (!upload.ok) {
+          setStatus("Produit ajouté, mais upload image échoué.");
+        }
+      }
+
       setName("");
       setDescription("");
       setPrice("");
@@ -139,6 +159,7 @@ export default function AdminProductsAddPage() {
       setType("account");
       setIsActive(true);
       setImagePreview(null);
+      setImageFile(null);
       setStatus("Produit ajouté.");
     } catch {
       setStatus("Création impossible");

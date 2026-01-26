@@ -26,14 +26,34 @@ class AdminCouponController extends Controller
         return response()->json($query->paginate($perPage));
     }
 
+    public function show(Coupon $coupon)
+    {
+        return response()->json(['data' => $coupon]);
+    }
+
     public function store(Request $request, AdminAuditLogger $auditLogger)
     {
         $data = $request->validate([
+            'name' => 'required|string|max:120',
             'code' => 'required|string|max:64|unique:coupons,code',
-            'discount_percent' => 'required|numeric|min:0|max:100',
+            'description' => 'nullable|string',
+            'type' => 'required|string|in:percent,fixed',
+            'discount_percent' => 'nullable|numeric|min:0|max:100',
+            'discount_value' => 'nullable|numeric|min:0',
+            'max_uses' => 'nullable|integer|min:1',
+            'starts_at' => 'nullable|date',
+            'ends_at' => 'nullable|date',
             'expires_at' => 'nullable|date',
             'is_active' => 'sometimes|boolean',
         ]);
+
+        if ($data['type'] === 'percent' && empty($data['discount_percent'])) {
+            return response()->json(['message' => 'Discount percent is required'], 422);
+        }
+
+        if ($data['type'] === 'fixed' && empty($data['discount_value'])) {
+            return response()->json(['message' => 'Discount value is required'], 422);
+        }
 
         $coupon = Coupon::create($data);
 
@@ -54,11 +74,30 @@ class AdminCouponController extends Controller
     public function update(Request $request, Coupon $coupon, AdminAuditLogger $auditLogger)
     {
         $data = $request->validate([
+            'name' => 'sometimes|string|max:120',
             'code' => 'sometimes|string|max:64|unique:coupons,code,' . $coupon->id,
-            'discount_percent' => 'sometimes|numeric|min:0|max:100',
+            'description' => 'nullable|string',
+            'type' => 'sometimes|string|in:percent,fixed',
+            'discount_percent' => 'nullable|numeric|min:0|max:100',
+            'discount_value' => 'nullable|numeric|min:0',
+            'max_uses' => 'nullable|integer|min:1',
+            'starts_at' => 'nullable|date',
+            'ends_at' => 'nullable|date',
             'expires_at' => 'nullable|date',
             'is_active' => 'sometimes|boolean',
         ]);
+
+        $type = $data['type'] ?? $coupon->type ?? 'percent';
+        $discountPercent = $data['discount_percent'] ?? $coupon->discount_percent;
+        $discountValue = $data['discount_value'] ?? $coupon->discount_value;
+
+        if ($type === 'percent' && empty($discountPercent)) {
+            return response()->json(['message' => 'Discount percent is required'], 422);
+        }
+
+        if ($type === 'fixed' && empty($discountValue)) {
+            return response()->json(['message' => 'Discount value is required'], 422);
+        }
 
         $coupon->update($data);
 
