@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import ProfileHeader from "@/components/profile/ProfileHeader";
 import ProfileSidebar from "@/components/profile/ProfileSidebar";
 import AvatarPickerModal from "@/components/profile/AvatarPickerModal";
+import PlayerProfileCard from "@/components/profile/PlayerProfileCard";
 import { DASHBOARD_MENU, type DashboardMenuId } from "@/components/profile/dashboardMenu";
 import { API_BASE } from "@/lib/config";
 
@@ -876,32 +877,16 @@ function AccountClient() {
                 onUseFunds={handleUseFunds}
               />
             </div>
-            <div className="md:hidden">
-              <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 shadow-[0_20px_80px_rgba(0,0,0,0.55)]">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.4em] text-white/40">Profil joueur</p>
-                    <div className="mt-2 flex items-center gap-3">
-                      <span className="text-2xl font-black tracking-wide text-white">{me.username}</span>
-                      <span className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-[11px] font-semibold tracking-[0.4em] text-white/80">
-                        {countryTag}
-                      </span>
-                    </div>
-                    <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-500/15 px-4 py-1.5 text-xs font-semibold text-yellow-100">
-                      <span>🏆</span>
-                      <span>BADBOY {tierLabel}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setWalletModalOpen(true)}
-                    className="rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_40px_rgba(0,0,0,0.35)]"
-                  >
-                    Wallet BD
-                  </button>
-                </div>
+            {activeMenu !== "Parametres" && (
+              <div className="md:hidden">
+                <PlayerProfileCard
+                  username={me.username}
+                  countryTag={countryTag}
+                  tierLabel={tierLabel}
+                  onAction={() => setWalletModalOpen(true)}
+                />
               </div>
-            </div>
+            )}
             <div className="lg:hidden">
               <div className="mt-4 rounded-3xl border border-white/10 bg-black/40 p-4">
                 <p className="text-xs uppercase tracking-[0.35em] text-white/50">Navigation mobile</p>
@@ -937,6 +922,12 @@ function AccountClient() {
                 </div>
 
                 <div className="md:hidden space-y-4">
+                  <PlayerProfileCard
+                    username={me.username}
+                    countryTag={countryTag}
+                    tierLabel={tierLabel}
+                    onAction={() => setWalletModalOpen(true)}
+                  />
                   <form onSubmit={handleCountrySubmit} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
                     <div className="flex items-center justify-between">
                       <p className="font-semibold">Changer de pays</p>

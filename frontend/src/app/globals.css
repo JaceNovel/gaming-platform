@@ -14,6 +14,8 @@
   --radius-lg: 18px;
   --radius-md: 14px;
   --radius-sm: 10px;
+  --bottom-nav-height: 0px;
+  --chat-mobile-gap: 28px;
 }
 
 @theme inline {
@@ -345,15 +347,15 @@ body {
 #tidio-chat iframe {
   transition: transform 0.3s ease;
   top: auto !important;
-  bottom: 32px !important;
+  bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important;
   right: 28px !important;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1023px) {
   #tidio-chat iframe {
-    transform: scale(0.85);
+    transform: scale(0.82);
     transform-origin: bottom right;
-    bottom: 96px !important;
-    right: 18px !important;
+    bottom: calc(var(--bottom-nav-height, 72px) + var(--chat-mobile-gap, 28px)) !important;
+    right: clamp(16px, 4vw, 24px) !important;
   }
 }
