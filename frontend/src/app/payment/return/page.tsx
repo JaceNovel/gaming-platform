@@ -1,10 +1,30 @@
-"use client";
-
-import { useEffect, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import SectionTitle from "@/components/ui/SectionTitle";
 
-export default function PaymentReturnPage() {
+function PaymentReturnShell() {
+  return (
+    <div className="min-h-[100dvh] pb-24">
+      <div className="mobile-shell py-8 space-y-6">
+        <SectionTitle eyebrow="Paiement" label="Validation en cours" />
+        <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-3">
+          <p className="text-sm text-white/80">
+            Paiement en cours de validation. Vous allez être redirigé vers le suivi du paiement.
+          </p>
+          <p className="text-xs text-white/50">
+            Vous pouvez fermer cette page si la redirection ne se fait pas automatiquement.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PaymentReturnClient = () => {
+  "use client";
+
+  const { useEffect, useMemo } = require("react");
+  const { useRouter, useSearchParams } = require("next/navigation");
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const transactionId = useMemo(() => searchParams.get("transaction_id") ?? searchParams.get("cpm_trans_id"), [searchParams]);
@@ -20,19 +40,16 @@ export default function PaymentReturnPage() {
     return () => clearTimeout(timer);
   }, [orderId, router, transactionId]);
 
+  return null;
+};
+
+export default function PaymentReturnPage() {
   return (
-    <div className="min-h-[100dvh] pb-24">
-      <div className="mobile-shell py-8 space-y-6">
-        <SectionTitle eyebrow="Paiement" label="Validation en cours" />
-        <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-3">
-          <p className="text-sm text-white/80">
-            Paiement en cours de validation. Vous allez être redirigé vers le suivi du paiement.
-          </p>
-          <p className="text-xs text-white/50">
-            Vous pouvez fermer cette page si la redirection ne se fait pas automatiquement.
-          </p>
-        </div>
-      </div>
-    </div>
+    <>
+      <PaymentReturnShell />
+      <Suspense fallback={null}>
+        <PaymentReturnClient />
+      </Suspense>
+    </>
   );
 }
