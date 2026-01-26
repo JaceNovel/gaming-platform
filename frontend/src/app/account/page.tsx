@@ -62,9 +62,21 @@ type VipPlan = {
 };
 
 const AVATARS: Avatar[] = [
-  { id: "nova_ghost", name: "Nova Ghost", src: "/images/badboyshop-logo.png" },
-  { id: "stellar_viper", name: "Stellar Viper", src: "/images/badboyshop-logo.png" },
-  { id: "neon_rider", name: "Neon Rider", src: "/images/badboyshop-logo.png" },
+  {
+    id: "nova_ghost",
+    name: "Nova Ghost",
+    src: "/images/Capture_d_écran_2026-01-27_001718-removebg-preview.png",
+  },
+  {
+    id: "stellar_viper",
+    name: "Stellar Viper",
+    src: "/images/Capture_d_écran_2026-01-27_001718-removebg-preview.png",
+  },
+  {
+    id: "neon_rider",
+    name: "Neon Rider",
+    src: "/images/Capture_d_écran_2026-01-27_001718-removebg-preview.png",
+  },
 ];
 
 const VIP_PLANS: VipPlan[] = [];
