@@ -9,8 +9,98 @@ import ProfileHeader from "@/components/profile/ProfileHeader";
 import ProfileSidebar from "@/components/profile/ProfileSidebar";
 import AvatarPickerModal from "@/components/profile/AvatarPickerModal";
 import PlayerProfileCard from "@/components/profile/PlayerProfileCard";
-import { DASHBOARD_MENU, type DashboardMenuId } from "@/components/profile/dashboardMenu";
+import type { DashboardMenuId } from "@/components/profile/dashboardMenu";
 import { API_BASE } from "@/lib/config";
+
+const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
+
+type MenuKey = DashboardMenuId;
+
+type Me = {
+  username: string;
+  countryCode: string | null;
+  countryName: string | null;
+  avatarId: string;
+  walletBalanceFcfa: number;
+  premiumTier: string;
+};
+
+type OrderStatus = "COMPLÉTÉ" | "ÉCHOUÉ" | "EN_COURS";
+
+type Order = {
+  id: string;
+  title: string;
+  game: string;
+  priceFcfa: number;
+  status: OrderStatus;
+  thumb: string;
+  shippingStatus?: string | null;
+  shippingEtaDays?: number | null;
+  shippingEstimatedDate?: string | null;
+  hasPhysicalItems?: boolean;
+};
+
+type WalletTransaction = {
+  id: string;
+  label: string;
+  amount: number;
+  currency: string;
+  createdAt: string;
+  type: "credit" | "debit";
+  status: "success" | "pending" | "failed";
+};
+
+type Avatar = {
+  id: string;
+  name: string;
+  src: string;
+};
+
+type VipPlan = {
+  level: string;
+  label: string;
+};
+
+const AVATARS: Avatar[] = [
+  { id: "nova_ghost", name: "Nova Ghost", src: "/images/badboyshop-logo.png" },
+  { id: "stellar_viper", name: "Stellar Viper", src: "/images/badboyshop-logo.png" },
+  { id: "neon_rider", name: "Neon Rider", src: "/images/badboyshop-logo.png" },
+];
+
+const VIP_PLANS: VipPlan[] = [];
+
+const getCurrencyInfo = (code?: string | null) => {
+  const normalized = (code ?? "CI").toUpperCase();
+  if (["FR", "BE"].includes(normalized)) return { label: "EUR", locale: "fr-FR" };
+  if (normalized === "US") return { label: "USD", locale: "en-US" };
+  return { label: "FCFA", locale: "fr-FR" };
+};
+
+const formatCurrency = (value: number, code?: string | null) => {
+  const info = getCurrencyInfo(code);
+  return new Intl.NumberFormat(info.locale, { style: "currency", currency: info.label }).format(value);
+};
+
+const mapOrderStatus = (status?: string | null): OrderStatus => {
+  const normalized = String(status ?? "").toLowerCase();
+  if (["paid", "complete", "completed", "success", "delivered"].includes(normalized)) return "COMPLÉTÉ";
+  if (["failed", "cancelled", "canceled", "error", "refused"].includes(normalized)) return "ÉCHOUÉ";
+  return "EN_COURS";
+};
+
+function ProfileLoading() {
+  return (
+    <div className="min-h-screen px-5 py-12 text-white">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div className="h-10 w-48 animate-pulse rounded-2xl bg-white/10" />
+        <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+          <div className="h-64 animate-pulse rounded-3xl bg-white/5" />
+          <div className="h-64 animate-pulse rounded-3xl bg-white/5" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const DEFAULT_ORDERS: Order[] = [];
 const DEFAULT_WALLET_TRANSACTIONS: WalletTransaction[] = [];
