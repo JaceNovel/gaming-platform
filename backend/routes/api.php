@@ -194,6 +194,11 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         Route::patch('/categories/{category}', [AdminCategoryController::class, 'update']);
         Route::delete('/categories/{category}', [AdminCategoryController::class, 'destroy']);
         Route::post('/categories/{category}/image', [AdminCategoryController::class, 'uploadImage']);
+
+        Route::get('/games', [\App\Http\Controllers\Api\AdminGameController::class, 'index']);
+        Route::post('/games', [\App\Http\Controllers\Api\AdminGameController::class, 'store']);
+        Route::patch('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'update']);
+        Route::delete('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'destroy']);
     });
 
     Route::get('/coupons', [\App\Http\Controllers\Api\AdminCouponController::class, 'index'])
