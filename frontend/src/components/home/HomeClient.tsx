@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ShieldCheck, Zap, Bot, Heart, ShoppingCart } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
-import { toDisplayImageSrc } from "@/lib/imageProxy";
+import { toDisplayImageSrc } from "../../lib/imageProxy";
 
 type Stat = { value: string; label: string };
 type ProductCard = {
