@@ -37,7 +37,7 @@ type ApiProduct = {
   stock_quantity?: number | null;
   stockType?: string | null;
   stock_type?: string | null;
-  tags?: string[] | string | null;
+  tags?: Array<{ name?: string | null } | string> | string[] | string | null;
 };
 
 const formatPrice = (value: number) => `${new Intl.NumberFormat("fr-FR").format(Math.max(0, value))} FCFA`;
@@ -80,12 +80,26 @@ const normalizeTags = (product: ApiProduct | null): string[] => {
   const raw = product.tags ?? product.details?.tags;
   if (!raw) return [];
   if (Array.isArray(raw)) {
-    return raw.map((tag) => String(tag)).filter(Boolean);
+    return raw
+      .map((tag) => (typeof tag === "string" ? tag : tag?.name))
+      .map((tag) => String(tag ?? "").trim())
+      .filter(Boolean);
   }
   return String(raw)
     .split(/[,;]+/)
     .map((tag) => tag.trim())
     .filter(Boolean);
+};
+
+const extractImages = (product: ApiProduct | null): string[] => {
+  if (!product) return [];
+  const images = Array.isArray(product.images) ? product.images : [];
+  return images
+    .map((entry) => {
+      if (typeof entry === "string") return entry;
+      return entry?.url ?? entry?.path ?? null;
+    })
+    .filter((value): value is string => Boolean(value));
 };
 
 export default function ProductDetailsPage() {
@@ -94,6 +108,7 @@ export default function ProductDetailsPage() {
   const { triggerFlight, overlay } = useCartFlight();
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | number | null>(null);
   const [product, setProduct] = useState<ApiProduct | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -120,6 +135,7 @@ export default function ProductDetailsPage() {
         const payload = await res.json();
         if (!active) return;
         setProduct(payload);
+        setActiveImageIndex(0);
       } catch (err) {
         if (!active) return;
         setError("Erreur réseau, réessaie plus tard.");
@@ -146,7 +162,14 @@ export default function ProductDetailsPage() {
   }, []);
 
   const mainImage = useMemo(() => extractImage(product), [product]);
-  const displayImage = useMemo(() => toDisplayImageSrc(mainImage) ?? mainImage, [mainImage]);
+  const carouselImages = useMemo(() => extractImages(product), [product]);
+  const selectedImage = useMemo(() => {
+    if (carouselImages.length) {
+      return carouselImages[Math.min(Math.max(activeImageIndex, 0), carouselImages.length - 1)] ?? null;
+    }
+    return mainImage;
+  }, [activeImageIndex, carouselImages, mainImage]);
+  const displayImage = useMemo(() => toDisplayImageSrc(selectedImage) ?? selectedImage, [selectedImage]);
   const bannerImage = useMemo(() => extractBanner(product), [product]);
   const displayBanner = useMemo(() => toDisplayImageSrc(bannerImage) ?? bannerImage, [bannerImage]);
   const tags = useMemo(() => normalizeTags(product), [product]);
@@ -225,10 +248,35 @@ export default function ProductDetailsPage() {
   };
 
   const renderImage = () => {
-    if (mainImage) {
+    if (selectedImage) {
       return (
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-          <img src={displayImage ?? ""} alt={product?.name ?? "Produit"} className="h-full w-full object-cover" loading="lazy" />
+        <div className="space-y-3">
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+            <img src={displayImage ?? ""} alt={product?.name ?? "Produit"} className="h-full w-full object-cover" loading="lazy" />
+          </div>
+
+          {carouselImages.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {carouselImages.map((url, idx) => {
+                const displayThumb = toDisplayImageSrc(url) ?? url;
+                const isActive = idx === activeImageIndex;
+                return (
+                  <button
+                    key={`${url}-${idx}`}
+                    type="button"
+                    onClick={() => setActiveImageIndex(idx)}
+                    className={
+                      "relative h-14 w-20 flex-none overflow-hidden rounded-xl border bg-white/5 transition " +
+                      (isActive ? "border-rose-400" : "border-white/10 hover:border-white/25")
+                    }
+                    aria-label={`Image ${idx + 1}`}
+                  >
+                    <img src={displayThumb} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       );
     }

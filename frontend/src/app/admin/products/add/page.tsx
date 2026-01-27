@@ -42,6 +42,7 @@ const buildUrl = (path: string, params: Record<string, string> = {}) => {
 export default function AdminProductsAddPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [serverTags, setServerTags] = useState("");
   const [price, setPrice] = useState("");
   const [discountPrice, setDiscountPrice] = useState("");
   const [stock, setStock] = useState("0");
@@ -110,6 +111,7 @@ export default function AdminProductsAddPage() {
       const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
+        server_tags: serverTags.trim() || undefined,
         price: Number(price),
         discount_price: discountPrice ? Number(discountPrice) : undefined,
         stock: Number(stock),
@@ -161,6 +163,7 @@ export default function AdminProductsAddPage() {
 
       setName("");
       setDescription("");
+      setServerTags("");
       setPrice("");
       setDiscountPrice("");
       setStock("0");
@@ -209,6 +212,19 @@ export default function AdminProductsAddPage() {
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                   placeholder="Écrivez votre contenu en Markdown ici..."
                 />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Tags serveur (séparés par virgules)</label>
+                <input
+                  value={serverTags}
+                  onChange={(e) => setServerTags(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  placeholder="ex: garantie, full-access, instant"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  Astuce: ces tags sont gérés côté serveur (utiles pour les produits type account).
+                </p>
               </div>
             </div>
           </div>

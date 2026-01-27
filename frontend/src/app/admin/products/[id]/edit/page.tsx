@@ -44,6 +44,7 @@ type ApiProduct = {
     banner?: string | null;
     mobile_section?: string | null;
   } | null;
+  tags?: Array<{ name?: string | null } | string> | string[] | string | null;
 };
 
 const getAuthHeaders = (): Record<string, string> => {
@@ -76,6 +77,7 @@ export default function AdminProductsEditPage() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [serverTags, setServerTags] = useState("");
   const [price, setPrice] = useState("");
   const [discountPrice, setDiscountPrice] = useState("");
   const [stock, setStock] = useState("0");
@@ -142,6 +144,17 @@ export default function AdminProductsEditPage() {
         if (!active) return;
         setName(product?.name ?? "");
         setDescription(product?.description ?? "");
+        const rawTags = product?.tags;
+        const tagNames = Array.isArray(rawTags)
+          ? rawTags
+            .map((t) => (typeof t === "string" ? t : t?.name))
+            .map((t) => String(t ?? "").trim())
+            .filter(Boolean)
+          : String(rawTags ?? "")
+            .split(/[,;]+/)
+            .map((t) => t.trim())
+            .filter(Boolean);
+        setServerTags(tagNames.join(", "));
         setPrice(product?.price ? String(product.price) : "");
         setDiscountPrice(product?.discount_price ? String(product.discount_price) : "");
         setStock(product?.stock ? String(product.stock) : "0");
@@ -178,6 +191,7 @@ export default function AdminProductsEditPage() {
       const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
+        server_tags: serverTags.trim() || undefined,
         price: Number(price),
         discount_price: discountPrice ? Number(discountPrice) : undefined,
         stock: Number(stock),
@@ -262,6 +276,17 @@ export default function AdminProductsEditPage() {
                   rows={6}
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                   placeholder="Écrivez votre contenu en Markdown ici..."
+                  disabled={loadingProduct}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Tags serveur (séparés par virgules)</label>
+                <input
+                  value={serverTags}
+                  onChange={(e) => setServerTags(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  placeholder="ex: garantie, full-access, instant"
                   disabled={loadingProduct}
                 />
               </div>
