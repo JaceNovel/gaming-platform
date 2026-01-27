@@ -46,6 +46,8 @@ class AdminProductController extends Controller
             'banner_url' => 'nullable|url',
             'mobile_section' => 'nullable|string|in:bundle,deal,for_you',
             'server_tags' => 'nullable|string',
+            'images' => 'nullable|array|max:10',
+            'images.*' => 'nullable|string|max:2048',
         ]);
 
         $data['sku'] = $data['sku'] ?? $this->generateSku();
@@ -89,7 +91,11 @@ class AdminProductController extends Controller
 
         $this->syncServerTags($product, $request->input('server_tags'));
 
-        return response()->json($product, 201);
+        if ($product->type === 'account' && $request->has('images')) {
+            $this->syncProductImages($product, $request->input('images'));
+        }
+
+        return response()->json($product->load(['images', 'tags']), 201);
     }
 
     public function update(Request $request, Product $product)
@@ -126,6 +132,8 @@ class AdminProductController extends Controller
             'banner_url' => 'nullable|url',
             'mobile_section' => 'nullable|string|in:bundle,deal,for_you',
             'server_tags' => 'nullable|string',
+            'images' => 'nullable|array|max:10',
+            'images.*' => 'nullable|string|max:2048',
         ]);
 
         $imageUrl = $data['image_url'] ?? null;
@@ -162,13 +170,23 @@ class AdminProductController extends Controller
             }
         }
 
+        $typeChangedToNonAccount = array_key_exists('type', $data)
+            && strtolower((string) $data['type']) !== 'account'
+            && strtolower((string) $product->type) === 'account';
+
         $product->update($data);
 
         if ($request->has('server_tags')) {
             $this->syncServerTags($product, $request->input('server_tags'));
         }
 
-        return response()->json($product);
+        if ($typeChangedToNonAccount) {
+            ProductImage::where('product_id', $product->id)->delete();
+        } elseif (strtolower((string) $product->type) === 'account' && $request->has('images')) {
+            $this->syncProductImages($product, $request->input('images'));
+        }
+
+        return response()->json($product->load(['images', 'tags']));
     }
 
     public function destroy(Product $product)
@@ -248,5 +266,28 @@ class AdminProductController extends Controller
         }
 
         $product->tags()->sync(array_values(array_unique($tagIds)));
+    }
+
+    private function syncProductImages(Product $product, $images): void
+    {
+        if (strtolower((string) $product->type) !== 'account') {
+            return;
+        }
+
+        $list = is_array($images) ? $images : [];
+        $normalized = collect($list)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->values();
+
+        ProductImage::where('product_id', $product->id)->delete();
+
+        foreach ($normalized as $idx => $url) {
+            ProductImage::create([
+                'product_id' => $product->id,
+                'url' => $url,
+                'position' => (int) $idx,
+            ]);
+        }
     }
 }

@@ -39,6 +39,7 @@ type ApiProduct = {
   delivery_type?: string | null;
   delivery_eta_days?: number | null;
   display_section?: string | null;
+  images?: Array<{ url?: string | null; path?: string | null; position?: number | null } | string> | null;
   details?: {
     image?: string | null;
     banner?: string | null;
@@ -91,6 +92,7 @@ export default function AdminProductsEditPage() {
   const [isActive, setIsActive] = useState(true);
   const [imageUrl, setImageUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
+  const [accountImages, setAccountImages] = useState<string[]>([""]);
   const [imagePreviewError, setImagePreviewError] = useState(false);
   const [bannerPreviewError, setBannerPreviewError] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -168,6 +170,17 @@ export default function AdminProductsEditPage() {
         setDisplaySection(product?.display_section ?? "none");
         setImageUrl(product?.details?.image ?? "");
         setBannerUrl(product?.details?.banner ?? "");
+
+        const rawImages = Array.isArray(product?.images) ? product.images : [];
+        const normalized = rawImages
+          .map((entry) => {
+            if (typeof entry === "string") return entry;
+            return entry?.url ?? entry?.path ?? "";
+          })
+          .map((v) => String(v ?? "").trim())
+          .filter(Boolean);
+
+        setAccountImages(normalized.length ? normalized.slice(0, 10) : [""]);
       } catch {
         // ignore
       } finally {
@@ -188,6 +201,11 @@ export default function AdminProductsEditPage() {
     setLoading(true);
 
     try {
+      const cleanedAccountImages = accountImages
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .slice(0, 10);
+
       const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
@@ -205,6 +223,7 @@ export default function AdminProductsEditPage() {
         display_section: displaySection === "none" ? undefined : displaySection,
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
+        images: type === "account" ? cleanedAccountImages : undefined,
       };
 
       const res = await fetch(`${API_BASE}/admin/products/${productId}`, {
@@ -290,6 +309,69 @@ export default function AdminProductsEditPage() {
                   disabled={loadingProduct}
                 />
               </div>
+
+              {type === "account" && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <label className="text-sm font-semibold">Images du compte (carousel)</label>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Ajoute plusieurs URLs (max 10). Elles vont défiler horizontalement sur la fiche produit.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold"
+                      onClick={() => setAccountImages((prev) => [...prev, ""]) }
+                      disabled={loadingProduct}
+                    >
+                      + Ajouter
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {accountImages.map((value, idx) => {
+                      const canPreview = isLikelyImageUrl(value);
+                      const previewSrc = canPreview ? (toDisplayImageSrc(value) ?? value) : null;
+                      return (
+                        <div key={idx} className="grid gap-3 md:grid-cols-[1fr,150px]">
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-medium text-slate-600">Image #{idx + 1}</label>
+                              <button
+                                type="button"
+                                className="text-xs font-semibold text-rose-600 hover:text-rose-700"
+                                onClick={() => setAccountImages((prev) => prev.filter((_, i) => i !== idx))}
+                                disabled={loadingProduct || accountImages.length <= 1}
+                                title={accountImages.length <= 1 ? "Au moins 1 champ" : "Supprimer"}
+                              >
+                                Supprimer
+                              </button>
+                            </div>
+                            <input
+                              value={value}
+                              onChange={(e) =>
+                                setAccountImages((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))
+                              }
+                              className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                              placeholder="https://..."
+                              disabled={loadingProduct}
+                            />
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-white p-2">
+                            {previewSrc ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={previewSrc} alt="" className="h-24 w-full rounded-lg object-cover" />
+                            ) : (
+                              <div className="grid h-24 place-items-center text-xs text-slate-400">Aperçu</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -56,6 +56,7 @@ export default function AdminProductsAddPage() {
   const [isActive, setIsActive] = useState(true);
   const [imageUrl, setImageUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
+  const [accountImages, setAccountImages] = useState<string[]>([""]);
   const [imagePreviewError, setImagePreviewError] = useState(false);
   const [bannerPreviewError, setBannerPreviewError] = useState(false);
   const isLikelyImageUrl = (value: string) => {
@@ -102,12 +103,26 @@ export default function AdminProductsAddPage() {
     loadGames();
   }, [loadCategories, loadGames]);
 
+  useEffect(() => {
+    if (type !== "account") return;
+    // If we already have images, keep them.
+    if (accountImages.some((v) => v.trim())) return;
+    if (imageUrl.trim()) {
+      setAccountImages([imageUrl.trim()]);
+    }
+  }, [accountImages, imageUrl, type]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("");
     setLoading(true);
 
     try {
+      const cleanedAccountImages = accountImages
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .slice(0, 10);
+
       const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
@@ -125,6 +140,7 @@ export default function AdminProductsAddPage() {
         display_section: displaySection === "none" ? undefined : displaySection,
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
+        images: type === "account" ? cleanedAccountImages : undefined,
       };
 
       const res = await fetch(`${API_BASE}/admin/products`, {
@@ -177,6 +193,7 @@ export default function AdminProductsAddPage() {
       setIsActive(true);
       setImageUrl("");
       setBannerUrl("");
+      setAccountImages([""]);
       setStatus("Produit ajouté.");
     } catch {
       setStatus("Création impossible");
@@ -226,6 +243,67 @@ export default function AdminProductsAddPage() {
                   Astuce: ces tags sont gérés côté serveur (utiles pour les produits type account).
                 </p>
               </div>
+
+              {type === "account" && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <label className="text-sm font-semibold">Images du compte (carousel)</label>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Ajoute plusieurs URLs (max 10). Elles vont défiler horizontalement sur la fiche produit.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold"
+                      onClick={() => setAccountImages((prev) => [...prev, ""]) }
+                    >
+                      + Ajouter
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {accountImages.map((value, idx) => {
+                      const canPreview = isLikelyImageUrl(value);
+                      const previewSrc = canPreview ? (toDisplayImageSrc(value) ?? value) : null;
+                      return (
+                        <div key={idx} className="grid gap-3 md:grid-cols-[1fr,150px]">
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-medium text-slate-600">Image #{idx + 1}</label>
+                              <button
+                                type="button"
+                                className="text-xs font-semibold text-rose-600 hover:text-rose-700"
+                                onClick={() => setAccountImages((prev) => prev.filter((_, i) => i !== idx))}
+                                disabled={accountImages.length <= 1}
+                                title={accountImages.length <= 1 ? "Au moins 1 champ" : "Supprimer"}
+                              >
+                                Supprimer
+                              </button>
+                            </div>
+                            <input
+                              value={value}
+                              onChange={(e) =>
+                                setAccountImages((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))
+                              }
+                              className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                              placeholder="https://..."
+                            />
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-white p-2">
+                            {previewSrc ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={previewSrc} alt="" className="h-24 w-full rounded-lg object-cover" />
+                            ) : (
+                              <div className="grid h-24 place-items-center text-xs text-slate-400">Aperçu</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
