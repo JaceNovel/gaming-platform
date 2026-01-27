@@ -55,6 +55,8 @@ export default function AdminProductsAddPage() {
   const [isActive, setIsActive] = useState(true);
   const [imageUrl, setImageUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
+  const [imagePreviewError, setImagePreviewError] = useState(false);
+  const [bannerPreviewError, setBannerPreviewError] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [status, setStatus] = useState("");
@@ -247,25 +249,67 @@ export default function AdminProductsAddPage() {
                 <label className="text-sm font-medium">Image principale (URL)</label>
                 <input
                   value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
+                  onChange={(e) => {
+                    setImageUrl(e.target.value);
+                    setImagePreviewError(false);
+                  }}
                   type="url"
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                   placeholder="https://..."
                 />
+                <p className="mt-2 text-xs text-slate-500">Astuce: utiliser un lien HTTPS direct vers une image (jpg/png).</p>
               </div>
               <div>
                 <label className="text-sm font-medium">Bannière (URL)</label>
                 <input
                   value={bannerUrl}
-                  onChange={(e) => setBannerUrl(e.target.value)}
+                  onChange={(e) => {
+                    setBannerUrl(e.target.value);
+                    setBannerPreviewError(false);
+                  }}
                   type="url"
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                   placeholder="https://..."
                 />
               </div>
-              {imageUrl && (
-                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center">
-                  <img src={imageUrl} alt="Prévisualisation" className="mx-auto h-32 w-32 rounded-2xl object-cover" />
+              {(imageUrl || bannerUrl) && (
+                <div className="grid gap-4 rounded-2xl border border-dashed border-slate-200 p-4 text-center md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">Image principale</p>
+                    <div className="mt-2 flex items-center justify-center">
+                      {!imageUrl || imagePreviewError ? (
+                        <div className="h-32 w-32 rounded-2xl bg-slate-100 text-xs text-slate-400 flex items-center justify-center">
+                          Prévisualisation indisponible
+                        </div>
+                      ) : (
+                        <img
+                          src={imageUrl}
+                          alt="Prévisualisation"
+                          referrerPolicy="no-referrer"
+                          onError={() => setImagePreviewError(true)}
+                          className="h-32 w-32 rounded-2xl object-cover"
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">Bannière</p>
+                    <div className="mt-2 flex items-center justify-center">
+                      {!bannerUrl || bannerPreviewError ? (
+                        <div className="h-32 w-full max-w-[240px] rounded-2xl bg-slate-100 text-xs text-slate-400 flex items-center justify-center">
+                          Prévisualisation indisponible
+                        </div>
+                      ) : (
+                        <img
+                          src={bannerUrl}
+                          alt="Prévisualisation bannière"
+                          referrerPolicy="no-referrer"
+                          onError={() => setBannerPreviewError(true)}
+                          className="h-32 w-full max-w-[240px] rounded-2xl object-cover"
+                        />
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
