@@ -57,6 +57,7 @@ export default function AdminProductsAddPage() {
   const [bannerUrl, setBannerUrl] = useState("");
   const [imagePreviewError, setImagePreviewError] = useState(false);
   const [bannerPreviewError, setBannerPreviewError] = useState(false);
+  const isLikelyImageUrl = (value: string) => /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(value.trim());
   const [categories, setCategories] = useState<Category[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [status, setStatus] = useState("");
@@ -124,22 +125,31 @@ export default function AdminProductsAddPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
           ...getAuthHeaders(),
         },
+        credentials: "include",
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-          const errorText = await res.text().catch(() => "");
-          let message = "Création impossible";
-          try {
-            const parsed = errorText ? JSON.parse(errorText) : null;
-            message = parsed?.message ?? message;
-          } catch {
-            if (errorText) message = errorText;
+        const contentType = res.headers.get("content-type") ?? "";
+        let message = "Création impossible";
+        if (contentType.includes("application/json")) {
+          const parsed = await res.json().catch(() => null);
+          message = parsed?.message ?? message;
+          if (parsed?.errors) {
+            const firstKey = Object.keys(parsed.errors)[0];
+            const firstError = firstKey ? parsed.errors[firstKey]?.[0] : null;
+            if (firstError) message = firstError;
           }
-          setStatus(`${message} (HTTP ${res.status})`);
-          return;
+        } else {
+          const text = await res.text().catch(() => "");
+          if (text) message = text;
+        }
+        setStatus(`${message} (HTTP ${res.status})`);
+        return;
       }
 
       const created = await res.json().catch(() => ({}));
@@ -277,7 +287,7 @@ export default function AdminProductsAddPage() {
                   <div>
                     <p className="text-xs font-semibold text-slate-500">Image principale</p>
                     <div className="mt-2 flex items-center justify-center">
-                      {!imageUrl || imagePreviewError ? (
+                      {!imageUrl || imagePreviewError || !isLikelyImageUrl(imageUrl) ? (
                         <div className="h-32 w-32 rounded-2xl bg-slate-100 text-xs text-slate-400 flex items-center justify-center">
                           Prévisualisation indisponible
                         </div>
@@ -295,7 +305,7 @@ export default function AdminProductsAddPage() {
                   <div>
                     <p className="text-xs font-semibold text-slate-500">Bannière</p>
                     <div className="mt-2 flex items-center justify-center">
-                      {!bannerUrl || bannerPreviewError ? (
+                      {!bannerUrl || bannerPreviewError || !isLikelyImageUrl(bannerUrl) ? (
                         <div className="h-32 w-full max-w-[240px] rounded-2xl bg-slate-100 text-xs text-slate-400 flex items-center justify-center">
                           Prévisualisation indisponible
                         </div>
