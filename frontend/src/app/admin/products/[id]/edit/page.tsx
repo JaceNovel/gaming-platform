@@ -86,7 +86,6 @@ export default function AdminProductsEditPage() {
   const [deliveryType, setDeliveryType] = useState("in_stock");
   const [deliveryEtaDays, setDeliveryEtaDays] = useState("2");
   const [displaySection, setDisplaySection] = useState("none");
-  const [mobileSection, setMobileSection] = useState("none");
   const [isActive, setIsActive] = useState(true);
   const [imageUrl, setImageUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
@@ -154,7 +153,6 @@ export default function AdminProductsEditPage() {
         setDeliveryType(product?.delivery_type ?? "in_stock");
         setDeliveryEtaDays(product?.delivery_eta_days ? String(product.delivery_eta_days) : "2");
         setDisplaySection(product?.display_section ?? "none");
-        setMobileSection(product?.details?.mobile_section ?? "none");
         setImageUrl(product?.details?.image ?? "");
         setBannerUrl(product?.details?.banner ?? "");
       } catch {
@@ -193,7 +191,6 @@ export default function AdminProductsEditPage() {
         display_section: displaySection === "none" ? undefined : displaySection,
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
-        mobile_section: mobileSection === "none" ? undefined : mobileSection,
       };
 
       const res = await fetch(`${API_BASE}/admin/products/${productId}`, {
@@ -453,20 +450,6 @@ export default function AdminProductsEditPage() {
                   <option value="popular">Produits populaires</option>
                   <option value="cosmic_promo">Promotions cosmiques</option>
                   <option value="latest">Derniers ajouts</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Section mobile (optionnel)</label>
-                <select
-                  value={mobileSection}
-                  onChange={(e) => setMobileSection(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
-                  disabled={loadingProduct}
-                >
-                  <option value="none">Aucune</option>
-                  <option value="bundle">Offres groupées</option>
-                  <option value="deal">Deal du jour</option>
-                  <option value="for_you">Pour vous</option>
                 </select>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-600">

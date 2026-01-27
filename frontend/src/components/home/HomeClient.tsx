@@ -120,7 +120,7 @@ function ProductCardUI({
   onBuy: (product: ProductCard, origin?: HTMLElement | null) => void;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-white/6 ring-1 ring-white/15 backdrop-blur-md">
+    <div className="relative w-[260px] shrink-0 snap-start overflow-hidden rounded-2xl bg-white/6 ring-1 ring-white/15 backdrop-blur-md sm:w-full sm:min-w-0 sm:shrink">
       <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
       <div className="relative p-4">
         <div className="flex items-start justify-between gap-3">
@@ -195,7 +195,7 @@ export default function HomeClient() {
     let active = true;
     const loadProducts = async () => {
       try {
-        const res = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=4`);
+        const res = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=3`);
         if (!res.ok) return;
         const data = await res.json();
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
@@ -436,7 +436,7 @@ export default function HomeClient() {
             </div>
           ) : (
             <>
-              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft sm:hidden">
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory sm:hidden">
                 {topProducts.map((p) => (
                   <ProductCardUI
                     key={p.id}

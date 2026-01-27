@@ -34,8 +34,8 @@ type ShopProduct = {
   categorySlug?: string | null;
   type: string;
   imageUrl?: string | null;
+  bannerUrl?: string | null;
   displaySection?: string | null;
-  mobileSection?: string | null;
 };
 
 type CategoryOption = {
@@ -196,13 +196,22 @@ function FilterSheet({
   );
 }
 
-function DealCard({ product }: { product: ShopProduct }) {
+function StripCard({
+  product,
+  label,
+  icon: Icon = Tag,
+}: {
+  product: ShopProduct;
+  label: string;
+  icon?: typeof Tag;
+}) {
+  const cardImage = product.bannerUrl ?? product.imageUrl ?? FALLBACK_PRODUCT_IMAGE;
   return (
     <div className="relative flex min-w-[180px] flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between text-xs font-medium text-white/70">
         <span className="flex items-center gap-1">
-          <Tag className="h-3.5 w-3.5 text-amber-300" />
-          Deal
+          <Icon className="h-3.5 w-3.5 text-amber-300" />
+          {label}
         </span>
         {product.discountPercent && (
           <span className="rounded-full bg-amber-400/20 px-2 py-1 text-[10px] text-amber-200">
@@ -212,7 +221,7 @@ function DealCard({ product }: { product: ShopProduct }) {
       </div>
       <div className="h-24 w-full overflow-hidden rounded-xl bg-white/10">
         <img
-          src={toDisplayImageSrc(product.imageUrl ?? FALLBACK_PRODUCT_IMAGE) ?? (product.imageUrl ?? FALLBACK_PRODUCT_IMAGE)}
+          src={toDisplayImageSrc(cardImage) ?? cardImage}
           alt={product.name}
           className="h-full w-full object-cover"
           loading="lazy"
@@ -512,12 +521,19 @@ export default function ShopPage() {
           const categoryName = item?.category ?? item?.category_entity?.name ?? fallbackCategory;
           const categorySlug = item?.category_entity?.slug ?? (categoryName ? slugifyCategory(categoryName) : null);
           const imageUrl =
-            item?.image_url ??
-            item?.cover ??
             item?.details?.image ??
-            item?.details?.cover ??
+            item?.image_url ??
             item?.media?.[0]?.url ??
+            item?.images?.[0]?.url ??
+            item?.images?.[0]?.path ??
             item?.game?.cover ??
+            null;
+
+          const bannerUrl =
+            item?.details?.banner ??
+            item?.banner ??
+            item?.details?.cover ??
+            item?.cover ??
             null;
           return {
             id: item.id,
@@ -532,8 +548,8 @@ export default function ShopPage() {
             categorySlug,
             type: String(item?.type ?? ""),
             imageUrl: imageUrl ?? FALLBACK_PRODUCT_IMAGE,
+            bannerUrl: bannerUrl,
             displaySection: item?.display_section ?? null,
-            mobileSection: item?.details?.mobile_section ?? null,
           } as ShopProduct;
         });
         setProducts(mapped);
@@ -746,15 +762,6 @@ export default function ShopPage() {
   const popularProducts = useMemo(() => filtered.filter((p) => p.displaySection === "popular").slice(0, 4), [filtered]);
   const promoProducts = useMemo(() => filtered.filter((p) => p.displaySection === "cosmic_promo").slice(0, 6), [filtered]);
   const latestProducts = useMemo(() => filtered.filter((p) => p.displaySection === "latest").slice(0, 6), [filtered]);
-  const groupedDeals = useMemo(() => {
-    const selected = filtered.filter((p) => p.mobileSection === "bundle");
-    return (selected.length ? selected : filtered).slice(0, 6);
-  }, [filtered]);
-  const dailyDeals = useMemo(() => popularProducts.slice(0, 4), [popularProducts]);
-  const forYou = useMemo(() => {
-    const selected = filtered.filter((p) => p.mobileSection === "for_you");
-    return (selected.length ? selected : filtered).slice(0, 12);
-  }, [filtered]);
 
   const handleImageSearch = (file: File | null) => {
     if (!file) return;
@@ -908,9 +915,9 @@ export default function ShopPage() {
       <section className="mobile-shell space-y-4 py-4">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Offres groupées</h2>
+            <h2 className="text-lg font-bold">Produits populaires</h2>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
             {loading
               ? Array.from({ length: 4 }).map((_, idx) => (
                   <div key={idx} className="min-w-[180px] rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -919,9 +926,9 @@ export default function ShopPage() {
                     <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
                   </div>
                 ))
-              : groupedDeals.map((product) => (
-                  <Link key={product.id} href={`/produits/${product.id}`} className="min-w-[180px]">
-                    <DealCard product={product} />
+              : popularProducts.map((product) => (
+                  <Link key={product.id} href={`/produits/${product.id}`} className="min-w-[180px] snap-start">
+                    <StripCard product={product} label="Populaire" icon={Heart} />
                   </Link>
                 ))}
           </div>
@@ -929,7 +936,7 @@ export default function ShopPage() {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Deal du jour</h2>
+            <h2 className="text-lg font-bold">Produit cosmique</h2>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
             {loading
@@ -940,28 +947,13 @@ export default function ShopPage() {
                     <div className="mt-2 h-3 w-1/2 rounded-full bg-white/10" />
                   </div>
                 ))
-              : dailyDeals.map((product) => (
+              : promoProducts.slice(0, 6).map((product) => (
                   <Link
                     key={product.id}
                     href={`/produits/${product.id}`}
-                    className="min-w-[210px] flex-shrink-0 snap-center rounded-2xl border border-white/10 bg-white/5 p-3"
+                    className="min-w-[210px] flex-shrink-0 snap-center"
                   >
-                    <div className="h-20 rounded-xl bg-white/10" />
-                    <div className="mt-2 text-xs font-semibold text-white line-clamp-2">{product.name}</div>
-                    <div className="mt-1 text-xs text-white/60 line-clamp-1">{product.description}</div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-sm font-bold text-cyan-200">{product.priceLabel}</span>
-                      {product.oldPrice && (
-                        <span className="text-[10px] text-white/40 line-through">
-                          {formatNumber(product.oldPrice)}
-                        </span>
-                      )}
-                      {product.discountPercent && (
-                        <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] text-amber-200">
-                          -{product.discountPercent}%
-                        </span>
-                      )}
-                    </div>
+                    <StripCard product={product} label="Cosmique" icon={Sparkles} />
                   </Link>
                 ))}
           </div>
@@ -969,7 +961,7 @@ export default function ShopPage() {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Pour vous</h2>
+            <h2 className="text-lg font-bold">Derniers ajouts</h2>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {loading
@@ -979,7 +971,7 @@ export default function ShopPage() {
                     <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
                   </div>
                 ))
-              : forYou.map((product) => (
+              : latestProducts.map((product) => (
                   <Link
                     key={product.id}
                     href={`/produits/${product.id}`}

@@ -50,9 +50,11 @@ const extractImage = (product: ApiProduct | null): string | null => {
     if (typeof first === "string") return first;
     return first?.url ?? first?.path ?? null;
   }
+  if (product.details?.image) return product.details.image;
+  // If no explicit image is set, fall back to cover/banner.
   if (product.cover) return product.cover;
   if (product.banner) return product.banner;
-  if (product.details?.image) return product.details.image;
+  if (product.details?.cover) return product.details.cover;
   if (product.details?.banner) return product.details.banner;
   if (Array.isArray(product.media) && product.media.length) {
     const entry = product.media[0];
@@ -60,6 +62,17 @@ const extractImage = (product: ApiProduct | null): string | null => {
     return entry?.url ?? null;
   }
   return null;
+};
+
+const extractBanner = (product: ApiProduct | null): string | null => {
+  if (!product) return null;
+  return (
+    product.details?.banner ??
+    product.banner ??
+    product.details?.cover ??
+    product.cover ??
+    null
+  );
 };
 
 const normalizeTags = (product: ApiProduct | null): string[] => {
@@ -134,6 +147,8 @@ export default function ProductDetailsPage() {
 
   const mainImage = useMemo(() => extractImage(product), [product]);
   const displayImage = useMemo(() => toDisplayImageSrc(mainImage) ?? mainImage, [mainImage]);
+  const bannerImage = useMemo(() => extractBanner(product), [product]);
+  const displayBanner = useMemo(() => toDisplayImageSrc(bannerImage) ?? bannerImage, [bannerImage]);
   const tags = useMemo(() => normalizeTags(product), [product]);
   const priceValue = useMemo(
     () => Number(product?.discount_price ?? product?.price ?? 0) || 0,
@@ -222,6 +237,21 @@ export default function ProductDetailsPage() {
   return (
     <main className="min-h-screen bg-[#05030d] text-white">
       {overlay}
+      <div className="relative">
+        <div className="relative h-44 w-full overflow-hidden bg-white/5 sm:h-64">
+          {displayBanner ? (
+            <img
+              src={displayBanner}
+              alt={product?.name ?? "Bannière"}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="h-full w-full bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.35),transparent_55%),radial-gradient(circle_at_80%_0%,rgba(14,165,233,0.3),transparent_55%),radial-gradient(circle_at_50%_80%,rgba(244,206,106,0.15),transparent_55%)]" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/55 to-[#05030d]" />
+        </div>
+      </div>
       {statusMessage && (
         <div className="fixed right-4 top-[88px] z-50 flex items-center gap-2 rounded-2xl border border-white/15 bg-black/80 px-4 py-2 text-sm font-semibold text-white shadow-[0_20px_60px_rgba(0,0,0,0.65)]">
           <ShoppingCart className="h-4 w-4 text-rose-400" />
