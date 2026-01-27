@@ -8,6 +8,10 @@ services:
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://api.badboyshop.online/api
+      - key: NEXT_PUBLIC_CINETPAY_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CINETPAY_SITE_ID
+        sync: false
 
   - type: web
     name: badboyshop-backend
@@ -29,3 +33,17 @@ services:
         value: badboyshop.online
       - key: SESSION_DOMAIN
         value: .badboyshop.online
+
+      # CinetPay (set these in Render dashboard)
+      - key: CINETPAY_API_KEY
+        sync: false
+      - key: CINETPAY_SITE_ID
+        sync: false
+      - key: CINETPAY_SECRET
+        sync: false
+      - key: CINETPAY_WEBHOOK_SECRET
+        sync: false
+      - key: CINETPAY_TRANSFER_WEBHOOK_SECRET
+        sync: false
+      - key: CINETPAY_BASE_URL
+        value: https://api-checkout.cinetpay.com/v2
