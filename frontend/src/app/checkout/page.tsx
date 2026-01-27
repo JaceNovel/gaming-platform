@@ -29,6 +29,10 @@ function CheckoutScreen() {
   const [orderData, setOrderData] = useState<any>(null);
   const cinetpayHandlersBoundRef = useRef(false);
 
+  const hasSeamlessConfig = Boolean(
+    process.env.NEXT_PUBLIC_CINETPAY_API_KEY && process.env.NEXT_PUBLIC_CINETPAY_SITE_ID,
+  );
+
   const isValidProduct = useMemo(() => Number.isFinite(productId) && productId > 0, [productId]);
   const requiresGameId = useMemo(() => {
     const normalized = String(productType ?? "").toLowerCase();
@@ -102,7 +106,7 @@ function CheckoutScreen() {
     const siteId = process.env.NEXT_PUBLIC_CINETPAY_SITE_ID || "";
 
     if (!apiKey || !siteId) {
-      setStatus("Configuration de paiement incomplète. Contactez le support CinetPay.");
+      setStatus("Paiement indisponible : configuration manquante.");
       setShowPaymentModal(false);
       return;
     }
@@ -252,6 +256,18 @@ function CheckoutScreen() {
 
       const payData = await payRes.json().catch(() => null);
       const resolvedTransactionId = String(payData?.data?.transaction_id ?? transactionId);
+      const paymentUrl = typeof payData?.data?.payment_url === "string" ? payData.data.payment_url : "";
+
+      // Si la config seamless n'est pas dispo côté front, on bascule sur l'URL de paiement hébergée.
+      if (!hasSeamlessConfig) {
+        if (paymentUrl) {
+          setStatus("Redirection vers CinetPay...");
+          window.location.href = paymentUrl;
+          return;
+        }
+        setStatus("Paiement indisponible : URL de paiement manquante.");
+        return;
+      }
 
       setOrderData(order);
       setShowPaymentModal(true);

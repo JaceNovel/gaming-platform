@@ -17,6 +17,8 @@ const getAuthHeaders = (): Record<string, string> => {
   if (typeof window === "undefined") return headers;
   const token = localStorage.getItem("bbshop_token");
   if (token) headers.Authorization = `Bearer ${token}`;
+  headers.Accept = "application/json";
+  headers["X-Requested-With"] = "XMLHttpRequest";
   return headers;
 };
 
@@ -27,17 +29,24 @@ export default function AdminRedeemCodesAddPage() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingDenoms, setLoadingDenoms] = useState(false);
 
   const loadDenoms = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/admin/redeem-codes/denominations`, {
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-    });
-    if (!res.ok) return;
-    const payload = (await res.json()) as DenomsResponse;
-    setDenoms(payload?.data ?? []);
+    setLoadingDenoms(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/redeem-codes/denominations`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+      });
+      if (!res.ok) return;
+      const payload = (await res.json()) as any;
+      const items = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      setDenoms(items);
+    } finally {
+      setLoadingDenoms(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -107,14 +116,22 @@ export default function AdminRedeemCodesAddPage() {
                 onChange={(e) => setDenomId(e.target.value)}
                 className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                 required
+                disabled={loadingDenoms}
               >
-                <option value="">Sélectionner un produit</option>
+                <option value="">{loadingDenoms ? "Chargement..." : "Sélectionner un produit"}</option>
                 {denoms.map((denom) => (
                   <option key={denom.id} value={String(denom.id)}>
-                    {denom.product?.name ?? denom.label ?? `Denomination ${denom.id}`}
+                    {denom.product?.name
+                      ? `${denom.product.name}${denom.label ? ` — ${denom.label}` : ""}`
+                      : denom.label ?? `Denomination ${denom.id}`}
                   </option>
                 ))}
               </select>
+              {!loadingDenoms && denoms.length === 0 && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Aucun produit/denomination disponible. Vérifiez votre connexion admin ou créez une denomination côté backend.
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium">Codes (une ligne par code)</label>

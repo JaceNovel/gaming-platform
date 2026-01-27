@@ -977,7 +977,14 @@ export default function ShopPage() {
                     href={`/produits/${product.id}`}
                     className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-cyan-300/40 hover:bg-white/10"
                   >
-                    <div className="h-24 rounded-xl bg-white/10" />
+                    <div className="h-24 overflow-hidden rounded-xl bg-white/10">
+                      <img
+                        src={toDisplayImageSrc(product.bannerUrl ?? product.imageUrl ?? FALLBACK_PRODUCT_IMAGE) ?? (product.bannerUrl ?? product.imageUrl ?? FALLBACK_PRODUCT_IMAGE)}
+                        alt={product.name}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
                     <div className="mt-3 text-sm font-semibold text-white line-clamp-2">{product.name}</div>
                     <div className="mt-1 text-xs text-white/60 line-clamp-2">{product.description}</div>
                     <div className="mt-3 flex items-center justify-between text-sm">

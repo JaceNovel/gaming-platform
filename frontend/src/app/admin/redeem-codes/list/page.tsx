@@ -35,6 +35,8 @@ const getAuthHeaders = (): Record<string, string> => {
   if (typeof window === "undefined") return headers;
   const token = localStorage.getItem("bbshop_token");
   if (token) headers.Authorization = `Bearer ${token}`;
+  headers.Accept = "application/json";
+  headers["X-Requested-With"] = "XMLHttpRequest";
   return headers;
 };
 
