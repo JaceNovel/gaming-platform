@@ -31,7 +31,15 @@ class CinetPayService
         $this->siteId = (string) ($config['site_id'] ?? env('CINETPAY_SITE_ID', ''));
         $this->secret = (string) ($config['secret'] ?? env('CINETPAY_SECRET', ''));
         $this->webhookSecret = (string) ($config['webhook_secret'] ?? env('CINETPAY_WEBHOOK_SECRET', '') ?? $this->secret);
-        $this->baseUrl = rtrim((string) ($config['base_url'] ?? env('CINETPAY_BASE_URL', 'https://api-checkout.cinetpay.com/v2')), '/');
+        $baseUrl = rtrim((string) ($config['base_url'] ?? env('CINETPAY_BASE_URL', 'https://api-checkout.cinetpay.com/v2')), '/');
+
+        // Many deployments mistakenly configure CINETPAY_BASE_URL as the backoffice URL.
+        // The payment API endpoint is the checkout API.
+        if (str_contains($baseUrl, 'client.cinetpay.com/v1')) {
+            $baseUrl = 'https://api-checkout.cinetpay.com/v2';
+        }
+
+        $this->baseUrl = $baseUrl;
         $this->timeout = (int) ($config['timeout'] ?? 15);
         $this->defaultCurrency = strtoupper((string) ($config['default_currency'] ?? 'XOF'));
         $this->defaultChannels = (string) ($config['default_channels'] ?? 'MOBILE_MONEY');
