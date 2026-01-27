@@ -188,12 +188,26 @@ class PaymentWebhookController extends Controller
     {
         $transactionId = $request->query('transaction_id') ?? $request->query('cpm_trans_id');
         $orderId = $request->query('order_id');
-        $statusUrl = config('cinetpay.frontend_status_url');
+        $payment = null;
+        if ($transactionId) {
+            $payment = Payment::with('order')->where('transaction_id', $transactionId)->latest('id')->first();
+        }
+        if (!$payment && $orderId) {
+            $payment = Payment::with('order')->where('order_id', $orderId)->latest('id')->first();
+        }
+
+        $resolvedOrderId = $orderId ?: ($payment?->order_id);
+
+        $defaultStatusUrl = config('cinetpay.frontend_status_url');
+        $walletTopupUrl = config('cinetpay.frontend_wallet_topup_url');
+
+        $isWalletTopup = (string) ($payment?->order?->type ?? '') === 'wallet_topup';
+        $statusUrl = ($isWalletTopup && $walletTopupUrl) ? $walletTopupUrl : $defaultStatusUrl;
 
         if ($statusUrl) {
             $query = Arr::query(array_filter([
                 'transaction_id' => $transactionId,
-                'order_id' => $orderId,
+                'order_id' => $resolvedOrderId,
                 'provider' => 'cinetpay',
             ], static fn ($value) => !is_null($value) && $value !== ''));
 

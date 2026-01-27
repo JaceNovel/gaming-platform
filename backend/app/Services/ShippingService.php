@@ -79,7 +79,9 @@ class ShippingService
         $dompdf->setPaper('A4');
         $dompdf->render();
 
-        $path = 'delivery-notes/order-' . $order->id . '.pdf';
+        $userId = $order->user_id ?? $order->user?->id;
+        $folder = $userId ? ('delivery-notes/user-' . $userId) : 'delivery-notes/unknown-user';
+        $path = $folder . '/order-' . $order->id . '.pdf';
         Storage::disk('public')->put($path, $dompdf->output());
 
         $order->update([

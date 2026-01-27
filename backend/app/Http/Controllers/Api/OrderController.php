@@ -114,17 +114,7 @@ class OrderController extends Controller
             $denominationId = $item['redeem_denomination_id'] ?? null;
             $redeemDenomination = null;
 
-            $isRedeemDelivery = ($product->redeem_code_delivery ?? false)
-                || (($product->stock_mode ?? 'manual') === 'redeem_pool');
-
-            $requiresGameId = in_array($product->type, ['recharge', 'subscription', 'topup', 'pass'], true)
-                && !$isRedeemDelivery;
-
-            if ($requiresGameId && empty($item['game_id'])) {
-                throw ValidationException::withMessages([
-                    'items' => "Game ID is required for {$product->name}",
-                ]);
-            }
+            // Game ID is no longer required at checkout.
 
             if (!$product->is_active) {
                 throw ValidationException::withMessages([
