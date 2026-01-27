@@ -81,7 +81,8 @@ class CinetPayService
         ];
 
         if (!empty($meta['metadata'])) {
-            $payload['metadata'] = $meta['metadata'];
+            // CinetPay expects metadata to be a string.
+            $payload['metadata'] = $this->stringifyMetadata($meta['metadata']);
         }
 
         $payload = array_filter($payload, static fn ($value) => !is_null($value));
@@ -137,6 +138,34 @@ class CinetPayService
             'payment_token' => Arr::get($data, 'data.payment_token'),
             'raw' => $data,
         ];
+    }
+
+    private function stringifyMetadata(mixed $metadata): ?string
+    {
+        if (is_null($metadata)) {
+            return null;
+        }
+
+        if (is_string($metadata)) {
+            $trimmed = trim($metadata);
+            return $trimmed === '' ? null : $trimmed;
+        }
+
+        if (is_scalar($metadata)) {
+            $value = trim((string) $metadata);
+            return $value === '' ? null : $value;
+        }
+
+        try {
+            $encoded = json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (!is_string($encoded) || $encoded === 'null') {
+                return null;
+            }
+
+            return $encoded;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function verifyTransaction(string $transactionId): array
