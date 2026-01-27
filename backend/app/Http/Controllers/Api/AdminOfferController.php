@@ -28,7 +28,9 @@ class AdminOfferController extends Controller
 
         if ($count <= 0) {
             if ($max > 0) {
-                $count = random_int($min > 0 ? $min : 1, max($min, $max));
+                $low = $min > 0 ? $min : 1;
+                $high = max($low, $max);
+                $count = random_int($low, $high);
             } else {
                 $count = $min;
             }
@@ -60,7 +62,7 @@ class AdminOfferController extends Controller
                     'name' => 'Like Bot ' . Str::upper(Str::random(4)),
                     'email' => 'likebot+' . Str::uuid() . '@badboyshop.local',
                     'password' => Hash::make(Str::random(16)),
-                    'role' => 'bot',
+                    'role' => 'user',
                 ]);
                 $botIds[] = $bot->id;
             }

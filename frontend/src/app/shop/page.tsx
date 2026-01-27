@@ -19,6 +19,7 @@ import {
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type ShopProduct = {
   id: number;
@@ -210,7 +211,12 @@ function DealCard({ product }: { product: ShopProduct }) {
         )}
       </div>
       <div className="h-24 w-full overflow-hidden rounded-xl bg-white/10">
-        <Image src={product.imageUrl ?? FALLBACK_PRODUCT_IMAGE} alt={product.name} width={240} height={120} className="h-full w-full object-cover" />
+        <img
+          src={toDisplayImageSrc(product.imageUrl ?? FALLBACK_PRODUCT_IMAGE) ?? (product.imageUrl ?? FALLBACK_PRODUCT_IMAGE)}
+          alt={product.name}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
       </div>
       <div className="text-sm font-semibold text-white line-clamp-2">{product.name}</div>
       <div className="text-xs text-white/60 line-clamp-2">{product.description}</div>
@@ -413,12 +419,11 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
   return (
     <div className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-black/40 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-cyan-300/40 hover:shadow-[0_35px_90px_rgba(14,165,233,0.35)]">
       <div className="relative h-40 w-full overflow-hidden rounded-2xl">
-        <Image
-          src={product.imageUrl ?? FALLBACK_PRODUCT_IMAGE}
+        <img
+          src={toDisplayImageSrc(product.imageUrl ?? FALLBACK_PRODUCT_IMAGE) ?? (product.imageUrl ?? FALLBACK_PRODUCT_IMAGE)}
           alt={product.name}
-          fill
-          sizes="(min-width: 1024px) 300px, 100vw"
-          className="object-cover"
+          className="h-full w-full object-cover"
+          loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent" />
         <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">

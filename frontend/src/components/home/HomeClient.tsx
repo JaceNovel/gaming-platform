@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, Zap, Bot, Heart, ShoppingCart } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type Stat = { value: string; label: string };
 type ProductCard = {
@@ -135,13 +135,11 @@ function ProductCardUI({
 
         <div className="mt-3 flex items-center gap-3">
           <div className="relative h-14 w-14 overflow-hidden rounded-xl ring-1 ring-white/15">
-            <Image
-              src={p.image}
+            <img
+              src={toDisplayImageSrc(p.image) ?? p.image}
               alt={p.title}
-              fill
-              className="object-cover opacity-90"
-              sizes="56px"
-              priority={false}
+              className="h-full w-full object-cover opacity-90"
+              loading="lazy"
             />
           </div>
 

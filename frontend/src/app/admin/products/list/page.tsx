@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { Download, Plus, Search, Pencil, Trash2 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
@@ -261,7 +261,12 @@ export default function AdminProductsListPage() {
                       <div className="flex items-center gap-3">
                         <div className="relative h-12 w-12 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                           {imageUrl ? (
-                            <Image src={imageUrl} alt={product.name ?? "Produit"} fill className="object-cover" />
+                            <img
+                              src={toDisplayImageSrc(imageUrl) ?? imageUrl}
+                              alt={product.name ?? "Produit"}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
                               Img

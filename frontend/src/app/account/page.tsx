@@ -11,6 +11,7 @@ import AvatarPickerModal from "@/components/profile/AvatarPickerModal";
 import PlayerProfileCard from "@/components/profile/PlayerProfileCard";
 import type { DashboardMenuId } from "@/components/profile/dashboardMenu";
 import { API_BASE } from "@/lib/config";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
 
@@ -318,13 +319,14 @@ function AccountClient() {
             (item: any) => item?.is_physical || item?.product?.shipping_required,
           );
           const product = orderItems[0]?.product ?? {};
-          const thumb =
+          const thumbRaw =
             product?.image_url ??
             product?.imageUrl ??
             product?.cover ??
             product?.details?.cover ??
             product?.game?.cover ??
             "/images/badboyshop-logo.png";
+          const thumb = toDisplayImageSrc(thumbRaw) ?? thumbRaw;
           return {
             id: String(order.reference ?? order.id),
             title,

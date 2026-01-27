@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type Category = {
   id: number;
@@ -61,7 +62,12 @@ const buildUrl = (path: string, params: Record<string, string> = {}) => {
   return url.toString();
 };
 
-const isLikelyImageUrl = (value: string) => /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(value.trim());
+const isLikelyImageUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/^https?:\/\//i.test(trimmed)) return true;
+  return /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(trimmed);
+};
 
 export default function AdminProductsEditPage() {
   const params = useParams<{ id: string }>();
@@ -353,7 +359,7 @@ export default function AdminProductsEditPage() {
                         </div>
                       ) : (
                         <img
-                          src={imageUrl}
+                          src={toDisplayImageSrc(imageUrl) ?? imageUrl}
                           alt="Prévisualisation"
                           referrerPolicy="no-referrer"
                           onError={() => setImagePreviewError(true)}
@@ -371,7 +377,7 @@ export default function AdminProductsEditPage() {
                         </div>
                       ) : (
                         <img
-                          src={bannerUrl}
+                          src={toDisplayImageSrc(bannerUrl) ?? bannerUrl}
                           alt="Prévisualisation bannière"
                           referrerPolicy="no-referrer"
                           onError={() => setBannerPreviewError(true)}

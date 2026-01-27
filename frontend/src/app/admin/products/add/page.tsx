@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type Category = {
   id: number;
@@ -57,7 +58,12 @@ export default function AdminProductsAddPage() {
   const [bannerUrl, setBannerUrl] = useState("");
   const [imagePreviewError, setImagePreviewError] = useState(false);
   const [bannerPreviewError, setBannerPreviewError] = useState(false);
-  const isLikelyImageUrl = (value: string) => /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(value.trim());
+  const isLikelyImageUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (/^https?:\/\//i.test(trimmed)) return true;
+    return /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(trimmed);
+  };
   const [categories, setCategories] = useState<Category[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [status, setStatus] = useState("");
@@ -293,7 +299,7 @@ export default function AdminProductsAddPage() {
                         </div>
                       ) : (
                         <img
-                          src={imageUrl}
+                          src={toDisplayImageSrc(imageUrl) ?? imageUrl}
                           alt="Prévisualisation"
                           referrerPolicy="no-referrer"
                           onError={() => setImagePreviewError(true)}
@@ -311,7 +317,7 @@ export default function AdminProductsAddPage() {
                         </div>
                       ) : (
                         <img
-                          src={bannerUrl}
+                          src={toDisplayImageSrc(bannerUrl) ?? bannerUrl}
                           alt="Prévisualisation bannière"
                           referrerPolicy="no-referrer"
                           onError={() => setBannerPreviewError(true)}

@@ -3,11 +3,11 @@
 import type { MouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type ApiProduct = {
   id: number | string;
@@ -133,6 +133,7 @@ export default function ProductDetailsPage() {
   }, []);
 
   const mainImage = useMemo(() => extractImage(product), [product]);
+  const displayImage = useMemo(() => toDisplayImageSrc(mainImage) ?? mainImage, [mainImage]);
   const tags = useMemo(() => normalizeTags(product), [product]);
   const priceValue = useMemo(
     () => Number(product?.discount_price ?? product?.price ?? 0) || 0,
@@ -200,7 +201,7 @@ export default function ProductDetailsPage() {
     if (mainImage) {
       return (
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-          <Image src={mainImage} alt={product?.name ?? "Produit"} fill sizes="(min-width:1024px) 60vw, 100vw" className="object-cover" />
+          <img src={displayImage ?? ""} alt={product?.name ?? "Produit"} className="h-full w-full object-cover" loading="lazy" />
         </div>
       );
     }
@@ -264,7 +265,7 @@ export default function ProductDetailsPage() {
               <div className="rounded-[32px] border border-white/10 bg-white/5 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
                 {mainImage ? (
                   <div className="relative aspect-square w-full overflow-hidden rounded-[30px] border border-white/10 bg-black/50">
-                    <Image src={mainImage} alt={product.name ?? "Produit"} fill sizes="100vw" className="object-cover" />
+                    <img src={displayImage ?? ""} alt={product.name ?? "Produit"} className="h-full w-full object-cover" loading="lazy" />
                   </div>
                 ) : (
                   <div className="flex aspect-square w-full items-center justify-center rounded-[30px] border border-dashed border-white/20 text-sm text-white/60">
