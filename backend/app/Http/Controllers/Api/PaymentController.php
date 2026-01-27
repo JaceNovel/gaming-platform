@@ -25,10 +25,15 @@ class PaymentController extends Controller
             'payment_method' => ['required', Rule::in(['cinetpay'])],
             'amount' => ['required', 'numeric', 'min:100'],
             'currency' => ['required', 'string', 'size:3'],
+            'transaction_id' => ['nullable', 'string', 'max:191'],
             'customer_phone' => ['nullable', 'string', 'max:32'],
             'customer_email' => ['nullable', 'email'],
             'description' => ['nullable', 'string', 'max:191'],
             'customer_name' => ['nullable', 'string', 'max:191'],
+            'notify_url' => ['nullable', 'url', 'max:2048'],
+            'return_url' => ['nullable', 'url', 'max:2048'],
+            'cancel_url' => ['nullable', 'url', 'max:2048'],
+            'channels' => ['nullable', 'string', 'max:50'],
             'metadata' => ['sometimes', 'array'],
         ]);
 
@@ -61,7 +66,9 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Unsupported currency'], 422);
         }
 
-        $transactionId = $order->payment?->transaction_id ?? $this->cinetPayService->generateTransactionId($order);
+        $transactionId = $order->payment?->transaction_id
+            ?? ($validated['transaction_id'] ?? null)
+            ?? $this->cinetPayService->generateTransactionId($order);
 
         try {
             $payment = DB::transaction(function () use ($order, $transactionId, $expectedAmount, $currency) {
@@ -102,11 +109,13 @@ class PaymentController extends Controller
                 'customer_name' => $validated['customer_name'] ?? null,
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'customer_email' => $validated['customer_email'] ?? $user->email,
-                'notify_url' => route('api.payments.cinetpay.webhook'),
-                'return_url' => route('api.payments.cinetpay.return', [
-                    'order_id' => $order->id,
-                    'transaction_id' => $transactionId,
-                ]),
+                'notify_url' => $validated['notify_url'] ?? route('api.payments.cinetpay.webhook'),
+                'return_url' => $validated['return_url'] ?? route('api.payments.cinetpay.return', [
+                        'order_id' => $order->id,
+                        'transaction_id' => $transactionId,
+                    ]),
+                'cancel_url' => $validated['cancel_url'] ?? config('cinetpay.cancel_url'),
+                'channels' => $validated['channels'] ?? null,
                 'metadata' => array_merge($validated['metadata'] ?? [], [
                     'order_id' => $order->id,
                     'user_id' => $user->id,
