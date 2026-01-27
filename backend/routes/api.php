@@ -45,10 +45,22 @@ Route::prefix('auth')->group(function () {
 Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);
 
 Route::get('/health', function () {
+    $dbStatus = 'ok';
+    $dbError = null;
+    try {
+        DB::connection()->getPdo();
+    } catch (Throwable $e) {
+        $dbStatus = 'fail';
+        $dbError = $e->getMessage();
+    }
+
     return response()->json([
         'ok' => true,
         'app' => 'BADBOYSHOP',
-        'env' => app()->environment(),
+        'app_env' => app()->environment(),
+        'app_url' => config('app.url'),
+        'db' => $dbStatus,
+        'error' => $dbError,
         'time' => now()->toIso8601String(),
     ]);
 });
