@@ -5,7 +5,10 @@ namespace App\Jobs;
 use App\Models\Order;
 use App\Models\GameAccount;
 use App\Models\EmailLog;
+use App\Models\Refund;
+use App\Mail\RefundIssued;
 use App\Services\DeliveryService;
+use App\Services\WalletService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -28,18 +31,24 @@ class ProcessOrderDelivery implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(DeliveryService $deliveryService): void
+    public function handle(DeliveryService $deliveryService, WalletService $walletService): void
     {
         try {
+            $this->order->loadMissing(['user', 'orderItems.product', 'orderItems.product.game']);
+
             // Process each order item
             $hasProcessing = false;
             $hasPhysical = false;
+            $hasRefund = false;
 
             foreach ($this->order->orderItems as $orderItem) {
                 $product = $orderItem->product;
 
                 if ($product->type === 'account') {
-                    $this->deliverAccount($deliveryService, $orderItem);
+                    $result = $this->deliverAccount($deliveryService, $walletService, $orderItem);
+                    if ($result === 'refunded') {
+                        $hasRefund = true;
+                    }
                 } elseif (in_array($product->type, ['recharge', 'subscription', 'item', 'topup', 'pass'])) {
                     $this->deliverTopup($orderItem);
                     $hasProcessing = true;
@@ -53,6 +62,11 @@ class ProcessOrderDelivery implements ShouldQueue
             }
 
             $newStatus = $hasProcessing ? 'processing' : ($hasPhysical ? 'paid' : 'delivered');
+            if ($hasRefund) {
+                $statuses = $this->order->orderItems->pluck('delivery_status')->map(fn ($v) => (string) $v);
+                $allRefunded = $statuses->every(fn ($s) => $s === 'refunded');
+                $newStatus = $allRefunded ? 'cancelled_refunded' : ($hasProcessing ? 'processing' : 'partially_refunded');
+            }
             $payload = ['status' => $newStatus];
             if ($hasPhysical) {
                 $payload['shipping_status'] = $this->order->shipping_status ?: 'pending';
@@ -71,7 +85,7 @@ class ProcessOrderDelivery implements ShouldQueue
         }
     }
 
-    protected function deliverAccount(DeliveryService $deliveryService, $orderItem)
+    protected function deliverAccount(DeliveryService $deliveryService, WalletService $walletService, $orderItem): string
     {
         // Find available account
         $account = GameAccount::where('game_id', $orderItem->product->game_id)
@@ -79,7 +93,50 @@ class ProcessOrderDelivery implements ShouldQueue
             ->first();
 
         if (!$account) {
-            throw new \Exception('No available accounts for delivery');
+            $user = $this->order->user;
+            $amount = (float) $orderItem->price * (int) $orderItem->quantity;
+            $reference = 'REF-ORDERITEM-' . $orderItem->id;
+            $reason = 'Produit account indisponible (rupture de stock)';
+
+            $walletService->credit($user, $reference, $amount, [
+                'type' => 'order_refund',
+                'order_id' => $this->order->id,
+                'order_item_id' => $orderItem->id,
+                'product_id' => $orderItem->product_id,
+                'reason' => $reason,
+            ]);
+
+            $refund = Refund::firstOrCreate(
+                ['reference' => $reference],
+                [
+                    'order_id' => $this->order->id,
+                    'user_id' => $user->id,
+                    'amount' => $amount,
+                    'reason' => $reason,
+                    'status' => 'completed',
+                ]
+            );
+
+            $orderItem->update([
+                'delivery_status' => 'refunded',
+                'delivery_payload' => [
+                    'reason' => $reason,
+                    'refund_reference' => $reference,
+                    'refund_amount' => $amount,
+                ],
+            ]);
+
+            Mail::to($user->email)->send(new RefundIssued($this->order, $refund));
+            EmailLog::create([
+                'user_id' => $user->id,
+                'to' => $user->email,
+                'type' => 'refund_issued',
+                'subject' => 'Remboursement crédité sur votre wallet - BADBOYSHOP',
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+
+            return 'refunded';
         }
 
         // Mark as sold
@@ -110,6 +167,8 @@ class ProcessOrderDelivery implements ShouldQueue
             'status' => 'sent',
             'sent_at' => now(),
         ]);
+
+        return 'delivered';
     }
 
     protected function deliverTopup($orderItem)

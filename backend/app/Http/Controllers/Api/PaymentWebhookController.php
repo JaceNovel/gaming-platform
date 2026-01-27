@@ -7,6 +7,7 @@ use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
+use App\Models\Product;
 use App\Services\CinetPayService;
 use App\Services\ShippingService;
 use Illuminate\Http\Request;
@@ -119,6 +120,29 @@ class PaymentWebhookController extends Controller
 
             $orderStatus = $normalized === 'completed' ? 'paid' : 'failed';
             $payment->order->update(['status' => $orderStatus]);
+
+            if ($normalized === 'completed' && $payment->order->type !== 'wallet_topup') {
+                $payment->order->loadMissing('orderItems');
+                $orderMeta = $payment->order->meta ?? [];
+                if (!is_array($orderMeta)) {
+                    $orderMeta = [];
+                }
+
+                if (empty($orderMeta['sales_recorded_at'])) {
+                    $items = $payment->order->orderItems;
+                    foreach ($items as $item) {
+                        if (!$item?->product_id) {
+                            continue;
+                        }
+                        $qty = max(1, (int) ($item->quantity ?? 1));
+                        Product::where('id', $item->product_id)->increment('purchases_count');
+                        Product::where('id', $item->product_id)->increment('sold_count', $qty);
+                    }
+
+                    $orderMeta['sales_recorded_at'] = now()->toIso8601String();
+                    $payment->order->update(['meta' => $orderMeta]);
+                }
+            }
 
             PaymentAttempt::updateOrCreate(
                 ['transaction_id' => $transactionId],

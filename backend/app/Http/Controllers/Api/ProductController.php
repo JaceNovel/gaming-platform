@@ -12,7 +12,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $query = Product::query()
-            ->with(['game', 'images', 'categoryEntity'])
+            ->with(['game', 'images', 'categoryEntity', 'tags'])
             ->withCount('likes');
 
         if ($request->boolean('active', true)) {
@@ -79,7 +79,7 @@ class ProductController extends Controller
 
     public function show(string $product)
     {
-        $item = Product::with(['game', 'images', 'categoryEntity'])->withCount('likes')
+        $item = Product::with(['game', 'images', 'categoryEntity', 'tags'])->withCount('likes')
             ->where('id', $product)
             ->orWhere('slug', $product)
             ->firstOrFail();

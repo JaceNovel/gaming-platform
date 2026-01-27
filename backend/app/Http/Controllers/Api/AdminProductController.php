@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductTag;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -44,6 +45,7 @@ class AdminProductController extends Controller
             'image_url' => 'nullable|url',
             'banner_url' => 'nullable|url',
             'mobile_section' => 'nullable|string|in:bundle,deal,for_you',
+            'server_tags' => 'nullable|string',
         ]);
 
         $data['sku'] = $data['sku'] ?? $this->generateSku();
@@ -85,6 +87,8 @@ class AdminProductController extends Controller
 
         $product = Product::create($data);
 
+        $this->syncServerTags($product, $request->input('server_tags'));
+
         return response()->json($product, 201);
     }
 
@@ -121,6 +125,7 @@ class AdminProductController extends Controller
             'image_url' => 'nullable|url',
             'banner_url' => 'nullable|url',
             'mobile_section' => 'nullable|string|in:bundle,deal,for_you',
+            'server_tags' => 'nullable|string',
         ]);
 
         $imageUrl = $data['image_url'] ?? null;
@@ -158,6 +163,10 @@ class AdminProductController extends Controller
         }
 
         $product->update($data);
+
+        if ($request->has('server_tags')) {
+            $this->syncServerTags($product, $request->input('server_tags'));
+        }
 
         return response()->json($product);
     }
@@ -203,5 +212,41 @@ class AdminProductController extends Controller
         if ($category) {
             $data['category'] = $category->name;
         }
+    }
+
+    private function syncServerTags(Product $product, ?string $rawTags): void
+    {
+        $raw = trim((string) ($rawTags ?? ''));
+        if ($raw === '') {
+            $product->tags()->sync([]);
+            return;
+        }
+
+        $names = collect(preg_split('/[,;\n]+/', $raw) ?: [])
+            ->map(fn ($t) => trim((string) $t))
+            ->filter();
+
+        $tagIds = [];
+
+        foreach ($names as $name) {
+            $slug = str($name)->slug()->value();
+            if (!$slug) {
+                continue;
+            }
+
+            $tag = ProductTag::firstOrCreate(
+                ['slug' => $slug],
+                ['name' => $name, 'is_active' => true]
+            );
+
+            if (!$tag->is_active) {
+                $tag->is_active = true;
+                $tag->save();
+            }
+
+            $tagIds[] = $tag->id;
+        }
+
+        $product->tags()->sync(array_values(array_unique($tagIds)));
     }
 }

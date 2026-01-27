@@ -22,12 +22,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminDashboardController extends Controller
 {
+    private function realUsers(): Builder
+    {
+        return User::query()->where('email', 'not like', 'likebot+%@badboyshop.local');
+    }
+
     public function statsOverview(Request $request)
     {
-        $revenueTotal = (float) Payment::where('status', 'paid')->sum('amount');
+        $revenueTotal = (float) Payment::where('status', 'completed')->sum('amount');
         $totalOrders = Order::count();
         $totalProducts = Product::count();
-        $totalCustomers = User::where('role', 'user')->count();
+        $totalCustomers = $this->realUsers()->where('role', 'user')->count();
         $avgOrderValue = $totalOrders > 0 ? round($revenueTotal / $totalOrders, 2) : 0;
         $failedPaymentsCount = Payment::where('status', 'failed')->count();
         $pendingOrdersCount = Order::where('status', 'pending')->count();
@@ -42,9 +47,12 @@ class AdminDashboardController extends Controller
             ]);
 
         $conversionRate = null;
-        $totalUsers = User::count();
+        $totalUsers = $this->realUsers()->count();
         if ($totalUsers > 0) {
-            $paidUsers = Order::where('status', 'paid')->distinct('user_id')->count('user_id');
+            $paidUsers = Order::where('status', 'paid')
+                ->whereIn('user_id', $this->realUsers()->select('id'))
+                ->distinct('user_id')
+                ->count('user_id');
             $conversionRate = round(($paidUsers / $totalUsers) * 100, 2);
         }
 
@@ -110,8 +118,8 @@ class AdminDashboardController extends Controller
 
         $totals = [
             'orders' => Order::count(),
-            'paid_payments' => Payment::where('status', 'paid')->count(),
-            'users' => User::count(),
+            'paid_payments' => Payment::where('status', 'completed')->count(),
+            'users' => $this->realUsers()->count(),
             'active_premium' => PremiumMembership::where('is_active', true)
                 ->whereDate('expiration_date', '>=', Carbon::today())
                 ->count(),
@@ -135,14 +143,14 @@ class AdminDashboardController extends Controller
 
         [$from, $to] = $this->parseDateRange($request);
 
-        $payments = Payment::where('status', 'paid');
+        $payments = Payment::where('status', 'completed');
         $payments = $this->applyDateRange($payments, $from, $to);
 
         $brut = (clone $payments)->sum('amount');
         $net = round($brut * 0.15, 2);
         $funds = round($brut * 0.85, 2);
 
-        $salesToday = Payment::where('status', 'paid')
+        $salesToday = Payment::where('status', 'completed')
             ->whereDate('created_at', Carbon::today())
             ->count();
 
@@ -152,8 +160,8 @@ class AdminDashboardController extends Controller
             ->groupBy('level')
             ->pluck('total', 'level');
 
-        $premiumUsers = User::where('is_premium', true)->count();
-        $totalUsers = User::count();
+        $premiumUsers = $this->realUsers()->where('is_premium', true)->count();
+        $totalUsers = $this->realUsers()->count();
         $conversion = $totalUsers > 0 ? round(($premiumUsers / $totalUsers) * 100, 2) : 0;
 
         return response()->json([
@@ -178,7 +186,7 @@ class AdminDashboardController extends Controller
 
         [$from, $to] = $this->parseDateRange($request);
 
-        $payments = Payment::where('status', 'paid');
+        $payments = Payment::where('status', 'completed');
         $payments = $this->applyDateRange($payments, $from, $to);
 
         $daily = $this->groupPaymentsBy($payments, 'day');
@@ -222,7 +230,7 @@ class AdminDashboardController extends Controller
                 ->paginate($perPage);
 
             $payments = Payment::with(['order.user'])
-                ->where('status', 'paid')
+                ->where('status', 'completed')
                 ->latest()
                 ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
                 ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
@@ -273,7 +281,7 @@ class AdminDashboardController extends Controller
                 ->paginate($perPage);
 
             $payments = Payment::with(['order.user'])
-                ->where('status', 'paid')
+                ->where('status', 'completed')
                 ->latest()
                 ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
                 ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
@@ -379,7 +387,7 @@ class AdminDashboardController extends Controller
 
     private function sumByProductAttribute(?Carbon $from, ?Carbon $to, string $attribute)
     {
-        $query = Payment::where('payments.status', 'paid')
+        $query = Payment::where('payments.status', 'completed')
             ->join('orders', 'orders.id', '=', 'payments.order_id')
             ->join('order_items', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'products.id', '=', 'order_items.product_id');
@@ -403,7 +411,7 @@ class AdminDashboardController extends Controller
 
     private function sumByGame(?Carbon $from, ?Carbon $to)
     {
-        $query = Payment::where('payments.status', 'paid')
+        $query = Payment::where('payments.status', 'completed')
             ->join('orders', 'orders.id', '=', 'payments.order_id')
             ->join('order_items', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'products.id', '=', 'order_items.product_id')
@@ -428,7 +436,7 @@ class AdminDashboardController extends Controller
 
     private function sumByCountry(?Carbon $from, ?Carbon $to)
     {
-        $query = Payment::where('status', 'paid');
+        $query = Payment::where('status', 'completed');
         $query = $this->applyDateRange($query, $from, $to);
 
         return $query
@@ -471,7 +479,7 @@ class AdminDashboardController extends Controller
     private function exportPayments(?Carbon $from, ?Carbon $to): array
     {
         $payments = Payment::with('order.user')
-            ->where('status', 'paid')
+            ->where('status', 'completed')
             ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
             ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
             ->get();
@@ -493,7 +501,9 @@ class AdminDashboardController extends Controller
 
     private function exportUsers(): array
     {
-        $users = User::withCount(['orders', 'likes'])->get();
+        $users = User::withCount(['orders', 'likes'])
+            ->where('email', 'not like', 'likebot+%@badboyshop.local')
+            ->get();
         $headers = ['id', 'name', 'email', 'is_premium', 'premium_level', 'orders_count', 'likes_count', 'created_at'];
 
         $rows = $users->map(function (User $user) {

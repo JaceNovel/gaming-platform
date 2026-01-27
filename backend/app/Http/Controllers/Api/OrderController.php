@@ -114,7 +114,12 @@ class OrderController extends Controller
             $denominationId = $item['redeem_denomination_id'] ?? null;
             $redeemDenomination = null;
 
-            $requiresGameId = in_array($product->type, ['recharge', 'subscription', 'topup', 'pass'], true);
+            $isRedeemDelivery = ($product->redeem_code_delivery ?? false)
+                || (($product->stock_mode ?? 'manual') === 'redeem_pool');
+
+            $requiresGameId = in_array($product->type, ['recharge', 'subscription', 'topup', 'pass'], true)
+                && !$isRedeemDelivery;
+
             if ($requiresGameId && empty($item['game_id'])) {
                 throw ValidationException::withMessages([
                     'items' => "Game ID is required for {$product->name}",
@@ -249,9 +254,6 @@ class OrderController extends Controller
                     'delivery_type' => $item['delivery_type'] ?? null,
                     'delivery_eta_days' => $item['delivery_eta_days'] ?? null,
                 ]);
-
-                Product::where('id', $item['product_id'])->increment('purchases_count');
-                Product::where('id', $item['product_id'])->increment('sold_count', $item['quantity']);
             }
 
             if (!empty($promotionSummary['applied_ids'])) {

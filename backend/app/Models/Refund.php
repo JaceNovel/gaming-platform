@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Refund extends Model
 {
-    protected $fillable = ['order_id', 'user_id', 'amount', 'reason', 'status'];
+    protected $fillable = ['order_id', 'user_id', 'amount', 'reference', 'reason', 'status'];
 
     protected $casts = [
         'amount' => 'decimal:2',

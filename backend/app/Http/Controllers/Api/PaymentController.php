@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessOrderDelivery;
+use App\Jobs\ProcessRedeemFulfillment;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
+use App\Models\Product;
 use App\Services\CinetPayService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -207,6 +211,7 @@ class PaymentController extends Controller
 
                 if ($normalized !== 'pending') {
                     DB::transaction(function () use ($payment, $normalized, $verification) {
+                            $previousOrderStatus = $payment->order?->status;
                         $meta = $payment->webhook_data ?? [];
                         if (!is_array($meta)) {
                             $meta = [];
@@ -224,6 +229,40 @@ class PaymentController extends Controller
                                     ? 'paid'
                                     : ($normalized === 'failed' ? 'failed' : $payment->order->status),
                             ]);
+
+                                if ($normalized === 'completed'
+                                    && $payment->order->type !== 'wallet_topup'
+                                    && $previousOrderStatus !== 'paid') {
+                                    $payment->order->loadMissing('orderItems.product');
+
+                                    $orderMeta = $payment->order->meta ?? [];
+                                    if (!is_array($orderMeta)) {
+                                        $orderMeta = [];
+                                    }
+
+                                    if (empty($orderMeta['sales_recorded_at'])) {
+                                        foreach ($payment->order->orderItems as $item) {
+                                            if (!$item?->product_id) {
+                                                continue;
+                                            }
+                                            $qty = max(1, (int) ($item->quantity ?? 1));
+                                            Product::where('id', $item->product_id)->increment('purchases_count');
+                                            Product::where('id', $item->product_id)->increment('sold_count', $qty);
+                                        }
+                                        $orderMeta['sales_recorded_at'] = now()->toIso8601String();
+                                    }
+
+                                    if (empty($orderMeta['fulfillment_dispatched_at'])) {
+                                        if ($payment->order->requiresRedeemFulfillment()) {
+                                            ProcessRedeemFulfillment::dispatch($payment->order->id);
+                                        } else {
+                                            ProcessOrderDelivery::dispatch($payment->order);
+                                        }
+                                        $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
+                                    }
+
+                                    $payment->order->update(['meta' => $orderMeta]);
+                                }
                         }
                     });
 

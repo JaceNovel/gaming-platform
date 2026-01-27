@@ -14,6 +14,7 @@ class AdminUsersController extends Controller
     public function index(Request $request)
     {
         $query = User::query()
+            ->where('email', 'not like', 'likebot+%@badboyshop.local')
             ->withSum('orders as total_spent', 'total_price')
             ->withMax('orders as last_order_at', 'created_at')
             ->latest('id');
@@ -106,7 +107,9 @@ class AdminUsersController extends Controller
 
     public function export(Request $request)
     {
-        $query = User::query()->latest('id');
+        $query = User::query()
+            ->where('email', 'not like', 'likebot+%@badboyshop.local')
+            ->latest('id');
 
         if ($request->filled('role')) {
             $query->where('role', $request->query('role'));
