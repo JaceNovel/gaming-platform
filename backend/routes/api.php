@@ -29,6 +29,8 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ReviewController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -50,6 +52,39 @@ Route::get('/health', function () {
         'env' => app()->environment(),
         'time' => now()->toIso8601String(),
     ]);
+});
+
+Route::get('/health/db', function () {
+    $url = env('DATABASE_URL', env('DB_URL'));
+    $host = null;
+    if ($url) {
+        $parts = parse_url($url);
+        $host = $parts['host'] ?? null;
+    }
+    $resolved = null;
+    if ($host) {
+        $resolved = gethostbyname($host);
+    }
+
+    try {
+        DB::connection()->getPdo();
+        return response()->json([
+            'ok' => true,
+            'db' => 'connected',
+            'host' => $host,
+            'resolved' => $resolved,
+            'time' => now()->toIso8601String(),
+        ]);
+    } catch (Throwable $e) {
+        return response()->json([
+            'ok' => false,
+            'db' => 'error',
+            'host' => $host,
+            'resolved' => $resolved,
+            'message' => $e->getMessage(),
+            'time' => now()->toIso8601String(),
+        ], 500);
+    }
 });
 
 // Public listing routes
