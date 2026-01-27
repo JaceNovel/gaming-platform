@@ -18,6 +18,11 @@ type Product = {
   sku?: string | null;
   name?: string | null;
   description?: string | null;
+  details?: {
+    image?: string | null;
+    banner?: string | null;
+    cover?: string | null;
+  } | null;
   category?: string | null;
   category_id?: number | null;
   price?: number | string | null;
@@ -238,7 +243,12 @@ export default function AdminProductsListPage() {
             </thead>
             <tbody>
               {products.map((product) => {
-                const imageUrl = product.images?.[0]?.url ?? null;
+                const imageUrl =
+                  product.details?.image ??
+                  product.details?.cover ??
+                  product.details?.banner ??
+                  product.images?.[0]?.url ??
+                  null;
                 const sold = product.sold_count ?? 0;
                 const stock = product.stock ?? 0;
                 const salesPercent = stock > 0 ? Math.min(100, Math.round((sold / stock) * 100)) : 0;
@@ -289,9 +299,13 @@ export default function AdminProductsListPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button className="rounded-full border border-slate-200 p-2 text-slate-500 hover:text-slate-700">
+                        <Link
+                          href={`/admin/products/${product.id}/edit`}
+                          className="rounded-full border border-slate-200 p-2 text-slate-500 hover:text-slate-700"
+                          aria-label="Modifier le produit"
+                        >
                           <Pencil className="h-4 w-4" />
-                        </button>
+                        </Link>
                         <button
                           onClick={() => handleDelete(product.id)}
                           className="rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-500"

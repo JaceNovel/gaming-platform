@@ -190,6 +190,8 @@ export default function HomeClient() {
     { value: "200+", label: "Likes\nactifs" },
   ]);
   const [products, setProducts] = useState<ProductCard[]>([]);
+  const [desktopStart, setDesktopStart] = useState(0);
+  const [transitioning, setTransitioning] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -240,6 +242,25 @@ export default function HomeClient() {
   }, []);
 
   const topProducts = useMemo(() => products, [products]);
+  const desktopPopular = useMemo(() => {
+    const length = topProducts.length;
+    if (length <= 3) return topProducts;
+    return Array.from({ length: 3 }).map((_, idx) => topProducts[(desktopStart + idx) % length]);
+  }, [topProducts, desktopStart]);
+
+  useEffect(() => {
+    if (topProducts.length <= 3) return;
+    const interval = setInterval(() => {
+      setTransitioning(true);
+      setTimeout(() => {
+        setDesktopStart((prev) => (prev + 3) % topProducts.length);
+      }, 1500);
+      setTimeout(() => {
+        setTransitioning(false);
+      }, 3000);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [topProducts.length]);
 
   const addToCart = (product: ProductCard, origin?: HTMLElement | null) => {
     if (typeof window === "undefined") return;
@@ -416,10 +437,20 @@ export default function HomeClient() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft sm:hidden">
               {topProducts.map((p) => (
                 <ProductCardUI
                   key={p.id}
+                  p={p}
+                  onAddToCart={addToCart}
+                  onBuy={handleBuy}
+                />
+              ))}
+            </div>
+            <div className={`hidden sm:grid sm:grid-cols-3 sm:gap-4 transition-all duration-[3000ms] ${transitioning ? "blur-sm opacity-70" : "blur-0 opacity-100"}`}>
+              {desktopPopular.map((p) => (
+                <ProductCardUI
+                  key={`desktop-${p.id}`}
                   p={p}
                   onAddToCart={addToCart}
                   onBuy={handleBuy}
