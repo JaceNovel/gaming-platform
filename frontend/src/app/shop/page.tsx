@@ -762,6 +762,10 @@ export default function ShopPage() {
   const popularProducts = useMemo(() => filtered.filter((p) => p.displaySection === "popular").slice(0, 4), [filtered]);
   const promoProducts = useMemo(() => filtered.filter((p) => p.displaySection === "cosmic_promo").slice(0, 6), [filtered]);
   const latestProducts = useMemo(() => filtered.filter((p) => p.displaySection === "latest").slice(0, 6), [filtered]);
+  const gamingAccountProducts = useMemo(
+    () => filtered.filter((p) => p.displaySection === "gaming_accounts").slice(0, 6),
+    [filtered]
+  );
 
   const handleImageSearch = (file: File | null) => {
     if (!file) return;
@@ -825,6 +829,16 @@ export default function ShopPage() {
             </div>
 
             <div className="space-y-12">
+              {gamingAccountProducts.length > 0 && (
+                <ProductGrid
+                  title="Compte Gaming"
+                  subtitle="Sélection de comptes gaming mis en avant."
+                  products={gamingAccountProducts}
+                  onAddToCart={handleAddToCart}
+                  onView={handleViewProduct}
+                  onLike={handleToggleLike}
+                />
+              )}
               <ProductGrid
                 title="Produits populaires"
                 subtitle="Les comptes et recharges les plus likés par la communauté."
@@ -913,6 +927,29 @@ export default function ShopPage() {
       </div>
 
       <section className="mobile-shell space-y-4 py-4">
+        {gamingAccountProducts.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold">Compte Gaming</h2>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
+              {loading
+                ? Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="min-w-[180px] rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="h-4 w-24 rounded-full bg-white/10" />
+                      <div className="mt-3 h-24 rounded-xl bg-white/10" />
+                      <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
+                    </div>
+                  ))
+                : gamingAccountProducts.map((product) => (
+                    <Link key={product.id} href={`/produits/${product.id}`} className="min-w-[180px] snap-start">
+                      <StripCard product={product} label="Compte" icon={Crown} />
+                    </Link>
+                  ))}
+            </div>
+          </div>
+        )}
+
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Produits populaires</h2>

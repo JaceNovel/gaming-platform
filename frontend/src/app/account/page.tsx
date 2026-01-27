@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Globe, LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import ProfileHeader from "@/components/profile/ProfileHeader";
@@ -175,6 +175,7 @@ const statusBadgeClass = (status: Order["status"]) => {
 function AccountClient() {
   const { authFetch, user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fallbackProfile = useMemo<Me | null>(() => {
     if (!user) return null;
     const legacyUser =
@@ -245,6 +246,27 @@ function AccountClient() {
   const [countrySubmitting, setCountrySubmitting] = useState(false);
   const [countryStatus, setCountryStatus] = useState<"idle" | "success" | "error">("idle");
   const [countryMessage, setCountryMessage] = useState("");
+  const [topupBanner, setTopupBanner] = useState<string | null>(null);
+
+  useEffect(() => {
+    const status = (searchParams.get('topup_status') ?? '').toLowerCase();
+    if (!status) return;
+
+    if (status === 'success' || status === 'completed' || status === 'paid') {
+      setTopupBanner('Recharge wallet réussie.');
+    } else if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
+      setTopupBanner('Recharge wallet échouée ou annulée.');
+    } else {
+      setTopupBanner('Recharge wallet en attente de confirmation.');
+    }
+
+    const timer = setTimeout(() => {
+      setTopupBanner(null);
+      router.replace('/account');
+    }, 4500);
+
+    return () => clearTimeout(timer);
+  }, [router, searchParams]);
 
   const avatar = useMemo(() => {
     const id = me?.avatarId || "nova_ghost";
@@ -639,7 +661,7 @@ function AccountClient() {
         setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: prev.walletBalanceFcfa + amountValue } : prev));
         return;
       }
-      const res = await authFetch(`${API_BASE}/wallet/deposit`, {
+      const res = await authFetch(`${API_BASE}/wallet/topup/init`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: amountValue }),
@@ -649,16 +671,14 @@ function AccountClient() {
         const msg = payload?.message ?? "Impossible de lancer CinetPay";
         throw new Error(msg);
       }
+      const paymentUrl = typeof payload?.payment_url === "string" ? payload.payment_url : "";
+      if (!paymentUrl) {
+        throw new Error("Lien de paiement indisponible");
+      }
+
       setRechargeStatus("success");
-      setRechargeMessage(
-        payload?.message ?? "CinetPay activé, valider la transaction dans la fenêtre sécurisée.",
-      );
-      const newBalance =
-        typeof payload?.balance === "number"
-          ? payload.balance
-          : walletBalanceState + amountValue;
-      setWalletBalanceState(newBalance);
-      setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: newBalance } : prev));
+      setRechargeMessage("Redirection vers CinetPay...");
+      window.location.href = paymentUrl;
     } catch (error: any) {
       setRechargeStatus("error");
       setRechargeMessage(error?.message ?? "Erreur inattendue");
@@ -704,6 +724,11 @@ function AccountClient() {
           />
 
           <section className="space-y-8">
+            {topupBanner && (
+              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-sm text-cyan-100">
+                {topupBanner}
+              </div>
+            )}
             {missingCountry && (
               <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
                 Pays manquant. Merci de compléter ton pays dans le profil pour afficher le drapeau.

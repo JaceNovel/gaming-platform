@@ -16,7 +16,6 @@ type CartItem = {
   priceLabel?: string;
   quantity: number;
   type?: string;
-  game_id?: string;
 };
 
 function CartScreen() {
@@ -36,10 +35,6 @@ function CartScreen() {
       }
     }
   }, []);
-  const requiresGameId = (type?: string) => {
-    const normalized = String(type ?? "").toLowerCase();
-    return ["recharge", "subscription", "topup", "pass"].includes(normalized);
-  };
 
   const removeItem = (id: number) => {
     setCartItems((prev) => {
@@ -75,15 +70,6 @@ function CartScreen() {
     }
   };
 
-  const handleGameIdChange = (id: number, value: string) => {
-    setCartItems((prev) => {
-      const next = prev.map((item) => (item.id === id ? { ...item, game_id: value } : item));
-      if (typeof window !== "undefined") {
-        localStorage.setItem("bbshop_cart", JSON.stringify(next));
-      }
-      return next;
-    });
-  };
   const subtotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cartItems],
@@ -106,7 +92,6 @@ function CartScreen() {
           items: cartItems.map((item) => ({
             product_id: item.id,
             quantity: item.quantity,
-            game_id: item.game_id,
           })),
         }),
       });
@@ -262,17 +247,6 @@ function CartScreen() {
                         </button>
                       </div>
                     </div>
-                    {requiresGameId(item.type) && (
-                      <div className="text-sm text-white/70">
-                        <label className="text-xs text-white/60">ID jeu requis</label>
-                        <input
-                          className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-                          value={item.game_id ?? ""}
-                          onChange={(e) => handleGameIdChange(item.id, e.target.value)}
-                          placeholder="Ex: 123456789"
-                        />
-                      </div>
-                    )}
                   </div>
                 )) : (
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">

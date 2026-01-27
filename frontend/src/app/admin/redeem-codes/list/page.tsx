@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
@@ -18,8 +18,10 @@ type RedeemCode = {
 
 type Denomination = {
   id: number;
+  product_id?: number | null;
+  code?: string | null;
   label?: string | null;
-  product?: { id: number; name?: string | null } | null;
+  product?: { id: number; name?: string | null; sku?: string | null } | null;
 };
 
 type CodesResponse = {
@@ -51,9 +53,34 @@ export default function AdminRedeemCodesListPage() {
   const [denoms, setDenoms] = useState<Denomination[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [productId, setProductId] = useState("all");
   const [denomId, setDenomId] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const products = Array.from(
+    denoms
+      .filter((d) => d.product && (d.product_id ?? d.product?.id) != null)
+      .reduce((acc, denom) => {
+        const id = denom.product_id ?? denom.product!.id;
+        acc.set(id, denom.product!);
+        return acc;
+      }, new Map<number, NonNullable<Denomination["product"]>>())
+      .entries(),
+  )
+    .map(([id, product]) => ({ id, name: product.name ?? `Produit ${id}`, sku: product.sku ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const filteredDenoms = denoms
+    .filter((d) => {
+      if (productId === "all") return true;
+      return String(d.product_id ?? d.product?.id ?? "") === productId;
+    })
+    .sort((a, b) => {
+      const aLabel = (a.label ?? a.code ?? "").toLowerCase();
+      const bLabel = (b.label ?? b.code ?? "").toLowerCase();
+      return aLabel.localeCompare(bLabel);
+    });
 
   const loadDenoms = useCallback(async () => {
     const res = await fetch(`${API_BASE}/admin/redeem-codes/denominations`, {
@@ -74,6 +101,7 @@ export default function AdminRedeemCodesListPage() {
       const params = new URLSearchParams();
       if (search.trim()) params.set("code", search.trim());
       if (status !== "all") params.set("status", status);
+      if (productId !== "all") params.set("product_id", productId);
       if (denomId !== "all") params.set("denomination_id", denomId);
 
       const res = await fetch(`${API_BASE}/admin/redeem-codes?${params.toString()}`, {
@@ -90,11 +118,18 @@ export default function AdminRedeemCodesListPage() {
     } finally {
       setLoading(false);
     }
-  }, [denomId, search, status]);
+  }, [denomId, productId, search, status]);
 
   useEffect(() => {
     loadDenoms();
   }, [loadDenoms]);
+
+  useEffect(() => {
+    if (denomId !== "all" && !filteredDenoms.some((d) => String(d.id) === denomId)) {
+      setDenomId("all");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, denoms]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -114,15 +149,32 @@ export default function AdminRedeemCodesListPage() {
           className="w-full rounded-xl border border-slate-200 bg-white px-10 py-2 text-sm text-slate-700"
         />
       </div>
+
+      <select
+        value={productId}
+        onChange={(e) => {
+          setProductId(e.target.value);
+          setDenomId("all");
+        }}
+        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+      >
+        <option value="all">Tous les produits</option>
+        {products.map((p) => (
+          <option key={p.id} value={String(p.id)}>
+            {p.sku ? `${p.name} (${p.sku})` : p.name}
+          </option>
+        ))}
+      </select>
+
       <select
         value={denomId}
         onChange={(e) => setDenomId(e.target.value)}
         className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
       >
-        <option value="all">Tous les produits</option>
-        {denoms.map((denom) => (
+        <option value="all">Toutes les dénominations</option>
+        {filteredDenoms.map((denom) => (
           <option key={denom.id} value={String(denom.id)}>
-            {denom.product?.name ?? denom.label ?? `Denomination ${denom.id}`}
+            {denom.label ?? denom.code ?? `Dénomination ${denom.id}`}
           </option>
         ))}
       </select>

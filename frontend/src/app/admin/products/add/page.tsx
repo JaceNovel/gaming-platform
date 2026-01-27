@@ -480,6 +480,7 @@ export default function AdminProductsAddPage() {
                   <option value="popular">Produits populaires</option>
                   <option value="cosmic_promo">Promotions cosmiques</option>
                   <option value="latest">Derniers ajouts</option>
+                  <option value="gaming_accounts">Compte Gaming</option>
                 </select>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-600">

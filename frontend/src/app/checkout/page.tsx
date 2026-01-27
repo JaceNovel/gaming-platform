@@ -20,9 +20,7 @@ function CheckoutScreen() {
   const router = useRouter();
   const productId = Number(searchParams.get("product"));
   const [quantity, setQuantity] = useState(1);
-  const [gameId, setGameId] = useState("");
   const [productType, setProductType] = useState<string | null>(null);
-  const [isRedeemDelivery, setIsRedeemDelivery] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -34,11 +32,6 @@ function CheckoutScreen() {
   );
 
   const isValidProduct = useMemo(() => Number.isFinite(productId) && productId > 0, [productId]);
-  const requiresGameId = useMemo(() => {
-    const normalized = String(productType ?? "").toLowerCase();
-    if (isRedeemDelivery) return false;
-    return ["recharge", "subscription", "topup", "pass"].includes(normalized);
-  }, [productType, isRedeemDelivery]);
 
   useEffect(() => {
     if (!isValidProduct) return;
@@ -49,8 +42,6 @@ function CheckoutScreen() {
       const data = await res.json();
       if (!active) return;
       setProductType(data?.type ?? null);
-      const redeemDelivery = Boolean(data?.redeem_code_delivery) || String(data?.stock_mode ?? "").toLowerCase() === "redeem_pool";
-      setIsRedeemDelivery(redeemDelivery);
     })();
     return () => {
       active = false;
@@ -181,15 +172,10 @@ function CheckoutScreen() {
     }
     setLoading(true);
     try {
-      if (requiresGameId && !gameId.trim()) {
-        setStatus("Merci de renseigner l'ID du jeu.");
-        return;
-      }
-
       const res = await authFetch(`${API_BASE}/orders`, {
         method: "POST",
         body: JSON.stringify({
-          items: [{ product_id: productId, quantity, game_id: gameId || undefined }],
+          items: [{ product_id: productId, quantity }],
         }),
       });
 
@@ -243,7 +229,6 @@ function CheckoutScreen() {
             source: "checkout",
             product_id: productId,
             quantity,
-            game_id: gameId || undefined,
           },
         }),
       });
@@ -305,17 +290,6 @@ function CheckoutScreen() {
             onChange={(e) => setQuantity(Number(e.target.value) || 1)}
             className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
           />
-          {requiresGameId && (
-            <div>
-              <label className="text-sm text-white/70">ID du jeu</label>
-              <input
-                value={gameId}
-                onChange={(e) => setGameId(e.target.value)}
-                className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-                placeholder="Ex: 123456789"
-              />
-            </div>
-          )}
           <GlowButton onClick={handleCreateOrder} disabled={loading} className="w-full justify-center">
             {loading ? "Création..." : "Confirmer la commande"}
           </GlowButton>

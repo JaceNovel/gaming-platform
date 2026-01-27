@@ -10,6 +10,7 @@ type Category = {
   id: number;
   name: string;
 };
+                  <option value="gaming_accounts">Compte Gaming</option>
 
 type Game = {
   id: number;
