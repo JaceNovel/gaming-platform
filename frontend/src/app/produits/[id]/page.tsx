@@ -14,6 +14,7 @@ type ApiProduct = {
   name?: string | null;
   title?: string | null;
   description?: string | null;
+  estimated_delivery_label?: string | null;
   details?: {
     description?: string | null;
     tags?: string[] | string | null;
@@ -193,6 +194,7 @@ export default function ProductDetailsPage() {
     return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
   }, [product]);
   const tagsLabel = tags.length ? tags.join(", ") : "Aucun tag";
+  const deliveryLabel = String(product?.estimated_delivery_label ?? "").trim();
 
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
@@ -289,6 +291,7 @@ export default function ProductDetailsPage() {
 
   const infoRows = [
     { label: "Catégorie", value: categoryLabel },
+    { label: "Livraison estimée", value: deliveryLabel || "—" },
     { label: "Marque", value: brandLabel ?? "N/A" },
     { label: "Stock", value: `${stockCount} unité${stockCount > 1 ? "s" : ""}` },
     { label: "Tags", value: tagsLabel },

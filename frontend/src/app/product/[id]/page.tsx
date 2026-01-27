@@ -20,6 +20,7 @@ type Product = {
   type?: string;
   stockType?: "IN_STOCK" | "PREORDER";
   deliveryEtaDays?: number | null;
+  estimated_delivery_label?: string | null;
   purchasesCount?: number;
   cartAddsCount?: number;
   ratingAvg?: number;
@@ -78,7 +79,12 @@ export default function ProductPage() {
   const priceValue = Number(product?.discount_price ?? product?.price ?? 0);
   const oldPrice = product?.old_price ? Number(product.old_price) : Math.round(priceValue * 1.2);
   const discountPercent = oldPrice > priceValue ? Math.round(((oldPrice - priceValue) / oldPrice) * 100) : 0;
-  const shippingWindow = product?.stockType === "PREORDER" ? "Précommande < 3 semaines" : "Livraison < 48h";
+  const shippingWindow =
+    (product?.estimated_delivery_label
+      ? `Livraison ${product.estimated_delivery_label}`
+      : product?.stockType === "PREORDER"
+        ? "Précommande < 3 semaines"
+        : "Livraison < 48h");
   const ratingValue = product?.ratingAvg ?? 0;
   const ratingCount = product?.ratingCount ?? 0;
 

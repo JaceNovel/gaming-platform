@@ -185,18 +185,25 @@ class PaymentController extends Controller
 
         $user = $request->user();
 
-        $paymentQuery = Payment::with('order')
+        $baseQuery = Payment::with('order')
             ->whereHas('order', function ($query) use ($user) {
                 $query->where('user_id', $user->id);
             });
 
+        $payment = null;
         if (!empty($validated['transaction_id'])) {
-            $paymentQuery->where('transaction_id', $validated['transaction_id']);
-        } else {
-            $paymentQuery->where('order_id', $validated['order_id']);
+            $payment = (clone $baseQuery)
+                ->where('transaction_id', $validated['transaction_id'])
+                ->latest('id')
+                ->first();
         }
 
-        $payment = $paymentQuery->latest('id')->first();
+        if (!$payment && !empty($validated['order_id'])) {
+            $payment = (clone $baseQuery)
+                ->where('order_id', $validated['order_id'])
+                ->latest('id')
+                ->first();
+        }
 
         if (!$payment) {
             return response()->json(['message' => 'Payment not found'], 404);
