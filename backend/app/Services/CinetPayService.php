@@ -25,11 +25,13 @@ class CinetPayService
     {
         $config = config('cinetpay');
 
-        $this->apiKey = (string) ($config['api_key'] ?? '');
-        $this->siteId = (string) ($config['site_id'] ?? '');
-        $this->secret = (string) ($config['secret'] ?? '');
-        $this->webhookSecret = (string) ($config['webhook_secret'] ?? $this->secret);
-        $this->baseUrl = rtrim((string) ($config['base_url'] ?? 'https://api-checkout.cinetpay.com/v2'), '/');
+        // Prefer config(), but fall back to env() to avoid issues when config is cached
+        // with stale/empty values in some production deployments.
+        $this->apiKey = (string) ($config['api_key'] ?? env('CINETPAY_API_KEY', ''));
+        $this->siteId = (string) ($config['site_id'] ?? env('CINETPAY_SITE_ID', ''));
+        $this->secret = (string) ($config['secret'] ?? env('CINETPAY_SECRET', ''));
+        $this->webhookSecret = (string) ($config['webhook_secret'] ?? env('CINETPAY_WEBHOOK_SECRET', '') ?? $this->secret);
+        $this->baseUrl = rtrim((string) ($config['base_url'] ?? env('CINETPAY_BASE_URL', 'https://api-checkout.cinetpay.com/v2')), '/');
         $this->timeout = (int) ($config['timeout'] ?? 15);
         $this->defaultCurrency = strtoupper((string) ($config['default_currency'] ?? 'XOF'));
         $this->defaultChannels = (string) ($config['default_channels'] ?? 'MOBILE_MONEY');
@@ -37,6 +39,18 @@ class CinetPayService
 
     public function initPayment(Order $order, User $user, array $meta = []): array
     {
+        if (!$this->apiKey || !$this->siteId) {
+            $missing = [];
+            if (!$this->apiKey) {
+                $missing[] = 'CINETPAY_API_KEY';
+            }
+            if (!$this->siteId) {
+                $missing[] = 'CINETPAY_SITE_ID';
+            }
+
+            throw new \RuntimeException('CinetPay not configured (missing: ' . implode(', ', $missing) . ')');
+        }
+
         $transactionId = $meta['transaction_id'] ?? $this->generateTransactionId($order);
         $amount = (float) ($meta['amount'] ?? $order->total_price);
         $currency = strtoupper($meta['currency'] ?? $this->defaultCurrency);

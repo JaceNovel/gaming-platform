@@ -163,6 +163,11 @@ class PaymentController extends Controller
                 'message' => $e->getMessage(),
             ]);
 
+            $message = $e->getMessage();
+            if (str_contains($message, 'CinetPay not configured')) {
+                return response()->json(['message' => $message], 500);
+            }
+
             return response()->json(['message' => 'Payment initiation failed'], 502);
         }
     }
