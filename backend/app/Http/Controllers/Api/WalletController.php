@@ -96,7 +96,7 @@ class WalletController extends Controller
             $meta['init_response'] = $initResult['raw'] ?? null;
 
             $payment->update([
-                'status' => 'initiated',
+                'status' => 'pending',
                 'webhook_data' => $meta,
             ]);
 
@@ -136,7 +136,7 @@ class WalletController extends Controller
             return response()->json(['message' => 'Payment not found'], 404);
         }
 
-        if ($payment->status === 'paid') {
+        if (in_array($payment->status, ['completed', 'paid'], true)) {
             return response()->json(['success' => true, 'message' => 'Already processed']);
         }
 
@@ -185,12 +185,12 @@ class WalletController extends Controller
                     'webhook_data' => $meta,
                 ]);
 
-                $orderStatus = $normalized === 'paid' ? 'paid' : 'failed';
+                $orderStatus = $normalized === 'completed' ? 'paid' : 'failed';
                 $order = $payment->order;
                 $order->update(['status' => $orderStatus]);
 
                 if ($payment->walletTransaction) {
-                    if ($normalized === 'paid') {
+                    if ($normalized === 'completed') {
                         $this->walletService->credit($order->user, $payment->walletTransaction->reference, (float) $payment->amount, [
                             'source' => 'cinetpay_topup',
                             'payment_id' => $payment->id,

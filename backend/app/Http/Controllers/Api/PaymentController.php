@@ -48,7 +48,7 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Order is not payable'], 400);
         }
 
-        if ($order->payment && $order->payment->status === 'paid') {
+        if ($order->payment && $order->payment->status === 'completed') {
             return response()->json(['message' => 'Order already paid'], 400);
         }
 
@@ -129,7 +129,7 @@ class PaymentController extends Controller
             $meta['init_response'] = $initResult['raw'] ?? null;
 
             $payment->update([
-                'status' => 'initiated',
+                'status' => 'pending',
                 'webhook_data' => $meta,
             ]);
 
@@ -200,7 +200,7 @@ class PaymentController extends Controller
 
         $status = $payment->status;
 
-        if (!in_array($payment->status, ['paid', 'failed'], true) && $payment->transaction_id) {
+        if (!in_array($payment->status, ['completed', 'failed'], true) && $payment->transaction_id) {
             try {
                 $verification = $this->cinetPayService->verifyTransaction($payment->transaction_id);
                 $normalized = $this->cinetPayService->normalizeStatus($verification);
@@ -218,7 +218,13 @@ class PaymentController extends Controller
                             'webhook_data' => $meta,
                         ]);
 
-                        $payment->order->update(['status' => $normalized]);
+                        if ($payment->order) {
+                            $payment->order->update([
+                                'status' => $normalized === 'completed'
+                                    ? 'paid'
+                                    : ($normalized === 'failed' ? 'failed' : $payment->order->status),
+                            ]);
+                        }
                     });
 
                     $status = $normalized;

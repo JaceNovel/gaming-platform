@@ -57,7 +57,7 @@ class AdminPaymentsController extends Controller
 
             if ($payment->order) {
                 $payment->order->update([
-                    'status' => $normalized === 'paid' ? 'paid' : ($normalized === 'failed' ? 'failed' : $payment->order->status),
+                    'status' => $normalized === 'completed' ? 'paid' : ($normalized === 'failed' ? 'failed' : $payment->order->status),
                 ]);
             }
 

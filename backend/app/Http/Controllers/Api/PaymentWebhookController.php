@@ -48,12 +48,12 @@ class PaymentWebhookController extends Controller
             return response()->json(['message' => 'Payment not found'], Response::HTTP_NOT_FOUND);
         }
 
-        if ($attempt && in_array($attempt->status, ['paid', 'failed'], true)) {
+        if ($attempt && in_array($attempt->status, ['paid', 'completed', 'failed'], true)) {
             Log::info('cinetpay:webhook-idempotent', ['transaction_id' => $transactionId, 'status' => $attempt->status]);
             return response()->json(['success' => true, 'message' => 'Webhook already processed']);
         }
 
-        if (in_array($payment->status, ['paid', 'failed'], true)) {
+        if (in_array($payment->status, ['paid', 'completed', 'failed'], true)) {
             Log::info('cinetpay:webhook-idempotent', ['payment_id' => $payment->id, 'status' => $payment->status]);
             return response()->json(['success' => true, 'message' => 'Webhook already processed']);
         }
@@ -117,7 +117,7 @@ class PaymentWebhookController extends Controller
                 'webhook_data' => $meta,
             ]);
 
-            $orderStatus = $normalized === 'paid' ? 'paid' : 'failed';
+            $orderStatus = $normalized === 'completed' ? 'paid' : 'failed';
             $payment->order->update(['status' => $orderStatus]);
 
             PaymentAttempt::updateOrCreate(
@@ -136,7 +136,7 @@ class PaymentWebhookController extends Controller
                 ]
             );
 
-            if ($normalized === 'paid' && $payment->order->type !== 'wallet_topup') {
+            if ($normalized === 'completed' && $payment->order->type !== 'wallet_topup') {
                 $payment->order->loadMissing('orderItems.product');
 
                 if ($payment->order->hasPhysicalItems()) {

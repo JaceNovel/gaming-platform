@@ -237,7 +237,7 @@ class CinetPayService
 
         foreach ($candidates as $candidate) {
             if (in_array($candidate, $paidStatuses, true)) {
-                return 'paid';
+                return 'completed';
             }
 
             if (in_array($candidate, $failedStatuses, true)) {
