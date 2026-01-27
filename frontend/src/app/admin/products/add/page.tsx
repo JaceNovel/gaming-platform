@@ -51,9 +51,10 @@ export default function AdminProductsAddPage() {
   const [deliveryType, setDeliveryType] = useState("in_stock");
   const [deliveryEtaDays, setDeliveryEtaDays] = useState("2");
   const [displaySection, setDisplaySection] = useState("none");
+  const [mobileSection, setMobileSection] = useState("none");
   const [isActive, setIsActive] = useState(true);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState("");
+  const [bannerUrl, setBannerUrl] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [status, setStatus] = useState("");
@@ -92,14 +93,6 @@ export default function AdminProductsAddPage() {
     loadGames();
   }, [loadCategories, loadGames]);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    setImagePreview(preview);
-    setImageFile(file);
-  };
-
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("");
@@ -120,6 +113,9 @@ export default function AdminProductsAddPage() {
         delivery_type: shippingRequired ? deliveryType : undefined,
         delivery_eta_days: shippingRequired ? Number(deliveryEtaDays) : undefined,
         display_section: displaySection === "none" ? undefined : displaySection,
+        image_url: imageUrl.trim() || undefined,
+        banner_url: bannerUrl.trim() || undefined,
+        mobile_section: mobileSection === "none" ? undefined : mobileSection,
       };
 
       const res = await fetch(`${API_BASE}/admin/products`, {
@@ -147,21 +143,6 @@ export default function AdminProductsAddPage() {
       const created = await res.json().catch(() => ({}));
       const productId = created?.id ?? created?.data?.id;
 
-      if (productId && imageFile) {
-        const formData = new FormData();
-        formData.append("image", imageFile);
-        const upload = await fetch(`${API_BASE}/admin/products/${productId}/image`, {
-          method: "POST",
-          headers: {
-            ...getAuthHeaders(),
-          },
-          body: formData,
-        });
-        if (!upload.ok) {
-          setStatus("Produit ajouté, mais upload image échoué.");
-        }
-      }
-
       setName("");
       setDescription("");
       setPrice("");
@@ -174,9 +155,10 @@ export default function AdminProductsAddPage() {
       setDeliveryType("in_stock");
       setDeliveryEtaDays("2");
       setDisplaySection("none");
+      setMobileSection("none");
       setIsActive(true);
-      setImagePreview(null);
-      setImageFile(null);
+      setImageUrl("");
+      setBannerUrl("");
       setStatus("Produit ajouté.");
     } catch {
       setStatus("Création impossible");
@@ -259,22 +241,33 @@ export default function AdminProductsAddPage() {
 
         <div className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-base font-semibold">Image du produit</h3>
-            <div className="mt-6 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 px-6 py-10 text-center">
-              {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="Prévisualisation"
-                  className="h-32 w-32 rounded-2xl object-cover"
+            <h3 className="text-base font-semibold">Visuels du produit</h3>
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="text-sm font-medium">Image principale (URL)</label>
+                <input
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  type="url"
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  placeholder="https://..."
                 />
-              ) : (
-                <div className="text-sm text-slate-400">Choisissez un fichier ou glissez-déposez</div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Bannière (URL)</label>
+                <input
+                  value={bannerUrl}
+                  onChange={(e) => setBannerUrl(e.target.value)}
+                  type="url"
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  placeholder="https://..."
+                />
+              </div>
+              {imageUrl && (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center">
+                  <img src={imageUrl} alt="Prévisualisation" className="mx-auto h-32 w-32 rounded-2xl object-cover" />
+                </div>
               )}
-              <label className="mt-4 inline-flex cursor-pointer items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm text-white">
-                Choose File
-                <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
-              </label>
-              <p className="mt-4 text-xs text-slate-400">Formats acceptés : jpg, jpeg, png (max 4MB)</p>
             </div>
           </div>
 
@@ -336,6 +329,19 @@ export default function AdminProductsAddPage() {
                   <option value="popular">Produits populaires</option>
                   <option value="cosmic_promo">Promotions cosmiques</option>
                   <option value="latest">Derniers ajouts</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Section mobile (optionnel)</label>
+                <select
+                  value={mobileSection}
+                  onChange={(e) => setMobileSection(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                >
+                  <option value="none">Aucune</option>
+                  <option value="bundle">Offres groupées</option>
+                  <option value="deal">Deal du jour</option>
+                  <option value="for_you">Pour vous</option>
                 </select>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-600">

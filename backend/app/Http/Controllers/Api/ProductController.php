@@ -46,6 +46,10 @@ class ProductController extends Controller
             $query->where('deal_type', $dealType);
         }
 
+        if ($section = $request->input('display_section')) {
+            $query->where('display_section', $section);
+        }
+
         if ($search = $request->input('q')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")

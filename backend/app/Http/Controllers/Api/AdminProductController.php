@@ -41,6 +41,9 @@ class AdminProductController extends Controller
             'is_active' => 'sometimes|boolean',
             'details' => 'nullable|array',
             'description' => 'nullable|string',
+            'image_url' => 'nullable|url',
+            'banner_url' => 'nullable|url',
+            'mobile_section' => 'nullable|string|in:bundle,deal,for_you',
         ]);
 
         $data['sku'] = $data['sku'] ?? $this->generateSku();
@@ -54,6 +57,30 @@ class AdminProductController extends Controller
             if (empty($data['delivery_eta_days'])) {
                 $data['delivery_eta_days'] = $deliveryType === 'preorder' ? 14 : 2;
             }
+        }
+
+        $imageUrl = $data['image_url'] ?? null;
+        $bannerUrl = $data['banner_url'] ?? null;
+        $mobileSection = $data['mobile_section'] ?? null;
+        unset($data['image_url'], $data['banner_url']);
+
+        $details = is_array($data['details'] ?? null) ? $data['details'] : [];
+        if ($imageUrl) {
+            $details['image'] = $imageUrl;
+        }
+        if ($bannerUrl) {
+            $details['banner'] = $bannerUrl;
+            $details['cover'] = $bannerUrl;
+        }
+        if ($mobileSection) {
+            $details['mobile_section'] = $mobileSection;
+        }
+        if (!empty($details)) {
+            $data['details'] = $details;
+        }
+
+        if ($mobileSection === 'deal' && empty($data['display_section'])) {
+            $data['display_section'] = 'popular';
         }
 
         $product = Product::create($data);
@@ -91,7 +118,34 @@ class AdminProductController extends Controller
             'is_active' => 'sometimes|boolean',
             'details' => 'nullable|array',
             'description' => 'nullable|string',
+            'image_url' => 'nullable|url',
+            'banner_url' => 'nullable|url',
+            'mobile_section' => 'nullable|string|in:bundle,deal,for_you',
         ]);
+
+        $imageUrl = $data['image_url'] ?? null;
+        $bannerUrl = $data['banner_url'] ?? null;
+        $mobileSection = $data['mobile_section'] ?? null;
+        unset($data['image_url'], $data['banner_url']);
+
+        $details = is_array($data['details'] ?? null) ? $data['details'] : [];
+        if ($imageUrl) {
+            $details['image'] = $imageUrl;
+        }
+        if ($bannerUrl) {
+            $details['banner'] = $bannerUrl;
+            $details['cover'] = $bannerUrl;
+        }
+        if ($mobileSection) {
+            $details['mobile_section'] = $mobileSection;
+        }
+        if (!empty($details)) {
+            $data['details'] = $details;
+        }
+
+        if ($mobileSection === 'deal' && empty($data['display_section'])) {
+            $data['display_section'] = 'popular';
+        }
 
         $this->syncCategoryName($data);
 

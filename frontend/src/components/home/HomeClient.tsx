@@ -3,8 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ShieldCheck, Zap, Bot, Heart, ShoppingCart } from "lucide-react";
 import { API_BASE } from "@/lib/config";
+import { useCartFlight } from "@/hooks/useCartFlight";
 
 type Stat = { value: string; label: string };
 type ProductCard = {
@@ -12,6 +14,9 @@ type ProductCard = {
   title: string;
   subtitle: string;
   price: string;
+  priceValue: number;
+  description: string;
+  type: string;
   likes: number;
   badge: string;
   image: string;
@@ -105,7 +110,15 @@ function StatBar({ stats }: { stats: Stat[] }) {
   );
 }
 
-function ProductCardUI({ p }: { p: ProductCard }) {
+function ProductCardUI({
+  p,
+  onAddToCart,
+  onBuy,
+}: {
+  p: ProductCard;
+  onAddToCart: (product: ProductCard, origin?: HTMLElement | null) => void;
+  onBuy: (product: ProductCard, origin?: HTMLElement | null) => void;
+}) {
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white/6 ring-1 ring-white/15 backdrop-blur-md">
       <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
@@ -144,16 +157,18 @@ function ProductCardUI({ p }: { p: ProductCard }) {
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
-          <Link
-            href="/shop"
+          <button
+            type="button"
+            onClick={(event) => onBuy(p, event.currentTarget)}
             className="relative inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-[0.98]"
           >
             Acheter
             <span className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-cyan-400/15 via-fuchsia-400/10 to-amber-300/10" />
-          </Link>
+          </button>
 
           <button
             type="button"
+            onClick={(event) => onAddToCart(p, event.currentTarget)}
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 transition active:scale-[0.98]"
             aria-label="Ajouter au panier"
           >
@@ -166,49 +181,47 @@ function ProductCardUI({ p }: { p: ProductCard }) {
 }
 
 export default function HomeClient() {
+  const router = useRouter();
+  const { triggerFlight, overlay } = useCartFlight();
   const [stats, setStats] = useState<Stat[]>([
-    { value: "—", label: "Comptes\nvendus" },
-    { value: "—", label: "Recharges\neffectuées" },
-    { value: "—", label: "Membres\npremium" },
-    { value: "—", label: "Likes\nactifs" },
+    { value: "10+", label: "Comptes\nvendus" },
+    { value: "5", label: "Recharges\neffectuées" },
+    { value: "3", label: "Membres\npremium" },
+    { value: "200+", label: "Likes\nactifs" },
   ]);
   const [products, setProducts] = useState<ProductCard[]>([]);
 
   useEffect(() => {
     let active = true;
-    const loadStats = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/stats/overview`, { cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!active) return;
-        setStats([
-          { value: formatNumber(Number(data?.orders ?? 0)), label: "Comptes\nvendus" },
-          { value: formatNumber(Number(data?.orders ?? 0)), label: "Recharges\neffectuées" },
-          { value: formatNumber(Number(data?.premium ?? 0)), label: "Membres\npremium" },
-          { value: formatNumber(Number(data?.likes ?? 0)), label: "Likes\nactifs" },
-        ]);
-      } catch {
-        if (!active) return;
-      }
-    };
-
     const loadProducts = async () => {
       try {
-        const res = await fetch(`${API_BASE}/products?active=1&sort=popular&limit=6`);
+        const res = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=4`);
         if (!res.ok) return;
         const data = await res.json();
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
         if (!active) return;
         const mapped = items.map((item: any) => {
           const priceValue = Number(item?.discount_price ?? item?.price ?? 0);
-          const image = item?.images?.[0]?.url ?? "/file.svg";
+          const image =
+            item?.details?.banner ??
+            item?.banner ??
+            item?.details?.cover ??
+            item?.cover ??
+            item?.details?.image ??
+            item?.image_url ??
+            item?.images?.[0]?.url ??
+            "/file.svg";
           const badgeLabel = String(item?.category ?? item?.type ?? "VIP");
+          const description =
+            item?.details?.description ?? item?.description ?? item?.details?.subtitle ?? item?.game?.name ?? "Produit premium";
           return {
             id: item.id,
             title: item.name,
             subtitle: item.game?.name ?? item.category ?? item.type ?? "Gaming",
             price: `${formatNumber(priceValue)} FCFA`,
+            priceValue,
+            description,
+            type: String(item?.type ?? ""),
             likes: Number(item.likes_count ?? 0),
             badge: badgeLabel.toUpperCase().slice(0, 6),
             image,
@@ -220,7 +233,6 @@ export default function HomeClient() {
       }
     };
 
-    loadStats();
     loadProducts();
     return () => {
       active = false;
@@ -229,11 +241,48 @@ export default function HomeClient() {
 
   const topProducts = useMemo(() => products, [products]);
 
+  const addToCart = (product: ProductCard, origin?: HTMLElement | null) => {
+    if (typeof window === "undefined") return;
+    let nextCart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string }> = [];
+    const stored = localStorage.getItem("bbshop_cart");
+    if (stored) {
+      try {
+        nextCart = JSON.parse(stored);
+      } catch {
+        nextCart = [];
+      }
+    }
+
+    const existing = nextCart.find((item) => item.id === product.id);
+    if (existing) {
+      existing.quantity = Number(existing.quantity ?? 0) + 1;
+    } else {
+      nextCart.push({
+        id: product.id,
+        name: product.title,
+        description: product.description,
+        price: product.priceValue,
+        priceLabel: product.price,
+        type: product.type,
+        quantity: 1,
+      });
+    }
+
+    localStorage.setItem("bbshop_cart", JSON.stringify(nextCart));
+    triggerFlight(origin ?? null);
+  };
+
+  const handleBuy = (product: ProductCard, origin?: HTMLElement | null) => {
+    addToCart(product, origin ?? null);
+    router.push("/cart");
+  };
+
   return (
     <main
       className="relative min-h-[100dvh] bg-[#0d0f1f] text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
+      {overlay}
       <div className="absolute inset-0 -z-20 hidden sm:block bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.18),transparent_55%),radial-gradient(circle_at_30%_10%,rgba(14,165,233,0.16),transparent_45%),linear-gradient(180deg,#0d0f1f_0%,#0b0b14_100%)]" />
 
       <div className="pointer-events-none absolute inset-0 -z-10">
@@ -369,7 +418,12 @@ export default function HomeClient() {
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {topProducts.map((p) => (
-                <ProductCardUI key={p.id} p={p} />
+                <ProductCardUI
+                  key={p.id}
+                  p={p}
+                  onAddToCart={addToCart}
+                  onBuy={handleBuy}
+                />
               ))}
             </div>
           )}

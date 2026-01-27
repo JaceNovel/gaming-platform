@@ -18,6 +18,8 @@ type ApiProduct = {
     description?: string | null;
     tags?: string[] | string | null;
     image?: string | null;
+    banner?: string | null;
+    cover?: string | null;
     brand?: string | null;
     stock?: number | null;
   } | null;
@@ -51,6 +53,7 @@ const extractImage = (product: ApiProduct | null): string | null => {
   if (product.cover) return product.cover;
   if (product.banner) return product.banner;
   if (product.details?.image) return product.details.image;
+  if (product.details?.banner) return product.details.banner;
   if (Array.isArray(product.media) && product.media.length) {
     const entry = product.media[0];
     if (typeof entry === "string") return entry;

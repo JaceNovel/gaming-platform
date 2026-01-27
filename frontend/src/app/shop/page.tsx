@@ -33,6 +33,8 @@ type ShopProduct = {
   categorySlug?: string | null;
   type: string;
   imageUrl?: string | null;
+  displaySection?: string | null;
+  mobileSection?: string | null;
 };
 
 type CategoryOption = {
@@ -207,7 +209,9 @@ function DealCard({ product }: { product: ShopProduct }) {
           </span>
         )}
       </div>
-      <div className="h-24 w-full rounded-xl bg-white/10" />
+      <div className="h-24 w-full overflow-hidden rounded-xl bg-white/10">
+        <Image src={product.imageUrl ?? FALLBACK_PRODUCT_IMAGE} alt={product.name} width={240} height={120} className="h-full w-full object-cover" />
+      </div>
       <div className="text-sm font-semibold text-white line-clamp-2">{product.name}</div>
       <div className="text-xs text-white/60 line-clamp-2">{product.description}</div>
       <div className="mt-auto text-sm font-bold text-cyan-200">{product.priceLabel}</div>
@@ -505,7 +509,6 @@ export default function ShopPage() {
           const imageUrl =
             item?.image_url ??
             item?.cover ??
-            item?.banner ??
             item?.details?.image ??
             item?.details?.cover ??
             item?.media?.[0]?.url ??
@@ -524,6 +527,8 @@ export default function ShopPage() {
             categorySlug,
             type: String(item?.type ?? ""),
             imageUrl: imageUrl ?? FALLBACK_PRODUCT_IMAGE,
+            displaySection: item?.display_section ?? null,
+            mobileSection: item?.details?.mobile_section ?? null,
           } as ShopProduct;
         });
         setProducts(mapped);
@@ -733,12 +738,18 @@ export default function ShopPage() {
     return result;
   }, [catalog, query, categoryFilter, priceFilter, promoOnly, sortOrder]);
 
-  const groupedDeals = filtered.slice(0, 6);
-  const dailyDeals = filtered.slice(0, 8);
-  const forYou = filtered.slice(0, 12);
-  const popularProducts = useMemo(() => filtered.filter((p: any) => p.display_section === "popular").slice(0, 6), [filtered]);
-  const promoProducts = useMemo(() => filtered.filter((p: any) => p.display_section === "cosmic_promo").slice(0, 6), [filtered]);
-  const latestProducts = useMemo(() => filtered.filter((p: any) => p.display_section === "latest").slice(0, 6), [filtered]);
+  const popularProducts = useMemo(() => filtered.filter((p) => p.displaySection === "popular").slice(0, 4), [filtered]);
+  const promoProducts = useMemo(() => filtered.filter((p) => p.displaySection === "cosmic_promo").slice(0, 6), [filtered]);
+  const latestProducts = useMemo(() => filtered.filter((p) => p.displaySection === "latest").slice(0, 6), [filtered]);
+  const groupedDeals = useMemo(() => {
+    const selected = filtered.filter((p) => p.mobileSection === "bundle");
+    return (selected.length ? selected : filtered).slice(0, 6);
+  }, [filtered]);
+  const dailyDeals = useMemo(() => popularProducts.slice(0, 4), [popularProducts]);
+  const forYou = useMemo(() => {
+    const selected = filtered.filter((p) => p.mobileSection === "for_you");
+    return (selected.length ? selected : filtered).slice(0, 12);
+  }, [filtered]);
 
   const handleImageSearch = (file: File | null) => {
     if (!file) return;
@@ -893,7 +904,6 @@ export default function ShopPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Offres groupées</h2>
-            <span className="text-xs text-white/60">3+ dès 5 000 FCFA</span>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft">
             {loading
@@ -904,14 +914,17 @@ export default function ShopPage() {
                     <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
                   </div>
                 ))
-              : groupedDeals.map((product) => <DealCard key={product.id} product={product} />)}
+              : groupedDeals.map((product) => (
+                  <Link key={product.id} href={`/produits/${product.id}`} className="min-w-[180px]">
+                    <DealCard product={product} />
+                  </Link>
+                ))}
           </div>
         </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Deal du jour</h2>
-            <Link href="/shop" className="text-xs text-white/60">Voir tout</Link>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
             {loading
@@ -923,8 +936,9 @@ export default function ShopPage() {
                   </div>
                 ))
               : dailyDeals.map((product) => (
-                  <div
+                  <Link
                     key={product.id}
+                    href={`/produits/${product.id}`}
                     className="min-w-[210px] flex-shrink-0 snap-center rounded-2xl border border-white/10 bg-white/5 p-3"
                   >
                     <div className="h-20 rounded-xl bg-white/10" />
@@ -943,7 +957,7 @@ export default function ShopPage() {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 ))}
           </div>
         </div>
@@ -951,7 +965,6 @@ export default function ShopPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Pour vous</h2>
-            <span className="text-xs text-white/60">Scroll infini bientôt</span>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {loading
