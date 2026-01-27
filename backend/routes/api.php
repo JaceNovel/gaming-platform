@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\PublicStatsController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Api\ImageProxyController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -97,6 +98,9 @@ Route::get('/health/db', function () {
         ], 500);
     }
 });
+
+// Image proxy (for external image URLs copied from websites)
+Route::get('/image-proxy', [ImageProxyController::class, 'show']);
 
 // Public listing routes
 Route::apiResource('games', GameController::class)->only(['index', 'show']);
