@@ -20,6 +20,13 @@ type PaymentStatusResponse = {
   message?: string;
 };
 
+type RedeemCodeRow = {
+  code: string;
+  label?: string | null;
+  diamonds?: number | null;
+  quantity_index?: number;
+};
+
 function normalizeClientStatus(raw: string | null): StatusKey | null {
   if (!raw) return null;
   const v = raw.toLowerCase();
@@ -43,6 +50,10 @@ function OrderConfirmationScreen() {
   const [message, setMessage] = useState("Vérification du paiement en cours...");
   const [details, setDetails] = useState<{ transactionId?: string; orderId?: number }>({});
   const [checking, setChecking] = useState(false);
+  const [redeemCodes, setRedeemCodes] = useState<RedeemCodeRow[]>([]);
+  const [guideUrl, setGuideUrl] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [outOfStock, setOutOfStock] = useState(false);
 
   const numericOrderId = useMemo(() => {
     const n = Number(order);
@@ -72,6 +83,7 @@ function OrderConfirmationScreen() {
       }
 
       const paymentStatus = (payload?.data?.payment_status ?? "pending").toLowerCase();
+      const orderStatus = (payload?.data?.order_status ?? "").toLowerCase();
       const resolvedOrderId = payload?.data?.order_id ?? (numericOrderId ?? undefined);
       const resolvedTxId = payload?.data?.transaction_id ?? (transactionIdFromUrl ?? undefined);
 
@@ -79,7 +91,29 @@ function OrderConfirmationScreen() {
 
       if (paymentStatus === "paid") {
         setStatus("success");
-        setMessage("✅ Paiement confirmé ! Merci pour votre achat.");
+        if (orderStatus === "paid_but_out_of_stock") {
+          setOutOfStock(true);
+          setMessage("Commande payée – en attente de réapprovisionnement.");
+          setShowModal(true);
+        } else {
+          setOutOfStock(false);
+          setMessage("✅ Paiement confirmé ! Merci pour votre achat.");
+          // Vider le panier après paiement confirmé
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("bbshop_cart");
+          }
+
+          // Charger les codes (si commande redeem) et afficher la fenêtre
+          if (resolvedOrderId) {
+            const codesRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}/redeem-codes`);
+            const codesPayload = await codesRes.json().catch(() => null);
+            if (codesRes.ok && codesPayload?.codes) {
+              setRedeemCodes(codesPayload.codes);
+              setGuideUrl(codesPayload?.guide_url ?? null);
+              setShowModal(true);
+            }
+          }
+        }
         return;
       }
 
@@ -109,6 +143,14 @@ function OrderConfirmationScreen() {
     fetchStatus();
   }, [fetchStatus, initialStatus]);
 
+  useEffect(() => {
+    if (status !== "pending") return;
+    const interval = setInterval(() => {
+      fetchStatus();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchStatus, status]);
+
   const statusStyle =
     status === "success"
       ? "text-emerald-300"
@@ -117,6 +159,14 @@ function OrderConfirmationScreen() {
         : status === "pending" || status === "cancelled"
           ? "text-amber-200"
           : "text-white";
+
+  const handleCopy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // ignore
+    }
+  };
 
   return (
     <div className="mobile-shell min-h-screen space-y-6 py-6 pb-24">
@@ -156,6 +206,79 @@ function OrderConfirmationScreen() {
           )}
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#0b0b16] p-6 text-white shadow-2xl">
+            {outOfStock ? (
+              <>
+                <h3 className="text-xl font-semibold">En attente de réapprovisionnement</h3>
+                <p className="mt-2 text-sm text-white/70">
+                  Votre commande est payée. Les codes seront envoyés dès que le stock est réapprovisionné.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-semibold">Votre achat est confirmé</h3>
+                {redeemCodes.length ? (
+                  <>
+                    <p className="mt-2 text-sm text-white/70">
+                      Copiez vos codes ci-dessous. Gardez-les en sécurité.
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      {redeemCodes.map((code, index) => (
+                        <div key={`${code.code}-${index}`} className="rounded-xl border border-white/10 p-3">
+                          <div className="text-xs text-white/50">
+                            {code.label ?? "Recharge"} {code.diamonds ? `(${code.diamonds} diamants)` : ""}
+                          </div>
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <span className="font-mono text-sm text-white">{code.code}</span>
+                            <button
+                              onClick={() => handleCopy(code.code)}
+                              className="rounded-full border border-white/20 px-3 py-1 text-xs"
+                            >
+                              Copier
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleCopy(redeemCodes.map((c) => c.code).join("\n"))}
+                        className="rounded-full bg-white/10 px-4 py-2 text-xs"
+                      >
+                        Copier tout
+                      </button>
+                      {guideUrl && (
+                        <a
+                          href={guideUrl}
+                          className="rounded-full bg-emerald-500/80 px-4 py-2 text-xs text-white"
+                        >
+                          Télécharger le guide
+                        </a>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm text-white/70">
+                    Merci pour votre achat. Vous pouvez suivre le statut dans vos commandes.
+                  </p>
+                )}
+              </>
+            )}
+
+            <div className="mt-6 flex gap-3">
+              <GlowButton className="flex-1 justify-center" onClick={() => setShowModal(false)}>
+                Fermer
+              </GlowButton>
+              <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/account")}>
+                Mes commandes
+              </GlowButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

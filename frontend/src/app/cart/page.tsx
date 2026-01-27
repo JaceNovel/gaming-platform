@@ -51,6 +51,17 @@ function CartScreen() {
     });
   };
 
+  const updateQuantity = (id: number, nextQuantity: number) => {
+    const q = Math.max(1, Number(nextQuantity || 1));
+    setCartItems((prev) => {
+      const next = prev.map((item) => (item.id === id ? { ...item, quantity: q } : item));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("bbshop_cart", JSON.stringify(next));
+      }
+      return next;
+    });
+  };
+
   const clearCart = () => {
     setStatus(null);
     if (!cartItems.length) return;
@@ -207,7 +218,34 @@ function CartScreen() {
                       <div>
                         <p className="text-base font-semibold text-white">{item.name}</p>
                         <p className="text-sm text-white/60">{item.description}</p>
-                        <p className="text-xs text-white/40 mt-1">Qté: {item.quantity}</p>
+                        <div className="mt-2 flex items-center gap-3">
+                          <span className="text-xs text-white/50">Quantité</span>
+                          <div className="inline-flex items-center overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                            <button
+                              type="button"
+                              className="px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                              aria-label="Diminuer la quantité"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              min={1}
+                              value={item.quantity}
+                              onChange={(e) => updateQuantity(item.id, Number(e.target.value))}
+                              className="w-16 bg-transparent px-2 py-2 text-center text-sm text-white outline-none"
+                            />
+                            <button
+                              type="button"
+                              className="px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              aria-label="Augmenter la quantité"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <p className="text-base font-bold text-cyan-200">
