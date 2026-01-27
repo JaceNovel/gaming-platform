@@ -437,26 +437,28 @@ export default function HomeClient() {
               ))}
             </div>
           ) : (
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft sm:hidden">
-              {topProducts.map((p) => (
-                <ProductCardUI
-                  key={p.id}
-                  p={p}
-                  onAddToCart={addToCart}
-                  onBuy={handleBuy}
-                />
-              ))}
-            </div>
-            <div className={`hidden sm:grid sm:grid-cols-3 sm:gap-4 transition-all duration-[3000ms] ${transitioning ? "blur-sm opacity-70" : "blur-0 opacity-100"}`}>
-              {desktopPopular.map((p) => (
-                <ProductCardUI
-                  key={`desktop-${p.id}`}
-                  p={p}
-                  onAddToCart={addToCart}
-                  onBuy={handleBuy}
-                />
-              ))}
-            </div>
+            <>
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft sm:hidden">
+                {topProducts.map((p) => (
+                  <ProductCardUI
+                    key={p.id}
+                    p={p}
+                    onAddToCart={addToCart}
+                    onBuy={handleBuy}
+                  />
+                ))}
+              </div>
+              <div className={`hidden sm:grid sm:grid-cols-3 sm:gap-4 transition-all duration-[3000ms] ${transitioning ? "blur-sm opacity-70" : "blur-0 opacity-100"}`}>
+                {desktopPopular.map((p) => (
+                  <ProductCardUI
+                    key={`desktop-${p.id}`}
+                    p={p}
+                    onAddToCart={addToCart}
+                    onBuy={handleBuy}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </section>
