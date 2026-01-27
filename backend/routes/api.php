@@ -30,7 +30,6 @@ use App\Http\Controllers\Api\ReviewController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Throwable;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
