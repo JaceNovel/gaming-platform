@@ -104,9 +104,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error("API non configurée (NEXT_PUBLIC_API_URL manquant)");
     }
     const headers = new Headers(init.headers as HeadersInit | undefined);
-    if (!headers.has("Accept")) {
-      headers.set("Accept", "application/json");
-    }
+    // Force JSON behavior on Laravel (prevents 302 redirects on validation/auth errors).
+    headers.set("Accept", "application/json");
+    headers.set("X-Requested-With", "XMLHttpRequest");
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
