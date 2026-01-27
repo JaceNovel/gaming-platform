@@ -22,6 +22,7 @@ function CheckoutScreen() {
   const [quantity, setQuantity] = useState(1);
   const [gameId, setGameId] = useState("");
   const [productType, setProductType] = useState<string | null>(null);
+  const [isRedeemDelivery, setIsRedeemDelivery] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -31,8 +32,9 @@ function CheckoutScreen() {
   const isValidProduct = useMemo(() => Number.isFinite(productId) && productId > 0, [productId]);
   const requiresGameId = useMemo(() => {
     const normalized = String(productType ?? "").toLowerCase();
+    if (isRedeemDelivery) return false;
     return ["recharge", "subscription", "topup", "pass"].includes(normalized);
-  }, [productType]);
+  }, [productType, isRedeemDelivery]);
 
   useEffect(() => {
     if (!isValidProduct) return;
@@ -43,6 +45,8 @@ function CheckoutScreen() {
       const data = await res.json();
       if (!active) return;
       setProductType(data?.type ?? null);
+      const redeemDelivery = Boolean(data?.redeem_code_delivery) || String(data?.stock_mode ?? "").toLowerCase() === "redeem_pool";
+      setIsRedeemDelivery(redeemDelivery);
     })();
     return () => {
       active = false;

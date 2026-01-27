@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard, ShoppingBag } from "lucide-react";
+import { CreditCard, ShoppingBag, Trash2 } from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import RequireAuth from "@/components/auth/RequireAuth";
@@ -39,6 +39,29 @@ function CartScreen() {
   const requiresGameId = (type?: string) => {
     const normalized = String(type ?? "").toLowerCase();
     return ["recharge", "subscription", "topup", "pass"].includes(normalized);
+  };
+
+  const removeItem = (id: number) => {
+    setCartItems((prev) => {
+      const next = prev.filter((item) => item.id !== id);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("bbshop_cart", JSON.stringify(next));
+      }
+      return next;
+    });
+  };
+
+  const clearCart = () => {
+    setStatus(null);
+    if (!cartItems.length) return;
+
+    const ok = window.confirm("Vider le panier ?");
+    if (!ok) return;
+
+    setCartItems([]);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("bbshop_cart");
+    }
   };
 
   const handleGameIdChange = (id: number, value: string) => {
@@ -151,10 +174,25 @@ function CartScreen() {
               <h1 className="text-3xl lg:text-4xl font-black">Récapitulatif de commande</h1>
               <p className="text-sm text-white/60">Vérifie tes articles avant paiement.</p>
             </div>
-            <div className="flex items-center gap-3">
-              <GlowButton variant="secondary" onClick={() => (window.location.href = "/shop")}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <GlowButton
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={() => (window.location.href = "/shop")}
+              >
                 <ShoppingBag className="h-4 w-4" />
                 Continuer les achats
+              </GlowButton>
+              <GlowButton
+                variant="secondary"
+                className="w-full sm:w-auto border-rose-200/25 text-rose-100 hover:border-rose-200/40"
+                onClick={clearCart}
+                disabled={loading || !cartItems.length}
+                aria-label="Vider le panier"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="sm:hidden">Vider</span>
+                <span className="hidden sm:inline">Vider le panier</span>
               </GlowButton>
             </div>
           </header>
@@ -171,9 +209,20 @@ function CartScreen() {
                         <p className="text-sm text-white/60">{item.description}</p>
                         <p className="text-xs text-white/40 mt-1">Qté: {item.quantity}</p>
                       </div>
-                      <p className="text-base font-bold text-cyan-200">
-                        {(item.price * item.quantity).toLocaleString()} FCFA
-                      </p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-base font-bold text-cyan-200">
+                          {(item.price * item.quantity).toLocaleString()} FCFA
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id)}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 text-white/70 transition hover:bg-white/10 hover:text-white"
+                          aria-label="Supprimer l'article"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                     {requiresGameId(item.type) && (
                       <div className="text-sm text-white/70">

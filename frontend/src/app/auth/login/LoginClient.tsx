@@ -122,7 +122,7 @@ export default function LoginClient() {
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="hidden gap-4 md:grid md:grid-cols-3">
             {HERO_IMAGES.map((src, index) => (
               <div
                 key={src}

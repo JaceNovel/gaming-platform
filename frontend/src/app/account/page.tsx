@@ -554,6 +554,18 @@ function AccountClient() {
       return;
     }
     setActiveMenu(menu);
+
+    if (menu === "Parametres" && typeof window !== "undefined") {
+      const isMobile = window.matchMedia("(max-width: 767px)").matches;
+      if (isMobile) {
+        window.history.replaceState(null, "", "#parametres");
+        window.setTimeout(() => {
+          document
+            .getElementById("account-settings")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
+      }
+    }
   };
 
   async function saveAvatar() {
@@ -720,7 +732,10 @@ function AccountClient() {
               </div>
             )}
             {activeMenu === "Parametres" && (
-              <div className="rounded-[32px] border border-white/10 bg-black/50 p-6 backdrop-blur">
+              <div
+                id="account-settings"
+                className="rounded-[32px] border border-white/10 bg-black/50 p-6 backdrop-blur"
+              >
                 <div className="hidden flex-col gap-1 md:flex">
                   <p className="text-xs uppercase tracking-[0.4em] text-white/40">Centre paramètres</p>
                   <h2 className="text-2xl font-semibold">Gestion du compte</h2>

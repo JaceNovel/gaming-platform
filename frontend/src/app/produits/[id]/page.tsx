@@ -209,7 +209,19 @@ export default function ProductDetailsPage() {
   const handleBuyNow = (event: MouseEvent<HTMLButtonElement>) => {
     persistToCart();
     triggerFlight(event.currentTarget);
-    router.push("/checkout");
+    const rawId = product?.id ?? id;
+    const checkoutProductId = Number(rawId);
+
+    if (!Number.isFinite(checkoutProductId) || checkoutProductId <= 0) {
+      setStatusMessage("Produit invalide");
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+      statusTimeoutRef.current = window.setTimeout(() => setStatusMessage(null), 2200);
+      return;
+    }
+
+    router.push(`/checkout?product=${checkoutProductId}`);
   };
 
   const renderImage = () => {
