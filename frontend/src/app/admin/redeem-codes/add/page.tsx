@@ -35,15 +35,12 @@ const normalizeList = <T,>(payload: any): T[] => {
 };
 
 export default function AdminRedeemCodesAddPage() {
-  const [denoms, setDenoms] = useState<Denomination[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [productId, setProductId] = useState("");
-  const [denomId, setDenomId] = useState("");
   const [codes, setCodes] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loadingDenoms, setLoadingDenoms] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
   const productOptions = useMemo(() => {
@@ -51,44 +48,6 @@ export default function AdminRedeemCodesAddPage() {
       .map((p) => ({ id: p.id, name: p.name ?? `Produit ${p.id}`, sku: p.sku ?? null }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [products]);
-
-  const filteredDenoms = useMemo(() => {
-    return (denoms ?? [])
-      .filter((d) => {
-        if (!productId) return false;
-        if (productId === "__unlinked__") return (d.product_id ?? null) == null;
-        return String(d.product_id ?? d.product?.id ?? "") === productId;
-      })
-      .sort((a, b) => {
-        const aLabel = (a.label ?? a.code ?? "").toLowerCase();
-        const bLabel = (b.label ?? b.code ?? "").toLowerCase();
-        return aLabel.localeCompare(bLabel);
-      });
-  }, [denoms, productId]);
-
-  const loadDenoms = useCallback(async () => {
-    setLoadingDenoms(true);
-    try {
-      const res = await fetch(`${API_BASE}/admin/redeem-codes/denominations`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setStatus(err?.message ?? "Impossible de charger les dénominations (droits manquants ?)");
-        return;
-      }
-      const payload = await res.json().catch(() => ({}));
-      const items = normalizeList<Denomination>(payload);
-      setDenoms(items);
-    } catch {
-      setStatus((prev) => prev || "Impossible de charger les dénominations");
-    } finally {
-      setLoadingDenoms(false);
-    }
-  }, []);
 
   const loadProducts = useCallback(async () => {
     setLoadingProducts(true);
@@ -104,26 +63,15 @@ export default function AdminRedeemCodesAddPage() {
   }, []);
 
   useEffect(() => {
-    loadDenoms();
     loadProducts();
-  }, [loadDenoms, loadProducts]);
-
-  useEffect(() => {
-    if (!denomId && filteredDenoms.length === 1) {
-      setDenomId(String(filteredDenoms[0].id));
-      return;
-    }
-    if (denomId && !filteredDenoms.some((d) => String(d.id) === denomId)) {
-      setDenomId("");
-    }
-  }, [denomId, filteredDenoms]);
+  }, [loadProducts]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("");
 
-    if (!denomId) {
-      setStatus("Sélectionnez une dénomination.");
+    if (!productId) {
+      setStatus("Sélectionnez un produit.");
       return;
     }
 
@@ -135,7 +83,7 @@ export default function AdminRedeemCodesAddPage() {
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append("denomination_id", denomId);
+      formData.append("product_id", productId);
       if (codes.trim()) formData.append("codes", codes.trim());
       if (file) formData.append("file", file);
 
@@ -165,8 +113,6 @@ export default function AdminRedeemCodesAddPage() {
     }
   };
 
-  const hasUnlinkedDenoms = useMemo(() => denoms.some((d) => (d.product_id ?? null) == null), [denoms]);
-
   return (
     <AdminShell title="Ajouter des codes" subtitle="Import des Redeem Codes">
       <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
@@ -179,11 +125,10 @@ export default function AdminRedeemCodesAddPage() {
                 value={productId}
                 onChange={(e) => {
                   setProductId(e.target.value);
-                  setDenomId("");
                 }}
                 className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                 required
-                disabled={loadingDenoms || loadingProducts}
+                disabled={loadingProducts}
               >
                 <option value="">{loadingProducts ? "Chargement..." : "Sélectionner un produit"}</option>
                 {productOptions.map((p) => (
@@ -191,46 +136,9 @@ export default function AdminRedeemCodesAddPage() {
                     {p.sku ? `${p.name} (${p.sku})` : p.name}
                   </option>
                 ))}
-                {hasUnlinkedDenoms && <option value="__unlinked__">Sans produit (non lié)</option>}
               </select>
               {!loadingProducts && products.length === 0 && (
                 <p className="mt-2 text-xs text-slate-500">Aucun produit trouvé. Vérifiez votre API / accès réseau.</p>
-              )}
-              {!loadingDenoms && denoms.length === 0 && (
-                <p className="mt-2 text-xs text-slate-500">
-                  Aucune dénomination disponible. Créez/liez d'abord une dénomination à un produit.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Dénomination</label>
-              <select
-                value={denomId}
-                onChange={(e) => setDenomId(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
-                required
-                disabled={loadingDenoms || !productId}
-              >
-                <option value="">
-                  {!productId
-                    ? "Choisissez d'abord un produit"
-                    : loadingDenoms
-                      ? "Chargement..."
-                      : filteredDenoms.length
-                        ? "Sélectionner une dénomination"
-                        : "Aucune dénomination pour ce produit"}
-                </option>
-                {filteredDenoms.map((denom) => (
-                  <option key={denom.id} value={String(denom.id)}>
-                    {denom.label ?? denom.code ?? `Dénomination ${denom.id}`}
-                  </option>
-                ))}
-              </select>
-              {productId && !loadingDenoms && filteredDenoms.length === 0 && (
-                <p className="mt-2 text-xs text-slate-500">
-                  Aucune dénomination liée à ce produit. Créez/liez d'abord une dénomination côté backend.
-                </p>
               )}
             </div>
 

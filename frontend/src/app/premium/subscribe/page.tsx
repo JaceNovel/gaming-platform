@@ -29,7 +29,10 @@ function PremiumSubscribeScreen() {
   const [gameId, setGameId] = useState<string>("");
   const [gameUsername, setGameUsername] = useState<string>("");
 
-  const level = useMemo(() => String(searchParams.get("level") ?? "bronze"), [searchParams]);
+  const level = useMemo(() => {
+    const raw = String(searchParams.get("level") ?? "bronze").trim().toLowerCase();
+    return raw === "platine" ? "platine" : "bronze";
+  }, [searchParams]);
 
   useEffect(() => {
     let active = true;
