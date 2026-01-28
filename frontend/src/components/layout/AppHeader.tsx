@@ -4,9 +4,17 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Coins, Crown, Mail, ShoppingCart, User, Swords } from "lucide-react";
+import { Bell, Coins, Crown, Mail, ShoppingCart, User } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
+
+type NotificationItem = {
+  id: number;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  type?: string | null;
+};
 
 const navItems = [
   { label: "Boutique", href: "/shop" },
@@ -16,11 +24,10 @@ const navItems = [
 export default function AppHeader() {
   const pathname = usePathname();
   const { authFetch, token, user } = useAuth();
+  const [isMobile, setIsMobile] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [walletCurrency, setWalletCurrency] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<
-    Array<{ id: number; message: string; is_read: boolean; created_at: string; type?: string | null }>
-  >([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [inboxItems, setInboxItems] = useState<
@@ -28,6 +35,20 @@ export default function AppHeader() {
   >([]);
   const [inboxUnread, setInboxUnread] = useState(0);
   const [showInbox, setShowInbox] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobile(Boolean(mq.matches));
+    update();
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", update);
+      return () => mq.removeEventListener("change", update);
+    }
+    // Safari old fallback
+    mq.addListener(update);
+    return () => mq.removeListener(update);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -66,7 +87,8 @@ export default function AppHeader() {
         return;
       }
       try {
-        const res = await authFetch(`${API_BASE}/notifications?limit=6&type=redeem_code`);
+        const limit = isMobile ? 4 : 6;
+        const res = await authFetch(`${API_BASE}/notifications?limit=${limit}&type=redeem_code`);
         if (!res.ok) return;
         const data = await res.json();
         if (!active) return;
@@ -83,7 +105,7 @@ export default function AppHeader() {
     return () => {
       active = false;
     };
-  }, [authFetch, token]);
+  }, [authFetch, token, isMobile]);
 
   useEffect(() => {
     let active = true;
@@ -94,14 +116,15 @@ export default function AppHeader() {
         return;
       }
       try {
-        const res = await authFetch(`${API_BASE}/notifications?limit=6`);
+        const limit = isMobile ? 4 : 6;
+        const res = await authFetch(`${API_BASE}/notifications?limit=${limit}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!active) return;
-        const list = Array.isArray(data?.notifications) ? data.notifications : [];
-        const filteredList = list.filter((item: any) => item?.type !== "redeem_code");
+        const list = Array.isArray(data?.notifications) ? (data.notifications as NotificationItem[]) : [];
+        const filteredList = list.filter((item) => item?.type !== "redeem_code");
         setNotifications(filteredList);
-        setUnreadCount(filteredList.filter((item: any) => !item?.is_read).length);
+        setUnreadCount(filteredList.filter((item) => !item?.is_read).length);
       } catch {
         if (!active) return;
         setNotifications([]);
@@ -113,7 +136,7 @@ export default function AppHeader() {
     return () => {
       active = false;
     };
-  }, [authFetch, token]);
+  }, [authFetch, token, isMobile]);
 
   const unreadBadge = useMemo(() => {
     if (unreadCount <= 0) return null;
@@ -124,6 +147,9 @@ export default function AppHeader() {
     if (inboxUnread <= 0) return null;
     return inboxUnread > 9 ? "9+" : String(inboxUnread);
   }, [inboxUnread]);
+
+  const mobileNotifications = useMemo(() => notifications.slice(0, 4), [notifications]);
+  const mobileInboxItems = useMemo(() => inboxItems.slice(0, 4), [inboxItems]);
 
   const handleToggleNotifications = async () => {
     const next = !showNotifications;
@@ -154,7 +180,14 @@ export default function AppHeader() {
 
   const vipLabel = useMemo(() => {
     if (!user?.is_premium) return "VIP 0";
-    const levelRaw = (user as any)?.premium_level ?? (user as any)?.premium_tier ?? (user as any)?.premiumTier;
+    type PremiumLevelLike = {
+      premium_level?: number | string | null;
+      premium_tier?: number | string | null;
+      premiumTier?: number | string | null;
+    };
+
+    const u = user as unknown as PremiumLevelLike;
+    const levelRaw = u?.premium_level ?? u?.premium_tier ?? u?.premiumTier;
     if (typeof levelRaw === "number") {
       return levelRaw >= 2 ? "VIP 2" : "VIP 1";
     }
@@ -385,41 +418,6 @@ export default function AppHeader() {
                   </span>
                 ) : null}
               </button>
-              {showNotifications && (
-                <div className="absolute left-1/2 top-12 w-[calc(100vw-32px)] max-w-[18rem] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/95 p-3 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur lg:hidden">
-                  <div className="flex items-center justify-between pb-2">
-                    <span className="text-xs uppercase tracking-[0.25em] text-white/50">Notifications</span>
-                    <button
-                      type="button"
-                      className="text-xs text-white/60 hover:text-white"
-                      onClick={() => setShowNotifications(false)}
-                    >
-                      Fermer
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {notifications.length === 0 ? (
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                        Aucune notification pour le moment.
-                      </div>
-                    ) : (
-                      notifications.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 ${
-                            item.is_read ? "opacity-70" : ""
-                          }`}
-                        >
-                          <p className="text-white/90">{item.message}</p>
-                          <p className="mt-1 text-[10px] text-white/40">
-                            {new Date(item.created_at).toLocaleString("fr-FR")}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
             <div className="relative">
               <button
@@ -437,41 +435,6 @@ export default function AppHeader() {
                   </span>
                 ) : null}
               </button>
-              {showInbox && (
-                <div className="absolute left-1/2 top-12 w-[calc(100vw-32px)] max-w-[18rem] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/95 p-3 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur lg:hidden">
-                  <div className="flex items-center justify-between pb-2">
-                    <span className="text-xs uppercase tracking-[0.25em] text-white/50">Boîte mail</span>
-                    <button
-                      type="button"
-                      className="text-xs text-white/60 hover:text-white"
-                      onClick={() => setShowInbox(false)}
-                    >
-                      Fermer
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {inboxItems.length === 0 ? (
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                        Aucun message pour le moment.
-                      </div>
-                    ) : (
-                      inboxItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 ${
-                            item.is_read ? "opacity-70" : ""
-                          }`}
-                        >
-                          <p className="whitespace-pre-wrap text-white/90">{item.message}</p>
-                          <p className="mt-1 text-[10px] text-white/40">
-                            {new Date(item.created_at).toLocaleString("fr-FR")}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
             <Link
               href="/cart"
@@ -484,6 +447,95 @@ export default function AppHeader() {
           </div>
         </div>
       </header>
+
+      {showNotifications && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowNotifications(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-black/95 p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2">
+              <span className="text-xs uppercase tracking-[0.25em] text-white/50">Notifications</span>
+              <button
+                type="button"
+                className="text-xs text-white/60 hover:text-white"
+                onClick={() => setShowNotifications(false)}
+              >
+                Fermer
+              </button>
+            </div>
+            <div className="space-y-2">
+              {mobileNotifications.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
+                  Aucune notification pour le moment.
+                </div>
+              ) : (
+                mobileNotifications.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 ${
+                      item.is_read ? "opacity-70" : ""
+                    }`}
+                  >
+                    <p className="text-white/90">{item.message}</p>
+                    <p className="mt-1 text-[10px] text-white/40">{new Date(item.created_at).toLocaleString("fr-FR")}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInbox && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowInbox(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-black/95 p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2">
+              <span className="text-xs uppercase tracking-[0.25em] text-white/50">Boîte mail</span>
+              <button
+                type="button"
+                className="text-xs text-white/60 hover:text-white"
+                onClick={() => setShowInbox(false)}
+              >
+                Fermer
+              </button>
+            </div>
+            <div className="space-y-2">
+              {mobileInboxItems.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
+                  Aucun message pour le moment.
+                </div>
+              ) : (
+                mobileInboxItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 ${
+                      item.is_read ? "opacity-70" : ""
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap text-white/90">{item.message}</p>
+                    <p className="mt-1 text-[10px] text-white/40">{new Date(item.created_at).toLocaleString("fr-FR")}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="h-[70px] lg:h-[96px]" aria-hidden="true" />
     </>
   );
