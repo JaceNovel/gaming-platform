@@ -35,7 +35,16 @@ class AdminDashboardController extends Controller
         $totalCustomers = $this->realUsers()->where('role', 'user')->count();
         $avgOrderValue = $totalOrders > 0 ? round($revenueTotal / $totalOrders, 2) : 0;
         $failedPaymentsCount = Payment::where('status', 'failed')->count();
-        $pendingOrdersCount = Order::where('status', 'pending')->count();
+        $pendingOrdersCount = Order::whereIn('status', ['pending', 'PENDING'])->count();
+        $failedOrdersCount = Order::whereIn('status', ['failed', 'FAILED'])->count();
+        $completedOrdersCount = Order::whereIn('status', [
+            'paid',
+            'PAID',
+            'fulfilled',
+            'FULFILLED',
+            'paid_but_out_of_stock',
+            'PAID_BUT_OUT_OF_STOCK',
+        ])->count();
 
         $availableRedeems = RedeemDenomination::withCount([
             'codes as available_count' => fn ($query) => $query->where('status', 'available'),
@@ -60,6 +69,8 @@ class AdminDashboardController extends Controller
             'data' => [
                 'revenue_total' => $revenueTotal,
                 'total_orders' => $totalOrders,
+                'completed_orders_count' => $completedOrdersCount,
+                'failed_orders_count' => $failedOrdersCount,
                 'total_products' => $totalProducts,
                 'total_customers' => $totalCustomers,
                 'conversion_rate' => $conversionRate,

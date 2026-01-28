@@ -137,7 +137,7 @@ export default function AdminProductsAddPage() {
         is_active: isActive,
         shipping_required: shippingRequired,
         delivery_type: shippingRequired ? deliveryType : undefined,
-        delivery_eta_days: shippingRequired ? Number(deliveryEtaDays) : undefined,
+        delivery_eta_days: deliveryEtaDays.trim() ? Number(deliveryEtaDays) : undefined,
         display_section: displaySection === "none" ? undefined : displaySection,
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
@@ -535,8 +535,8 @@ export default function AdminProductsAddPage() {
                 />
                 Livraison requise (article physique)
               </label>
-              {shippingRequired && (
-                <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
+                {shippingRequired && (
                   <div>
                     <label className="text-sm font-medium">Type de livraison</label>
                     <select
@@ -548,18 +548,19 @@ export default function AdminProductsAddPage() {
                       <option value="preorder">preorder</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium">ETA (jours)</label>
-                    <input
-                      value={deliveryEtaDays}
-                      onChange={(e) => setDeliveryEtaDays(e.target.value)}
-                      type="number"
-                      min="1"
-                      className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
-                    />
-                  </div>
+                )}
+                <div className={shippingRequired ? "" : "md:col-span-2"}>
+                  <label className="text-sm font-medium">Estimation de livraison (jours)</label>
+                  <input
+                    value={deliveryEtaDays}
+                    onChange={(e) => setDeliveryEtaDays(e.target.value)}
+                    type="number"
+                    min="1"
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Laissez vide pour utiliser la valeur par défaut.</p>
                 </div>
-              )}
+              </div>
               <label className="flex items-center gap-2 text-sm text-slate-600">
                 <input
                   type="checkbox"

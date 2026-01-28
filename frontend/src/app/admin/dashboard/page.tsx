@@ -9,6 +9,8 @@ type OverviewResponse = {
   data: {
     revenue_total: number;
     total_orders: number;
+    completed_orders_count?: number;
+    failed_orders_count?: number;
     total_products: number;
     total_customers: number;
     conversion_rate: number | null;
@@ -204,6 +206,18 @@ export default function AdminDashboardPage() {
             <p className="mt-3 text-xs text-emerald-500">↑ 0.0%</p>
           </div>
         ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <span className="rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-700">
+          En cours: {overview?.data?.pending_orders_count ?? 0}
+        </span>
+        <span className="rounded-full bg-rose-100 px-3 py-1 font-semibold text-rose-700">
+          Échecs (commandes): {overview?.data?.failed_orders_count ?? 0}
+        </span>
+        <span className="rounded-full bg-emerald-100 px-3 py-1 font-semibold text-emerald-700">
+          Complétées: {overview?.data?.completed_orders_count ?? 0}
+        </span>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
