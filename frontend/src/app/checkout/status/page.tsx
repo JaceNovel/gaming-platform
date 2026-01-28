@@ -69,8 +69,18 @@ function CheckoutStatusScreen() {
         orderId: payload?.data?.order_id ?? (orderId ? Number(orderId) : undefined),
       });
 
-      if (paymentStatus === "paid") {
+      const isPaid = ["paid", "completed", "success", "successful"].includes(paymentStatus);
+
+      if (isPaid) {
         setStatus("success");
+        if (orderType === "wallet_topup") {
+          setMessage("Paiement confirmé ! Votre wallet va être rechargé.");
+          setShowModal(false);
+          setTimeout(() => {
+            router.replace("/account?topup_status=success");
+          }, 800);
+          return;
+        }
         if (orderType === "premium_subscription") {
           setMessage("Paiement confirmé ! Votre abonnement VIP est activé.");
           setShowModal(false);
@@ -96,10 +106,18 @@ function CheckoutStatusScreen() {
         }
       } else if (paymentStatus === "failed") {
         setStatus("failed");
-        setMessage("Paiement refusé ou expiré. Merci de réessayer.");
+        if (orderType === "wallet_topup") {
+          setMessage("Recharge wallet échouée ou annulée.");
+        } else {
+          setMessage("Paiement refusé ou expiré. Merci de réessayer.");
+        }
       } else {
         setStatus("pending");
-        setMessage("Paiement en attente de confirmation CinetPay...");
+        if (orderType === "wallet_topup") {
+          setMessage("Recharge wallet en attente de confirmation CinetPay...");
+        } else {
+          setMessage("Paiement en attente de confirmation CinetPay...");
+        }
       }
     } catch (error) {
       setStatus("error");
