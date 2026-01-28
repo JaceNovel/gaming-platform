@@ -14,6 +14,7 @@ type PaymentStatusResponse = {
   data?: {
     payment_status?: string;
     order_status?: string;
+    order_type?: string;
     transaction_id?: string;
     order_id?: number;
   };
@@ -62,6 +63,7 @@ function CheckoutStatusScreen() {
 
       const paymentStatus = (payload?.data?.payment_status ?? "pending").toLowerCase();
       const orderStatus = (payload?.data?.order_status ?? "").toLowerCase();
+      const orderType = String(payload?.data?.order_type ?? "").toLowerCase();
       setDetails({
         transactionId: payload?.data?.transaction_id ?? transactionId ?? undefined,
         orderId: payload?.data?.order_id ?? (orderId ? Number(orderId) : undefined),
@@ -69,6 +71,11 @@ function CheckoutStatusScreen() {
 
       if (paymentStatus === "paid") {
         setStatus("success");
+        if (orderType === "premium_subscription") {
+          setMessage("Paiement confirmé ! Votre abonnement VIP est activé.");
+          setShowModal(false);
+          return;
+        }
         if (orderStatus === "paid_but_out_of_stock") {
           setOutOfStock(true);
           setMessage("Commande payée – en attente de réapprovisionnement.");

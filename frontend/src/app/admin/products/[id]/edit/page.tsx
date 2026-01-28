@@ -10,7 +10,6 @@ type Category = {
   id: number;
   name: string;
 };
-                  <option value="gaming_accounts">Compte Gaming</option>
 
 type Game = {
   id: number;
@@ -94,6 +93,7 @@ export default function AdminProductsEditPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
   const [accountImages, setAccountImages] = useState<string[]>([""]);
+  const [uploadingAccountImages, setUploadingAccountImages] = useState(false);
   const [imagePreviewError, setImagePreviewError] = useState(false);
   const [bannerPreviewError, setBannerPreviewError] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -194,6 +194,51 @@ export default function AdminProductsEditPage() {
       active = false;
     };
   }, [productId]);
+
+  const uploadAccountImages = useCallback(
+    async (files: File[]) => {
+      if (!productId) return;
+      if (!files.length) return;
+      setStatus("");
+      setUploadingAccountImages(true);
+      try {
+        const remaining = Math.max(0, 10 - accountImages.filter((v) => v.trim()).length);
+        const limited = files.slice(0, remaining);
+        for (const file of limited) {
+          const form = new FormData();
+          form.append("image", file);
+          const res = await fetch(`${API_BASE}/admin/products/${productId}/image`, {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+              ...getAuthHeaders(),
+            },
+            body: form,
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err?.message ?? "Upload image impossible");
+          }
+          const payload = await res.json().catch(() => ({}));
+          const url = String(payload?.data?.url ?? "").trim();
+          if (url) {
+            setAccountImages((prev) => {
+              const cleaned = prev.map((v) => v.trim()).filter(Boolean);
+              const next = [...cleaned, url].slice(0, 10);
+              return next.length ? next : [""];
+            });
+          }
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload image impossible";
+        setStatus(message || "Upload image impossible");
+      } finally {
+        setUploadingAccountImages(false);
+      }
+    },
+    [accountImages, productId]
+  );
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -319,12 +364,30 @@ export default function AdminProductsEditPage() {
                       <p className="mt-1 text-xs text-slate-500">
                         Ajoute plusieurs URLs (max 10). Elles vont défiler horizontalement sur la fiche produit.
                       </p>
+                      <div className="mt-3">
+                        <label className="text-xs font-semibold text-slate-700">Uploader depuis la galerie</label>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          disabled={loadingProduct || uploadingAccountImages}
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files ?? []);
+                            if (files.length) void uploadAccountImages(files);
+                            e.currentTarget.value = "";
+                          }}
+                          className="mt-2 block w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white"
+                        />
+                        {uploadingAccountImages && (
+                          <p className="mt-2 text-xs text-slate-500">Upload en cours…</p>
+                        )}
+                      </div>
                     </div>
                     <button
                       type="button"
                       className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold"
                       onClick={() => setAccountImages((prev) => [...prev, ""]) }
-                      disabled={loadingProduct}
+                      disabled={loadingProduct || uploadingAccountImages}
                     >
                       + Ajouter
                     </button>

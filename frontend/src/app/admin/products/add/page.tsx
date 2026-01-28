@@ -57,6 +57,7 @@ export default function AdminProductsAddPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
   const [accountImages, setAccountImages] = useState<string[]>([""]);
+  const [accountImageFiles, setAccountImageFiles] = useState<File[]>([]);
   const [imagePreviewError, setImagePreviewError] = useState(false);
   const [bannerPreviewError, setBannerPreviewError] = useState(false);
   const isLikelyImageUrl = (value: string) => {
@@ -177,6 +178,28 @@ export default function AdminProductsAddPage() {
       const created = await res.json().catch(() => ({}));
       const productId = created?.id ?? created?.data?.id;
 
+      // If user selected local files for account carousel, upload them after creation.
+      if (productId && type === "account" && accountImageFiles.length) {
+        const limited = accountImageFiles.slice(0, 10);
+        for (const file of limited) {
+          const form = new FormData();
+          form.append("image", file);
+          const up = await fetch(`${API_BASE}/admin/products/${productId}/image`, {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+              ...getAuthHeaders(),
+            },
+            body: form,
+          });
+          if (!up.ok) {
+            const err = await up.json().catch(() => ({}));
+            throw new Error(err?.message ?? "Upload image impossible");
+          }
+        }
+      }
+
       setName("");
       setDescription("");
       setServerTags("");
@@ -194,9 +217,11 @@ export default function AdminProductsAddPage() {
       setImageUrl("");
       setBannerUrl("");
       setAccountImages([""]);
-      setStatus("Produit ajouté.");
-    } catch {
-      setStatus("Création impossible");
+      setAccountImageFiles([]);
+      setStatus(accountImageFiles.length ? "Produit ajouté + images uploadées." : "Produit ajouté.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Création impossible";
+      setStatus(message || "Création impossible");
     } finally {
       setLoading(false);
     }
@@ -250,7 +275,7 @@ export default function AdminProductsAddPage() {
                     <div>
                       <label className="text-sm font-semibold">Images du compte (carousel)</label>
                       <p className="mt-1 text-xs text-slate-500">
-                        Ajoute plusieurs URLs (max 10). Elles vont défiler horizontalement sur la fiche produit.
+                        Ajoute des URLs ou upload depuis ta galerie (max 10). Elles vont défiler horizontalement sur la fiche produit.
                       </p>
                     </div>
                     <button
@@ -260,6 +285,23 @@ export default function AdminProductsAddPage() {
                     >
                       + Ajouter
                     </button>
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="text-xs font-medium text-slate-600">Upload depuis la galerie</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        setAccountImageFiles(files.slice(0, 10));
+                      }}
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Les images seront uploadées après création du produit.
+                    </p>
                   </div>
 
                   <div className="mt-4 space-y-3">

@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
+
+type Product = {
+  id: number;
+  name?: string | null;
+  sku?: string | null;
+};
 
 type Denomination = {
   id: number;
@@ -11,8 +17,6 @@ type Denomination = {
   label?: string | null;
   product?: { id: number; name?: string | null; sku?: string | null } | null;
 };
-
-type DenomsResponse = { data: Denomination[] };
 
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
@@ -24,8 +28,15 @@ const getAuthHeaders = (): Record<string, string> => {
   return headers;
 };
 
+const normalizeList = <T,>(payload: any): T[] => {
+  if (Array.isArray(payload?.data)) return payload.data as T[];
+  if (Array.isArray(payload)) return payload as T[];
+  return [];
+};
+
 export default function AdminRedeemCodesAddPage() {
   const [denoms, setDenoms] = useState<Denomination[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [productId, setProductId] = useState("");
   const [denomId, setDenomId] = useState("");
   const [codes, setCodes] = useState("");
@@ -33,31 +44,27 @@ export default function AdminRedeemCodesAddPage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingDenoms, setLoadingDenoms] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
-  const products = Array.from(
-    denoms
-      .filter((d) => d.product && (d.product_id ?? d.product?.id) != null)
-      .reduce((acc, denom) => {
-        const id = denom.product_id ?? denom.product!.id;
-        acc.set(id, denom.product!);
-        return acc;
-      }, new Map<number, NonNullable<Denomination["product"]>>())
-      .entries(),
-  )
-    .map(([id, product]) => ({ id, name: product.name ?? `Produit ${id}`, sku: product.sku ?? null }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const productOptions = useMemo(() => {
+    return (products ?? [])
+      .map((p) => ({ id: p.id, name: p.name ?? `Produit ${p.id}`, sku: p.sku ?? null }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [products]);
 
-  const filteredDenoms = denoms
-    .filter((d) => {
-      if (!productId) return false;
-      if (productId === "__unlinked__") return (d.product_id ?? null) == null;
-      return String(d.product_id ?? d.product?.id ?? "") === productId;
-    })
-    .sort((a, b) => {
-      const aLabel = (a.label ?? a.code ?? "").toLowerCase();
-      const bLabel = (b.label ?? b.code ?? "").toLowerCase();
-      return aLabel.localeCompare(bLabel);
-    });
+  const filteredDenoms = useMemo(() => {
+    return (denoms ?? [])
+      .filter((d) => {
+        if (!productId) return false;
+        if (productId === "__unlinked__") return (d.product_id ?? null) == null;
+        return String(d.product_id ?? d.product?.id ?? "") === productId;
+      })
+      .sort((a, b) => {
+        const aLabel = (a.label ?? a.code ?? "").toLowerCase();
+        const bLabel = (b.label ?? b.code ?? "").toLowerCase();
+        return aLabel.localeCompare(bLabel);
+      });
+  }, [denoms, productId]);
 
   const loadDenoms = useCallback(async () => {
     setLoadingDenoms(true);
@@ -68,30 +75,48 @@ export default function AdminRedeemCodesAddPage() {
           ...getAuthHeaders(),
         },
       });
-      if (!res.ok) return;
-      const payload = (await res.json()) as any;
-      const items = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setStatus(err?.message ?? "Impossible de charger les dénominations (droits manquants ?)");
+        return;
+      }
+      const payload = await res.json().catch(() => ({}));
+      const items = normalizeList<Denomination>(payload);
       setDenoms(items);
+    } catch {
+      setStatus((prev) => prev || "Impossible de charger les dénominations");
     } finally {
       setLoadingDenoms(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadDenoms();
-  }, [loadDenoms]);
+  const loadProducts = useCallback(async () => {
+    setLoadingProducts(true);
+    try {
+      const res = await fetch(`${API_BASE}/products?active=0&per_page=200`);
+      if (!res.ok) return;
+      const payload = await res.json().catch(() => ({}));
+      const list = normalizeList<Product>(payload);
+      setProducts(list);
+    } finally {
+      setLoadingProducts(false);
+    }
+  }, []);
 
   useEffect(() => {
-    // If there's only one denom for this product, auto-select it.
+    loadDenoms();
+    loadProducts();
+  }, [loadDenoms, loadProducts]);
+
+  useEffect(() => {
     if (!denomId && filteredDenoms.length === 1) {
       setDenomId(String(filteredDenoms[0].id));
+      return;
     }
-    // If the selected denom doesn't belong to the current filter, clear it.
     if (denomId && !filteredDenoms.some((d) => String(d.id) === denomId)) {
       setDenomId("");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId, denoms]);
+  }, [denomId, filteredDenoms]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -111,12 +136,8 @@ export default function AdminRedeemCodesAddPage() {
     try {
       const formData = new FormData();
       formData.append("denomination_id", denomId);
-      if (codes.trim()) {
-        formData.append("codes", codes.trim());
-      }
-      if (file) {
-        formData.append("file", file);
-      }
+      if (codes.trim()) formData.append("codes", codes.trim());
+      if (file) formData.append("file", file);
 
       const res = await fetch(`${API_BASE}/admin/redeem-codes/import`, {
         method: "POST",
@@ -132,16 +153,19 @@ export default function AdminRedeemCodesAddPage() {
         return;
       }
 
-      const payload = await res.json();
+      const payload = await res.json().catch(() => ({}));
       setStatus(`Importés: ${payload?.imported ?? 0}, doublons: ${payload?.duplicates ?? 0}`);
       setCodes("");
       setFile(null);
-    } catch {
-      setStatus("Import impossible");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Import impossible";
+      setStatus(message || "Import impossible");
     } finally {
       setLoading(false);
     }
   };
+
+  const hasUnlinkedDenoms = useMemo(() => denoms.some((d) => (d.product_id ?? null) == null), [denoms]);
 
   return (
     <AdminShell title="Ajouter des codes" subtitle="Import des Redeem Codes">
@@ -159,21 +183,22 @@ export default function AdminRedeemCodesAddPage() {
                 }}
                 className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                 required
-                disabled={loadingDenoms}
+                disabled={loadingDenoms || loadingProducts}
               >
-                <option value="">{loadingDenoms ? "Chargement..." : "Sélectionner un produit"}</option>
-                {products.map((p) => (
+                <option value="">{loadingProducts ? "Chargement..." : "Sélectionner un produit"}</option>
+                {productOptions.map((p) => (
                   <option key={p.id} value={String(p.id)}>
                     {p.sku ? `${p.name} (${p.sku})` : p.name}
                   </option>
                 ))}
-                {denoms.some((d) => (d.product_id ?? null) == null) && (
-                  <option value="__unlinked__">Sans produit (non lié)</option>
-                )}
+                {hasUnlinkedDenoms && <option value="__unlinked__">Sans produit (non lié)</option>}
               </select>
+              {!loadingProducts && products.length === 0 && (
+                <p className="mt-2 text-xs text-slate-500">Aucun produit trouvé. Vérifiez votre API / accès réseau.</p>
+              )}
               {!loadingDenoms && denoms.length === 0 && (
                 <p className="mt-2 text-xs text-slate-500">
-                  Aucun produit/denomination disponible. Vérifiez votre connexion admin ou créez une denomination côté backend.
+                  Aucune dénomination disponible. Créez/liez d'abord une dénomination à un produit.
                 </p>
               )}
             </div>
@@ -204,10 +229,11 @@ export default function AdminRedeemCodesAddPage() {
               </select>
               {productId && !loadingDenoms && filteredDenoms.length === 0 && (
                 <p className="mt-2 text-xs text-slate-500">
-                  Aucune dénomination liée. Liez d'abord une dénomination à ce produit côté backend.
+                  Aucune dénomination liée à ce produit. Créez/liez d'abord une dénomination côté backend.
                 </p>
               )}
             </div>
+
             <div>
               <label className="text-sm font-medium">Codes (une ligne par code)</label>
               <textarea
@@ -218,6 +244,7 @@ export default function AdminRedeemCodesAddPage() {
                 placeholder="ABC-123-XYZ\nDEF-456-XYZ"
               />
             </div>
+
             <div>
               <label className="text-sm font-medium">Fichier .txt/.csv</label>
               <input

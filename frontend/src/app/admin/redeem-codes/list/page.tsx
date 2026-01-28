@@ -5,6 +5,12 @@ import { Search } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
+type Product = {
+  id: number;
+  name?: string | null;
+  sku?: string | null;
+};
+
 type RedeemCode = {
   id: number;
   code?: string | null;
@@ -51,6 +57,7 @@ const maskCode = (code?: string | null) => {
 export default function AdminRedeemCodesListPage() {
   const [codes, setCodes] = useState<RedeemCode[]>([]);
   const [denoms, setDenoms] = useState<Denomination[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [productId, setProductId] = useState("all");
@@ -58,17 +65,8 @@ export default function AdminRedeemCodesListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const products = Array.from(
-    denoms
-      .filter((d) => d.product && (d.product_id ?? d.product?.id) != null)
-      .reduce((acc, denom) => {
-        const id = denom.product_id ?? denom.product!.id;
-        acc.set(id, denom.product!);
-        return acc;
-      }, new Map<number, NonNullable<Denomination["product"]>>())
-      .entries(),
-  )
-    .map(([id, product]) => ({ id, name: product.name ?? `Produit ${id}`, sku: product.sku ?? null }))
+  const productOptions = (products ?? [])
+    .map((p) => ({ id: p.id, name: p.name ?? `Produit ${p.id}`, sku: p.sku ?? null }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredDenoms = denoms
@@ -83,15 +81,31 @@ export default function AdminRedeemCodesListPage() {
     });
 
   const loadDenoms = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/admin/redeem-codes/denominations`, {
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-    });
-    if (!res.ok) return;
-    const payload = (await res.json()) as DenomsResponse;
-    setDenoms(payload?.data ?? []);
+    try {
+      const res = await fetch(`${API_BASE}/admin/redeem-codes/denominations`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+      });
+      if (!res.ok) return;
+      const payload = (await res.json()) as DenomsResponse;
+      setDenoms(payload?.data ?? []);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const loadProducts = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/products?active=0&per_page=200`);
+      if (!res.ok) return;
+      const payload = (await res.json().catch(() => null)) as any;
+      const list: Product[] = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      setProducts(list ?? []);
+    } catch {
+      // ignore
+    }
   }, []);
 
   const loadCodes = useCallback(async () => {
@@ -122,7 +136,8 @@ export default function AdminRedeemCodesListPage() {
 
   useEffect(() => {
     loadDenoms();
-  }, [loadDenoms]);
+    loadProducts();
+  }, [loadDenoms, loadProducts]);
 
   useEffect(() => {
     if (denomId !== "all" && !filteredDenoms.some((d) => String(d.id) === denomId)) {
@@ -159,7 +174,7 @@ export default function AdminRedeemCodesListPage() {
         className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
       >
         <option value="all">Tous les produits</option>
-        {products.map((p) => (
+        {productOptions.map((p) => (
           <option key={p.id} value={String(p.id)}>
             {p.sku ? `${p.name} (${p.sku})` : p.name}
           </option>
