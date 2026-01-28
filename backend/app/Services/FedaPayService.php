@@ -199,10 +199,12 @@ class FedaPayService
 
         $transactionId = Arr::get($created, 'id')
             ?? Arr::get($created, 'data.id')
-            ?? Arr::get($created, 'v1.id')
-            ?? Arr::get($created, 'data.v1.id')
             ?? Arr::get($created, 'transaction.id')
             ?? Arr::get($created, 'data.transaction.id')
+            // Some responses use a literal key with a slash: {"v1/transaction": {"id": ...}}
+            ?? Arr::get($created, 'v1/transaction.id')
+            ?? Arr::get($created, 'data.v1/transaction.id')
+            // Other responses wrap it as {"v1": {"transaction": {"id": ...}}}
             ?? Arr::get($created, 'v1.transaction.id')
             ?? Arr::get($created, 'data.v1.transaction.id');
 
@@ -213,11 +215,23 @@ class FedaPayService
             throw new \RuntimeException('FedaPay did not return a transaction id. Response: ' . $snippet);
         }
 
-        $tokenResp = $this->postJson($this->endpoint('/transactions/' . $transactionId . '/token'), []);
-        $paymentUrl = $this->findFirstUrl($tokenResp);
+        // Some providers already return a payment_url / payment_token in the transaction payload.
+        // Prefer it to avoid an extra API call and mismatched schemas.
+        $paymentUrl = $this->findFirstUrl($created);
+        $tokenResp = null;
 
         if (!$paymentUrl) {
-            Log::error('fedapay:error', ['stage' => 'token', 'transaction_id' => $transactionId, 'response' => $tokenResp]);
+            $tokenResp = $this->postJson($this->endpoint('/transactions/' . $transactionId . '/token'), []);
+            $paymentUrl = $this->findFirstUrl($tokenResp);
+        }
+
+        if (!$paymentUrl) {
+            Log::error('fedapay:error', [
+                'stage' => 'token',
+                'transaction_id' => $transactionId,
+                'response' => $tokenResp,
+                'create_response' => mb_substr(json_encode($created, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '', 0, 1200),
+            ]);
             throw new \RuntimeException('FedaPay did not return a payment link');
         }
 
