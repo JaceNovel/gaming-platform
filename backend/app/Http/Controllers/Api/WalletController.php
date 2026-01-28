@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\WalletTransaction;
 use App\Services\CinetPayService;
+use App\Services\FedaPayService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -17,7 +18,11 @@ use Illuminate\Support\Facades\Log;
 
 class WalletController extends Controller
 {
-    public function __construct(private WalletService $walletService, private CinetPayService $cinetPayService)
+    public function __construct(
+        private WalletService $walletService,
+        private CinetPayService $cinetPayService,
+        private FedaPayService $fedaPayService,
+    )
     {
     }
 
@@ -66,7 +71,7 @@ class WalletController extends Controller
                     'order_id' => $order->id,
                     'wallet_transaction_id' => $walletTx->id,
                     'amount' => $amount,
-                    'method' => 'cinetpay',
+                    'method' => 'fedapay',
                     'status' => 'pending',
                 ]);
 
@@ -75,33 +80,30 @@ class WalletController extends Controller
                 return [$order->fresh(['payment', 'user']), $payment->fresh(), $walletTx];
             });
 
-            $transactionId = $payment->transaction_id ?? $this->cinetPayService->generateTransactionId($order);
-            $payment->update(['transaction_id' => $transactionId]);
-
-            $initResult = $this->cinetPayService->initPayment($order, $user, [
-                'transaction_id' => $transactionId,
-                'amount' => $amount,
-                'description' => 'BADBOYSHOP Wallet Topup',
-                'notify_url' => route('api.wallet.topup.webhook'),
-                'return_url' => route('api.payments.cinetpay.return', [
+            $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
+            $callbackUrl = $frontUrl !== ''
+                ? $frontUrl . '/wallet/topup/return?' . Arr::query([
+                    'provider' => 'fedapay',
                     'order_id' => $order->id,
-                    'transaction_id' => $transactionId,
-                ]),
-                'cancel_url' => (function () use ($transactionId, $order) {
-                    $base = rtrim((string) config('cinetpay.frontend_wallet_topup_url'), '/');
-                    if ($base === '') {
-                        return null;
-                    }
-                    return $base . '?' . Arr::query([
-                        'order_id' => $order->id,
-                        'transaction_id' => $transactionId,
-                    ]);
-                })(),
+                ])
+                : null;
+
+            $initResult = $this->fedaPayService->initPayment($order, $user, [
+                'amount' => $amount,
+                'currency' => strtoupper((string) ($order->currency ?? config('fedapay.default_currency', 'XOF'))),
+                'description' => 'BADBOYSHOP Wallet Topup',
+                'callback_url' => $callbackUrl,
+                'customer_email' => $user->email,
                 'metadata' => [
+                    'type' => 'wallet_topup',
                     'wallet_transaction_id' => $walletTx->id,
                     'order_id' => $order->id,
+                    'user_id' => $user->id,
                 ],
             ]);
+
+            $transactionId = (string) $initResult['transaction_id'];
+            $payment->update(['transaction_id' => $transactionId]);
 
             $meta = $payment->webhook_data ?? [];
             if (!is_array($meta)) {

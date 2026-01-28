@@ -120,7 +120,12 @@ class OrderController extends Controller
             $denominationId = $item['redeem_denomination_id'] ?? null;
             $redeemDenomination = null;
 
-            // Game ID is no longer required at checkout.
+            $gameId = trim((string) ($item['game_id'] ?? ''));
+            if ($product->type === 'subscription' && $gameId === '') {
+                throw ValidationException::withMessages([
+                    'items' => "Game ID is required for {$product->name}",
+                ]);
+            }
 
             if (!$product->is_active) {
                 throw ValidationException::withMessages([

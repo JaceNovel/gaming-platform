@@ -760,6 +760,10 @@ export default function ShopPage() {
   }, [catalog, query, categoryFilter, priceFilter, promoOnly, sortOrder]);
 
   const popularProducts = useMemo(() => filtered.filter((p) => p.displaySection === "popular").slice(0, 4), [filtered]);
+  const emoteSkinProducts = useMemo(
+    () => filtered.filter((p) => p.displaySection === "emote_skin").slice(0, 6),
+    [filtered]
+  );
   const promoProducts = useMemo(() => filtered.filter((p) => p.displaySection === "cosmic_promo").slice(0, 6), [filtered]);
   const latestProducts = useMemo(() => filtered.filter((p) => p.displaySection === "latest").slice(0, 6), [filtered]);
   const gamingAccountProducts = useMemo(
@@ -847,6 +851,16 @@ export default function ShopPage() {
                 onView={handleViewProduct}
                 onLike={handleToggleLike}
               />
+              {emoteSkinProducts.length > 0 && (
+                <ProductGrid
+                  title="Emote && Skin"
+                  subtitle="Emotes et skins à collectionner."
+                  products={emoteSkinProducts}
+                  onAddToCart={handleAddToCart}
+                  onView={handleViewProduct}
+                  onLike={handleToggleLike}
+                />
+              )}
               <ProductGrid
                 title="Promotions cosmiques"
                 subtitle="Réductions limitées sur les meilleures offres du moment."
@@ -970,6 +984,33 @@ export default function ShopPage() {
                 ))}
           </div>
         </div>
+
+        {emoteSkinProducts.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold">Emote && Skin</h2>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
+              {loading
+                ? Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="min-w-[190px] flex-shrink-0 snap-start rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="h-20 rounded-xl bg-white/10" />
+                      <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
+                      <div className="mt-2 h-3 w-1/2 rounded-full bg-white/10" />
+                    </div>
+                  ))
+                : emoteSkinProducts.slice(0, 6).map((product) => (
+                    <Link
+                      key={product.id}
+                      href={`/produits/${product.id}`}
+                      className="min-w-[210px] flex-shrink-0 snap-center"
+                    >
+                      <StripCard product={product} label="Emote/Skin" icon={Sparkles} />
+                    </Link>
+                  ))}
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">

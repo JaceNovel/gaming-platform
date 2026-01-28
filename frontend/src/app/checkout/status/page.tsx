@@ -21,6 +21,21 @@ type PaymentStatusResponse = {
   message?: string;
 };
 
+type OrderItemProduct = {
+  type?: string | null;
+};
+
+type OrderItemRow = {
+  product?: OrderItemProduct | null;
+};
+
+type OrderShowResponse = {
+  orderItems?: OrderItemRow[];
+  order_items?: OrderItemRow[];
+};
+
+type PostPurchaseKind = "redeem" | "account" | "subscription" | "accessory";
+
 function CheckoutStatusScreen() {
   const { authFetch } = useAuth();
   const searchParams = useSearchParams();
@@ -35,9 +50,11 @@ function CheckoutStatusScreen() {
   const [guideUrl, setGuideUrl] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [outOfStock, setOutOfStock] = useState(false);
+  const [postPurchaseKind, setPostPurchaseKind] = useState<PostPurchaseKind>("accessory");
 
-  const transactionId = searchParams.get("transaction_id");
+  const transactionId = searchParams.get("transaction_id") ?? searchParams.get("id");
   const orderId = searchParams.get("order_id");
+  const provider = String(searchParams.get("provider") ?? "fedapay").toLowerCase();
 
   const fetchStatus = useCallback(async () => {
     if (!transactionId && !orderId) {
@@ -52,7 +69,8 @@ function CheckoutStatusScreen() {
       if (transactionId) qs.set("transaction_id", transactionId);
       if (orderId) qs.set("order_id", orderId);
 
-      const res = await authFetch(`${API_BASE}/payments/cinetpay/status?${qs.toString()}`);
+      const endpoint = provider === "cinetpay" ? "cinetpay" : "fedapay";
+      const res = await authFetch(`${API_BASE}/payments/${endpoint}/status?${qs.toString()}`);
       const payload = (await res.json().catch(() => null)) as PaymentStatusResponse | null;
 
       if (!res.ok) {
@@ -93,14 +111,42 @@ function CheckoutStatusScreen() {
           return;
         }
 
-        setMessage("Paiement confirmé ! Voici vos codes.");
+        setMessage("Paiement confirmé !");
         const resolvedOrderId = payload?.data?.order_id ?? (orderId ? Number(orderId) : undefined);
         if (resolvedOrderId) {
+          const orderRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}`);
+          const orderPayload = (await orderRes.json().catch(() => null)) as OrderShowResponse | null;
+          const orderItemsRaw = orderPayload?.orderItems ?? orderPayload?.order_items ?? [];
+          const orderItems = Array.isArray(orderItemsRaw) ? orderItemsRaw : [];
+          const types = orderItems
+            .map((row) => String(row?.product?.type ?? "").toLowerCase())
+            .filter(Boolean);
+
           const codesRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}/redeem-codes`);
           const codesPayload = await codesRes.json().catch(() => null);
-          if (codesRes.ok && codesPayload?.codes) {
-            setRedeemCodes(codesPayload.codes);
-            setGuideUrl(codesPayload?.guide_url ?? null);
+          if (codesRes.ok) {
+            const isRedeem = Boolean(codesPayload?.has_redeem_items);
+            if (isRedeem) {
+              setPostPurchaseKind("redeem");
+              setRedeemCodes(Array.isArray(codesPayload?.codes) ? codesPayload.codes : []);
+              setGuideUrl(codesPayload?.guide_url ?? null);
+              setShowModal(true);
+              return;
+            }
+
+            if (types.includes("account")) {
+              setPostPurchaseKind("account");
+              setShowModal(true);
+              return;
+            }
+
+            if (types.includes("subscription")) {
+              setPostPurchaseKind("subscription");
+              setShowModal(true);
+              return;
+            }
+
+            setPostPurchaseKind("accessory");
             setShowModal(true);
           }
         }
@@ -114,9 +160,9 @@ function CheckoutStatusScreen() {
       } else {
         setStatus("pending");
         if (orderType === "wallet_topup") {
-          setMessage("Recharge wallet en attente de confirmation CinetPay...");
+          setMessage("Recharge wallet en attente de confirmation...");
         } else {
-          setMessage("Paiement en attente de confirmation CinetPay...");
+          setMessage("Paiement en attente de confirmation...");
         }
       }
     } catch (error) {
@@ -125,7 +171,7 @@ function CheckoutStatusScreen() {
     } finally {
       setChecking(false);
     }
-  }, [authFetch, orderId, transactionId]);
+  }, [authFetch, orderId, provider, transactionId]);
 
   useEffect(() => {
     fetchStatus();
@@ -151,7 +197,7 @@ function CheckoutStatusScreen() {
 
   return (
     <div className="mobile-shell min-h-screen space-y-6 py-6 pb-24">
-      <SectionTitle eyebrow="Paiement" label="Statut CinetPay" />
+      <SectionTitle eyebrow="Paiement" label="Statut du paiement" />
       <div className="glass-card space-y-4 rounded-2xl border border-white/10 p-6">
         <p className={`text-lg font-semibold ${statusStyle}`}>{message}</p>
         <p className="text-sm text-white/60">
@@ -208,44 +254,73 @@ function CheckoutStatusScreen() {
               </>
             ) : (
               <>
-                <h3 className="text-xl font-semibold">Vos codes sont prêts</h3>
-                <p className="mt-2 text-sm text-white/70">
-                  Copiez vos codes ci-dessous. Gardez-les en sécurité.
-                </p>
-                <div className="mt-4 space-y-3">
-                  {redeemCodes.map((code, index) => (
-                    <div key={`${code.code}-${index}`} className="rounded-xl border border-white/10 p-3">
-                      <div className="text-xs text-white/50">
-                        {code.label ?? "Recharge"} {code.diamonds ? `(${code.diamonds} diamants)` : ""}
-                      </div>
-                      <div className="mt-1 flex items-center justify-between gap-2">
-                        <span className="font-mono text-sm text-white">{code.code}</span>
-                        <button
-                          onClick={() => handleCopy(code.code)}
-                          className="rounded-full border border-white/20 px-3 py-1 text-xs"
-                        >
-                          Copier
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleCopy(redeemCodes.map((c) => c.code).join("\n"))}
-                    className="rounded-full bg-white/10 px-4 py-2 text-xs"
-                  >
-                    Copier tout
-                  </button>
-                  {guideUrl && (
-                    <a
-                      href={guideUrl}
-                      className="rounded-full bg-emerald-500/80 px-4 py-2 text-xs text-white"
-                    >
-                      Télécharger le guide
-                    </a>
-                  )}
-                </div>
+                {postPurchaseKind === "redeem" ? (
+                  <>
+                    <h3 className="text-xl font-semibold">Recharge confirmée</h3>
+                    {redeemCodes.length ? (
+                      <>
+                        <p className="mt-2 text-sm text-white/70">Copiez vos codes ci-dessous.</p>
+                        <div className="mt-4 space-y-3">
+                          {redeemCodes.map((code, index) => (
+                            <div key={`${code.code}-${index}`} className="rounded-xl border border-white/10 p-3">
+                              <div className="text-xs text-white/50">
+                                {code.label ?? "Recharge"} {code.diamonds ? `(${code.diamonds} diamants)` : ""}
+                              </div>
+                              <div className="mt-1 flex items-center justify-between gap-2">
+                                <span className="font-mono text-sm text-white">{code.code}</span>
+                                <button
+                                  onClick={() => handleCopy(code.code)}
+                                  className="rounded-full border border-white/20 px-3 py-1 text-xs"
+                                >
+                                  Copier
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handleCopy(redeemCodes.map((c) => c.code).join("\n"))}
+                            className="rounded-full bg-white/10 px-4 py-2 text-xs"
+                          >
+                            Copier tout
+                          </button>
+                          {guideUrl && (
+                            <a
+                              href={guideUrl}
+                              className="rounded-full bg-emerald-500/80 px-4 py-2 text-xs text-white"
+                            >
+                              Télécharger le guide
+                            </a>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-2 text-sm text-white/70">
+                        Paiement confirmé. Vos codes peuvent prendre quelques instants à apparaître.
+                      </p>
+                    )}
+                  </>
+                ) : postPurchaseKind === "account" ? (
+                  <>
+                    <h3 className="text-xl font-semibold">Commande en préparation</h3>
+                    <p className="mt-2 text-sm text-white/70">
+                      On s’acharne dans la préparation de votre commande. Vous serez notifié dès qu’elle sera prête.
+                    </p>
+                  </>
+                ) : postPurchaseKind === "subscription" ? (
+                  <>
+                    <h3 className="text-xl font-semibold">Abonnement confirmé</h3>
+                    <p className="mt-2 text-sm text-white/70">Veuillez vérifier votre compte dans 1H.</p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-xl font-semibold">Achat confirmé</h3>
+                    <p className="mt-2 text-sm text-white/70">
+                      Merci pour votre achat. Votre commande est en cours de traitement.
+                    </p>
+                  </>
+                )}
               </>
             )}
             <button

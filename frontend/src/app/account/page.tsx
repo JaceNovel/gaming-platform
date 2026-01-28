@@ -649,13 +649,13 @@ function AccountClient() {
     }
     setRechargeProcessing(true);
     setRechargeStatus("idle");
-    setRechargeMessage("Connexion à CinetPay...");
+    setRechargeMessage("Connexion au paiement...");
     try {
       if (!HAS_API_ENV) {
         await new Promise((resolve) => setTimeout(resolve, 1200));
         setRechargeStatus("success");
         setRechargeMessage(
-          `CinetPay activé pour ${formatCurrency(amountValue, me?.countryCode)} (mode démo).`,
+          `Paiement activé pour ${formatCurrency(amountValue, me?.countryCode)} (mode démo).`,
         );
         setWalletBalanceState((prev) => prev + amountValue);
         setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: prev.walletBalanceFcfa + amountValue } : prev));
@@ -668,7 +668,7 @@ function AccountClient() {
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok) {
-        const msg = payload?.message ?? "Impossible de lancer CinetPay";
+        const msg = payload?.message ?? "Impossible de lancer le paiement";
         throw new Error(msg);
       }
       const paymentUrl = typeof payload?.payment_url === "string" ? payload.payment_url : "";
@@ -677,7 +677,7 @@ function AccountClient() {
       }
 
       setRechargeStatus("success");
-      setRechargeMessage("Redirection vers CinetPay...");
+      setRechargeMessage("Redirection vers FedaPay...");
       window.location.href = paymentUrl;
     } catch (error: any) {
       setRechargeStatus("error");
@@ -1013,7 +1013,7 @@ function AccountClient() {
                       }}
                       className="rounded-2xl border border-yellow-300/30 bg-yellow-500/20 px-4 py-2.5 text-sm font-semibold hover:bg-yellow-500/30"
                     >
-                      Recharger via CinetPay
+                      Recharger via FedaPay
                     </button>
                     <button
                       type="button"
@@ -1270,7 +1270,7 @@ function AccountClient() {
               <div>
                 <p className="text-xs uppercase tracking-[0.4em] text-white/50">Recharge wallet</p>
                 <h2 className="mt-2 text-2xl font-semibold">Choisir un montant</h2>
-                <p className="mt-1 text-sm text-white/70">Une fois validé, CinetPay s'active automatiquement.</p>
+                <p className="mt-1 text-sm text-white/70">Une fois validé, le paiement s'active automatiquement.</p>
               </div>
               <button
                 className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
@@ -1298,7 +1298,7 @@ function AccountClient() {
                 disabled={rechargeProcessing}
                 className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
               >
-                {rechargeProcessing ? "Connexion..." : "Lancer CinetPay"}
+                {rechargeProcessing ? "Connexion..." : "Lancer FedaPay"}
               </button>
             </form>
             {rechargeMessage && (

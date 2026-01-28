@@ -16,6 +16,7 @@ type CartItem = {
   priceLabel?: string;
   quantity: number;
   type?: string;
+  gameId?: string;
 };
 
 function CartScreen() {
@@ -57,6 +58,16 @@ function CartScreen() {
     });
   };
 
+  const updateGameId = (id: number, nextGameId: string) => {
+    setCartItems((prev) => {
+      const next = prev.map((item) => (item.id === id ? { ...item, gameId: nextGameId } : item));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("bbshop_cart", JSON.stringify(next));
+      }
+      return next;
+    });
+  };
+
   const clearCart = () => {
     setStatus(null);
     if (!cartItems.length) return;
@@ -86,12 +97,21 @@ function CartScreen() {
         return;
       }
 
+      const missingSubscriptionId = cartItems.find(
+        (item) => String(item.type ?? "").toLowerCase() === "subscription" && !String(item.gameId ?? "").trim(),
+      );
+      if (missingSubscriptionId) {
+        setStatus(`Veuillez renseigner l'ID pour: ${missingSubscriptionId.name}`);
+        return;
+      }
+
       const orderRes = await authFetch(`${API_BASE}/orders`, {
         method: "POST",
         body: JSON.stringify({
           items: cartItems.map((item) => ({
             product_id: item.id,
             quantity: item.quantity,
+            ...(String(item.type ?? "").toLowerCase() === "subscription" ? { game_id: String(item.gameId ?? "").trim() } : {}),
           })),
         }),
       });
@@ -118,11 +138,11 @@ function CartScreen() {
       }
       const currency = String(order?.currency ?? "XOF").toUpperCase();
 
-      const payRes = await authFetch(`${API_BASE}/payments/cinetpay/init`, {
+        const payRes = await authFetch(`${API_BASE}/payments/fedapay/init`, {
         method: "POST",
         body: JSON.stringify({
           order_id: orderId,
-          payment_method: "cinetpay",
+            payment_method: "fedapay",
           amount: amountToCharge,
           currency,
           customer_email: user?.email,
@@ -202,6 +222,19 @@ function CartScreen() {
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-base font-semibold text-white">{item.name}</p>
+
+                        {String(item.type ?? "").toLowerCase() === "subscription" && (
+                          <div className="mt-3 space-y-2">
+                            <label className="text-xs text-white/60">ID (obligatoire)</label>
+                            <input
+                              type="text"
+                              value={item.gameId ?? ""}
+                              onChange={(e) => updateGameId(item.id, e.target.value)}
+                              placeholder="Ex: votre Game ID / User ID"
+                              className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                            />
+                          </div>
+                        )}
                         <p className="text-sm text-white/60">{item.description}</p>
                         <div className="mt-2 flex items-center gap-3">
                           <span className="text-xs text-white/50">Quantité</span>
@@ -264,7 +297,7 @@ function CartScreen() {
                   <span>{subtotal.toLocaleString()} FCFA</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Frais CinetPay</span>
+                  <span>Frais de paiement</span>
                   <span>{fees.toLocaleString()} FCFA</span>
                 </div>
                 <div className="h-px bg-white/10" />

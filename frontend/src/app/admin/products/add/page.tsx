@@ -520,6 +520,7 @@ export default function AdminProductsAddPage() {
                 >
                   <option value="none">Aucune</option>
                   <option value="popular">Produits populaires</option>
+                  <option value="emote_skin">Emote && Skin</option>
                   <option value="cosmic_promo">Promotions cosmiques</option>
                   <option value="latest">Derniers ajouts</option>
                   <option value="gaming_accounts">Compte Gaming</option>

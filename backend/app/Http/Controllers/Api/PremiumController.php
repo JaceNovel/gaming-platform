@@ -5,17 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\PaymentAttempt;
 use App\Models\PremiumMembership;
 use App\Models\Referral;
 use App\Models\WalletBd;
-use App\Services\CinetPayService;
+use App\Services\FedaPayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class PremiumController extends Controller
 {
-    public function __construct(private CinetPayService $cinetPayService)
+    public function __construct(private FedaPayService $fedaPayService)
     {
     }
 
@@ -34,7 +35,7 @@ class PremiumController extends Controller
     }
 
     /**
-     * Initiate a Premium (VIP) subscription payment via CinetPay.
+    * Initiate a Premium (VIP) subscription payment via FedaPay.
      * This is intentionally NOT a cart product.
      */
     public function init(Request $request)
@@ -72,7 +73,7 @@ class PremiumController extends Controller
             $payment = Payment::create([
                 'order_id' => $order->id,
                 'amount' => $price,
-                'method' => 'cinetpay',
+                'method' => 'fedapay',
                 'status' => 'pending',
             ]);
 
@@ -81,13 +82,17 @@ class PremiumController extends Controller
             return [$order->fresh(['user', 'payment']), $payment->fresh()];
         });
 
-        $transactionId = $payment->transaction_id ?? $this->cinetPayService->generateTransactionId($order);
-        $payment->update(['transaction_id' => $transactionId]);
+        $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
+        $callbackUrl = $frontUrl !== ''
+            ? $frontUrl . '/checkout/status?provider=fedapay&order_id=' . $order->id
+            : null;
 
-        $initResult = $this->cinetPayService->initPayment($order, $user, [
-            'transaction_id' => $transactionId,
+        $initResult = $this->fedaPayService->initPayment($order, $user, [
             'amount' => $price,
+            'currency' => strtoupper(config('fedapay.default_currency', 'XOF')),
             'description' => sprintf('BADBOY VIP (%s)', strtoupper((string) $validated['level'])),
+            'callback_url' => $callbackUrl,
+            'customer_email' => $user->email,
             'metadata' => [
                 'order_id' => $order->id,
                 'type' => 'premium_subscription',
@@ -96,12 +101,10 @@ class PremiumController extends Controller
                 'game_username' => $validated['game_username'],
                 'user_id' => $user->id,
             ],
-            // Return URL uses the standard redirect endpoint so frontend lands on /checkout/status
-            'return_url' => route('api.payments.cinetpay.return', [
-                'order_id' => $order->id,
-                'transaction_id' => $transactionId,
-            ]),
         ]);
+
+        $transactionId = (string) $initResult['transaction_id'];
+        $payment->update(['transaction_id' => $transactionId]);
 
         $meta = $payment->webhook_data ?? [];
         if (!is_array($meta)) {
@@ -114,12 +117,30 @@ class PremiumController extends Controller
             'webhook_data' => $meta,
         ]);
 
+        PaymentAttempt::updateOrCreate(
+            ['transaction_id' => $transactionId],
+            [
+                'order_id' => $order->id,
+                'amount' => $price,
+                'currency' => strtoupper(config('fedapay.default_currency', 'XOF')),
+                'status' => 'pending',
+                'provider' => 'fedapay',
+                'raw_payload' => [
+                    'init_request' => [
+                        'order_id' => $order->id,
+                        'amount' => $price,
+                    ],
+                    'init_response' => $initResult['raw'] ?? null,
+                ],
+            ]
+        );
+
         return response()->json([
             'payment_url' => $initResult['payment_url'],
             'transaction_id' => $initResult['transaction_id'],
             'order_id' => $order->id,
             'amount' => $price,
-            'currency' => strtoupper(config('cinetpay.default_currency', 'XOF')),
+            'currency' => strtoupper(config('fedapay.default_currency', 'XOF')),
         ]);
     }
 

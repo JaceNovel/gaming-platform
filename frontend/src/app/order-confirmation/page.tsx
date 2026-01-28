@@ -34,13 +34,31 @@ type RedeemCodesResponse = {
   has_redeem_items?: boolean;
 };
 
+type OrderItemProduct = {
+  type?: string | null;
+  name?: string | null;
+};
+
+type OrderItemRow = {
+  product?: OrderItemProduct | null;
+};
+
+type OrderShowResponse = {
+  id?: number;
+  status?: string;
+  orderItems?: OrderItemRow[];
+  order_items?: OrderItemRow[];
+};
+
+type PostPurchaseKind = "redeem" | "account" | "subscription" | "accessory";
+
 function normalizeClientStatus(raw: string | null): StatusKey | null {
   if (!raw) return null;
   const v = raw.toLowerCase();
-  if (v === "success" || v === "paid" || v === "accepted") return "success";
-  if (v === "failed" || v === "refused") return "failed";
+  if (v === "success" || v === "paid" || v === "accepted" || v === "approved") return "success";
+  if (v === "failed" || v === "refused" || v === "declined" || v === "expired") return "failed";
   if (v === "pending") return "pending";
-  if (v === "cancelled" || v === "canceled") return "cancelled";
+  if (v === "cancelled" || v === "canceled" || v === "cancel") return "cancelled";
   return null;
 }
 
@@ -51,7 +69,8 @@ function OrderConfirmationScreen() {
 
   const order = searchParams.get("order");
   const initialStatus = normalizeClientStatus(searchParams.get("status"));
-  const transactionIdFromUrl = searchParams.get("transaction_id");
+  const transactionIdFromUrl = searchParams.get("transaction_id") ?? searchParams.get("id");
+  const provider = String(searchParams.get("provider") ?? "fedapay").toLowerCase();
 
   const [status, setStatus] = useState<StatusKey>("loading");
   const [message, setMessage] = useState("Vérification du paiement en cours...");
@@ -61,6 +80,8 @@ function OrderConfirmationScreen() {
   const [guideUrl, setGuideUrl] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [outOfStock, setOutOfStock] = useState(false);
+  const [postPurchaseKind, setPostPurchaseKind] = useState<PostPurchaseKind>("accessory");
+  const [postPurchaseTitle, setPostPurchaseTitle] = useState<string>("Votre achat est confirmé");
 
   const numericOrderId = useMemo(() => {
     const n = Number(order);
@@ -80,7 +101,8 @@ function OrderConfirmationScreen() {
       if (transactionIdFromUrl) qs.set("transaction_id", transactionIdFromUrl);
       if (numericOrderId) qs.set("order_id", String(numericOrderId));
 
-      const res = await authFetch(`${API_BASE}/payments/cinetpay/status?${qs.toString()}`);
+      const endpoint = provider === "cinetpay" ? "cinetpay" : "fedapay";
+      const res = await authFetch(`${API_BASE}/payments/${endpoint}/status?${qs.toString()}`);
       const payload = (await res.json().catch(() => null)) as PaymentStatusResponse | null;
 
       if (!res.ok) {
@@ -112,15 +134,47 @@ function OrderConfirmationScreen() {
 
           // Charger les codes (si commande redeem) et afficher la fenêtre
           if (resolvedOrderId) {
+            // Charger la commande (pour connaître le type du produit)
+            const orderRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}`);
+            const orderPayload = (await orderRes.json().catch(() => null)) as OrderShowResponse | null;
+            const orderItemsRaw = orderPayload?.orderItems ?? orderPayload?.order_items ?? [];
+            const orderItems = Array.isArray(orderItemsRaw) ? orderItemsRaw : [];
+            const types = orderItems
+              .map((row) => String(row?.product?.type ?? "").toLowerCase())
+              .filter(Boolean);
+
             const codesRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}/redeem-codes`);
             const codesPayload = (await codesRes.json().catch(() => null)) as RedeemCodesResponse | null;
             if (codesRes.ok) {
               const list = Array.isArray(codesPayload?.codes) ? codesPayload!.codes! : [];
               setRedeemCodes(list);
               setGuideUrl(codesPayload?.guide_url ?? null);
-              if (codesPayload?.has_redeem_items) {
+
+              const isRedeem = Boolean(codesPayload?.has_redeem_items);
+              if (isRedeem) {
+                setPostPurchaseKind("redeem");
+                setPostPurchaseTitle("Recharge confirmée");
                 setShowModal(true);
+                return;
               }
+
+              if (types.includes("account")) {
+                setPostPurchaseKind("account");
+                setPostPurchaseTitle("Commande en préparation");
+                setShowModal(true);
+                return;
+              }
+
+              if (types.includes("subscription")) {
+                setPostPurchaseKind("subscription");
+                setPostPurchaseTitle("Abonnement confirmé");
+                setShowModal(true);
+                return;
+              }
+
+              setPostPurchaseKind("accessory");
+              setPostPurchaseTitle("Achat confirmé");
+              setShowModal(true);
             }
           }
         }
@@ -134,14 +188,14 @@ function OrderConfirmationScreen() {
       }
 
       setStatus("pending");
-      setMessage("⏳ Paiement en attente de confirmation CinetPay...");
+      setMessage("⏳ Paiement en attente de confirmation...");
     } catch {
       setStatus(initialStatus ?? "error");
       setMessage("Connexion impossible pour vérifier le paiement.");
     } finally {
       setChecking(false);
     }
-  }, [authFetch, initialStatus, numericOrderId, transactionIdFromUrl]);
+  }, [authFetch, initialStatus, numericOrderId, provider, transactionIdFromUrl]);
 
   useEffect(() => {
     // Affiche un message immédiat basé sur le param `status`, puis vérifie côté serveur.
@@ -229,51 +283,66 @@ function OrderConfirmationScreen() {
               </>
             ) : (
               <>
-                <h3 className="text-xl font-semibold">Votre achat est confirmé</h3>
-                {redeemCodes.length ? (
-                  <>
-                    <p className="mt-2 text-sm text-white/70">
-                      Copiez vos codes ci-dessous. Gardez-les en sécurité.
-                    </p>
-                    <div className="mt-4 space-y-3">
-                      {redeemCodes.map((code, index) => (
-                        <div key={`${code.code}-${index}`} className="rounded-xl border border-white/10 p-3">
-                          <div className="text-xs text-white/50">
-                            {code.label ?? "Recharge"} {code.diamonds ? `(${code.diamonds} diamants)` : ""}
+                <h3 className="text-xl font-semibold">{postPurchaseTitle}</h3>
+
+                {postPurchaseKind === "redeem" ? (
+                  redeemCodes.length ? (
+                    <>
+                      <p className="mt-2 text-sm text-white/70">
+                        Copiez votre/vos code(s) ci-dessous. Gardez-les en sécurité.
+                      </p>
+                      <div className="mt-4 space-y-3">
+                        {redeemCodes.map((code, index) => (
+                          <div key={`${code.code}-${index}`} className="rounded-xl border border-white/10 p-3">
+                            <div className="text-xs text-white/50">
+                              {code.label ?? "Recharge"} {code.diamonds ? `(${code.diamonds} diamants)` : ""}
+                            </div>
+                            <div className="mt-1 flex items-center justify-between gap-2">
+                              <span className="font-mono text-sm text-white">{code.code}</span>
+                              <button
+                                onClick={() => handleCopy(code.code)}
+                                className="rounded-full border border-white/20 px-3 py-1 text-xs"
+                              >
+                                Copier
+                              </button>
+                            </div>
                           </div>
-                          <div className="mt-1 flex items-center justify-between gap-2">
-                            <span className="font-mono text-sm text-white">{code.code}</span>
-                            <button
-                              onClick={() => handleCopy(code.code)}
-                              className="rounded-full border border-white/20 px-3 py-1 text-xs"
-                            >
-                              Copier
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        onClick={() => handleCopy(redeemCodes.map((c) => c.code).join("\n"))}
-                        className="rounded-full bg-white/10 px-4 py-2 text-xs"
-                      >
-                        Copier tout
-                      </button>
-                      {guideUrl && (
-                        <a
-                          href={guideUrl}
-                          className="rounded-full bg-emerald-500/80 px-4 py-2 text-xs text-white"
+                        ))}
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleCopy(redeemCodes.map((c) => c.code).join("\n"))}
+                          className="rounded-full bg-white/10 px-4 py-2 text-xs"
                         >
-                          Télécharger le guide
-                        </a>
-                      )}
-                    </div>
-                  </>
+                          Copier tout
+                        </button>
+                        {guideUrl && (
+                          <a
+                            href={guideUrl}
+                            className="rounded-full bg-emerald-500/80 px-4 py-2 text-xs text-white"
+                          >
+                            Télécharger le guide
+                          </a>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-sm text-white/70">
+                      Paiement confirmé. Vos codes peuvent prendre quelques instants à apparaître.
+                      Vous les recevrez aussi par mail et dans l’icône mail (boîte de réception).
+                    </p>
+                  )
+                ) : postPurchaseKind === "account" ? (
+                  <p className="mt-2 text-sm text-white/70">
+                    On s’acharne dans la préparation de votre commande. Vous serez notifié dès qu’elle sera prête.
+                  </p>
+                ) : postPurchaseKind === "subscription" ? (
+                  <p className="mt-2 text-sm text-white/70">
+                    Veuillez vérifier votre compte dans 1H. Vous serez notifié dès que l’activation est terminée.
+                  </p>
                 ) : (
                   <p className="mt-2 text-sm text-white/70">
-                    Paiement confirmé. Vos codes peuvent prendre quelques instants à apparaître.
-                    Vous les recevrez aussi par mail et dans l’icône mail (boîte de réception).
+                    Merci pour votre achat. Votre commande est en cours de traitement. Vous serez notifié dès qu’elle sera prête.
                   </p>
                 )}
               </>

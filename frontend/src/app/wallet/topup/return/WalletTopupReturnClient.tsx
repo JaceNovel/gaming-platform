@@ -20,10 +20,11 @@ export default function WalletTopupReturnClient() {
   const searchParams = useSearchParams();
 
   const transactionId = useMemo(
-    () => searchParams.get("transaction_id") ?? searchParams.get("cpm_trans_id"),
+    () => searchParams.get("transaction_id") ?? searchParams.get("cpm_trans_id") ?? searchParams.get("id"),
     [searchParams]
   );
   const orderId = useMemo(() => searchParams.get("order_id"), [searchParams]);
+  const provider = useMemo(() => String(searchParams.get("provider") ?? "fedapay").toLowerCase(), [searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -55,7 +56,8 @@ export default function WalletTopupReturnClient() {
         if (cancelled) return;
 
         try {
-          const res = await fetch(`${API_BASE}/payments/cinetpay/status?${params.toString()}`, {
+          const endpoint = provider === "cinetpay" ? "cinetpay" : "fedapay";
+          const res = await fetch(`${API_BASE}/payments/${endpoint}/status?${params.toString()}`, {
             headers: getAuthHeaders(),
           });
 
@@ -91,7 +93,7 @@ export default function WalletTopupReturnClient() {
     return () => {
       cancelled = true;
     };
-  }, [orderId, router, transactionId]);
+  }, [orderId, provider, router, transactionId]);
 
   return null;
 }

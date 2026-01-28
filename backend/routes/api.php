@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentWebhookController;
+use App\Http\Controllers\Api\FedaPayWebhookController;
 use App\Http\Controllers\Api\PremiumController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\GuideController;
@@ -114,6 +115,7 @@ Route::get('/likes/stats', [LikeController::class, 'stats']);
 // Webhooks (no auth required)
 Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.cinetpay.webhook');
 Route::match(['get', 'post'], '/payments/cinetpay/return', [PaymentWebhookController::class, 'redirect'])->name('api.payments.cinetpay.return');
+Route::post('/payments/fedapay/webhook', [FedaPayWebhookController::class, 'handle'])->name('api.payments.fedapay.webhook');
 Route::post('/wallet/topup/webhook', [WalletController::class, 'webhookTopup'])->name('api.wallet.topup.webhook');
 
 Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFreeFire']);
@@ -136,6 +138,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Payments
     Route::post('/payments/cinetpay/init', [PaymentController::class, 'init'])->name('api.payments.cinetpay.init');
     Route::get('/payments/cinetpay/status', [PaymentController::class, 'status'])->name('api.payments.cinetpay.status');
+
+    Route::post('/payments/fedapay/init', [PaymentController::class, 'initFedapay'])->name('api.payments.fedapay.init');
+    Route::get('/payments/fedapay/status', [PaymentController::class, 'statusFedapay'])->name('api.payments.fedapay.status');
 
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);
