@@ -5,6 +5,12 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
+ROLE=${CONTAINER_ROLE:-web}
+
+if [ "$ROLE" = "worker" ]; then
+	exec php artisan queue:work --queue=redeem-fulfillment,default --sleep=3 --tries=3 --timeout=120
+fi
+
 HOST=0.0.0.0
 PORT=${PORT:-10000}
 

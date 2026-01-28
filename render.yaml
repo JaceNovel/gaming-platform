@@ -19,6 +19,8 @@ services:
     rootDir: backend
     dockerfilePath: Dockerfile
     envVars:
+      - key: CONTAINER_ROLE
+        value: web
       - key: APP_ENV
         value: production
       - key: APP_DEBUG
@@ -33,6 +35,48 @@ services:
         value: badboyshop.online
       - key: SESSION_DOMAIN
         value: .badboyshop.online
+
+      - key: QUEUE_CONNECTION
+        value: database
+
+      # CinetPay (set these in Render dashboard)
+      - key: CINETPAY_API_KEY
+        sync: false
+      - key: CINETPAY_SITE_ID
+        sync: false
+      - key: CINETPAY_SECRET
+        sync: false
+      - key: CINETPAY_WEBHOOK_SECRET
+        sync: false
+      - key: CINETPAY_TRANSFER_WEBHOOK_SECRET
+        sync: false
+      - key: CINETPAY_BASE_URL
+        value: https://api-checkout.cinetpay.com/v2
+
+  - type: worker
+    name: badboyshop-backend-worker
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: CONTAINER_ROLE
+        value: worker
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_URL
+        value: https://api.badboyshop.online
+      - key: FRONTEND_URL
+        value: https://badboyshop.online
+      - key: CORS_SUPPORTS_CREDENTIALS
+        value: "true"
+      - key: SANCTUM_STATEFUL_DOMAINS
+        value: badboyshop.online
+      - key: SESSION_DOMAIN
+        value: .badboyshop.online
+      - key: QUEUE_CONNECTION
+        value: database
 
       # CinetPay (set these in Render dashboard)
       - key: CINETPAY_API_KEY

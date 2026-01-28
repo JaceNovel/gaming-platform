@@ -369,6 +369,44 @@ class PaymentController extends Controller
             }
         }
 
+        // If the webhook already marked the payment as completed, ensure the order status
+        // and fulfillment dispatch are not left behind.
+        if ($payment->status === 'completed' && $payment->order && $payment->order->type !== 'wallet_topup') {
+            $payment->order->loadMissing('orderItems.product');
+
+            if (!in_array($payment->order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock'], true)) {
+                $payment->order->update(['status' => 'paid']);
+            }
+
+            $orderMeta = $payment->order->meta ?? [];
+            if (!is_array($orderMeta)) {
+                $orderMeta = [];
+            }
+
+            if (empty($orderMeta['sales_recorded_at'])) {
+                foreach ($payment->order->orderItems as $item) {
+                    if (!$item?->product_id) {
+                        continue;
+                    }
+                    $qty = max(1, (int) ($item->quantity ?? 1));
+                    Product::where('id', $item->product_id)->increment('purchases_count');
+                    Product::where('id', $item->product_id)->increment('sold_count', $qty);
+                }
+                $orderMeta['sales_recorded_at'] = now()->toIso8601String();
+            }
+
+            if (empty($orderMeta['fulfillment_dispatched_at'])) {
+                if ($payment->order->requiresRedeemFulfillment()) {
+                    ProcessRedeemFulfillment::dispatch($payment->order->id);
+                } else {
+                    ProcessOrderDelivery::dispatch($payment->order);
+                }
+                $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
+            }
+
+            $payment->order->update(['meta' => $orderMeta]);
+        }
+
         return response()->json([
             'success' => true,
             'data' => [

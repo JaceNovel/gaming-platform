@@ -39,10 +39,14 @@ class OrderController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
+        $order->loadMissing('orderItems');
+        $hasRedeemItems = $order->requiresRedeemFulfillment();
+
         if (!in_array($order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock'], true)) {
             return response()->json([
                 'status' => $order->status,
                 'codes' => [],
+                'has_redeem_items' => $hasRedeemItems,
             ]);
         }
 
@@ -50,6 +54,7 @@ class OrderController extends Controller
             return response()->json([
                 'status' => $order->status,
                 'codes' => [],
+                'has_redeem_items' => $hasRedeemItems,
             ]);
         }
 
@@ -77,6 +82,7 @@ class OrderController extends Controller
             'status' => $order->status,
             'codes' => $codes,
             'guide_url' => url('/api/guides/shop2game-freefire'),
+            'has_redeem_items' => $hasRedeemItems,
         ]);
     }
 

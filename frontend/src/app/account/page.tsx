@@ -103,7 +103,7 @@ const formatCurrency = (value: number, code?: string | null) => {
 
 const mapOrderStatus = (status?: string | null): OrderStatus => {
   const normalized = String(status ?? "").toLowerCase();
-  if (["paid", "complete", "completed", "success", "delivered"].includes(normalized)) return "COMPLÉTÉ";
+  if (["paid", "complete", "completed", "success", "delivered", "fulfilled"].includes(normalized)) return "COMPLÉTÉ";
   if (["failed", "cancelled", "canceled", "error", "refused"].includes(normalized)) return "ÉCHOUÉ";
   return "EN_COURS";
 };

@@ -27,6 +27,13 @@ type RedeemCodeRow = {
   quantity_index?: number;
 };
 
+type RedeemCodesResponse = {
+  status?: string;
+  codes?: RedeemCodeRow[];
+  guide_url?: string | null;
+  has_redeem_items?: boolean;
+};
+
 function normalizeClientStatus(raw: string | null): StatusKey | null {
   if (!raw) return null;
   const v = raw.toLowerCase();
@@ -106,11 +113,14 @@ function OrderConfirmationScreen() {
           // Charger les codes (si commande redeem) et afficher la fenêtre
           if (resolvedOrderId) {
             const codesRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}/redeem-codes`);
-            const codesPayload = await codesRes.json().catch(() => null);
-            if (codesRes.ok && codesPayload?.codes) {
-              setRedeemCodes(codesPayload.codes);
+            const codesPayload = (await codesRes.json().catch(() => null)) as RedeemCodesResponse | null;
+            if (codesRes.ok) {
+              const list = Array.isArray(codesPayload?.codes) ? codesPayload!.codes! : [];
+              setRedeemCodes(list);
               setGuideUrl(codesPayload?.guide_url ?? null);
-              setShowModal(true);
+              if (codesPayload?.has_redeem_items) {
+                setShowModal(true);
+              }
             }
           }
         }
@@ -262,7 +272,8 @@ function OrderConfirmationScreen() {
                   </>
                 ) : (
                   <p className="mt-2 text-sm text-white/70">
-                    Merci pour votre achat. Vous pouvez suivre le statut dans vos commandes.
+                    Paiement confirmé. Vos codes peuvent prendre quelques instants à apparaître.
+                    Vous les recevrez aussi par mail et dans l’icône mail (boîte de réception).
                   </p>
                 )}
               </>

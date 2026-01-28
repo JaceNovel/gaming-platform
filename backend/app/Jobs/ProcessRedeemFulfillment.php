@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Exceptions\RedeemStockDepletedException;
+use App\Mail\RedeemCodeDelivery as RedeemCodeDeliveryMail;
 use App\Mail\OutOfStockMail;
 use App\Models\Order;
 use App\Models\RedeemCode;
@@ -36,9 +37,10 @@ class ProcessRedeemFulfillment implements ShouldQueue
             return;
         }
 
-        if (RedeemCodeDelivery::where('order_id', $order->id)->exists()) {
-            return;
-        }
+        $existingDeliveries = RedeemCodeDelivery::with(['redeemCode.denomination'])
+            ->where('order_id', $order->id)
+            ->orderBy('id')
+            ->get();
 
         $assignedCodes = [];
 
@@ -47,13 +49,20 @@ class ProcessRedeemFulfillment implements ShouldQueue
                 continue;
             }
 
-            if ($orderItem->redeem_code_id) {
+            $quantity = max(1, (int) ($orderItem->quantity ?? 1));
+
+            $existingForItem = $existingDeliveries
+                ->filter(fn ($d) => (int) ($d->product_id ?? 0) === (int) ($orderItem->product_id ?? 0))
+                ->filter(fn ($d) => (int) ($d->redeemCode?->denomination_id ?? 0) === (int) $orderItem->redeem_denomination_id)
+                ->count();
+
+            $missing = max(0, $quantity - $existingForItem);
+            if ($missing <= 0) {
                 continue;
             }
 
             try {
-                $quantity = max(1, (int) ($orderItem->quantity ?? 1));
-                $codes = $allocator->assignCodes($orderItem->redeemDenomination, $order, $orderItem, $quantity);
+                $codes = $allocator->assignCodes($orderItem->redeemDenomination, $order, $orderItem, $missing);
                 $assignedCodes = array_merge($assignedCodes, $codes);
                 $alertService->notifyIfLowStock($orderItem->redeemDenomination);
             } catch (RedeemStockDepletedException $e) {
@@ -71,7 +80,17 @@ class ProcessRedeemFulfillment implements ShouldQueue
             }
         }
 
-        if (empty($assignedCodes)) {
+        $allCodes = collect($existingDeliveries)
+            ->map(fn ($d) => $d->redeemCode)
+            ->filter()
+            ->values()
+            ->all();
+
+        if (!empty($assignedCodes)) {
+            $allCodes = array_merge($allCodes, $assignedCodes);
+        }
+
+        if (empty($allCodes)) {
             return;
         }
 
@@ -85,15 +104,31 @@ class ProcessRedeemFulfillment implements ShouldQueue
             ]);
         }
 
-        $codesText = collect($assignedCodes)
+        $orderMeta = $order->meta ?? [];
+        if (!is_array($orderMeta)) {
+            $orderMeta = [];
+        }
+
+        $codesText = collect($allCodes)
             ->map(fn ($code) => $code->code)
             ->filter()
             ->values()
             ->implode("\n");
         $message = "Vos codes de recharge pour la commande {$order->reference} :\n{$codesText}\nGuide: " . url('/api/guides/shop2game-freefire');
-        $notificationService->notifyUser($order->user_id, 'redeem_code', $message);
 
-        $codeIds = collect($assignedCodes)->pluck('id')->all();
+        if (empty($orderMeta['redeem_notification_sent_at'])) {
+            $notificationService->notifyUser($order->user_id, 'redeem_code', $message);
+            $orderMeta['redeem_notification_sent_at'] = now()->toIso8601String();
+        }
+
+        if (empty($orderMeta['redeem_email_sent_at'])) {
+            Mail::to($order->user->email)->queue(new RedeemCodeDeliveryMail($order->loadMissing('user'), $allCodes));
+            $orderMeta['redeem_email_sent_at'] = now()->toIso8601String();
+        }
+
+        $order->update(['meta' => $orderMeta]);
+
+        $codeIds = collect($allCodes)->pluck('id')->all();
         if (!empty($codeIds)) {
             RedeemCode::whereIn('id', $codeIds)->update([
                 'status' => 'sent',
