@@ -83,6 +83,20 @@ class WalletController extends Controller
                 'amount' => $amount,
                 'description' => 'BADBOYSHOP Wallet Topup',
                 'notify_url' => route('api.wallet.topup.webhook'),
+                'return_url' => route('api.payments.cinetpay.return', [
+                    'order_id' => $order->id,
+                    'transaction_id' => $transactionId,
+                ]),
+                'cancel_url' => (function () use ($transactionId, $order) {
+                    $base = rtrim((string) config('cinetpay.frontend_wallet_topup_url'), '/');
+                    if ($base === '') {
+                        return null;
+                    }
+                    return $base . '?' . Arr::query([
+                        'order_id' => $order->id,
+                        'transaction_id' => $transactionId,
+                    ]);
+                })(),
                 'metadata' => [
                     'wallet_transaction_id' => $walletTx->id,
                     'order_id' => $order->id,

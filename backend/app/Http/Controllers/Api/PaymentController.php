@@ -11,6 +11,7 @@ use App\Models\PaymentAttempt;
 use App\Models\Product;
 use App\Models\PremiumMembership;
 use App\Services\CinetPayService;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -187,8 +188,8 @@ class PaymentController extends Controller
 
         $user = $request->user();
 
-        $baseQuery = Payment::with('order')
-            ->whereHas('order', function ($query) use ($user) {
+        $baseQuery = Payment::with(['order.user', 'walletTransaction'])
+                ->whereHas('order', function ($query) use ($user) {
                 $query->where('user_id', $user->id);
             });
 
@@ -217,9 +218,10 @@ class PaymentController extends Controller
             try {
                 $verification = $this->cinetPayService->verifyTransaction($payment->transaction_id);
                 $normalized = $this->cinetPayService->normalizeStatus($verification);
+                $amountFromProvider = (float) Arr::get($verification, 'data.amount', 0);
 
                 if ($normalized !== 'pending') {
-                    DB::transaction(function () use ($payment, $normalized, $verification) {
+                    DB::transaction(function () use ($payment, $normalized, $verification, $amountFromProvider) {
                             $previousOrderStatus = $payment->order?->status;
                         $meta = $payment->webhook_data ?? [];
                         if (!is_array($meta)) {
@@ -238,6 +240,42 @@ class PaymentController extends Controller
                                     ? 'paid'
                                     : ($normalized === 'failed' ? 'failed' : $payment->order->status),
                             ]);
+
+                            // Wallet topups must credit the wallet. Webhook can fail in production,
+                            // so we also credit on status polling in an idempotent way.
+                            if ((string) ($payment->order->type ?? '') === 'wallet_topup') {
+                                $order = $payment->order->fresh(['user']);
+                                $reference = (string) ($payment->walletTransaction?->reference ?? $order->reference ?? '');
+
+                                if ($normalized === 'completed' && $order?->user && $reference !== '') {
+                                    if ($amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) > 0.01) {
+                                        Log::error('cinetpay:error', [
+                                            'stage' => 'topup-status-amount',
+                                            'payment_id' => $payment->id,
+                                            'expected' => (float) $payment->amount,
+                                            'received' => $amountFromProvider,
+                                        ]);
+                                    } else {
+                                        app(WalletService::class)->credit($order->user, $reference, (float) $payment->amount, [
+                                            'source' => 'cinetpay_topup_status',
+                                            'payment_id' => $payment->id,
+                                        ]);
+
+                                        $orderMeta = $order->meta ?? [];
+                                        if (!is_array($orderMeta)) {
+                                            $orderMeta = [];
+                                        }
+                                        if (empty($orderMeta['wallet_credited_at'])) {
+                                            $orderMeta['wallet_credited_at'] = now()->toIso8601String();
+                                            $order->update(['meta' => $orderMeta]);
+                                        }
+                                    }
+                                }
+
+                                if ($normalized === 'failed' && $payment->walletTransaction) {
+                                    $payment->walletTransaction->update(['status' => 'failed']);
+                                }
+                            }
 
                             if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'premium_subscription') {
                                 $order = $payment->order->fresh(['user']);
@@ -334,7 +372,7 @@ class PaymentController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'payment_status' => $status,
+                'payment_status' => $status === 'completed' ? 'paid' : $status,
                 'order_status' => $payment->order->status,
                 'order_type' => $payment->order->type,
                 'transaction_id' => $payment->transaction_id,

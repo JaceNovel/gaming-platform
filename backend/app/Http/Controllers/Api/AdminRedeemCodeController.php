@@ -11,6 +11,7 @@ use App\Services\RedeemStockAlertService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminRedeemCodeController extends Controller
@@ -228,7 +229,43 @@ class AdminRedeemCodeController extends Controller
                 ->first();
 
             if (!$denomination) {
-                return response()->json(['message' => 'Aucune dénomination trouvée pour ce produit. Créez/liez une dénomination avant import.'], 422);
+                $product = Product::findOrFail($productId);
+
+                $base = trim((string) ($product->redeem_sku ?? ''));
+                if ($base === '') {
+                    $base = trim((string) ($product->sku ?? ''));
+                }
+                if ($base === '') {
+                    $base = 'P' . $product->id;
+                }
+
+                $base = strtoupper(preg_replace('/[^A-Z0-9]+/', '', $base) ?: ('P' . $product->id));
+                $base = substr($base, 0, 24);
+
+                $code = null;
+                for ($i = 0; $i < 10; $i++) {
+                    $suffix = $i === 0 ? ('-' . $product->id) : ('-' . $product->id . '-' . strtoupper(Str::random(4)));
+                    $candidate = substr($base, 0, max(1, 32 - strlen($suffix))) . $suffix;
+                    if (!RedeemDenomination::where('code', $candidate)->exists()) {
+                        $code = $candidate;
+                        break;
+                    }
+                }
+
+                if (!$code) {
+                    return response()->json(['message' => 'Impossible de générer une dénomination unique pour ce produit.'], 500);
+                }
+
+                $label = trim((string) ($product->name ?? ''));
+                $label = $label !== '' ? ($label . ' (Auto)') : ('Produit ' . $product->id . ' (Auto)');
+
+                $denomination = RedeemDenomination::create([
+                    'product_id' => $product->id,
+                    'code' => $code,
+                    'label' => $label,
+                    'diamonds' => 0,
+                    'active' => true,
+                ]);
             }
         }
         $rawCodes = $this->collectCodes($data['codes'] ?? '', $request->file('file'));
