@@ -139,7 +139,9 @@ class FedaPayService
             ], static fn ($v) => $v !== null && $v !== '');
 
             $phone = trim((string) ($meta['customer_phone'] ?? ''));
-            if ($phone !== '') {
+            $digits = preg_replace('/\D+/', '', $phone) ?? '';
+            $allZeros = $digits !== '' && preg_match('/^0+$/', $digits);
+            if ($digits !== '' && !$allZeros && strlen($digits) >= 6) {
                 // FedaPay examples accept phone_number.number and phone_number.country.
                 // If you already store international format (+229...), pass it in number.
                 $customer['phone_number'] = [
@@ -196,13 +198,19 @@ class FedaPayService
         ]);
 
         $transactionId = Arr::get($created, 'id')
-            ?? Arr::get($created, 'transaction.id')
             ?? Arr::get($created, 'data.id')
-            ?? Arr::get($created, 'data.transaction.id');
+            ?? Arr::get($created, 'v1.id')
+            ?? Arr::get($created, 'data.v1.id')
+            ?? Arr::get($created, 'transaction.id')
+            ?? Arr::get($created, 'data.transaction.id')
+            ?? Arr::get($created, 'v1.transaction.id')
+            ?? Arr::get($created, 'data.v1.transaction.id');
 
         if (!$transactionId) {
-            Log::error('fedapay:error', ['stage' => 'create-transaction', 'response' => $created]);
-            throw new \RuntimeException('FedaPay did not return a transaction id');
+            // Sometimes providers return HTTP 200 with an error payload.
+            $snippet = mb_substr(json_encode($created, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '', 0, 1600);
+            Log::error('fedapay:error', ['stage' => 'create-transaction', 'response' => $snippet]);
+            throw new \RuntimeException('FedaPay did not return a transaction id. Response: ' . $snippet);
         }
 
         $tokenResp = $this->postJson($this->endpoint('/transactions/' . $transactionId . '/token'), []);

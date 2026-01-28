@@ -47,6 +47,12 @@ class PremiumController extends Controller
         ]);
 
         $user = $request->user();
+        $email = trim((string) ($user->email ?? ''));
+        if ($email === '') {
+            return response()->json([
+                'message' => 'Email requis pour effectuer le paiement.',
+            ], 422);
+        }
 
         $levels = [
             'bronze' => ['price' => 10000, 'duration' => 30],
@@ -92,7 +98,7 @@ class PremiumController extends Controller
             'currency' => strtoupper(config('fedapay.default_currency', 'XOF')),
             'description' => sprintf('BADBOY VIP (%s)', strtoupper((string) $validated['level'])),
             'callback_url' => $callbackUrl,
-            'customer_email' => $user->email,
+            'customer_email' => $email,
             'metadata' => [
                 'order_id' => $order->id,
                 'type' => 'premium_subscription',

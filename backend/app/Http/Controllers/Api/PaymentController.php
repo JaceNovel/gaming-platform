@@ -73,6 +73,18 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Unsupported currency'], 422);
         }
 
+        $resolvedEmail = trim((string) ($validated['customer_email'] ?? $user->email ?? ''));
+        if ($resolvedEmail === '') {
+            return response()->json([
+                'message' => 'Email requis pour effectuer le paiement.',
+            ], 422);
+        }
+
+        $rawPhone = trim((string) ($validated['customer_phone'] ?? ''));
+        $digits = preg_replace('/\D+/', '', $rawPhone) ?? '';
+        $allZeros = $digits !== '' && preg_match('/^0+$/', $digits);
+        $resolvedPhone = ($digits !== '' && !$allZeros && strlen($digits) >= 6) ? $rawPhone : null;
+
         try {
             $payment = DB::transaction(function () use ($order, $expectedAmount) {
                 $payment = $order->payment ?? new Payment();
@@ -97,8 +109,8 @@ class PaymentController extends Controller
                 'currency' => $currency,
                 'description' => $validated['description'] ?? null,
                 'customer_name' => $validated['customer_name'] ?? null,
-                'customer_phone' => $validated['customer_phone'] ?? null,
-                'customer_email' => $validated['customer_email'] ?? $user->email,
+                'customer_phone' => $resolvedPhone,
+                'customer_email' => $resolvedEmail,
                 'callback_url' => $validated['callback_url'] ?? null,
                 'merchant_reference' => (string) ($order->reference ?? ''),
                 'metadata' => array_merge($validated['metadata'] ?? [], [

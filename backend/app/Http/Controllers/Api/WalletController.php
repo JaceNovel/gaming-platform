@@ -42,6 +42,12 @@ class WalletController extends Controller
     public function initTopup(WalletTopupRequest $request)
     {
         $user = $request->user();
+        $email = trim((string) ($user->email ?? ''));
+        if ($email === '') {
+            return response()->json([
+                'message' => 'Email requis pour effectuer le paiement.',
+            ], 422);
+        }
         $amount = (float) $request->validated()['amount'];
         $wallet = $this->walletService->getOrCreateWallet($user);
         $reference = $this->walletService->generateReference('WTP');
@@ -93,7 +99,7 @@ class WalletController extends Controller
                 'currency' => strtoupper((string) ($order->currency ?? config('fedapay.default_currency', 'XOF'))),
                 'description' => 'BADBOYSHOP Wallet Topup',
                 'callback_url' => $callbackUrl,
-                'customer_email' => $user->email,
+                'customer_email' => $email,
                 'metadata' => [
                     'type' => 'wallet_topup',
                     'wallet_transaction_id' => $walletTx->id,
