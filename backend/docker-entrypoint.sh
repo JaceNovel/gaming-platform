@@ -5,6 +5,9 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
+# Ensure public files (e.g. product uploads) are accessible via /storage/...
+php artisan storage:link || true
+
 ROLE=${CONTAINER_ROLE:-web}
 
 if [ "$ROLE" = "worker" ]; then

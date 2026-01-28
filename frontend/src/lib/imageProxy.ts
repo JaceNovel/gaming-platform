@@ -17,6 +17,11 @@ const sameHostAsApi = (imageUrl: string) => {
   return api.host === img.host;
 };
 
+const apiOrigin = (() => {
+  const api = safeParseUrl(API_BASE);
+  return api ? api.origin : null;
+})();
+
 export const toDisplayImageSrc = (raw: string | null | undefined): string | null => {
   const value = (raw ?? "").trim();
   if (!value) return null;
@@ -24,8 +29,15 @@ export const toDisplayImageSrc = (raw: string | null | undefined): string | null
   if (value.startsWith("data:")) return value;
   if (value.startsWith("blob:")) return value;
 
-  // Relative URLs (already served by our app)
-  if (value.startsWith("/")) return value;
+  // Relative URLs
+  // - Frontend assets like /images/... should remain relative.
+  // - Backend public storage paths like /storage/... must be served from the API host.
+  if (value.startsWith("/")) {
+    if ((value.startsWith("/storage/") || value.startsWith("/uploads/")) && apiOrigin) {
+      return `${apiOrigin}${value}`;
+    }
+    return value;
+  }
 
   // Protocol-relative
   if (value.startsWith("//")) {
