@@ -149,10 +149,9 @@ class FedaPayService
             }
         }
 
-        $payload = [
+        $basePayload = [
             'description' => $description,
             'amount' => $amountInt,
-            'currency' => ['iso' => $currency],
             'callback_url' => $callbackUrl !== '' ? $callbackUrl : null,
             'customer' => $customer,
             'merchant_reference' => (string) ($meta['merchant_reference'] ?? $order->reference ?? ''),
@@ -162,7 +161,19 @@ class FedaPayService
             ],
         ];
 
-        $payload = array_filter($payload, static fn ($v) => $v !== null);
+        // FedaPay payload formats vary depending on API version/integration.
+        // Try a few known shapes (currency object vs string).
+        $payloadPrimary = array_filter($basePayload + [
+            'currency' => ['iso' => $currency],
+        ], static fn ($v) => $v !== null);
+
+        $payloadCurrencyString = array_filter($basePayload + [
+            'currency' => $currency,
+        ], static fn ($v) => $v !== null);
+
+        $payloadCurrencyIsoString = array_filter($basePayload + [
+            'currency' => ['iso' => (string) $currency],
+        ], static fn ($v) => $v !== null);
 
         Log::info('fedapay:init', [
             'order_id' => $order->id,
@@ -171,9 +182,17 @@ class FedaPayService
             'callback_url' => $callbackUrl,
         ]);
 
-        $created = $this->postWithFallback($this->endpoint('/transactions'), $payload, [
+        $created = $this->postWithFallback($this->endpoint('/transactions'), $payloadPrimary, [
             // Some JSON APIs expect a root "transaction" object.
-            ['transaction' => $payload],
+            ['transaction' => $payloadPrimary],
+
+            // Currency as plain string.
+            $payloadCurrencyString,
+            ['transaction' => $payloadCurrencyString],
+
+            // Some APIs accept currency as {iso: "XOF"} but are picky about type.
+            $payloadCurrencyIsoString,
+            ['transaction' => $payloadCurrencyIsoString],
         ]);
 
         $transactionId = Arr::get($created, 'id')
@@ -257,13 +276,15 @@ class FedaPayService
         $response = $this->http()->post($url, $payload);
 
         if (!$response->successful()) {
+            $body = $response->body();
+            $snippet = mb_substr((string) $body, 0, 1200);
             Log::error('fedapay:error', [
                 'stage' => 'post',
                 'url' => $url,
                 'status' => $response->status(),
-                'body' => $response->body(),
+                'body' => $snippet,
             ]);
-            throw new \RuntimeException('FedaPay API request failed');
+            throw new \RuntimeException('FedaPay API request failed (HTTP ' . $response->status() . '): ' . $snippet);
         }
 
         return (array) $response->json();
@@ -274,13 +295,15 @@ class FedaPayService
         $response = $this->http()->get($url);
 
         if (!$response->successful()) {
+            $body = $response->body();
+            $snippet = mb_substr((string) $body, 0, 1200);
             Log::error('fedapay:error', [
                 'stage' => 'get',
                 'url' => $url,
                 'status' => $response->status(),
-                'body' => $response->body(),
+                'body' => $snippet,
             ]);
-            throw new \RuntimeException('FedaPay API request failed');
+            throw new \RuntimeException('FedaPay API request failed (HTTP ' . $response->status() . '): ' . $snippet);
         }
 
         return (array) $response->json();

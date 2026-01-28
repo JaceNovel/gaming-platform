@@ -164,6 +164,13 @@ class PaymentController extends Controller
                 return response()->json(['message' => $message], 500);
             }
 
+            if ((bool) config('app.debug')) {
+                return response()->json([
+                    'message' => 'Payment initiation failed',
+                    'details' => $message,
+                ], 502);
+            }
+
             return response()->json(['message' => 'Payment initiation failed'], 502);
         }
     }
