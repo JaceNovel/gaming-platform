@@ -200,7 +200,8 @@ class AdminRedeemCodeController extends Controller
     public function import(Request $request, AdminAuditLogger $auditLogger, StockService $stockService, RedeemStockAlertService $alertService)
     {
         $data = $request->validate([
-            'denomination_id' => 'required|exists:redeem_denominations,id',
+            'denomination_id' => 'nullable|exists:redeem_denominations,id|required_without:product_id',
+            'product_id' => 'nullable|exists:products,id|required_without:denomination_id',
             'codes' => 'nullable|string',
             'file' => 'nullable|file|mimes:txt,csv',
             'dry_run' => 'sometimes|boolean',
@@ -210,7 +211,26 @@ class AdminRedeemCodeController extends Controller
             return response()->json(['message' => 'Provide codes or upload a file'], 422);
         }
 
-        $denomination = RedeemDenomination::findOrFail($data['denomination_id']);
+        $denomination = null;
+        if (!empty($data['denomination_id'])) {
+            $denomination = RedeemDenomination::findOrFail($data['denomination_id']);
+        } else {
+            $productId = (int) ($data['product_id'] ?? 0);
+            if ($productId <= 0) {
+                return response()->json(['message' => 'Select a product'], 422);
+            }
+
+            $denomination = RedeemDenomination::query()
+                ->where('product_id', $productId)
+                ->orderByDesc('active')
+                ->orderBy('diamonds')
+                ->orderBy('id')
+                ->first();
+
+            if (!$denomination) {
+                return response()->json(['message' => 'Aucune dénomination trouvée pour ce produit. Créez/liez une dénomination avant import.'], 422);
+            }
+        }
         $rawCodes = $this->collectCodes($data['codes'] ?? '', $request->file('file'));
 
         if ($rawCodes->isEmpty()) {

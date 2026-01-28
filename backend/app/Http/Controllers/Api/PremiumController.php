@@ -40,7 +40,7 @@ class PremiumController extends Controller
     public function init(Request $request)
     {
         $validated = $request->validate([
-            'level' => 'required|in:bronze,or,platine',
+            'level' => 'required|in:bronze,platine',
             'game_id' => 'required|exists:games,id',
             'game_username' => 'required|string|max:255',
         ]);
@@ -48,8 +48,7 @@ class PremiumController extends Controller
         $user = $request->user();
 
         $levels = [
-            'bronze' => ['price' => 6000, 'duration' => 30],
-            'or' => ['price' => 10000, 'duration' => 30],
+            'bronze' => ['price' => 10000, 'duration' => 30],
             'platine' => ['price' => 13000, 'duration' => 30],
         ];
 
@@ -127,7 +126,7 @@ class PremiumController extends Controller
     public function subscribe(Request $request)
     {
         $request->validate([
-            'level' => 'required|in:bronze,or,platine',
+            'level' => 'required|in:bronze,platine',
             'game_id' => 'required|exists:games,id',
             'game_username' => 'required|string|max:255',
         ]);
@@ -146,8 +145,7 @@ class PremiumController extends Controller
 
         DB::transaction(function () use ($request, $user) {
             $levels = [
-                'bronze' => ['price' => 6000, 'duration' => 30],
-                'or' => ['price' => 10000, 'duration' => 30],
+                'bronze' => ['price' => 10000, 'duration' => 30],
                 'platine' => ['price' => 13000, 'duration' => 30],
             ];
 
