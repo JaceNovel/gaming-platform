@@ -139,6 +139,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);
+    Route::post('/premium/init', [PremiumController::class, 'init']);
     Route::post('/premium/subscribe', [PremiumController::class, 'subscribe']);
     Route::post('/premium/cancel', [PremiumController::class, 'cancel']);
 

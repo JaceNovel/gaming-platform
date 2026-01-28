@@ -9,12 +9,14 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\Product;
+use App\Models\PremiumMembership;
 use App\Services\CinetPayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Carbon\Carbon;
 
 class PaymentController extends Controller
 {
@@ -237,6 +239,52 @@ class PaymentController extends Controller
                                     : ($normalized === 'failed' ? 'failed' : $payment->order->status),
                             ]);
 
+                            if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'premium_subscription') {
+                                $order = $payment->order->fresh(['user']);
+                                $orderMeta = $order->meta ?? [];
+                                if (!is_array($orderMeta)) {
+                                    $orderMeta = [];
+                                }
+
+                                if (empty($orderMeta['premium_activated_at'])) {
+                                    $level = (string) ($orderMeta['premium_level'] ?? 'bronze');
+                                    $gameId = (int) ($orderMeta['game_id'] ?? 0);
+                                    $gameUsername = (string) ($orderMeta['game_username'] ?? '');
+
+                                    if ($gameId > 0 && $gameUsername !== '') {
+                                        $levels = [
+                                            'bronze' => ['duration' => 30],
+                                            'or' => ['duration' => 30],
+                                            'platine' => ['duration' => 30],
+                                        ];
+                                        $duration = $levels[$level]['duration'] ?? 30;
+
+                                        $membership = PremiumMembership::updateOrCreate(
+                                            [
+                                                'user_id' => $order->user_id,
+                                                'game_id' => $gameId,
+                                            ],
+                                            [
+                                                'level' => $level,
+                                                'game_username' => $gameUsername,
+                                                'expiration_date' => Carbon::now()->addDays($duration),
+                                                'is_active' => true,
+                                                'renewal_count' => DB::raw('renewal_count + 1'),
+                                            ]
+                                        );
+
+                                        $order->user?->update([
+                                            'is_premium' => true,
+                                            'premium_level' => $level,
+                                            'premium_expiration' => $membership->expiration_date,
+                                        ]);
+
+                                        $orderMeta['premium_activated_at'] = now()->toIso8601String();
+                                        $order->update(['meta' => $orderMeta]);
+                                    }
+                                }
+                            }
+
                                 if ($normalized === 'completed'
                                     && $payment->order->type !== 'wallet_topup'
                                     && $previousOrderStatus !== 'paid') {
@@ -289,6 +337,7 @@ class PaymentController extends Controller
             'data' => [
                 'payment_status' => $status,
                 'order_status' => $payment->order->status,
+                'order_type' => $payment->order->type,
                 'transaction_id' => $payment->transaction_id,
                 'order_id' => $payment->order_id,
             ],

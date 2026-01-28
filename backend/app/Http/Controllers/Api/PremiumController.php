@@ -3,15 +3,22 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Order;
+use App\Models\Payment;
 use App\Models\PremiumMembership;
 use App\Models\Referral;
 use App\Models\WalletBd;
+use App\Services\CinetPayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class PremiumController extends Controller
 {
+    public function __construct(private CinetPayService $cinetPayService)
+    {
+    }
+
     public function status(Request $request)
     {
         $user = $request->user();
@@ -23,6 +30,97 @@ class PremiumController extends Controller
             'expiration' => $user->premium_expiration,
             'membership' => $membership,
             'renewal_count' => $membership ? $membership->renewal_count : 0,
+        ]);
+    }
+
+    /**
+     * Initiate a Premium (VIP) subscription payment via CinetPay.
+     * This is intentionally NOT a cart product.
+     */
+    public function init(Request $request)
+    {
+        $validated = $request->validate([
+            'level' => 'required|in:bronze,or,platine',
+            'game_id' => 'required|exists:games,id',
+            'game_username' => 'required|string|max:255',
+        ]);
+
+        $user = $request->user();
+
+        $levels = [
+            'bronze' => ['price' => 6000, 'duration' => 30],
+            'or' => ['price' => 10000, 'duration' => 30],
+            'platine' => ['price' => 13000, 'duration' => 30],
+        ];
+
+        $price = (float) $levels[$validated['level']]['price'];
+
+        [$order, $payment] = DB::transaction(function () use ($user, $validated, $price) {
+            $order = Order::create([
+                'user_id' => $user->id,
+                'type' => 'premium_subscription',
+                'status' => 'pending',
+                'total_price' => $price,
+                'items' => null,
+                'meta' => [
+                    'premium_level' => $validated['level'],
+                    'game_id' => (int) $validated['game_id'],
+                    'game_username' => $validated['game_username'],
+                ],
+                'reference' => 'VIP-' . strtoupper(uniqid()),
+            ]);
+
+            $payment = Payment::create([
+                'order_id' => $order->id,
+                'amount' => $price,
+                'method' => 'cinetpay',
+                'status' => 'pending',
+            ]);
+
+            $order->update(['payment_id' => $payment->id]);
+
+            return [$order->fresh(['user', 'payment']), $payment->fresh()];
+        });
+
+        $transactionId = $payment->transaction_id ?? $this->cinetPayService->generateTransactionId($order);
+        $payment->update(['transaction_id' => $transactionId]);
+
+        $initResult = $this->cinetPayService->initPayment($order, $user, [
+            'transaction_id' => $transactionId,
+            'amount' => $price,
+            'description' => sprintf('BADBOY VIP (%s)', strtoupper((string) $validated['level'])),
+            'metadata' => [
+                'order_id' => $order->id,
+                'type' => 'premium_subscription',
+                'premium_level' => $validated['level'],
+                'game_id' => (int) $validated['game_id'],
+                'game_username' => $validated['game_username'],
+                'user_id' => $user->id,
+            ],
+            // Return URL uses the standard redirect endpoint so frontend lands on /checkout/status
+            'return_url' => route('api.payments.cinetpay.return', [
+                'order_id' => $order->id,
+                'transaction_id' => $transactionId,
+            ]),
+        ]);
+
+        $meta = $payment->webhook_data ?? [];
+        if (!is_array($meta)) {
+            $meta = [];
+        }
+        $meta['init_response'] = $initResult['raw'] ?? null;
+
+        $payment->update([
+            'status' => 'pending',
+            'webhook_data' => $meta,
+        ]);
+
+        return response()->json([
+            'payment_url' => $initResult['payment_url'],
+            'transaction_id' => $initResult['transaction_id'],
+            'order_id' => $order->id,
+            'amount' => $price,
+            'currency' => strtoupper(config('cinetpay.default_currency', 'XOF')),
         ]);
     }
 

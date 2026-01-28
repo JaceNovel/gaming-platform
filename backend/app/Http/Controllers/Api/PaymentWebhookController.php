@@ -8,12 +8,14 @@ use App\Jobs\ProcessRedeemFulfillment;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\Product;
+use App\Models\PremiumMembership;
 use App\Services\CinetPayService;
 use App\Services\ShippingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 use Symfony\Component\HttpFoundation\Response;
 
 class PaymentWebhookController extends Controller
@@ -120,6 +122,52 @@ class PaymentWebhookController extends Controller
 
             $orderStatus = $normalized === 'completed' ? 'paid' : 'failed';
             $payment->order->update(['status' => $orderStatus]);
+
+            if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'premium_subscription') {
+                $order = $payment->order->fresh(['user']);
+                $orderMeta = $order->meta ?? [];
+                if (!is_array($orderMeta)) {
+                    $orderMeta = [];
+                }
+
+                if (empty($orderMeta['premium_activated_at'])) {
+                    $level = (string) ($orderMeta['premium_level'] ?? 'bronze');
+                    $gameId = (int) ($orderMeta['game_id'] ?? 0);
+                    $gameUsername = (string) ($orderMeta['game_username'] ?? '');
+
+                    if ($gameId > 0 && $gameUsername !== '') {
+                        $levels = [
+                            'bronze' => ['duration' => 30],
+                            'or' => ['duration' => 30],
+                            'platine' => ['duration' => 30],
+                        ];
+                        $duration = $levels[$level]['duration'] ?? 30;
+
+                        $membership = PremiumMembership::updateOrCreate(
+                            [
+                                'user_id' => $order->user_id,
+                                'game_id' => $gameId,
+                            ],
+                            [
+                                'level' => $level,
+                                'game_username' => $gameUsername,
+                                'expiration_date' => Carbon::now()->addDays($duration),
+                                'is_active' => true,
+                                'renewal_count' => DB::raw('renewal_count + 1'),
+                            ]
+                        );
+
+                        $order->user?->update([
+                            'is_premium' => true,
+                            'premium_level' => $level,
+                            'premium_expiration' => $membership->expiration_date,
+                        ]);
+
+                        $orderMeta['premium_activated_at'] = now()->toIso8601String();
+                        $order->update(['meta' => $orderMeta]);
+                    }
+                }
+            }
 
             if ($normalized === 'completed' && $payment->order->type !== 'wallet_topup') {
                 $payment->order->loadMissing('orderItems');

@@ -200,15 +200,19 @@ class AdminProductController extends Controller
     {
         $data = $request->validate([
             'image' => 'required|image|max:4096',
+            'position' => 'sometimes|integer|min:1|max:50',
         ]);
 
         $path = $data['image']->store('products', 'public');
         $url = Storage::disk('public')->url($path);
 
+        $nextPosition = (int) (ProductImage::where('product_id', $product->id)->max('position') ?? 0) + 1;
+        $position = (int) ($data['position'] ?? $nextPosition);
+
         $image = ProductImage::create([
             'product_id' => $product->id,
             'url' => $url,
-            'position' => 1,
+            'position' => $position,
         ]);
 
         return response()->json(['data' => $image], 201);
