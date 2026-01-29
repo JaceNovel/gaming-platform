@@ -39,7 +39,7 @@ export default function WalletTopupReturnClient() {
 
     const redirectToProfile = (status: string) => {
       const safe = encodeURIComponent(status);
-      router.replace(`/account?topup_status=${safe}`);
+      router.replace(`/wallet?topup_status=${safe}`);
     };
 
     const poll = async () => {

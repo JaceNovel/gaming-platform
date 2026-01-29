@@ -96,6 +96,56 @@ const slugifyCategory = (value?: string | null) =>
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
+const DEFAULT_SHOP_FILTERS = {
+  query: "",
+  category: "all",
+  price: "all" as PriceFilterKey,
+  promo: false,
+  sort: "popular" as SortOption,
+};
+
+const isSortOption = (value: string | null): value is SortOption =>
+  value === "popular" || value === "recent" || value === "priceAsc" || value === "priceDesc";
+
+const isPriceFilterKey = (value: string | null): value is PriceFilterKey =>
+  value === "all" || value === "low" || value === "mid" || value === "high";
+
+const parseShopFiltersFromSearch = (search: string) => {
+  const params = new URLSearchParams(search.startsWith("?") ? search : `?${search}`);
+  const query = (params.get("q") ?? "").slice(0, 120);
+  const category = (params.get("cat") ?? "all").slice(0, 80) || "all";
+  const priceRaw = params.get("price");
+  const sortRaw = params.get("sort");
+  const promoRaw = params.get("promo");
+
+  return {
+    query,
+    category,
+    price: isPriceFilterKey(priceRaw) ? priceRaw : DEFAULT_SHOP_FILTERS.price,
+    sort: isSortOption(sortRaw) ? sortRaw : DEFAULT_SHOP_FILTERS.sort,
+    promo: promoRaw === "1" || promoRaw === "true",
+  };
+};
+
+const buildShopSearchFromFilters = (filters: {
+  query: string;
+  category: string;
+  price: PriceFilterKey;
+  promo: boolean;
+  sort: SortOption;
+}) => {
+  const params = new URLSearchParams();
+
+  const query = filters.query.trim();
+  if (query) params.set("q", query);
+  if (filters.category && filters.category !== "all") params.set("cat", filters.category);
+  if (filters.price !== "all") params.set("price", filters.price);
+  if (filters.promo) params.set("promo", "1");
+  if (filters.sort !== "popular") params.set("sort", filters.sort);
+
+  return params.toString();
+};
+
 import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
 
@@ -498,6 +548,57 @@ function ProductGrid({ title, subtitle, products, onAddToCart, onView, onLike }:
   );
 }
 
+function ResultsGrid({
+  products,
+  onAddToCart,
+  onView,
+  onLike,
+  onReset,
+}: {
+  products: ShopProduct[];
+  onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
+  onView: (product: ShopProduct) => void;
+  onLike: (product: ShopProduct) => void;
+  onReset: () => void;
+}) {
+  const countLabel = `${products.length} article${products.length > 1 ? "s" : ""}`;
+  return (
+    <div className="space-y-5 rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-2xl font-bold text-white">Résultats</h3>
+          <p className="mt-1 text-sm text-white/60">{countLabel}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onReset}
+          className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 hover:text-white"
+        >
+          Réinitialiser
+        </button>
+      </div>
+
+      {!products.length ? (
+        <div className="rounded-3xl border border-white/10 bg-black/30 p-10 text-center text-white/70">
+          Aucun produit ne correspond à vos filtres.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {products.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onAddToCart={onAddToCart}
+              onView={onView}
+              onLike={onLike}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type ProductCardProps = {
   product: ShopProduct;
   onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
@@ -644,6 +745,53 @@ export default function ShopPage() {
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const filtersSectionRef = useRef<HTMLDivElement | null>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncUrlTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const applyFromLocation = () => {
+      const parsed = parseShopFiltersFromSearch(window.location.search);
+      setQuery(parsed.query);
+      setCategoryFilter(parsed.category);
+      setPriceFilter(parsed.price);
+      setPromoOnly(parsed.promo);
+      setSortOrder(parsed.sort);
+    };
+
+    applyFromLocation();
+    window.addEventListener("popstate", applyFromLocation);
+    return () => window.removeEventListener("popstate", applyFromLocation);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (syncUrlTimeoutRef.current) {
+      clearTimeout(syncUrlTimeoutRef.current);
+    }
+
+    syncUrlTimeoutRef.current = setTimeout(() => {
+      const nextQuery = buildShopSearchFromFilters({
+        query,
+        category: categoryFilter,
+        price: priceFilter,
+        promo: promoOnly,
+        sort: sortOrder,
+      });
+      const nextHref = nextQuery ? `/shop?${nextQuery}` : "/shop";
+      const currentHref = `${window.location.pathname}${window.location.search}`;
+      if (currentHref !== nextHref) {
+        router.replace(nextHref, { scroll: false });
+      }
+    }, 250);
+
+    return () => {
+      if (syncUrlTimeoutRef.current) {
+        clearTimeout(syncUrlTimeoutRef.current);
+      }
+    };
+  }, [router, query, categoryFilter, priceFilter, promoOnly, sortOrder]);
   useEffect(() => {
     let active = true;
     const loadProducts = async () => {
@@ -751,6 +899,9 @@ export default function ShopPage() {
     return () => {
       if (statusTimeoutRef.current) {
         clearTimeout(statusTimeoutRef.current);
+      }
+      if (syncUrlTimeoutRef.current) {
+        clearTimeout(syncUrlTimeoutRef.current);
       }
     };
   }, []);
@@ -927,6 +1078,22 @@ export default function ShopPage() {
     return result;
   }, [catalog, query, categoryFilter, priceFilter, promoOnly, sortOrder]);
 
+  const hasActiveFilters =
+    query.trim() !== "" ||
+    categoryFilter !== DEFAULT_SHOP_FILTERS.category ||
+    priceFilter !== DEFAULT_SHOP_FILTERS.price ||
+    promoOnly !== DEFAULT_SHOP_FILTERS.promo ||
+    sortOrder !== DEFAULT_SHOP_FILTERS.sort;
+
+  const resetAllFilters = () => {
+    setQuery("");
+    setCategoryFilter("all");
+    setPriceFilter("all");
+    setPromoOnly(false);
+    setSortOrder("popular");
+    setPendingFilters({ category: "all", price: "all", promo: false, sort: "popular" });
+  };
+
   const popularProducts = useMemo(() => filtered.filter((p) => p.displaySection === "popular").slice(0, 4), [filtered]);
   const rechargeDirectProducts = useMemo(
     () => filtered.filter((p) => p.displaySection === "recharge_direct").slice(0, 6),
@@ -1005,60 +1172,72 @@ export default function ShopPage() {
             </div>
 
             <div className="space-y-12">
-              {rechargeDirectProducts.length > 0 && (
-                <ProductGrid
-                  title="Recharge Direct"
-                  subtitle="Cliquez pour ouvrir le chat et finaliser avec un agent."
-                  products={rechargeDirectProducts}
+              {hasActiveFilters ? (
+                <ResultsGrid
+                  products={filtered}
                   onAddToCart={handleAddToCart}
                   onView={handleViewProduct}
                   onLike={handleToggleLike}
+                  onReset={resetAllFilters}
                 />
+              ) : (
+                <>
+                  {rechargeDirectProducts.length > 0 && (
+                    <ProductGrid
+                      title="Recharge Direct"
+                      subtitle="Cliquez pour ouvrir le chat et finaliser avec un agent."
+                      products={rechargeDirectProducts}
+                      onAddToCart={handleAddToCart}
+                      onView={handleViewProduct}
+                      onLike={handleToggleLike}
+                    />
+                  )}
+                  <ProductGrid
+                    title="Produits populaires"
+                    subtitle="Les comptes et recharges les plus likés par la communauté."
+                    products={popularProducts}
+                    onAddToCart={handleAddToCart}
+                    onView={handleViewProduct}
+                    onLike={handleToggleLike}
+                  />
+                  {gamingAccountProducts.length > 0 && (
+                    <ProductGrid
+                      title="Compte Gaming"
+                      subtitle="Sélection de comptes gaming mis en avant."
+                      products={gamingAccountProducts}
+                      onAddToCart={handleAddToCart}
+                      onView={handleViewProduct}
+                      onLike={handleToggleLike}
+                    />
+                  )}
+                  <ProductGrid
+                    title="Promotions cosmiques"
+                    subtitle="Réductions limitées sur les meilleures offres du moment."
+                    products={promoProducts}
+                    onAddToCart={handleAddToCart}
+                    onView={handleViewProduct}
+                    onLike={handleToggleLike}
+                  />
+                  {emoteSkinProducts.length > 0 && (
+                    <ProductGrid
+                      title="Emote && Skin"
+                      subtitle="Emotes et skins à collectionner."
+                      products={emoteSkinProducts}
+                      onAddToCart={handleAddToCart}
+                      onView={handleViewProduct}
+                      onLike={handleToggleLike}
+                    />
+                  )}
+                  <ProductGrid
+                    title="Derniers ajouts"
+                    subtitle="Comptes fraîchement listés et recharges spéciales."
+                    products={latestProducts}
+                    onAddToCart={handleAddToCart}
+                    onView={handleViewProduct}
+                    onLike={handleToggleLike}
+                  />
+                </>
               )}
-              <ProductGrid
-                title="Produits populaires"
-                subtitle="Les comptes et recharges les plus likés par la communauté."
-                products={popularProducts}
-                onAddToCart={handleAddToCart}
-                onView={handleViewProduct}
-                onLike={handleToggleLike}
-              />
-              {gamingAccountProducts.length > 0 && (
-                <ProductGrid
-                  title="Compte Gaming"
-                  subtitle="Sélection de comptes gaming mis en avant."
-                  products={gamingAccountProducts}
-                  onAddToCart={handleAddToCart}
-                  onView={handleViewProduct}
-                  onLike={handleToggleLike}
-                />
-              )}
-              <ProductGrid
-                title="Promotions cosmiques"
-                subtitle="Réductions limitées sur les meilleures offres du moment."
-                products={promoProducts}
-                onAddToCart={handleAddToCart}
-                onView={handleViewProduct}
-                onLike={handleToggleLike}
-              />
-              {emoteSkinProducts.length > 0 && (
-                <ProductGrid
-                  title="Emote && Skin"
-                  subtitle="Emotes et skins à collectionner."
-                  products={emoteSkinProducts}
-                  onAddToCart={handleAddToCart}
-                  onView={handleViewProduct}
-                  onLike={handleToggleLike}
-                />
-              )}
-              <ProductGrid
-                title="Derniers ajouts"
-                subtitle="Comptes fraîchement listés et recharges spéciales."
-                products={latestProducts}
-                onAddToCart={handleAddToCart}
-                onView={handleViewProduct}
-                onLike={handleToggleLike}
-              />
             </div>
           </div>
         </div>
@@ -1123,6 +1302,17 @@ export default function ShopPage() {
       </button>
 
       <section className="mobile-shell space-y-4 py-4">
+        {hasActiveFilters && (
+          <ResultsGrid
+            products={filtered}
+            onAddToCart={handleAddToCart}
+            onView={handleViewProduct}
+            onLike={handleToggleLike}
+            onReset={resetAllFilters}
+          />
+        )}
+
+        {!hasActiveFilters && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Produits populaires</h2>
@@ -1144,7 +1334,9 @@ export default function ShopPage() {
           </div>
         </div>
 
-        {gamingAccountProducts.length > 0 && (
+        )}
+
+        {!hasActiveFilters && gamingAccountProducts.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">Compte Gaming</h2>
@@ -1167,6 +1359,7 @@ export default function ShopPage() {
           </div>
         )}
 
+        {!hasActiveFilters && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Produit cosmique</h2>
@@ -1191,8 +1384,9 @@ export default function ShopPage() {
                 ))}
           </div>
         </div>
+        )}
 
-        {emoteSkinProducts.length > 0 && (
+        {!hasActiveFilters && emoteSkinProducts.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">Emote && Skin</h2>

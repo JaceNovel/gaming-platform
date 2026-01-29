@@ -31,6 +31,7 @@ type OrderStatus = "COMPLÉTÉ" | "ÉCHOUÉ" | "EN_COURS";
 
 type Order = {
   id: string;
+  internalId: string;
   title: string;
   game: string;
   priceFcfa: number;
@@ -362,6 +363,7 @@ function AccountClient() {
           const thumb = toDisplayImageSrc(thumbRaw) ?? thumbRaw;
           return {
             id: String(order.reference ?? order.id),
+            internalId: String(order.id),
             title,
             game: orderItems[0]?.product?.name ? "BADBOYSHOP" : "BADBOYSHOP",
             priceFcfa: Number(order.total_price ?? 0),
@@ -578,8 +580,20 @@ function AccountClient() {
       handleVipEntry();
       return;
     }
+    if (menu === "MesCodes") {
+      router.push("/codes");
+      return;
+    }
     if (menu === "Wallet") {
-      setWalletModalOpen(true);
+      router.push("/wallet");
+      return;
+    }
+    if (menu === "Notifications") {
+      router.push("/notifications");
+      return;
+    }
+    if (menu === "Parrainage") {
+      router.push("/referral");
       return;
     }
     if (menu === "MesCommandes") {
@@ -1266,6 +1280,17 @@ function AccountClient() {
                             {order.shippingEstimatedDate ? ` • ${order.shippingEstimatedDate}` : ""}
                           </p>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeOrdersModal();
+                            router.push(`/orders/${order.internalId}`);
+                          }}
+                          className="mt-3 inline-flex items-center justify-center rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/15"
+                        >
+                          Suivre
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1317,6 +1342,17 @@ function AccountClient() {
                         )}
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeOrdersModal();
+                        router.push(`/orders/${order.internalId}`);
+                      }}
+                      className="mt-3 w-full rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-100"
+                    >
+                      Suivre
+                    </button>
                   </div>
                 ))}
               </div>

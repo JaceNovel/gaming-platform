@@ -19,6 +19,7 @@ type NotificationItem = {
 const navItems = [
   { label: "Boutique", href: "/shop" },
   { label: "Premium", href: "/premium" },
+  { label: "Aide", href: "/help" },
 ];
 
 export default function AppHeader() {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Home, ShoppingBag, Crown, User } from "lucide-react";
+import { Home, ShoppingBag, Crown, LifeBuoy, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,6 +9,7 @@ const navigation = [
   { name: "Accueil", href: "/", icon: Home },
   { name: "Boutique", href: "/shop", icon: ShoppingBag },
   { name: "Premium", href: "/premium", icon: Crown },
+  { name: "Aide", href: "/help", icon: LifeBuoy },
   { name: "Profil", href: "/account", icon: User },
 ];
 
