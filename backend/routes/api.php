@@ -145,6 +145,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/payments/fedapay/init', [PaymentController::class, 'initFedapay'])->name('api.payments.fedapay.init');
     Route::get('/payments/fedapay/status', [PaymentController::class, 'statusFedapay'])->name('api.payments.fedapay.status');
 
+    Route::post('/payments/wallet/pay', [PaymentController::class, 'payWithWallet'])->name('api.payments.wallet.pay');
+
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);
     Route::post('/premium/init', [PremiumController::class, 'init']);

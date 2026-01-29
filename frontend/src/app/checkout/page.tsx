@@ -18,6 +18,9 @@ function CheckoutScreen() {
   const [gameId, setGameId] = useState<string>("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
 
   const isValidProduct = useMemo(() => Number.isFinite(productId) && productId > 0, [productId]);
 
@@ -39,6 +42,29 @@ function CheckoutScreen() {
   useEffect(() => {
     // no-op: FedaPay uses hosted payment page redirection
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setWalletLoading(true);
+      try {
+        const res = await authFetch(`${API_BASE}/wallet`);
+        const data = await res.json().catch(() => null);
+        if (!active) return;
+        if (res.ok) {
+          const balanceValue = typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
+          setWalletBalance(Number.isFinite(balanceValue) ? balanceValue : 0);
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (active) setWalletLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [authFetch]);
 
   const buildCustomerPayload = () => {
     const rawUser: any = user ?? {};
@@ -113,6 +139,25 @@ function CheckoutScreen() {
         setStatus("Montant de commande invalide.");
         return;
       }
+
+      if (paymentMethod === "wallet") {
+        const payWalletRes = await authFetch(`${API_BASE}/payments/wallet/pay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order_id: orderId }),
+        });
+
+        const payWalletPayload = await payWalletRes.json().catch(() => null);
+        if (!payWalletRes.ok) {
+          setStatus(payWalletPayload?.message ?? "Paiement wallet impossible.");
+          return;
+        }
+
+        setStatus("Paiement wallet réussi.");
+        router.replace("/account?wallet_paid=success");
+        return;
+      }
+
       const currency = String(order?.currency ?? "XOF").toUpperCase();
       const customer = buildCustomerPayload();
 
@@ -171,6 +216,35 @@ function CheckoutScreen() {
 
         <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-3">
           <p className="text-sm text-white/70">Produit sélectionné: #{isValidProduct ? productId : "-"}</p>
+
+          <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="text-sm font-semibold text-white">Mode de paiement</p>
+            <label className="flex items-center gap-2 text-sm text-white/80">
+              <input
+                type="radio"
+                name="payment_method"
+                value="fedapay"
+                checked={paymentMethod === "fedapay"}
+                onChange={() => setPaymentMethod("fedapay")}
+              />
+              FedaPay
+            </label>
+            <label className="flex items-center gap-2 text-sm text-white/80">
+              <input
+                type="radio"
+                name="payment_method"
+                value="wallet"
+                checked={paymentMethod === "wallet"}
+                onChange={() => setPaymentMethod("wallet")}
+                disabled={walletLoading || walletBalance < 400}
+              />
+              Wallet {walletLoading ? "(chargement...)" : `(solde: ${Math.floor(walletBalance)} FCFA)`}
+              {walletBalance < 400 && !walletLoading ? (
+                <span className="text-xs text-white/50">(min 400 FCFA)</span>
+              ) : null}
+            </label>
+          </div>
+
           <label className="text-sm text-white/70">Quantité</label>
           <input
             type="number"

@@ -33,8 +33,16 @@ class FedaPayWebhookController extends Controller
             return response()->json(['success' => false, 'message' => 'Invalid JSON'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        // Respond fast (2xx) and process async.
-        ProcessFedaPayWebhook::dispatch($payload);
+        // Process synchronously to avoid missing credits when no queue worker is running.
+        // Keep the response 2xx so the provider doesn't retry unnecessarily.
+        try {
+            ProcessFedaPayWebhook::dispatchSync($payload);
+        } catch (\Throwable $e) {
+            Log::error('fedapay:error', [
+                'stage' => 'webhook-dispatch-sync',
+                'message' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json(['received' => true]);
     }

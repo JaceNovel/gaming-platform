@@ -10,6 +10,8 @@ use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\Product;
 use App\Models\PremiumMembership;
+use App\Models\WalletAccount;
+use App\Models\WalletTransaction;
 use App\Services\CinetPayService;
 use App\Services\FedaPayService;
 use App\Services\WalletService;
@@ -383,6 +385,42 @@ class PaymentController extends Controller
             }
         }
 
+        // Self-heal wallet topups: if payment is completed but wallet wasn't credited (queue/webhook issues), credit now.
+        if ($payment->order && (string) ($payment->order->type ?? '') === 'wallet_topup' && $payment->order->user) {
+            $order = $payment->order->fresh(['user']);
+            $orderMeta = $order->meta ?? [];
+            if (!is_array($orderMeta)) {
+                $orderMeta = [];
+            }
+
+            $creditedAt = $orderMeta['wallet_credited_at'] ?? null;
+            $walletTxStatus = (string) ($payment->walletTransaction?->status ?? '');
+
+            if ((string) $payment->status === 'completed' && (empty($creditedAt) || $walletTxStatus !== 'success')) {
+                $reference = (string) ($payment->walletTransaction?->reference ?? $order->reference ?? '');
+                if ($reference !== '') {
+                    try {
+                        app(WalletService::class)->credit($order->user, $reference, (float) $payment->amount, [
+                            'source' => 'fedapay_topup_status_reconcile',
+                            'payment_id' => $payment->id,
+                            'reason' => 'topup',
+                        ]);
+
+                        if (empty($orderMeta['wallet_credited_at'])) {
+                            $orderMeta['wallet_credited_at'] = now()->toIso8601String();
+                            $order->update(['meta' => $orderMeta]);
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('fedapay:error', [
+                            'stage' => 'wallet-topup-reconcile',
+                            'payment_id' => $payment->id,
+                            'message' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+        }
+
         if ($payment->status === 'completed' && $payment->order && $payment->order->type !== 'wallet_topup') {
             $payment->order->loadMissing('orderItems.product');
 
@@ -429,6 +467,160 @@ class PaymentController extends Controller
                 'order_id' => $payment->order_id,
             ],
         ]);
+    }
+
+    public function payWithWallet(Request $request)
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', Rule::exists('orders', 'id')],
+        ]);
+
+        $user = $request->user();
+        $order = Order::with(['orderItems.product', 'payment'])
+            ->where('id', $validated['order_id'])
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        if ((string) ($order->type ?? '') === 'wallet_topup') {
+            return response()->json(['message' => 'Wallet topup cannot be paid with wallet'], 422);
+        }
+
+        if (!in_array((string) $order->status, ['pending'], true)) {
+            return response()->json(['message' => 'Order is not payable'], 400);
+        }
+
+        $amount = (float) ($order->total_price ?? 0);
+        if (!is_finite($amount) || $amount <= 0) {
+            return response()->json(['message' => 'Invalid order amount'], 422);
+        }
+
+        $minWalletBalance = 400.0;
+        $reference = 'WPAY-' . ($order->reference ?? $order->id);
+
+        try {
+            $result = DB::transaction(function () use ($user, $order, $amount, $minWalletBalance, $reference) {
+                /** @var WalletAccount $wallet */
+                $wallet = WalletAccount::where('user_id', $user->id)->lockForUpdate()->first();
+                if (!$wallet) {
+                    $wallet = WalletAccount::create([
+                        'user_id' => $user->id,
+                        'currency' => 'FCFA',
+                        'balance' => 0,
+                        'status' => 'active',
+                    ]);
+                    $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->first();
+                }
+
+                if ((string) ($wallet->status ?? '') === 'locked') {
+                    return ['ok' => false, 'message' => 'Wallet locked', 'status' => 423];
+                }
+
+                $balance = (float) ($wallet->balance ?? 0);
+                if ($balance < $minWalletBalance) {
+                    return ['ok' => false, 'message' => 'Solde wallet insuffisant (min 400 FCFA).', 'status' => 422];
+                }
+                if ($balance + 0.0001 < $amount) {
+                    return ['ok' => false, 'message' => 'Solde wallet insuffisant pour payer cette commande.', 'status' => 422];
+                }
+
+                $existingTx = WalletTransaction::where('reference', $reference)->lockForUpdate()->first();
+                if ($existingTx && (string) $existingTx->status === 'success') {
+                    // Already paid with wallet.
+                } else {
+                    if (!$existingTx) {
+                        $existingTx = WalletTransaction::create([
+                            'wallet_account_id' => $wallet->id,
+                            'type' => 'debit',
+                            'amount' => $amount,
+                            'reference' => $reference,
+                            'meta' => [
+                                'type' => 'order_wallet_payment',
+                                'order_id' => $order->id,
+                            ],
+                            'status' => 'pending',
+                        ]);
+                    }
+
+                    $wallet->balance = (float) $wallet->balance - $amount;
+                    $wallet->save();
+
+                    $existingTx->status = 'success';
+                    $existingTx->save();
+                }
+
+                $payment = $order->payment ?? new Payment();
+                $payment->fill([
+                    'order_id' => $order->id,
+                    'wallet_transaction_id' => $existingTx->id,
+                    'amount' => $amount,
+                    'method' => 'wallet',
+                    'status' => 'completed',
+                    'transaction_id' => $reference,
+                    'webhook_data' => [
+                        'source' => 'wallet',
+                    ],
+                ]);
+                $payment->save();
+
+                $order->payment_id = $payment->id;
+                $order->status = 'paid';
+
+                $orderMeta = $order->meta ?? [];
+                if (!is_array($orderMeta)) {
+                    $orderMeta = [];
+                }
+
+                if (empty($orderMeta['sales_recorded_at'])) {
+                    foreach ($order->orderItems as $item) {
+                        if (!$item?->product_id) {
+                            continue;
+                        }
+                        $qty = max(1, (int) ($item->quantity ?? 1));
+                        Product::where('id', $item->product_id)->increment('purchases_count');
+                        Product::where('id', $item->product_id)->increment('sold_count', $qty);
+                    }
+                    $orderMeta['sales_recorded_at'] = now()->toIso8601String();
+                }
+
+                if (empty($orderMeta['fulfillment_dispatched_at'])) {
+                    if ($order->requiresRedeemFulfillment()) {
+                        ProcessRedeemFulfillment::dispatch($order->id);
+                    } else {
+                        ProcessOrderDelivery::dispatch($order);
+                    }
+                    $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
+                }
+
+                $orderMeta['wallet_paid_at'] = $orderMeta['wallet_paid_at'] ?? now()->toIso8601String();
+                $order->meta = $orderMeta;
+                $order->save();
+
+                return [
+                    'ok' => true,
+                    'payment_id' => $payment->id,
+                    'order_id' => $order->id,
+                    'wallet_balance' => (float) $wallet->refresh()->balance,
+                ];
+            });
+
+            if (!($result['ok'] ?? false)) {
+                return response()->json(['message' => $result['message'] ?? 'Wallet payment failed'], (int) ($result['status'] ?? 422));
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('wallet:pay:error', [
+                'stage' => 'wallet-pay',
+                'order_id' => $order->id ?? null,
+                'user_id' => $user->id ?? null,
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Wallet payment failed'], 500);
+        }
     }
 
     public function init(Request $request)
