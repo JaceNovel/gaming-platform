@@ -97,6 +97,7 @@ const slugifyCategory = (value?: string | null) =>
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
 import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
+import { openTidioChat } from "@/lib/tidioChat";
 
 function MobileFiltersSheet({
   open,
@@ -523,12 +524,9 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
 
   const handleAdd = (event: MouseEvent<HTMLButtonElement>) => {
     if (isRechargeDirect) {
-      const qs = new URLSearchParams({
-        intent: "recharge_direct",
-        product_id: String(product.id),
-        product_name: product.name,
+      void openTidioChat({
+        message: `Bonjour, je veux une Recharge Direct : ${product.name} (ID: ${product.id}).`,
       });
-      router.push(`/chat?${qs.toString()}`);
       return;
     }
     setAdding(true);

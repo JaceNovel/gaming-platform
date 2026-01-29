@@ -10,6 +10,7 @@ import { API_BASE } from "@/lib/config";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
+import { openTidioChat } from "@/lib/tidioChat";
 
 type Product = {
   id: number;
@@ -95,9 +96,9 @@ export default function ProductPage() {
 
   const openRechargeDirectChat = () => {
     if (!product) return;
-    const productId = product.id;
-    const productName = encodeURIComponent(product.name ?? "");
-    router.push(`/chat?intent=recharge_direct&product_id=${productId}&product_name=${productName}`);
+    void openTidioChat({
+      message: `Bonjour, je veux une Recharge Direct : ${product.name ?? "Produit"} (ID: ${product.id}).`,
+    });
   };
 
   const handleAddToCart = (event: MouseEvent<HTMLButtonElement>) => {

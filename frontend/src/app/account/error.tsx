@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { API_BASE } from "@/lib/config";
+import { openTidioChat } from "@/lib/tidioChat";
 
 export default function AccountError({
   error,
@@ -54,12 +55,13 @@ export default function AccountError({
           >
             Se reconnecter
           </Link>
-          <Link
-            href="/chat"
+          <button
+            type="button"
+            onClick={() => void openTidioChat()}
             className="rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white"
           >
             Ouvrir le support
-          </Link>
+          </button>
         </div>
 
         <p className="mt-6 text-xs text-white/50">

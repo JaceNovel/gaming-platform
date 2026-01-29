@@ -493,9 +493,42 @@ function ChatScreen() {
 }
 
 export default function Chat() {
+  return <ChatWidgetRedirect />;
+}
+
+function ChatWidgetRedirect() {
+  const searchParams = useSearchParams();
+
+  const message = useMemo(() => {
+    const intent = String(searchParams.get("intent") ?? "").toLowerCase();
+    const productName = String(searchParams.get("product_name") ?? "");
+    const productId = String(searchParams.get("product_id") ?? "");
+
+    if (intent === "recharge_direct") {
+      const namePart = productName ? ` ${productName}` : "";
+      const idPart = productId ? ` (ID: ${productId})` : "";
+      return `Bonjour, je veux une Recharge Direct :${namePart}${idPart}.`;
+    }
+
+    return "Bonjour, j'ai besoin d'aide.";
+  }, [searchParams]);
+
+  useEffect(() => {
+    // Open the real support widget (Tidio bubble, bottom-right).
+    // If the script isn't ready yet, openTidioChat retries briefly.
+    import("@/lib/tidioChat").then(({ openTidioChat }) => {
+      void openTidioChat({ message });
+    });
+  }, [message]);
+
   return (
-    <RequireAuth>
-      <ChatScreen />
-    </RequireAuth>
+    <main className="min-h-[100dvh] bg-[#04010d] px-5 py-16 text-white">
+      <div className="mx-auto w-full max-w-xl rounded-[28px] border border-white/10 bg-white/5 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.65)]">
+        <h1 className="text-xl font-semibold">Support</h1>
+        <p className="mt-2 text-sm text-white/70">
+          Le support s'ouvre en bas à droite (bulle ronde). Si tu ne le vois pas, attends 2-3 secondes puis clique sur la bulle.
+        </p>
+      </div>
+    </main>
   );
 }

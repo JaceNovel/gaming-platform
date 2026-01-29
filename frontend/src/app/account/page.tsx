@@ -675,7 +675,10 @@ function AccountClient() {
       const res = await authFetch(`${API_BASE}/wallet/topup/init`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: amountValue }),
+        body: JSON.stringify({
+          amount: amountValue,
+          return_url: `${window.location.origin}/wallet/topup/return`,
+        }),
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok) {

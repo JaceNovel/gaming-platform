@@ -9,6 +9,7 @@ import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
+import { openTidioChat } from "@/lib/tidioChat";
 
 type ApiProduct = {
   id: number | string;
@@ -357,7 +358,9 @@ export default function ProductDetailsPage() {
         product_id: String(product?.id ?? id ?? ""),
         product_name: String(product?.name ?? product?.title ?? ""),
       });
-      router.push(`/chat?${qs.toString()}`);
+      void openTidioChat({
+        message: `Bonjour, je veux une Recharge Direct : ${String(product?.name ?? product?.title ?? "Produit")} (ID: ${String(product?.id ?? id ?? "")}).`,
+      });
       return;
     }
     persistToCart();
@@ -371,7 +374,9 @@ export default function ProductDetailsPage() {
         product_id: String(product?.id ?? id ?? ""),
         product_name: String(product?.name ?? product?.title ?? ""),
       });
-      router.push(`/chat?${qs.toString()}`);
+      void openTidioChat({
+        message: `Bonjour, je veux une Recharge Direct : ${String(product?.name ?? product?.title ?? "Produit")} (ID: ${String(product?.id ?? id ?? "")}).`,
+      });
       return;
     }
     persistToCart();
