@@ -25,10 +25,12 @@ class ChatController extends Controller
 
         // Ensure there is always at least one global room available.
         ChatRoom::firstOrCreate(['type' => 'global', 'name' => 'Global']);
+        // Dedicated room used for "Recharge Direct" flows.
+        ChatRoom::firstOrCreate(['type' => 'support', 'name' => 'Support']);
 
         $rooms = ChatRoom::where('is_active', true)
             ->withCount('messages')
-            ->orderByRaw("FIELD(type, 'global', 'group')")
+            ->orderByRaw("FIELD(type, 'global', 'support', 'group')")
             ->orderBy('name')
             ->get()
             ->map(function (ChatRoom $room) use ($user) {

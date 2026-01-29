@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Referral;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -20,7 +21,21 @@ class AuthController extends Controller
             'game_username' => 'nullable|string|max:255',
             'countryCode' => 'required|string|size:2',
             'countryName' => 'required|string|max:100',
+            'referralCode' => 'nullable|string|max:32',
         ]);
+
+        $referralCode = trim((string) $request->input('referralCode', ''));
+        $referrer = null;
+        if ($referralCode !== '') {
+            $referrer = User::where('referral_code', $referralCode)->first();
+            $isVip = $referrer && (bool) $referrer->is_premium && in_array((string) $referrer->premium_level, ['bronze', 'platine'], true);
+            if (!$isVip) {
+                return response()->json([
+                    'message' => 'Code parrain invalide.',
+                    'errors' => ['referralCode' => ['Code parrain invalide.']],
+                ], 422);
+            }
+        }
 
         $user = User::create([
             'name' => $request->name,
@@ -33,6 +48,13 @@ class AuthController extends Controller
             'premium_tier' => 'Bronze',
             'is_premium' => false,
         ]);
+
+        if ($referrer && $referrer->id !== $user->id) {
+            Referral::firstOrCreate(
+                ['referrer_id' => $referrer->id, 'referred_id' => $user->id],
+                ['commission_earned' => 0]
+            );
+        }
 
         $user->refresh();
         $token = $user->createToken('api-token')->plainTextToken;
@@ -119,6 +141,7 @@ class AuthController extends Controller
             'is_premium' => (bool) $user->is_premium,
             'premium_level' => $user->premium_level,
             'premium_expiration' => optional($user->premium_expiration)?->toIso8601String(),
+            'referral_code' => $user->referral_code,
         ];
     }
 }

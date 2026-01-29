@@ -6,6 +6,8 @@ use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\Product;
 use App\Models\PremiumMembership;
+use App\Models\Referral;
+use App\Models\User;
 use App\Services\FedaPayService;
 use App\Services\ShippingService;
 use App\Services\WalletService;
@@ -18,6 +20,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProcessFedaPayWebhook implements ShouldQueue
 {
@@ -169,6 +172,30 @@ class ProcessFedaPayWebhook implements ShouldQueue
                             'payment_id' => $payment->id,
                         ]);
 
+                        // VIP referral: sponsor earns 3% of the referred user's first deposit.
+                        $referral = Referral::where('referred_id', $order->user_id)->lockForUpdate()->first();
+                        $alreadyEarned = $referral ? (float) $referral->commission_earned : 0.0;
+                        if ($referral && $alreadyEarned <= 0.0) {
+                            $referrer = User::where('id', $referral->referrer_id)->first();
+                            $isVip = $referrer && (bool) $referrer->is_premium && in_array((string) $referrer->premium_level, ['bronze', 'platine'], true);
+                            $commission = round(((float) $payment->amount) * 0.03, 2);
+
+                            if ($isVip && $commission > 0) {
+                                $walletService->credit($referrer, 'REFERRAL-' . $order->id, $commission, [
+                                    'type' => 'vip_referral_bonus',
+                                    'referred_user_id' => $order->user_id,
+                                    'order_id' => $order->id,
+                                    'payment_id' => $payment->id,
+                                    'rate' => 0.03,
+                                    'base_amount' => (float) $payment->amount,
+                                ]);
+
+                                $referral->update([
+                                    'commission_earned' => $commission,
+                                ]);
+                            }
+                        }
+
                         $orderMeta = $order->meta ?? [];
                         if (!is_array($orderMeta)) {
                             $orderMeta = [];
@@ -219,6 +246,20 @@ class ProcessFedaPayWebhook implements ShouldQueue
                                 'premium_level' => $level,
                                 'premium_expiration' => $membership->expiration_date,
                             ]);
+
+                            // Generate referral code for VIP Bronze+ users.
+                            $vipUser = $order->user;
+                            if ($vipUser && in_array((string) $level, ['bronze', 'platine'], true) && empty($vipUser->referral_code)) {
+                                $code = strtoupper(Str::random(8));
+                                $tries = 0;
+                                while (User::where('referral_code', $code)->exists() && $tries < 6) {
+                                    $code = strtoupper(Str::random(8));
+                                    $tries++;
+                                }
+                                if (!User::where('referral_code', $code)->exists()) {
+                                    $vipUser->update(['referral_code' => $code]);
+                                }
+                            }
 
                             $orderMeta['premium_activated_at'] = now()->toIso8601String();
                             $order->update(['meta' => $orderMeta]);

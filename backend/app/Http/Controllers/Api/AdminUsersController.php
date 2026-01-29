@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AdminAuditLogger;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Models\Order;
@@ -70,9 +71,11 @@ class AdminUsersController extends Controller
         return response()->json(['data' => $user]);
     }
 
-    public function show(User $user)
+    public function show(User $user, WalletService $walletService)
     {
         $user->loadCount('orders');
+
+        $wallet = $walletService->getBalance($user);
 
         $orders = Order::with(['payment', 'orderItems.product'])
             ->where('user_id', $user->id)
@@ -101,6 +104,58 @@ class AdminUsersController extends Controller
                 'user' => $user,
                 'profile' => $profile,
                 'orders' => $orders,
+                'wallet' => [
+                    'balance' => $wallet->balance,
+                    'currency' => $wallet->currency,
+                    'status' => $wallet->status,
+                ],
+            ],
+        ]);
+    }
+
+    public function creditWallet(Request $request, User $user, WalletService $walletService, AdminAuditLogger $auditLogger)
+    {
+        $data = $request->validate([
+            'amount' => 'required|numeric|min:1',
+            'reason' => 'nullable|string|max:500',
+            'reference' => 'nullable|string|max:64',
+        ]);
+
+        $amount = (float) $data['amount'];
+        $reference = !empty($data['reference'])
+            ? (string) $data['reference']
+            : $walletService->generateReference('ADMIN-CREDIT');
+
+        $tx = $walletService->credit($user, $reference, $amount, [
+            'type' => 'admin_wallet_credit',
+            'reason' => $data['reason'] ?? null,
+            'admin_id' => $request->user()?->id,
+        ]);
+
+        $auditLogger->log(
+            $request->user(),
+            'admin_wallet_credit',
+            [
+                'message' => 'Credited user wallet',
+                'user_id' => $user->id,
+                'amount' => $amount,
+                'reference' => $reference,
+                'reason' => $data['reason'] ?? null,
+            ],
+            actionType: 'wallet',
+            request: $request
+        );
+
+        $wallet = $walletService->getBalance($user);
+
+        return response()->json([
+            'data' => [
+                'transaction' => $tx,
+                'wallet' => [
+                    'balance' => $wallet->balance,
+                    'currency' => $wallet->currency,
+                    'status' => $wallet->status,
+                ],
             ],
         ]);
     }

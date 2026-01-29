@@ -46,6 +46,7 @@ class User extends Authenticatable
         'is_premium',
         'premium_level',
         'premium_expiration',
+        'referral_code',
     ];
 
     /**

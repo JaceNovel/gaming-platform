@@ -27,6 +27,7 @@ return [
         'settings.manage',
         'notifications.manage',
         'audit.view',
+        'wallet.manage',
     ],
     'roles' => [
         'admin_super' => ['*'],
@@ -46,6 +47,7 @@ return [
             'stock.manage',
             'email.view',
             'notifications.manage',
+            'wallet.manage',
         ],
         'admin_support' => [
             'dashboard.view',
@@ -55,6 +57,7 @@ return [
             'support.manage',
             'email.view',
             'reviews.view',
+            'wallet.manage',
         ],
         'admin_marketing' => [
             'dashboard.view',
@@ -75,6 +78,7 @@ return [
             'payments.view',
             'users.view',
             'email.view',
+            'wallet.manage',
         ],
         'staff' => [
             'dashboard.view',

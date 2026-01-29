@@ -29,6 +29,8 @@ class WalletService
     public function credit(User $user, string $reference, float $amount, array $meta = []): WalletTransaction
     {
         return DB::transaction(function () use ($user, $reference, $amount, $meta) {
+            $adminId = array_key_exists('admin_id', $meta) ? $meta['admin_id'] : null;
+
             $wallet = WalletAccount::where('user_id', $user->id)->lockForUpdate()->first();
             if (!$wallet) {
                 $wallet = WalletAccount::create([
@@ -62,7 +64,7 @@ class WalletService
             $tx->save();
 
             AdminLog::create([
-                'admin_id' => null,
+                'admin_id' => is_numeric($adminId) ? (int) $adminId : null,
                 'action' => 'wallet_credit',
                 'details' => json_encode(['user_id' => $user->id, 'amount' => $amount, 'reference' => $reference]),
             ]);

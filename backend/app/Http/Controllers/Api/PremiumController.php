@@ -7,12 +7,12 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\PremiumMembership;
-use App\Models\Referral;
 use App\Models\WalletBd;
 use App\Services\FedaPayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Str;
 
 class PremiumController extends Controller
 {
@@ -199,6 +199,19 @@ class PremiumController extends Controller
                 'premium_level' => $request->level,
                 'premium_expiration' => $membership->expiration_date,
             ]);
+
+            // Generate referral code for VIP Bronze+.
+            if (in_array((string) $request->level, ['bronze', 'platine'], true) && empty($user->referral_code)) {
+                $code = strtoupper(Str::random(8));
+                $tries = 0;
+                while (\App\Models\User::where('referral_code', $code)->exists() && $tries < 6) {
+                    $code = strtoupper(Str::random(8));
+                    $tries++;
+                }
+                if (!\App\Models\User::where('referral_code', $code)->exists()) {
+                    $user->update(['referral_code' => $code]);
+                }
+            }
         });
 
         return response()->json(['message' => 'Premium subscription successful']);

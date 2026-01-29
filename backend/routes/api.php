@@ -296,6 +296,9 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::delete('/email-templates/{emailTemplate}', [\App\Http\Controllers\Api\AdminEmailTemplateController::class, 'destroy'])
         ->middleware('permission:email.manage');
 
+    Route::post('/email/send-direct', [\App\Http\Controllers\Api\AdminEmailSendController::class, 'sendDirect'])
+        ->middleware('permission:email.manage');
+
     Route::get('/support/tickets', [\App\Http\Controllers\Api\AdminSupportController::class, 'index'])
         ->middleware('permission:support.view');
     Route::post('/support/tickets/{ticket}/reply', [\App\Http\Controllers\Api\AdminSupportController::class, 'reply'])
@@ -322,6 +325,8 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         ->middleware('permission:users.view');
     Route::get('/users/{user}', [\App\Http\Controllers\Api\AdminUsersController::class, 'show'])
         ->middleware('permission:users.view');
+    Route::post('/users/{user}/wallet/credit', [\App\Http\Controllers\Api\AdminUsersController::class, 'creditWallet'])
+        ->middleware('permission:wallet.manage');
     Route::patch('/users/{user}', [\App\Http\Controllers\Api\AdminUsersController::class, 'update'])
         ->middleware('permission:users.manage');
     Route::get('/users/export', [\App\Http\Controllers\Api\AdminUsersController::class, 'export'])

@@ -34,6 +34,7 @@ class Product extends Model
         'stock_type',
         'stock_mode',
         'delivery_eta_days',
+        'delivery_estimate_label',
         'purchases_count',
         'cart_adds_count',
         'rating_avg',

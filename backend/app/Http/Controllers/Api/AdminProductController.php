@@ -37,6 +37,7 @@ class AdminProductController extends Controller
             'delivery_type' => 'nullable|string|in:in_stock,preorder',
             'display_section' => 'nullable|string|in:popular,emote_skin,cosmic_promo,latest,gaming_accounts',
             'delivery_eta_days' => 'nullable|integer|min:1',
+            'delivery_estimate_label' => 'nullable|string|max:64',
             'stock' => 'required|integer|min:0',
             'price_fcfa' => 'nullable|integer|min:0',
             'is_active' => 'sometimes|boolean',
@@ -54,6 +55,13 @@ class AdminProductController extends Controller
         $data['title'] = $data['title'] ?? $data['name'];
         $data['slug'] = $data['slug'] ?? str($data['title'])->slug()->value();
         $this->syncCategoryName($data);
+
+        // Only keep the admin delivery estimate label for "item" products (accessories).
+        // Skins are also stored as type=item but are handled by the frontend via display_section.
+        $type = strtolower((string) ($data['type'] ?? ''));
+        if ($type !== 'item') {
+            $data['delivery_estimate_label'] = null;
+        }
 
         if (!empty($data['shipping_required'])) {
             $deliveryType = $data['delivery_type'] ?? 'in_stock';
@@ -123,6 +131,7 @@ class AdminProductController extends Controller
             'delivery_type' => 'nullable|string|in:in_stock,preorder',
             'display_section' => 'nullable|string|in:popular,emote_skin,cosmic_promo,latest,gaming_accounts',
             'delivery_eta_days' => 'nullable|integer|min:1',
+            'delivery_estimate_label' => 'nullable|string|max:64',
             'stock' => 'sometimes|integer|min:0',
             'price_fcfa' => 'nullable|integer|min:0',
             'is_active' => 'sometimes|boolean',
@@ -161,6 +170,13 @@ class AdminProductController extends Controller
         }
 
         $this->syncCategoryName($data);
+
+        if (array_key_exists('type', $data)) {
+            $type = strtolower((string) ($data['type'] ?? ''));
+            if ($type !== 'item') {
+                $data['delivery_estimate_label'] = null;
+            }
+        }
 
         if (array_key_exists('shipping_required', $data) && $data['shipping_required']) {
             $deliveryType = $data['delivery_type'] ?? ($product->delivery_type ?? 'in_stock');
