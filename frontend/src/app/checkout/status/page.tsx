@@ -303,15 +303,15 @@ function CheckoutStatusScreen() {
                   </>
                 ) : postPurchaseKind === "account" ? (
                   <>
-                    <h3 className="text-xl font-semibold">Commande en préparation</h3>
+                    <h3 className="text-xl font-semibold">Compte en préparation</h3>
                     <p className="mt-2 text-sm text-white/70">
-                      On s’acharne dans la préparation de votre commande. Vous serez notifié dès qu’elle sera prête.
+                      Les identifiants seront envoyés par email dans un délai de 24h. Pensez à vérifier vos spams.
                     </p>
                   </>
                 ) : postPurchaseKind === "subscription" ? (
                   <>
                     <h3 className="text-xl font-semibold">Abonnement confirmé</h3>
-                    <p className="mt-2 text-sm text-white/70">Veuillez vérifier votre compte dans 1H.</p>
+                    <p className="mt-2 text-sm text-white/70">Veuillez vérifier votre compte dans ~2h.</p>
                   </>
                 ) : (
                   <>

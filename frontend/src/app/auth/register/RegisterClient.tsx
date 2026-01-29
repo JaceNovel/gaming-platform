@@ -31,11 +31,13 @@ export default function RegisterClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/";
+  const initialReferral = searchParams.get("ref") || "";
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [referralCode, setReferralCode] = useState(initialReferral);
   const [countryCode, setCountryCode] = useState("CI");
   const [countryName, setCountryName] = useState("Côte d'Ivoire");
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +109,7 @@ export default function RegisterClient() {
         password_confirmation: passwordConfirmation,
         countryCode,
         countryName,
+        referralCode: referralCode.trim() ? referralCode.trim().toUpperCase() : undefined,
       });
       router.replace(next);
     } catch (err) {
@@ -260,6 +263,20 @@ export default function RegisterClient() {
                       </option>
                     ))}
                   </select>
+                </div>
+              </label>
+
+              <label className="block text-sm">
+                <span className="text-white/70">Code parrain (optionnel)</span>
+                <div className="mt-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  <input
+                    type="text"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    className="w-full bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+                    placeholder="EX: A1B2C3D4"
+                    maxLength={32}
+                  />
                 </div>
               </label>
 

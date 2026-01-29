@@ -334,11 +334,11 @@ function OrderConfirmationScreen() {
                   )
                 ) : postPurchaseKind === "account" ? (
                   <p className="mt-2 text-sm text-white/70">
-                    On s’acharne dans la préparation de votre commande. Vous serez notifié dès qu’elle sera prête.
+                    Les identifiants seront envoyés par email dans un délai de 24h. Pensez à vérifier vos spams.
                   </p>
                 ) : postPurchaseKind === "subscription" ? (
                   <p className="mt-2 text-sm text-white/70">
-                    Veuillez vérifier votre compte dans 1H. Vous serez notifié dès que l’activation est terminée.
+                    Veuillez vérifier votre compte dans ~2h. Vous serez notifié dès que l’activation est terminée.
                   </p>
                 ) : (
                   <p className="mt-2 text-sm text-white/70">

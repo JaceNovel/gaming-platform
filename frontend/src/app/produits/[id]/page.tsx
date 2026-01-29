@@ -14,7 +14,9 @@ type ApiProduct = {
   name?: string | null;
   title?: string | null;
   description?: string | null;
+  type?: string | null;
   estimated_delivery_label?: string | null;
+  delivery_eta_days?: number | null;
   details?: {
     description?: string | null;
     tags?: string[] | string | null;
@@ -103,6 +105,120 @@ const extractImages = (product: ApiProduct | null): string[] => {
     .filter((value): value is string => Boolean(value));
 };
 
+const getDeliveryHint = (product: ApiProduct | null) => {
+  const type = String(product?.type ?? "").toLowerCase();
+  const label = String(product?.estimated_delivery_label ?? "").trim();
+  const etaRaw = product?.delivery_eta_days;
+  const eta = etaRaw === null || etaRaw === undefined ? null : Number(etaRaw);
+
+  if (type.includes("recharge") || type.includes("topup")) return "Instantané";
+  if (type.includes("subscription") || type.includes("abonnement") || type.includes("premium")) return "~2h";
+  if (type.includes("account") || type.includes("compte")) return "~24h";
+
+  if (label) return label;
+  if (Number.isFinite(eta) && (eta as number) > 0) return `${eta} jour${eta === 1 ? "" : "s"}`;
+  return "Délais variable";
+};
+
+function ImageCarousel({
+  images,
+  name,
+  activeIndex,
+  onActiveIndex,
+  aspectClass,
+}: {
+  images: string[];
+  name: string;
+  activeIndex: number;
+  onActiveIndex: (idx: number) => void;
+  aspectClass: string;
+}) {
+  const railRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const target = rail.children.item(activeIndex) as HTMLElement | null;
+    target?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [activeIndex]);
+
+  const handleScroll = () => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const width = rail.clientWidth || 1;
+    const idx = Math.round(rail.scrollLeft / width);
+    const next = Math.min(Math.max(idx, 0), Math.max(images.length - 1, 0));
+    if (next !== activeIndex) onActiveIndex(next);
+  };
+
+  if (!images.length) {
+    return (
+      <div className={`flex ${aspectClass} w-full items-center justify-center rounded-3xl border border-dashed border-white/20 bg-white/5 text-base font-semibold text-white/60 shadow-inner`}>
+        Aucune image
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div
+        ref={railRef}
+        onScroll={handleScroll}
+        className="flex w-full snap-x snap-mandatory overflow-x-auto rounded-3xl border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)] scrollbar-soft"
+      >
+        {images.map((url, idx) => {
+          const display = toDisplayImageSrc(url) ?? url;
+          return (
+            <div key={`${url}-${idx}`} className={`relative ${aspectClass} w-full flex-none snap-center overflow-hidden`}>
+              <img src={display} alt={name} className="h-full w-full object-cover" loading={idx === 0 ? "eager" : "lazy"} />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent" />
+            </div>
+          );
+        })}
+      </div>
+
+      {images.length > 1 && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex gap-1.5">
+            {images.map((_, idx) => {
+              const active = idx === activeIndex;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => onActiveIndex(idx)}
+                  className={`h-1.5 rounded-full transition ${active ? "w-7 bg-rose-400" : "w-2.5 bg-white/25"}`}
+                  aria-label={`Aller à l'image ${idx + 1}`}
+                />
+              );
+            })}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {images.map((url, idx) => {
+              const displayThumb = toDisplayImageSrc(url) ?? url;
+              const active = idx === activeIndex;
+              return (
+                <button
+                  key={`${url}-thumb-${idx}`}
+                  type="button"
+                  onClick={() => onActiveIndex(idx)}
+                  className={
+                    "relative h-12 w-16 flex-none overflow-hidden rounded-xl border bg-white/5 transition " +
+                    (active ? "border-rose-400" : "border-white/10 hover:border-white/25")
+                  }
+                >
+                  <img src={displayThumb} alt="" className="h-full w-full object-cover" loading="lazy" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProductDetailsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -164,13 +280,17 @@ export default function ProductDetailsPage() {
 
   const mainImage = useMemo(() => extractImage(product), [product]);
   const carouselImages = useMemo(() => extractImages(product), [product]);
-  const selectedImage = useMemo(() => {
-    if (carouselImages.length) {
-      return carouselImages[Math.min(Math.max(activeImageIndex, 0), carouselImages.length - 1)] ?? null;
+  const mergedCarouselImages = useMemo(() => {
+    const base = carouselImages.length ? carouselImages : mainImage ? [mainImage] : [];
+    const normalized = base
+      .map((url) => String(url ?? "").trim())
+      .filter(Boolean);
+    const unique: string[] = [];
+    for (const url of normalized) {
+      if (!unique.includes(url)) unique.push(url);
     }
-    return mainImage;
-  }, [activeImageIndex, carouselImages, mainImage]);
-  const displayImage = useMemo(() => toDisplayImageSrc(selectedImage) ?? selectedImage, [selectedImage]);
+    return unique;
+  }, [carouselImages, mainImage]);
   const bannerImage = useMemo(() => extractBanner(product), [product]);
   const displayBanner = useMemo(() => toDisplayImageSrc(bannerImage) ?? bannerImage, [bannerImage]);
   const tags = useMemo(() => normalizeTags(product), [product]);
@@ -194,7 +314,7 @@ export default function ProductDetailsPage() {
     return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
   }, [product]);
   const tagsLabel = tags.length ? tags.join(", ") : "Aucun tag";
-  const deliveryLabel = String(product?.estimated_delivery_label ?? "").trim();
+  const deliveryHint = useMemo(() => getDeliveryHint(product), [product]);
 
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
@@ -249,49 +369,9 @@ export default function ProductDetailsPage() {
     router.push(`/checkout?product=${checkoutProductId}`);
   };
 
-  const renderImage = () => {
-    if (selectedImage) {
-      return (
-        <div className="space-y-3">
-          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-            <img src={displayImage ?? ""} alt={product?.name ?? "Produit"} className="h-full w-full object-cover" loading="lazy" />
-          </div>
-
-          {carouselImages.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {carouselImages.map((url, idx) => {
-                const displayThumb = toDisplayImageSrc(url) ?? url;
-                const isActive = idx === activeImageIndex;
-                return (
-                  <button
-                    key={`${url}-${idx}`}
-                    type="button"
-                    onClick={() => setActiveImageIndex(idx)}
-                    className={
-                      "relative h-14 w-20 flex-none overflow-hidden rounded-xl border bg-white/5 transition " +
-                      (isActive ? "border-rose-400" : "border-white/10 hover:border-white/25")
-                    }
-                    aria-label={`Image ${idx + 1}`}
-                  >
-                    <img src={displayThumb} alt="" className="h-full w-full object-cover" loading="lazy" />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      );
-    }
-    return (
-      <div className="flex aspect-[4/3] w-full items-center justify-center rounded-3xl border border-dashed border-white/20 bg-white/5 text-base font-semibold text-white/60 shadow-inner">
-        Aucune image
-      </div>
-    );
-  };
-
   const infoRows = [
     { label: "Catégorie", value: categoryLabel },
-    { label: "Livraison estimée", value: deliveryLabel || "—" },
+    { label: "Livraison estimée", value: deliveryHint },
     { label: "Marque", value: brandLabel ?? "N/A" },
     { label: "Stock", value: `${stockCount} unité${stockCount > 1 ? "s" : ""}` },
     { label: "Tags", value: tagsLabel },
@@ -356,15 +436,13 @@ export default function ProductDetailsPage() {
           <>
             <div className="mt-8 space-y-5 md:hidden">
               <div className="rounded-[32px] border border-white/10 bg-white/5 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
-                {mainImage ? (
-                  <div className="relative aspect-square w-full overflow-hidden rounded-[30px] border border-white/10 bg-black/50">
-                    <img src={displayImage ?? ""} alt={product.name ?? "Produit"} className="h-full w-full object-cover" loading="lazy" />
-                  </div>
-                ) : (
-                  <div className="flex aspect-square w-full items-center justify-center rounded-[30px] border border-dashed border-white/20 text-sm text-white/60">
-                    Image indisponible
-                  </div>
-                )}
+                <ImageCarousel
+                  images={mergedCarouselImages}
+                  name={product.name ?? product.title ?? "Produit"}
+                  activeIndex={activeImageIndex}
+                  onActiveIndex={setActiveImageIndex}
+                  aspectClass="aspect-square"
+                />
               </div>
               <div className="space-y-4 rounded-[32px] border border-white/10 bg-black/40 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
                 <div className="space-y-2">
@@ -373,6 +451,17 @@ export default function ProductDetailsPage() {
                   <p className="text-2xl font-black text-[#ff4b63]">{formatPrice(priceValue)}</p>
                 </div>
                 <p className="text-sm text-white/70">{description}</p>
+
+                {tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {tags.slice(0, 8).map((tag) => (
+                      <span key={tag} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/70">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
                   <p className="text-[11px] uppercase tracking-[0.35em] text-white/40">Infos</p>
                   <div className="mt-3 space-y-2">
@@ -388,14 +477,14 @@ export default function ProductDetailsPage() {
                   <button
                     type="button"
                     onClick={handleAddToCart}
-                    className="w-full rounded-2xl bg-[#d71933] px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(215,25,51,0.45)]"
+                    className="w-full rounded-2xl bg-[#d71933] px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(215,25,51,0.45)] transition active:scale-[0.99]"
                   >
                     Ajouter au panier
                   </button>
                   <button
                     type="button"
                     onClick={handleBuyNow}
-                    className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(16,185,129,0.45)]"
+                    className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(16,185,129,0.45)] transition active:scale-[0.99]"
                   >
                     Acheter maintenant
                   </button>
@@ -404,7 +493,13 @@ export default function ProductDetailsPage() {
             </div>
 
             <div className="mt-10 hidden gap-10 md:grid lg:grid-cols-[1.15fr_0.85fr]">
-              {renderImage()}
+              <ImageCarousel
+                images={mergedCarouselImages}
+                name={product.name ?? product.title ?? "Produit"}
+                activeIndex={activeImageIndex}
+                onActiveIndex={setActiveImageIndex}
+                aspectClass="aspect-[4/3]"
+              />
 
               <div className="space-y-6">
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
@@ -443,8 +538,7 @@ export default function ProductDetailsPage() {
 
                   <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
                     <p>
-                      <span className="font-semibold text-white">Livraison estimée :</span> 7-10 jours ouvrés. Vous serez notifié par email et SMS à
-                      l&apos;arrivée de votre commande.
+                      <span className="font-semibold text-white">Livraison estimée :</span> {deliveryHint}.
                     </p>
                   </div>
                 </div>

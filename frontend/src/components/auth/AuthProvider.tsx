@@ -11,8 +11,9 @@ export type AuthUser = {
   email: string;
   role?: string | null;
   is_premium?: boolean;
-  premium_level?: number | null;
+  premium_level?: number | string | null;
   premium_expiration?: string | null;
+  referral_code?: string | null;
 };
 
 type AuthContextValue = {
@@ -27,6 +28,7 @@ type AuthContextValue = {
     password_confirmation: string;
     countryCode: string;
     countryName: string;
+    referralCode?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
   authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -174,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password_confirmation: string;
     countryCode: string;
     countryName: string;
+    referralCode?: string;
   }) => {
     let res: Response;
     try {

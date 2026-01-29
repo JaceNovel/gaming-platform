@@ -11,8 +11,8 @@ import {
   Crown,
   Heart,
   Search,
+  Settings2,
   ShoppingCart,
-  SlidersHorizontal,
   Sparkles,
   Tag,
 } from "lucide-react";
@@ -36,6 +36,8 @@ type ShopProduct = {
   imageUrl?: string | null;
   bannerUrl?: string | null;
   displaySection?: string | null;
+  deliveryEtaDays?: number | null;
+  estimatedDeliveryLabel?: string | null;
 };
 
 type CategoryOption = {
@@ -93,103 +95,193 @@ const slugifyCategory = (value?: string | null) =>
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
-function CategoryChips({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: CategoryOption[];
-  onChange: (c: string) => void;
-}) {
-  const chips = [{ slug: "all", name: "Tous" }, ...options.map((opt) => ({ slug: opt.slug, name: opt.name }))];
-  return (
-    <div className="sticky top-[96px] z-30 mt-3 bg-black/60 backdrop-blur-md sm:top-[110px]">
-      <div className="mobile-shell flex gap-2 overflow-x-auto py-3 scrollbar-soft">
-        {chips.map((cat) => {
-          const active = value === cat.slug;
-          return (
-            <button
-              key={cat.slug}
-              onClick={() => onChange(cat.slug)}
-              className={`whitespace-nowrap rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.2em] transition ${
-                active
-                  ? "border-cyan-300/60 bg-cyan-400/10 text-cyan-200"
-                  : "border-white/10 bg-white/5 text-white/70 hover:text-white"
-              }`}
-            >
-              {cat.name}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+const getDeliveryBadge = (product: Pick<ShopProduct, "type" | "deliveryEtaDays" | "estimatedDeliveryLabel">) => {
+  const type = String(product.type ?? "").toLowerCase();
+  const label = String(product.estimatedDeliveryLabel ?? "").trim();
 
-function FilterSheet({
+  if (type.includes("recharge") || type.includes("topup")) {
+    return "Instantané";
+  }
+
+  if (type.includes("subscription") || type.includes("abonnement") || type.includes("premium")) {
+    return "~2h";
+  }
+
+  if (type.includes("account") || type.includes("compte")) {
+    return "~24h";
+  }
+
+  if (label) {
+    return label;
+  }
+
+  if (typeof product.deliveryEtaDays === "number" && Number.isFinite(product.deliveryEtaDays) && product.deliveryEtaDays > 0) {
+    return `${product.deliveryEtaDays} j`;
+  }
+
+  return "Délais variable";
+};
+
+function MobileFiltersSheet({
   open,
-  value,
-  options,
-  onSelect,
+  categories,
+  pending,
+  onPendingChange,
   onReset,
   onApply,
   onClose,
 }: {
   open: boolean;
-  value: string;
-  options: CategoryOption[];
-  onSelect: (slug: string) => void;
+  categories: CategoryOption[];
+  pending: { category: string; price: PriceFilterKey; promo: boolean; sort: SortOption };
+  onPendingChange: (next: { category: string; price: PriceFilterKey; promo: boolean; sort: SortOption }) => void;
   onReset: () => void;
   onApply: () => void;
   onClose: () => void;
 }) {
   if (!open) return null;
 
-  const chips = [{ slug: "all", name: "Tous" }, ...options.map((opt) => ({ slug: opt.slug, name: opt.name }))];
-
+  const chips = [{ slug: "all", name: "Tous" }, ...categories.map((opt) => ({ slug: opt.slug, name: opt.name }))];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-[2px] px-4">
+    <div className="fixed inset-0 z-50">
       <button
-        className="absolute inset-0"
+        type="button"
+        className="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
         onClick={onClose}
         aria-label="Fermer les filtres"
       />
-      <div className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-slate-950/95 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 text-xs font-semibold uppercase tracking-[0.3em] text-white/50 hover:text-white"
-        >
-          Fermer
-        </button>
-        <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">Filtrer</p>
-        <h3 className="text-xl font-bold text-white">Catégories</h3>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {chips.map((chip) => {
-            const active = value === chip.slug;
-            return (
+
+      <div className="absolute inset-x-0 bottom-0">
+        <div className="mx-auto w-full max-w-xl">
+          <div className="rounded-t-[32px] border border-white/10 bg-[#070013]/95 px-5 pb-6 pt-4 shadow-[0_-30px_90px_rgba(0,0,0,0.7)]">
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/15" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.35em] text-white/40">Filtrer</p>
+                <h3 className="text-lg font-bold text-white">Affiner la boutique</h3>
+              </div>
               <button
-                key={chip.slug}
-                onClick={() => onSelect(chip.slug)}
-                className={`rounded-2xl border px-4 py-2 text-sm transition ${
-                  active
-                    ? "border-cyan-300/50 bg-cyan-400/10 text-cyan-100"
-                    : "border-white/10 bg-white/5 text-white/70 hover:text-white"
-                }`}
+                type="button"
+                onClick={onClose}
+                className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50 hover:text-white"
               >
-                {chip.name}
+                Fermer
               </button>
-            );
-          })}
-        </div>
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <button
-            onClick={onReset}
-            className="rounded-2xl border border-white/15 bg-transparent py-3 text-sm font-semibold text-white"
-          >
-            Réinitialiser
-          </button>
-          <GlowButton onClick={onApply}>Appliquer</GlowButton>
+            </div>
+
+            <div className="mt-5 space-y-5">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Catégories</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {chips.map((chip) => {
+                    const active = pending.category === chip.slug;
+                    return (
+                      <button
+                        key={chip.slug}
+                        type="button"
+                        onClick={() => onPendingChange({ ...pending, category: chip.slug })}
+                        className={`rounded-2xl border px-4 py-2 text-sm transition ${
+                          active
+                            ? "border-cyan-300/50 bg-cyan-400/10 text-cyan-100"
+                            : "border-white/10 bg-white/5 text-white/70 hover:text-white"
+                        }`}
+                      >
+                        {chip.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">Budget</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onPendingChange({ ...pending, price: "all" })}
+                    className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+                      pending.price === "all"
+                        ? "border-cyan-300/60 bg-cyan-500/20 text-white"
+                        : "border-white/10 bg-white/5 text-white/60"
+                    }`}
+                  >
+                    Tous budgets
+                  </button>
+                  {PRICE_FILTERS.map((band) => {
+                    const active = pending.price === band.value;
+                    return (
+                      <button
+                        key={band.value}
+                        type="button"
+                        onClick={() => onPendingChange({ ...pending, price: band.value })}
+                        className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+                          active
+                            ? "border-fuchsia-300/60 bg-fuchsia-500/20 text-white"
+                            : "border-white/10 bg-white/5 text-white/60"
+                        }`}
+                      >
+                        {band.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs uppercase tracking-[0.3em] text-white/50">
+                  Trier
+                  <select
+                    value={pending.sort}
+                    onChange={(e) => onPendingChange({ ...pending, sort: e.target.value as SortOption })}
+                    className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white focus:outline-none"
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="text-xs uppercase tracking-[0.3em] text-white/50">
+                  Promo
+                  <button
+                    type="button"
+                    onClick={() => onPendingChange({ ...pending, promo: !pending.promo })}
+                    className={`mt-2 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                      pending.promo
+                        ? "border-emerald-300/60 bg-emerald-400/20 text-white"
+                        : "border-white/10 bg-white/5 text-white/70"
+                    }`}
+                  >
+                    <span>En promo</span>
+                    <span
+                      className={`relative inline-flex h-5 w-10 items-center rounded-full transition ${
+                        pending.promo ? "bg-emerald-400/80" : "bg-white/20"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                          pending.promo ? "translate-x-5" : "translate-x-1"
+                        }`}
+                      />
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={onReset}
+                className="rounded-2xl border border-white/15 bg-transparent py-3 text-sm font-semibold text-white"
+              >
+                Réinitialiser
+              </button>
+              <GlowButton onClick={onApply}>Appliquer</GlowButton>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -206,12 +298,16 @@ function StripCard({
   icon?: typeof Tag;
 }) {
   const cardImage = product.bannerUrl ?? product.imageUrl ?? FALLBACK_PRODUCT_IMAGE;
+  const deliveryBadge = getDeliveryBadge(product);
   return (
     <div className="relative flex min-w-[180px] flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between text-xs font-medium text-white/70">
         <span className="flex items-center gap-1">
           <Icon className="h-3.5 w-3.5 text-amber-300" />
           {label}
+        </span>
+        <span className="rounded-full border border-white/15 bg-black/40 px-2 py-1 text-[10px] font-semibold text-white/80">
+          {deliveryBadge}
         </span>
         {product.discountPercent && (
           <span className="rounded-full bg-amber-400/20 px-2 py-1 text-[10px] text-amber-200">
@@ -419,11 +515,27 @@ type ProductCardProps = {
 };
 
 function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps) {
+  const [adding, setAdding] = useState(false);
+  const [likePulse, setLikePulse] = useState(false);
   const badgeLabel = product.discountPercent
     ? `-${product.discountPercent}%`
     : product.likes > 30
       ? "Populaire"
       : product.category;
+
+  const deliveryBadge = getDeliveryBadge(product);
+
+  const handleAdd = (event: MouseEvent<HTMLButtonElement>) => {
+    setAdding(true);
+    window.setTimeout(() => setAdding(false), 520);
+    onAddToCart(product, event.currentTarget);
+  };
+
+  const handleLike = () => {
+    setLikePulse(true);
+    window.setTimeout(() => setLikePulse(false), 520);
+    onLike(product);
+  };
 
   return (
     <div className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-black/40 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-cyan-300/40 hover:shadow-[0_35px_90px_rgba(14,165,233,0.35)]">
@@ -437,6 +549,9 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent" />
         <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
           {badgeLabel}
+        </span>
+        <span className="absolute right-4 top-4 rounded-full border border-white/20 bg-black/40 px-3 py-1 text-xs font-semibold text-white/90">
+          {deliveryBadge}
         </span>
       </div>
       <div className="mt-4 space-y-2">
@@ -453,18 +568,31 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
         </div>
         <button
           type="button"
-          onClick={() => onLike(product)}
-          className="flex items-center gap-1 text-xs text-white/60 hover:text-rose-200"
+          onClick={handleLike}
+          className="relative flex items-center gap-1 text-xs text-white/60 hover:text-rose-200"
         >
-          <Heart className="h-4 w-4 text-rose-300" />
+          <span
+            className={`absolute -inset-2 rounded-full bg-rose-400/20 transition ${likePulse ? "opacity-100" : "opacity-0"}`}
+          />
+          <Heart className={`h-4 w-4 text-rose-300 transition ${likePulse ? "scale-110" : "scale-100"}`} />
           {product.likes}
         </button>
       </div>
       <div className="mt-5 flex flex-col gap-2">
         <button
-          onClick={(event: MouseEvent<HTMLButtonElement>) => onAddToCart(product, event.currentTarget)}
-          className="w-full rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(14,165,233,0.4)] transition hover:brightness-110"
+          onClick={handleAdd}
+          className={`relative w-full overflow-hidden rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(14,165,233,0.4)] transition hover:brightness-110 active:scale-[0.98] ${
+            adding ? "brightness-110" : ""
+          }`}
         >
+          <span
+            className={`pointer-events-none absolute inset-0 bg-white/10 transition ${adding ? "opacity-100" : "opacity-0"}`}
+          />
+          <span
+            className={`pointer-events-none absolute -inset-6 rounded-full bg-white/15 blur-2xl transition ${
+              adding ? "opacity-100" : "opacity-0"
+            }`}
+          />
           Ajouter au panier
         </button>
         <button
@@ -488,7 +616,12 @@ export default function ShopPage() {
   const [promoOnly, setPromoOnly] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-  const [pendingCategory, setPendingCategory] = useState("all");
+  const [pendingFilters, setPendingFilters] = useState<{ category: string; price: PriceFilterKey; promo: boolean; sort: SortOption }>({
+    category: "all",
+    price: "all",
+    promo: false,
+    sort: "popular",
+  });
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -535,6 +668,9 @@ export default function ShopPage() {
             item?.details?.cover ??
             item?.cover ??
             null;
+
+          const etaRaw = item?.delivery_eta_days;
+          const eta = etaRaw === null || etaRaw === undefined ? null : Number(etaRaw);
           return {
             id: item.id,
             name: item.name,
@@ -550,6 +686,8 @@ export default function ShopPage() {
             imageUrl: imageUrl ?? FALLBACK_PRODUCT_IMAGE,
             bannerUrl: bannerUrl,
             displaySection: item?.display_section ?? null,
+            deliveryEtaDays: Number.isFinite(eta) ? eta : null,
+            estimatedDeliveryLabel: item?.estimated_delivery_label ?? null,
           } as ShopProduct;
         });
         setProducts(mapped);
@@ -708,17 +846,25 @@ export default function ShopPage() {
   );
 
   const openFilterSheet = () => {
-    setPendingCategory(categoryFilter);
+    setPendingFilters({
+      category: categoryFilter,
+      price: priceFilter,
+      promo: promoOnly,
+      sort: sortOrder,
+    });
     setFilterSheetOpen(true);
   };
 
   const applyFilterSheet = () => {
-    setCategoryFilter(pendingCategory);
+    setCategoryFilter(pendingFilters.category);
+    setPriceFilter(pendingFilters.price);
+    setPromoOnly(pendingFilters.promo);
+    setSortOrder(pendingFilters.sort);
     setFilterSheetOpen(false);
   };
 
   const resetFilterSheet = () => {
-    setPendingCategory("all");
+    setPendingFilters({ category: "all", price: "all", promo: false, sort: "popular" });
   };
 
   const filtered = useMemo(() => {
@@ -909,15 +1055,9 @@ export default function ShopPage() {
             <button
               onClick={() => imageInputRef.current?.click()}
               className="rounded-xl border border-white/10 bg-white/10 p-2"
+              aria-label="Recherche par image"
             >
               <Camera className="h-4 w-4 text-white/70" />
-            </button>
-            <button
-              onClick={openFilterSheet}
-              className="rounded-xl border border-white/10 bg-white/10 p-2 text-white sm:hidden"
-              aria-label="Filtrer"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
             </button>
             <input
               ref={imageInputRef}
@@ -936,9 +1076,15 @@ export default function ShopPage() {
         </div>
       </header>
 
-      <div className="hidden sm:block">
-        <CategoryChips value={categoryFilter} options={categoryChipOptions} onChange={setCategoryFilter} />
-      </div>
+      <button
+        type="button"
+        onClick={openFilterSheet}
+        className="fixed right-4 z-50 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/10 shadow-[0_18px_45px_rgba(0,0,0,0.55)] backdrop-blur-md transition hover:border-cyan-300/40 hover:bg-white/15 active:scale-[0.98] lg:hidden"
+        style={{ bottom: "calc(92px + env(safe-area-inset-bottom))" }}
+        aria-label="Filtrer"
+      >
+        <Settings2 className="h-5 w-5 text-white/90" />
+      </button>
 
       <section className="mobile-shell space-y-4 py-4">
         <div className="space-y-3">
@@ -1086,11 +1232,11 @@ export default function ShopPage() {
 
       </div>
 
-      <FilterSheet
+      <MobileFiltersSheet
         open={filterSheetOpen}
-        value={pendingCategory}
-        options={categoryChipOptions}
-        onSelect={(slug) => setPendingCategory(slug)}
+        categories={categoryChipOptions}
+        pending={pendingFilters}
+        onPendingChange={setPendingFilters}
         onReset={resetFilterSheet}
         onApply={applyFilterSheet}
         onClose={() => setFilterSheetOpen(false)}

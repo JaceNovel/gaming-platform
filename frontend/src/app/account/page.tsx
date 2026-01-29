@@ -24,6 +24,7 @@ type Me = {
   avatarId: string;
   walletBalanceFcfa: number;
   premiumTier: string;
+  referralCode?: string | null;
 };
 
 type OrderStatus = "COMPLÉTÉ" | "ÉCHOUÉ" | "EN_COURS";
@@ -163,6 +164,7 @@ const normalizeMe = (payload: any, baseline: Me | null): Me => {
           fallback.walletBalanceFcfa,
       ) || 0,
     premiumTier: payload?.premiumTier ?? payload?.premium_tier ?? payload?.premium_level ?? fallback.premiumTier,
+    referralCode: payload?.referralCode ?? payload?.referral_code ?? fallback.referralCode ?? null,
   } satisfies Me;
 };
 
@@ -212,6 +214,7 @@ function AccountClient() {
       avatarId: legacyUser.is_premium ? "stellar_viper" : "nova_ghost",
       walletBalanceFcfa: walletBalance,
       premiumTier: premiumTierResolved,
+      referralCode: (legacyUser as any)?.referral_code ?? (legacyUser as any)?.referralCode ?? null,
     } satisfies Me;
   }, [user]);
 
@@ -236,6 +239,7 @@ function AccountClient() {
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>(DEFAULT_WALLET_TRANSACTIONS);
   const [walletHistoryLoading, setWalletHistoryLoading] = useState(HAS_API_ENV);
   const [walletBalanceState, setWalletBalanceState] = useState(me?.walletBalanceFcfa ?? 0);
+  const [referralToast, setReferralToast] = useState<string | null>(null);
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [rechargeProcessing, setRechargeProcessing] = useState(false);
   const [rechargeStatus, setRechargeStatus] = useState<"idle" | "success" | "error">("idle");
@@ -701,6 +705,12 @@ function AccountClient() {
   const countryTag = (me?.countryCode ?? "CI").toUpperCase();
   const lastWalletTransaction = walletTransactions[0];
   const isTogoPlayer = (me.countryCode ?? "").toUpperCase() === "TG";
+  const referralInviteUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    const code = String(me.referralCode ?? "").trim();
+    if (!code) return "";
+    return `${window.location.origin}/auth/register?ref=${encodeURIComponent(code)}`;
+  }, [me.referralCode]);
 
   return (
     <div className="min-h-screen text-white">
@@ -732,6 +742,56 @@ function AccountClient() {
             {missingCountry && (
               <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
                 Pays manquant. Merci de compléter ton pays dans le profil pour afficher le drapeau.
+              </div>
+            )}
+
+            {me.referralCode && vipActive && (
+              <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Parrainage VIP</p>
+                    <p className="mt-1 text-lg font-semibold text-white">Ton code: <span className="text-cyan-200">{me.referralCode}</span></p>
+                    <p className="mt-1 text-sm text-white/60">Partage-le: tu gagnes 3% sur le 1er dépôt.</p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(String(me.referralCode ?? "").trim());
+                          setReferralToast("Code copié");
+                          window.setTimeout(() => setReferralToast(null), 1800);
+                        } catch {
+                          setReferralToast("Impossible de copier");
+                          window.setTimeout(() => setReferralToast(null), 1800);
+                        }
+                      }}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/85"
+                    >
+                      Copier code
+                    </button>
+                    {referralInviteUrl && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(referralInviteUrl);
+                            setReferralToast("Lien copié");
+                            window.setTimeout(() => setReferralToast(null), 1800);
+                          } catch {
+                            setReferralToast("Impossible de copier");
+                            window.setTimeout(() => setReferralToast(null), 1800);
+                          }
+                        }}
+                        className="rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-sm font-semibold text-black"
+                      >
+                        Copier lien
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {referralToast && <p className="mt-3 text-xs text-white/60">{referralToast}</p>}
               </div>
             )}
             <div className="hidden md:block">
