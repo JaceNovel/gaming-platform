@@ -35,7 +35,7 @@ class AdminProductController extends Controller
             'stock_alert_emails' => 'nullable|string',
             'shipping_required' => 'nullable|boolean',
             'delivery_type' => 'nullable|string|in:in_stock,preorder',
-            'display_section' => 'nullable|string|in:popular,emote_skin,cosmic_promo,latest,gaming_accounts',
+            'display_section' => 'nullable|string|in:popular,emote_skin,cosmic_promo,latest,gaming_accounts,recharge_direct',
             'delivery_eta_days' => 'nullable|integer|min:1',
             'delivery_estimate_label' => 'nullable|string|max:64',
             'stock' => 'required|integer|min:0',
@@ -53,7 +53,10 @@ class AdminProductController extends Controller
 
         $data['sku'] = $data['sku'] ?? $this->generateSku();
         $data['title'] = $data['title'] ?? $data['name'];
-        $data['slug'] = $data['slug'] ?? str($data['title'])->slug()->value();
+        $desiredSlug = array_key_exists('slug', $data) && $data['slug'] !== null
+            ? (string) $data['slug']
+            : (string) str($data['title'])->slug()->value();
+        $data['slug'] = $this->generateUniqueProductSlug($desiredSlug);
         $this->syncCategoryName($data);
 
         // Only keep the admin delivery estimate label for "item" products (accessories).
@@ -129,7 +132,7 @@ class AdminProductController extends Controller
             'stock_alert_emails' => 'nullable|string',
             'shipping_required' => 'nullable|boolean',
             'delivery_type' => 'nullable|string|in:in_stock,preorder',
-            'display_section' => 'nullable|string|in:popular,emote_skin,cosmic_promo,latest,gaming_accounts',
+            'display_section' => 'nullable|string|in:popular,emote_skin,cosmic_promo,latest,gaming_accounts,recharge_direct',
             'delivery_eta_days' => 'nullable|integer|min:1',
             'delivery_estimate_label' => 'nullable|string|max:64',
             'stock' => 'sometimes|integer|min:0',
@@ -144,6 +147,10 @@ class AdminProductController extends Controller
             'images' => 'nullable|array|max:10',
             'images.*' => 'nullable|string|max:2048',
         ]);
+
+        if (array_key_exists('slug', $data) && $data['slug'] !== null) {
+            $data['slug'] = $this->generateUniqueProductSlug((string) $data['slug'], $product->id);
+        }
 
         $imageUrl = $data['image_url'] ?? null;
         $bannerUrl = $data['banner_url'] ?? null;
@@ -238,6 +245,35 @@ class AdminProductController extends Controller
     {
         $next = Product::count() + 1;
         return sprintf('BBS-%06d', $next);
+    }
+
+    private function generateUniqueProductSlug(string $desiredSlug, ?int $ignoreProductId = null): string
+    {
+        $base = str($desiredSlug)->slug()->value();
+        if (!$base) {
+            $base = 'product';
+        }
+
+        $slug = $base;
+        $suffix = 1;
+
+        while (
+            Product::query()
+                ->where('slug', $slug)
+                ->when($ignoreProductId, fn ($q) => $q->where('id', '!=', $ignoreProductId))
+                ->exists()
+        ) {
+            $suffix++;
+            $slug = $base . '-' . $suffix;
+
+            // Avoid pathological loops if the table has many collisions.
+            if ($suffix > 200) {
+                $slug = $base . '-' . now()->format('YmdHis');
+                break;
+            }
+        }
+
+        return $slug;
     }
 
     private function syncCategoryName(array &$data): void

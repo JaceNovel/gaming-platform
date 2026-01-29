@@ -100,6 +100,9 @@ Route::get('/health/db', function () {
     }
 });
 
+// Client-side error reporting (best-effort, no auth)
+Route::post('/client-errors', [\App\Http\Controllers\Api\ClientErrorController::class, 'store']);
+
 // Image proxy (for external image URLs copied from websites)
 Route::get('/image-proxy', [ImageProxyController::class, 'show']);
 
