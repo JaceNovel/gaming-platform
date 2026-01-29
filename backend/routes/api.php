@@ -161,6 +161,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Wallet
     Route::get('/wallet', [WalletController::class, 'show']);
+    Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
     Route::post('/wallet/topup/init', [WalletController::class, 'initTopup']);
 
     // Profile
