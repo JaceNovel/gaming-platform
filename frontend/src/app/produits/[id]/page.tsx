@@ -313,6 +313,10 @@ export default function ProductDetailsPage() {
   }, [product]);
   const tagsLabel = tags.length ? tags.join(", ") : "Aucun tag";
   const deliveryLabel = useMemo(() => getNormalizedDeliveryLabel(product), [product]);
+  const isRechargeDirect = useMemo(
+    () => String(product?.display_section ?? "").toLowerCase() === "recharge_direct",
+    [product?.display_section]
+  );
 
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
@@ -347,11 +351,29 @@ export default function ProductDetailsPage() {
   };
 
   const handleAddToCart = (event: MouseEvent<HTMLButtonElement>) => {
+    if (isRechargeDirect) {
+      const qs = new URLSearchParams({
+        intent: "recharge_direct",
+        product_id: String(product?.id ?? id ?? ""),
+        product_name: String(product?.name ?? product?.title ?? ""),
+      });
+      router.push(`/chat?${qs.toString()}`);
+      return;
+    }
     persistToCart();
     triggerFlight(event.currentTarget);
   };
 
   const handleBuyNow = (event: MouseEvent<HTMLButtonElement>) => {
+    if (isRechargeDirect) {
+      const qs = new URLSearchParams({
+        intent: "recharge_direct",
+        product_id: String(product?.id ?? id ?? ""),
+        product_name: String(product?.name ?? product?.title ?? ""),
+      });
+      router.push(`/chat?${qs.toString()}`);
+      return;
+    }
     persistToCart();
     triggerFlight(event.currentTarget);
     const rawId = product?.id ?? id;
@@ -474,19 +496,21 @@ export default function ProductDetailsPage() {
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={handleAddToCart}
-                    className="w-full rounded-2xl bg-[#d71933] px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(215,25,51,0.45)] transition active:scale-[0.99]"
-                  >
-                    Ajouter au panier
-                  </button>
+                  {!isRechargeDirect ? (
+                    <button
+                      type="button"
+                      onClick={handleAddToCart}
+                      className="w-full rounded-2xl bg-[#d71933] px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(215,25,51,0.45)] transition active:scale-[0.99]"
+                    >
+                      Ajouter au panier
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={handleBuyNow}
                     className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(16,185,129,0.45)] transition active:scale-[0.99]"
                   >
-                    Acheter maintenant
+                    {isRechargeDirect ? "Ouvrir le chat" : "Acheter maintenant"}
                   </button>
                 </div>
               </div>
@@ -520,19 +544,21 @@ export default function ProductDetailsPage() {
                   </div>
 
                   <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={handleAddToCart}
-                      className="rounded-full bg-[#d71933] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:bg-[#b51229]"
-                    >
-                      Ajouter au panier
-                    </button>
+                    {!isRechargeDirect ? (
+                      <button
+                        type="button"
+                        onClick={handleAddToCart}
+                        className="rounded-full bg-[#d71933] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:bg-[#b51229]"
+                      >
+                        Ajouter au panier
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={handleBuyNow}
                       className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-700"
                     >
-                      Acheter maintenant
+                      {isRechargeDirect ? "Ouvrir le chat" : "Acheter maintenant"}
                     </button>
                   </div>
 

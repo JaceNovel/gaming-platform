@@ -525,6 +525,7 @@ export default function AdminProductsAddPage() {
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                 >
                   <option value="none">Aucune</option>
+                  <option value="recharge_direct">Recharge Direct</option>
                   <option value="popular">Produits populaires</option>
                   <option value="emote_skin">Emote && Skin</option>
                   <option value="cosmic_promo">Promotions cosmiques</option>

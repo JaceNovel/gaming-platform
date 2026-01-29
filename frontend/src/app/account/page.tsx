@@ -252,6 +252,13 @@ function AccountClient() {
   const [countryMessage, setCountryMessage] = useState("");
   const [topupBanner, setTopupBanner] = useState<string | null>(null);
 
+  const referralInviteUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    const code = String(me?.referralCode ?? "").trim();
+    if (!code) return "";
+    return `${window.location.origin}/auth/register?ref=${encodeURIComponent(code)}`;
+  }, [me?.referralCode]);
+
   useEffect(() => {
     const status = (searchParams.get('topup_status') ?? '').toLowerCase();
     if (!status) return;
@@ -705,12 +712,6 @@ function AccountClient() {
   const countryTag = (me?.countryCode ?? "CI").toUpperCase();
   const lastWalletTransaction = walletTransactions[0];
   const isTogoPlayer = (me.countryCode ?? "").toUpperCase() === "TG";
-  const referralInviteUrl = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    const code = String(me.referralCode ?? "").trim();
-    if (!code) return "";
-    return `${window.location.origin}/auth/register?ref=${encodeURIComponent(code)}`;
-  }, [me.referralCode]);
 
   return (
     <div className="min-h-screen text-white">

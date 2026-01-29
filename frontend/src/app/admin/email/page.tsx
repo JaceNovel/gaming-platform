@@ -49,6 +49,12 @@ export default function AdminEmailPage() {
   const [emailFilter, setEmailFilter] = useState("");
   const [error, setError] = useState("");
 
+  const [directTo, setDirectTo] = useState("");
+  const [directSubject, setDirectSubject] = useState("Message de BADBOYSHOP");
+  const [directMessage, setDirectMessage] = useState("");
+  const [directSending, setDirectSending] = useState(false);
+  const [directStatus, setDirectStatus] = useState<string | null>(null);
+
   const loadAll = useCallback(async () => {
     setError("");
     try {
@@ -130,8 +136,100 @@ export default function AdminEmailPage() {
     </div>
   );
 
+  const sendDirectEmail = useCallback(async () => {
+    setError("");
+    setDirectStatus(null);
+
+    const to = directTo.trim();
+    const message = directMessage.trim();
+    const subject = directSubject.trim() || "Message de BADBOYSHOP";
+
+    if (!to || !message) {
+      setError("Email et message sont obligatoires.");
+      return;
+    }
+
+    setDirectSending(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/email/send-direct`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          to_email: to,
+          subject,
+          message,
+        }),
+      });
+
+      if (!res.ok) {
+        setError("Envoi impossible.");
+        return;
+      }
+
+      setDirectStatus("Email mis en file d'attente.");
+      setDirectMessage("");
+      await loadAll();
+    } catch {
+      setError("Envoi impossible.");
+    } finally {
+      setDirectSending(false);
+    }
+  }, [directMessage, directSubject, directTo, loadAll]);
+
   return (
     <AdminShell title="Email" subtitle="Templates & logs" actions={actions}>
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="text-base font-semibold">Envoyer un email direct</h3>
+        <p className="mt-2 text-sm text-slate-500">
+          Saisissez l'email du client et votre message, puis envoyez depuis l'admin.
+        </p>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="text-xs uppercase text-slate-400">Email destinataire</label>
+            <input
+              value={directTo}
+              onChange={(e) => setDirectTo(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2"
+              placeholder="client@mail.com"
+            />
+          </div>
+          <div>
+            <label className="text-xs uppercase text-slate-400">Sujet</label>
+            <input
+              value={directSubject}
+              onChange={(e) => setDirectSubject(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2"
+              placeholder="Message de BADBOYSHOP"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="text-xs uppercase text-slate-400">Message</label>
+          <textarea
+            value={directMessage}
+            onChange={(e) => setDirectMessage(e.target.value)}
+            className="mt-2 min-h-[120px] w-full rounded-xl border border-slate-200 px-3 py-2"
+            placeholder="Tapez votre message..."
+          />
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="text-sm text-slate-500">{directStatus ?? ""}</div>
+          <button
+            onClick={sendDirectEmail}
+            disabled={directSending}
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
+          >
+            {directSending ? "Envoi..." : "Envoyer"}
+          </button>
+        </div>
+      </div>
+
       <div className="mb-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm md:grid-cols-3">
         <div>
           <label className="text-xs uppercase text-slate-400">Type</label>

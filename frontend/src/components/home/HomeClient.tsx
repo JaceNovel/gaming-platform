@@ -194,10 +194,12 @@ function ProductCardUI({
   p,
   onAddToCart,
   onBuy,
+  showAddToCart = true,
 }: {
   p: ProductCard;
   onAddToCart: (product: ProductCard, origin?: HTMLElement | null) => void;
   onBuy: (product: ProductCard, origin?: HTMLElement | null) => void;
+  showAddToCart?: boolean;
 }) {
   return (
     <div className="relative w-[260px] shrink-0 snap-start overflow-hidden rounded-2xl bg-white/6 ring-1 ring-white/15 backdrop-blur-md sm:w-full sm:min-w-0 sm:shrink">
@@ -244,14 +246,16 @@ function ProductCardUI({
             <span className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-cyan-400/15 via-fuchsia-400/10 to-amber-300/10" />
           </button>
 
-          <button
-            type="button"
-            onClick={(event) => onAddToCart(p, event.currentTarget)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 transition active:scale-[0.98]"
-            aria-label="Ajouter au panier"
-          >
-            <ShoppingCart className="h-5 w-5 text-white/90" />
-          </button>
+          {showAddToCart ? (
+            <button
+              type="button"
+              onClick={(event) => onAddToCart(p, event.currentTarget)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 transition active:scale-[0.98]"
+              aria-label="Ajouter au panier"
+            >
+              <ShoppingCart className="h-5 w-5 text-white/90" />
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -272,6 +276,7 @@ export default function HomeClient() {
     [],
   );
   const [products, setProducts] = useState<ProductCard[]>([]);
+  const [rechargeDirectProducts, setRechargeDirectProducts] = useState<ProductCard[]>([]);
   const [desktopStart, setDesktopStart] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
 
@@ -302,16 +307,28 @@ export default function HomeClient() {
 
     const loadProducts = async () => {
       try {
-        const res = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=3`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const items = Array.isArray(data?.data)
-          ? (data.data as ApiProduct[])
-          : Array.isArray(data)
-            ? (data as ApiProduct[])
+        const [popularRes, directRes] = await Promise.all([
+          fetch(`${API_BASE}/products?active=1&display_section=popular&limit=9`),
+          fetch(`${API_BASE}/products?active=1&display_section=recharge_direct&limit=9`),
+        ]);
+
+        const popularData = popularRes.ok ? await popularRes.json().catch(() => null) : null;
+        const directData = directRes.ok ? await directRes.json().catch(() => null) : null;
+
+        const popularItems = Array.isArray(popularData?.data)
+          ? (popularData.data as ApiProduct[])
+          : Array.isArray(popularData)
+            ? (popularData as ApiProduct[])
             : [];
+        const directItems = Array.isArray(directData?.data)
+          ? (directData.data as ApiProduct[])
+          : Array.isArray(directData)
+            ? (directData as ApiProduct[])
+            : [];
+
         if (!active) return;
-        const mapped = items.map((item) => {
+
+        const mapToCard = (item: ApiProduct): ProductCard => {
           const priceValue = Number(item?.discount_price ?? item?.price ?? 0);
           const image =
             item?.details?.banner ??
@@ -337,8 +354,10 @@ export default function HomeClient() {
             badge: badgeLabel.toUpperCase().slice(0, 6),
             image,
           };
-        });
-        setProducts(mapped);
+        };
+
+        setProducts(popularItems.map(mapToCard));
+        setRechargeDirectProducts(directItems.map(mapToCard));
       } catch {
         if (!active) return;
       }
@@ -405,6 +424,15 @@ export default function HomeClient() {
   const handleBuy = (product: ProductCard, origin?: HTMLElement | null) => {
     addToCart(product, origin ?? null);
     router.push("/cart");
+  };
+
+  const handleRechargeDirect = (product: ProductCard) => {
+    const qs = new URLSearchParams({
+      intent: "recharge_direct",
+      product_id: String(product.id),
+      product_name: product.title,
+    });
+    router.push(`/chat?${qs.toString()}`);
   };
 
   return (
@@ -563,6 +591,33 @@ export default function HomeClient() {
           </div>
         </div>
       </section>
+
+      {rechargeDirectProducts.length > 0 ? (
+        <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-2">
+          <div className="flex items-end justify-between">
+            <h2 className="text-lg font-extrabold tracking-tight sm:text-xl">
+              Recharge <span className="text-white/70">Direct</span>
+            </h2>
+            <Link href="/chat" className="text-xs text-white/70 hover:text-white">
+              Ouvrir le chat →
+            </Link>
+          </div>
+
+          <div className="mt-3">
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
+              {rechargeDirectProducts.map((p) => (
+                <ProductCardUI
+                  key={`direct-${p.id}`}
+                  p={p}
+                  onAddToCart={() => null}
+                  onBuy={() => handleRechargeDirect(p)}
+                  showAddToCart={false}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-2">
         <div className="flex items-end justify-between">

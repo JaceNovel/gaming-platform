@@ -625,6 +625,7 @@ export default function AdminProductsEditPage() {
                   disabled={loadingProduct}
                 >
                   <option value="none">Aucune</option>
+                   <option value="recharge_direct">Recharge Direct</option>
                   <option value="popular">Produits populaires</option>
                   <option value="emote_skin">Emote && Skin</option>
                   <option value="cosmic_promo">Promotions cosmiques</option>

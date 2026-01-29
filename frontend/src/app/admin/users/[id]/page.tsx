@@ -41,6 +41,11 @@ type UserDetailResponse = {
       game_user_id?: string | null;
     };
     orders: Order[];
+    wallet?: {
+      balance?: number | string | null;
+      currency?: string | null;
+      status?: string | null;
+    };
   };
 };
 
@@ -58,6 +63,13 @@ export default function AdminUserDetailPage() {
   const [user, setUser] = useState<UserDetail | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [profile, setProfile] = useState<UserDetailResponse["data"]["profile"] | null>(null);
+  const [wallet, setWallet] = useState<UserDetailResponse["data"]["wallet"] | null>(null);
+
+  const [walletAmount, setWalletAmount] = useState("");
+  const [walletReason, setWalletReason] = useState("");
+  const [walletSubmitting, setWalletSubmitting] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [walletStatus, setWalletStatus] = useState<string | null>(null);
 
   const loadUser = useCallback(async () => {
     const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
@@ -71,7 +83,52 @@ export default function AdminUserDetailPage() {
     setUser(payload?.data?.user ?? null);
     setOrders(payload?.data?.orders ?? []);
     setProfile(payload?.data?.profile ?? null);
+    setWallet(payload?.data?.wallet ?? null);
   }, [userId]);
+
+  const handleWalletCredit = useCallback(async () => {
+    setWalletError(null);
+    setWalletStatus(null);
+
+    const amountValue = Number(walletAmount);
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      setWalletError("Montant invalide.");
+      return;
+    }
+
+    setWalletSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}/wallet/credit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          amount: amountValue,
+          reason: walletReason.trim() || null,
+        }),
+      });
+
+      if (!res.ok) {
+        setWalletError("Crédit wallet impossible.");
+        return;
+      }
+
+      const payload = (await res.json()) as {
+        data?: { wallet?: { balance?: number | string | null; currency?: string | null; status?: string | null } };
+      };
+
+      setWallet(payload?.data?.wallet ?? null);
+      setWalletStatus("Wallet crédité.");
+      setWalletAmount("");
+      setWalletReason("");
+    } catch {
+      setWalletError("Crédit wallet impossible.");
+    } finally {
+      setWalletSubmitting(false);
+    }
+  }, [userId, walletAmount, walletReason]);
 
   useEffect(() => {
     if (userId) {
@@ -80,6 +137,11 @@ export default function AdminUserDetailPage() {
   }, [loadUser, userId]);
 
   const initials = useMemo(() => user?.name?.slice(0, 1).toUpperCase() ?? "U", [user?.name]);
+  const walletBalanceLabel = useMemo(() => {
+    const value = wallet?.balance ?? 0;
+    const currency = wallet?.currency ?? "FCFA";
+    return `${value} ${currency}`;
+  }, [wallet?.balance, wallet?.currency]);
 
   return (
     <AdminShell title="Utilisateurs" subtitle="Détails du compte">
@@ -112,6 +174,62 @@ export default function AdminUserDetailPage() {
             <div>
               <div className="text-xs uppercase text-slate-400">Pays</div>
               <div>{user?.country_name ?? user?.country_code ?? "—"}</div>
+            </div>
+
+            <div className="pt-2">
+              <div className="text-xs uppercase text-slate-400">Wallet</div>
+              <div className="mt-1 flex items-center justify-between">
+                <div className="font-semibold text-slate-800">{walletBalanceLabel}</div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">
+                  {wallet?.status ?? "—"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-700">Remboursement (crédit wallet)</h3>
+            <div className="mt-3 grid gap-3">
+              <div>
+                <label className="text-xs uppercase text-slate-400">Montant (FCFA)</label>
+                <input
+                  value={walletAmount}
+                  onChange={(e) => setWalletAmount(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2"
+                  placeholder="5000"
+                  inputMode="numeric"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase text-slate-400">Raison (optionnel)</label>
+                <input
+                  value={walletReason}
+                  onChange={(e) => setWalletReason(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2"
+                  placeholder="Annulation commande, geste commercial..."
+                />
+              </div>
+
+              {walletError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
+                  {walletError}
+                </div>
+              )}
+              {walletStatus && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+                  {walletStatus}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end">
+                <button
+                  onClick={handleWalletCredit}
+                  disabled={walletSubmitting}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-60"
+                >
+                  {walletSubmitting ? "Crédit..." : "Créditer le wallet"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/components/auth/AuthProvider";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { API_BASE } from "@/lib/config";
+import { useSearchParams } from "next/navigation";
 import {
   Bell,
   Crown,
@@ -61,6 +62,7 @@ const mentionClass = "text-amber-300 font-semibold";
 
 function ChatScreen() {
   const { token } = useAuth();
+  const searchParams = useSearchParams();
   const authHeaders = useMemo((): Record<string, string> => {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, [token]);
@@ -78,6 +80,11 @@ function ChatScreen() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastIdRef = useRef(0);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const prefillDoneRef = useRef(false);
+
+  const directIntent = (searchParams.get("intent") ?? "").toLowerCase();
+  const directProductId = searchParams.get("product_id") ?? "";
+  const directProductName = searchParams.get("product_name") ?? "";
 
   const currentRoom = useMemo(
     () => rooms.find((room) => room.id === currentRoomId) ?? null,
@@ -111,6 +118,27 @@ function ChatScreen() {
 
     fetchRooms();
   }, [authHeaders, currentRoomId, isAuthenticated]);
+
+  useEffect(() => {
+    if (prefillDoneRef.current) return;
+    if (!isAuthenticated) return;
+    if (directIntent !== "recharge_direct") return;
+    if (!rooms.length) return;
+
+    const targetRoom = rooms.find((room) => room.type === "support") ?? rooms[0];
+    if (targetRoom?.id) {
+      setCurrentRoomId(targetRoom.id);
+    }
+
+    const title = String(directProductName ?? "").trim();
+    const idLabel = String(directProductId ?? "").trim();
+    const prefill = title
+      ? `Bonjour, je veux une Recharge Direct : ${title}${idLabel ? ` (ID: ${idLabel})` : ""}.` 
+      : "Bonjour, je veux une Recharge Direct.";
+
+    setInput(prefill);
+    prefillDoneRef.current = true;
+  }, [directIntent, directProductId, directProductName, isAuthenticated, rooms]);
 
   useEffect(() => {
     if (!currentRoomId || !isAuthenticated) return;

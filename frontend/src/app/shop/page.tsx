@@ -505,8 +505,10 @@ type ProductCardProps = {
 };
 
 function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps) {
+  const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [likePulse, setLikePulse] = useState(false);
+  const isRechargeDirect = (product.displaySection ?? "").toLowerCase() === "recharge_direct";
   const badgeLabel = product.discountPercent
     ? `-${product.discountPercent}%`
     : product.likes > 30
@@ -520,6 +522,15 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
   });
 
   const handleAdd = (event: MouseEvent<HTMLButtonElement>) => {
+    if (isRechargeDirect) {
+      const qs = new URLSearchParams({
+        intent: "recharge_direct",
+        product_id: String(product.id),
+        product_name: product.name,
+      });
+      router.push(`/chat?${qs.toString()}`);
+      return;
+    }
     setAdding(true);
     window.setTimeout(() => setAdding(false), 520);
     onAddToCart(product, event.currentTarget);
@@ -599,7 +610,7 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
               adding ? "opacity-100" : "opacity-0"
             }`}
           />
-          Ajouter au panier
+          {isRechargeDirect ? "Ouvrir le chat" : "Ajouter au panier"}
         </button>
         <button
           onClick={() => onView(product)}
@@ -694,6 +705,7 @@ export default function ShopPage() {
             displaySection: item?.display_section ?? null,
             deliveryEtaDays: Number.isFinite(eta) ? eta : null,
             estimatedDeliveryLabel: item?.estimated_delivery_label ?? null,
+            deliveryEstimateLabel: item?.delivery_estimate_label ?? null,
           } as ShopProduct;
         });
         setProducts(mapped);
@@ -918,6 +930,10 @@ export default function ShopPage() {
   }, [catalog, query, categoryFilter, priceFilter, promoOnly, sortOrder]);
 
   const popularProducts = useMemo(() => filtered.filter((p) => p.displaySection === "popular").slice(0, 4), [filtered]);
+  const rechargeDirectProducts = useMemo(
+    () => filtered.filter((p) => p.displaySection === "recharge_direct").slice(0, 6),
+    [filtered]
+  );
   const emoteSkinProducts = useMemo(
     () => filtered.filter((p) => p.displaySection === "emote_skin").slice(0, 6),
     [filtered]
@@ -991,6 +1007,16 @@ export default function ShopPage() {
             </div>
 
             <div className="space-y-12">
+              {rechargeDirectProducts.length > 0 && (
+                <ProductGrid
+                  title="Recharge Direct"
+                  subtitle="Cliquez pour ouvrir le chat et finaliser avec un agent."
+                  products={rechargeDirectProducts}
+                  onAddToCart={handleAddToCart}
+                  onView={handleViewProduct}
+                  onLike={handleToggleLike}
+                />
+              )}
               <ProductGrid
                 title="Produits populaires"
                 subtitle="Les comptes et recharges les plus likés par la communauté."

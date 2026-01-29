@@ -19,8 +19,10 @@ type Product = {
   discount_price?: number | null;
   old_price?: number | null;
   type?: string;
+  display_section?: string | null;
   stockType?: "IN_STOCK" | "PREORDER";
   deliveryEtaDays?: number | null;
+  delivery_estimate_label?: string | null;
   estimated_delivery_label?: string | null;
   purchasesCount?: number;
   cartAddsCount?: number;
@@ -89,8 +91,23 @@ export default function ProductPage() {
   const ratingValue = product?.ratingAvg ?? 0;
   const ratingCount = product?.ratingCount ?? 0;
 
+  const isRechargeDirect = product?.display_section === "recharge_direct";
+
+  const openRechargeDirectChat = () => {
+    if (!product) return;
+    const productId = product.id;
+    const productName = encodeURIComponent(product.name ?? "");
+    router.push(`/chat?intent=recharge_direct&product_id=${productId}&product_name=${productName}`);
+  };
+
   const handleAddToCart = (event: MouseEvent<HTMLButtonElement>) => {
     if (typeof window === "undefined" || !product) return;
+
+    if (isRechargeDirect) {
+      openRechargeDirectChat();
+      return;
+    }
+
     const stored = localStorage.getItem("bbshop_cart");
     let cart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string; deliveryLabel?: string }> = [];
     if (stored) {
@@ -106,8 +123,8 @@ export default function ProductPage() {
     } else {
       const delivery = getDeliveryDisplay({
         type: product.type ?? null,
-        display_section: null,
-        delivery_estimate_label: null,
+        display_section: product.display_section ?? null,
+        delivery_estimate_label: product.delivery_estimate_label ?? null,
       });
       cart.push({
         id: product.id,
@@ -130,6 +147,10 @@ export default function ProductPage() {
   };
 
   const proceedToCheckout = () => {
+    if (isRechargeDirect) {
+      openRechargeDirectChat();
+      return;
+    }
     if (!user) {
       router.push(`/auth/login?next=/produits/${id}`);
       return;
@@ -313,14 +334,25 @@ export default function ProductPage() {
                 </div>
               </div>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <button
-                  onClick={handleAddToCart}
-                  className="flex items-center justify-center gap-2 rounded-2xl border border-cyan-300/40 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/20"
+                {!isRechargeDirect && (
+                  <button
+                    onClick={handleAddToCart}
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-cyan-300/40 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/20"
+                  >
+                    <ShoppingCart className="h-4 w-4" /> Ajouter au panier
+                  </button>
+                )}
+                <GlowButton
+                  onClick={() => {
+                    if (isRechargeDirect) {
+                      openRechargeDirectChat();
+                      return;
+                    }
+                    setShowCheckoutModal(true);
+                  }}
+                  className="justify-center"
                 >
-                  <ShoppingCart className="h-4 w-4" /> Ajouter au panier
-                </button>
-                <GlowButton onClick={() => setShowCheckoutModal(true)} className="justify-center">
-                  Acheter maintenant
+                  {isRechargeDirect ? "Ouvrir le chat" : "Acheter maintenant"}
                 </GlowButton>
               </div>
               <p className="mt-3 text-[11px] text-white/50">Paiement sécurisé - support 24/7</p>
@@ -351,7 +383,7 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {showCheckoutModal && product && (
+      {showCheckoutModal && product && !isRechargeDirect && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-[#070918]/95 p-6 text-white shadow-[0_40px_120px_rgba(0,0,0,0.65)]">
             <div className="flex items-center gap-3">
