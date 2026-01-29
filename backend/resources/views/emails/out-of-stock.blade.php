@@ -1,5 +1,12 @@
-<h1>Commande payée – en attente de réapprovisionnement</h1>
-<p>Bonjour {{ $order->user?->name ?? 'Client' }},</p>
-<p>Votre commande {{ $order->reference ?? $order->id }} a bien été payée, mais les codes Free Fire sont en rupture de stock.</p>
-<p>Nous revenons vers vous dès le réapprovisionnement. Merci pour votre patience.</p>
-<p>Support WhatsApp : +225 0700000000</p>
+@component('emails.layout', ['title' => 'Commande en attente', 'logo' => ($logo ?? null)])
+	<h2 style="margin:0 0 10px 0; color:#ffd166;">Commande payée – En attente ⏳</h2>
+
+	<p>Bonjour {{ $order->user?->name ?? 'Client' }},</p>
+	<p>Votre commande <strong>{{ $order->reference ?? $order->id }}</strong> a bien été payée, mais certains codes sont actuellement en rupture de stock.</p>
+
+	<div class="highlight">
+			<p style="margin:0;">Nous relançons le réapprovisionnement et nous vous livrons dès que possible.</p>
+	</div>
+
+	<p>Merci pour votre patience.</p>
+@endcomponent

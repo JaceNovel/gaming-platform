@@ -6,6 +6,7 @@ use App\Models\AdminLog;
 use App\Models\User;
 use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
+use App\Services\WebPushService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -28,7 +29,7 @@ class WalletService
 
     public function credit(User $user, string $reference, float $amount, array $meta = []): WalletTransaction
     {
-        return DB::transaction(function () use ($user, $reference, $amount, $meta) {
+        $tx = DB::transaction(function () use ($user, $reference, $amount, $meta) {
             $adminId = array_key_exists('admin_id', $meta) ? $meta['admin_id'] : null;
 
             $wallet = WalletAccount::where('user_id', $user->id)->lockForUpdate()->first();
@@ -71,6 +72,34 @@ class WalletService
 
             return $tx;
         });
+
+        // Best-effort web push (never block credit).
+        try {
+            $reason = (string) ($meta['reason'] ?? '');
+            $type = (string) ($meta['type'] ?? '');
+            $shouldNotify = $reason === 'topup' || in_array($type, ['referral_bonus', 'vip_referral_bonus'], true);
+            if ($shouldNotify) {
+                /** @var WebPushService $webPush */
+                $webPush = app(WebPushService::class);
+                $label = $reason === 'topup'
+                    ? 'Wallet rechargé'
+                    : 'Commission parrainage';
+
+                $webPush->sendToUser($user, [
+                    'title' => 'BADBOYSHOP',
+                    'body' => $label . ' : +' . number_format($amount, 0, ',', ' ') . ' FCFA',
+                    'url' => '/wallet',
+                ]);
+            }
+        } catch (Throwable $e) {
+            Log::warning('WebPush notification skipped', [
+                'user_id' => $user->id,
+                'reference' => $reference,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $tx;
     }
 
     public function debitHold(User $user, string $reference, float $amount, array $meta = []): WalletTransaction

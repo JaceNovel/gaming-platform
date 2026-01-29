@@ -24,12 +24,11 @@ class AuthController extends Controller
             'referralCode' => 'nullable|string|max:32',
         ]);
 
-        $referralCode = trim((string) $request->input('referralCode', ''));
+        $referralCode = strtoupper(trim((string) $request->input('referralCode', '')));
         $referrer = null;
         if ($referralCode !== '') {
             $referrer = User::where('referral_code', $referralCode)->first();
-            $isVip = $referrer && (bool) $referrer->is_premium && in_array((string) $referrer->premium_level, ['bronze', 'platine'], true);
-            if (!$isVip) {
+            if (!$referrer) {
                 return response()->json([
                     'message' => 'Code parrain invalide.',
                     'errors' => ['referralCode' => ['Code parrain invalide.']],
@@ -49,11 +48,29 @@ class AuthController extends Controller
             'is_premium' => false,
         ]);
 
+        // Ensure every user can share a code (growth / viral loops).
+        if (empty($user->referral_code)) {
+            $tries = 0;
+            $code = strtoupper(\Illuminate\Support\Str::random(8));
+            while (User::where('referral_code', $code)->exists() && $tries < 10) {
+                $code = strtoupper(\Illuminate\Support\Str::random(8));
+                $tries++;
+            }
+            if (!User::where('referral_code', $code)->exists()) {
+                $user->update(['referral_code' => $code]);
+            }
+        }
+
         if ($referrer && $referrer->id !== $user->id) {
-            Referral::firstOrCreate(
-                ['referrer_id' => $referrer->id, 'referred_id' => $user->id],
-                ['commission_earned' => 0]
-            );
+            // One referred user can only be attributed once.
+            $alreadyAttributed = Referral::where('referred_id', $user->id)->exists();
+            if (!$alreadyAttributed) {
+                Referral::create([
+                    'referrer_id' => $referrer->id,
+                    'referred_id' => $user->id,
+                    'commission_earned' => 0,
+                ]);
+            }
         }
 
         $user->refresh();

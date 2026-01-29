@@ -1,27 +1,20 @@
-@extends('emails.layout', ['title' => 'Remboursement'])
+@component('emails.layout', ['title' => 'Remboursement', 'logo' => ($logo ?? null)])
+    <h2 style="margin:0 0 10px 0; color:#00ff99;">Remboursement effectué ✅</h2>
 
-@section('slot')
-<h2 style="color:#00ff00;">Remboursement effectué</h2>
+    <p>Bonjour {{ $order->user?->name ?? 'Client' }},</p>
 
-<p>Bonjour {{ $order->user?->name ?? 'Client' }},</p>
+    <p>
+        Un article de votre commande <strong>{{ $order->reference ?? $order->id }}</strong> était indisponible.
+        Le montant a été remboursé sur votre wallet.
+    </p>
 
-<p>
-Nous sommes désolés : un article de votre commande
-<strong>{{ $order->reference ?? $order->id }}</strong>
-était indisponible au moment de la livraison.
-</p>
+    <div class="highlight">
+            <p style="margin:6px 0;"><strong>Montant remboursé :</strong> {{ number_format((float) ($refund->amount ?? 0), 0, ',', ' ') }} FCFA</p>
+            <p style="margin:6px 0;"><strong>Statut :</strong> crédité sur votre wallet</p>
+            @if(!empty($refund->reason))
+                    <p style="margin:6px 0;"><strong>Raison :</strong> {{ $refund->reason }}</p>
+            @endif
+    </div>
 
-<div class="highlight">
-    <p><strong>Montant remboursé :</strong> {{ number_format((float) $refund->amount, 0, ',', ' ') }} FCFA</p>
-    <p><strong>Statut :</strong> crédité sur votre wallet</p>
-    @if(!empty($refund->reason))
-        <p><strong>Raison :</strong> {{ $refund->reason }}</p>
-    @endif
-</div>
-
-<p>
-Le montant a été automatiquement ajouté à votre wallet BADBOYSHOP. Vous pouvez l'utiliser pour un prochain achat.
-</p>
-
-<p>Merci pour votre compréhension.</p>
-@endsection
+    <p>Merci pour votre compréhension.</p>
+@endcomponent

@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\FedaPayWebhookController;
 use App\Http\Controllers\Api\PremiumController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\PushController;
+use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\GuideController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\SupportTicketController;
@@ -123,6 +125,9 @@ Route::post('/wallet/topup/webhook', [WalletController::class, 'webhookTopup'])-
 
 Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFreeFire']);
 
+// Web Push (public key)
+Route::get('/push/vapid-public-key', [PushController::class, 'vapidPublicKey']);
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -133,6 +138,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Orders
     Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'store']);
     Route::get('/orders/{order}/redeem-codes', [OrderController::class, 'redeemCodes']);
+    Route::post('/orders/{order}/redeem-codes/resend', [OrderController::class, 'resendRedeemCodes']);
 
     // Cart
     Route::get('/cart', [CartController::class, 'index']);
@@ -168,6 +174,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/wallet', [WalletController::class, 'show']);
     Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
     Route::post('/wallet/topup/init', [WalletController::class, 'initTopup']);
+
+    // Referrals
+    Route::get('/referrals/me', [ReferralController::class, 'me']);
+    Route::post('/referrals/generate', [ReferralController::class, 'generate']);
+
+    // Web Push
+    Route::post('/push/subscribe', [PushController::class, 'subscribe']);
+    Route::post('/push/unsubscribe', [PushController::class, 'unsubscribe']);
+    Route::post('/push/test', [PushController::class, 'test']);
 
     // Profile
     Route::get('/me/profile', [UserProfileController::class, 'show']);

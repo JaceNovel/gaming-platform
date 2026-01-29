@@ -73,7 +73,7 @@
 <body>
     <div class="container">
         <div class="header">
-            @if($logo)
+            @if(!empty($logo))
                 <img src="{{ $logo }}" alt="BADBOYSHOP Logo" class="logo">
             @else
                 <h1 style="color: #ffffff; margin: 0;">BADBOYSHOP</h1>

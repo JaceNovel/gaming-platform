@@ -13,6 +13,7 @@ use App\Models\Coupon;
 use App\Services\ShippingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
@@ -84,6 +85,58 @@ class OrderController extends Controller
             'guide_url' => url('/api/guides/shop2game-freefire'),
             'has_redeem_items' => $hasRedeemItems,
         ]);
+    }
+
+    public function resendRedeemCodes(Request $request, Order $order)
+    {
+        if ($order->user_id !== $request->user()->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $order->loadMissing(['user', 'orderItems']);
+
+        if (!$order->requiresRedeemFulfillment()) {
+            return response()->json(['message' => 'Order does not contain redeem codes'], 422);
+        }
+
+        if (!in_array($order->status, ['paid', 'fulfilled'], true)) {
+            return response()->json(['message' => 'Codes not available yet'], 422);
+        }
+
+        $deliveries = RedeemCodeDelivery::with(['redeemCode.denomination'])
+            ->where('order_id', $order->id)
+            ->orderBy('id')
+            ->get();
+
+        $redeemCodes = $deliveries
+            ->map(fn ($delivery) => $delivery->redeemCode)
+            ->filter()
+            ->values();
+
+        if ($redeemCodes->isEmpty()) {
+            return response()->json(['message' => 'No codes assigned'], 404);
+        }
+
+        $email = trim((string) ($order->user?->email ?? ''));
+        if ($email === '') {
+            return response()->json(['message' => 'Email missing'], 422);
+        }
+
+        // Send synchronously to avoid relying on queue workers.
+        Mail::to($email)->send(new \App\Mail\RedeemCodeDelivery($order->loadMissing('user'), $redeemCodes->all()));
+
+        RedeemCode::whereIn('id', $redeemCodes->pluck('id')->all())->update(['last_resend_at' => now()]);
+
+        \App\Models\EmailLog::create([
+            'user_id' => $order->user_id,
+            'to' => $email,
+            'type' => 'redeem_code_resend',
+            'subject' => 'Votre recharge Free Fire est prête',
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Codes envoyés par email.']);
     }
 
     public function store(Request $request)

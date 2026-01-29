@@ -1,27 +1,17 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Confirmation de recharge BADBOYSHOP</title>
-</head>
-<body>
-    <h1>Votre recharge a été effectuée avec succès !</h1>
+@component('emails.layout', ['title' => 'Confirmation de recharge', 'logo' => ($logo ?? null)])
+  <h2 style="margin:0 0 10px 0; color:#00ff99;">Recharge confirmée ✅</h2>
 
-    <p>Bonjour {{ $order->user->name ?? 'client' }},</p>
+  <p>Bonjour {{ $order->user->name ?? 'client' }},</p>
+  <p>Votre paiement est confirmé et votre compte a été rechargé.</p>
 
-    <p>Votre paiement a été confirmé et votre compte a été rechargé :</p>
+  <div class="highlight">
+      <h3 style="margin:0 0 10px 0;">Détails</h3>
+      <p style="margin:6px 0;"><strong>Montant :</strong> {{ number_format($order->total_price ?? $order->total_amount ?? 0, 0, ',', ' ') }} FCFA</p>
+      <p style="margin:6px 0;"><strong>Compte :</strong> {{ $topupDetails['account_number'] ?? $orderItem->game_user_id ?? 'N/A' }}</p>
+      <p style="margin:6px 0;"><strong>Opérateur :</strong> {{ $topupDetails['operator'] ?? 'Mobile Money' }}</p>
+      <p style="margin:6px 0;"><strong>Date :</strong> {{ optional($order->created_at)->format('d/m/Y H:i') }}</p>
+  </div>
 
-    <div style="background: #f0f0f0; padding: 20px; margin: 20px 0;">
-        <h3>Détails de la recharge</h3>
-        <p><strong>Montant rechargé :</strong> {{ number_format($order->total_price ?? $order->total_amount ?? 0, 0, ',', ' ') }} FCFA</p>
-        <p><strong>Numéro de compte :</strong> {{ $topupDetails['account_number'] ?? $orderItem->game_user_id ?? 'N/A' }}</p>
-        <p><strong>Opérateur :</strong> {{ $topupDetails['operator'] ?? 'Mobile Money' }}</p>
-        <p><strong>Date :</strong> {{ optional($order->created_at)->format('d/m/Y H:i') }}</p>
-    </div>
-
-    <p>La recharge devrait être visible sur votre compte dans les prochaines minutes.</p>
-
-    <p>Si vous n'avez pas reçu la recharge dans 1 heure, contactez-nous sur WhatsApp : +228 93 97 06 11</p>
-
-    <p>Cordialement,<br>L'équipe BADBOYSHOP</p>
-</body>
-</html>
+  <p>La recharge devrait apparaître dans les prochaines minutes.</p>
+  <p style="color:#cccccc; font-size:13px;">Si ce n’est pas le cas après 1h, contactez-nous (WhatsApp en bas de page).</p>
+@endcomponent

@@ -1,27 +1,16 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Confirmation de commande BADBOYSHOP</title>
-</head>
-<body>
-    <h1>Votre commande a été confirmée !</h1>
+@component('emails.layout', ['title' => 'Commande confirmée', 'logo' => ($logo ?? null)])
+  <h2 style="margin:0 0 10px 0; color:#00ff99;">Commande confirmée ✅</h2>
 
-    <p>Bonjour {{ $order->user->name ?? 'client' }},</p>
+  <p>Bonjour {{ $order->user->name ?? 'client' }},</p>
+  <p>Votre paiement a été confirmé. Nous préparons votre commande.</p>
 
-    <p>Votre paiement a été confirmé et votre commande est en cours de traitement :</p>
+  <div class="highlight">
+      <h3 style="margin:0 0 10px 0;">Détails</h3>
+      <p style="margin:6px 0;"><strong>Article :</strong> {{ $orderItem->product->name ?? $article->name ?? 'Article' }}</p>
+      <p style="margin:6px 0;"><strong>Montant :</strong> {{ number_format($order->total_price ?? $order->total_amount ?? 0, 0, ',', ' ') }} FCFA</p>
+      <p style="margin:6px 0;"><strong>Référence :</strong> {{ $order->reference }}</p>
+      <p style="margin:6px 0;"><strong>Date :</strong> {{ optional($order->created_at)->format('d/m/Y H:i') }}</p>
+  </div>
 
-    <div style="background: #f0f0f0; padding: 20px; margin: 20px 0;">
-        <h3>Détails de la commande</h3>
-        <p><strong>Article :</strong> {{ $orderItem->product->name ?? $article->name ?? 'Article' }}</p>
-        <p><strong>Montant payé :</strong> {{ number_format($order->total_price ?? $order->total_amount ?? 0, 0, ',', ' ') }} FCFA</p>
-        <p><strong>Référence commande :</strong> {{ $order->reference }}</p>
-        <p><strong>Date :</strong> {{ optional($order->created_at)->format('d/m/Y H:i') }}</p>
-    </div>
-
-    <p>Votre article sera livré selon les modalités convenues. Vous recevrez un email de suivi avec les détails de livraison.</p>
-
-    <p>Pour toute question, contactez-nous sur WhatsApp : +228 93 97 06 11</p>
-
-    <p>Cordialement,<br>L'équipe BADBOYSHOP</p>
-</body>
-</html>
+  <p>Vous recevrez un email dès que la livraison sera prête.</p>
+@endcomponent

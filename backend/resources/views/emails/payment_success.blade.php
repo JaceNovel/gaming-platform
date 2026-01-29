@@ -1,23 +1,13 @@
-@extends('emails.layout', ['title' => 'Paiement réussi'])
+@component('emails.layout', ['title' => 'Paiement réussi', 'logo' => ($logo ?? null)])
+  <h2 style="margin:0 0 10px 0; color:#00ff99;">Paiement confirmé ✅</h2>
 
-@section('slot')
-<h2 style="color: #00ff00;">Paiement confirmé !</h2>
+  <p>Bonjour {{ $order->user->name ?? 'Client' }},</p>
+  <p>Votre paiement de <strong>{{ number_format($order->total_amount ?? 0, 0, ',', ' ') }} FCFA</strong> a été traité avec succès.</p>
 
-<p>Bonjour {{ $order->user->name }},</p>
+  <div class="highlight">
+      <h3 style="margin:0 0 10px 0;">Détails commande #{{ $order->id }}</h3>
+      <p style="margin:6px 0;"><strong>Total :</strong> {{ number_format($order->total_amount ?? 0, 0, ',', ' ') }} FCFA</p>
+  </div>
 
-<p>Votre paiement de <strong>{{ number_format($order->total_amount, 0, ',', ' ') }} FCFA</strong> a été traité avec succès.</p>
-
-<div class="highlight">
-    <h3>Détails de la commande #{{ $order->id }}</h3>
-    <ul>
-        @foreach($order->items as $item)
-        <li>{{ $item->product->name }} - {{ $item->quantity }} x {{ number_format($item->price, 0, ',', ' ') }} FCFA</li>
-        @endforeach
-    </ul>
-    <p><strong>Total : {{ number_format($order->total_amount, 0, ',', ' ') }} FCFA</strong></p>
-</div>
-
-<p>Votre commande sera livrée sous peu. Vous recevrez un email de confirmation de livraison.</p>
-
-<p>Merci pour votre confiance !</p>
-@endsection
+  <p>Vous recevrez un email dès que la livraison sera prête.</p>
+@endcomponent

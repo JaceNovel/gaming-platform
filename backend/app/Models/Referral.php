@@ -11,10 +11,16 @@ class Referral extends Model
         'referrer_id',
         'referred_id',
         'commission_earned',
+        'commission_rate',
+        'commission_base_amount',
+        'rewarded_at',
     ];
 
     protected $casts = [
         'commission_earned' => 'decimal:2',
+        'commission_rate' => 'decimal:4',
+        'commission_base_amount' => 'decimal:2',
+        'rewarded_at' => 'datetime',
     ];
 
     public function referrer(): BelongsTo

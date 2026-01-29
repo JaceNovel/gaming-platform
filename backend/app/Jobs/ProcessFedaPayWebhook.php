@@ -173,26 +173,31 @@ class ProcessFedaPayWebhook implements ShouldQueue
                             'reason' => 'topup',
                         ]);
 
-                        // VIP referral: sponsor earns 3% of the referred user's first deposit.
+                        // Referral commission: sponsor earns a % of the referred user's first deposit.
                         $referral = Referral::where('referred_id', $order->user_id)->lockForUpdate()->first();
                         $alreadyEarned = $referral ? (float) $referral->commission_earned : 0.0;
                         if ($referral && $alreadyEarned <= 0.0) {
                             $referrer = User::where('id', $referral->referrer_id)->first();
                             $isVip = $referrer && (bool) $referrer->is_premium && in_array((string) $referrer->premium_level, ['bronze', 'platine'], true);
-                            $commission = round(((float) $payment->amount) * 0.03, 2);
+                            $rate = $isVip ? 0.03 : 0.01;
+                            $baseAmount = (float) $payment->amount;
+                            $commission = round($baseAmount * $rate, 2);
 
-                            if ($isVip && $commission > 0) {
+                            if ($referrer && $commission > 0) {
                                 $walletService->credit($referrer, 'REFERRAL-' . $order->id, $commission, [
-                                    'type' => 'vip_referral_bonus',
+                                    'type' => $isVip ? 'vip_referral_bonus' : 'referral_bonus',
                                     'referred_user_id' => $order->user_id,
                                     'order_id' => $order->id,
                                     'payment_id' => $payment->id,
-                                    'rate' => 0.03,
-                                    'base_amount' => (float) $payment->amount,
+                                    'rate' => $rate,
+                                    'base_amount' => $baseAmount,
                                 ]);
 
                                 $referral->update([
                                     'commission_earned' => $commission,
+                                    'commission_rate' => $rate,
+                                    'commission_base_amount' => $baseAmount,
+                                    'rewarded_at' => now(),
                                 ]);
                             }
                         }
