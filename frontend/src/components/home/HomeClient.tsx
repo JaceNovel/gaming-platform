@@ -262,12 +262,6 @@ export default function HomeClient() {
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
   const { user, loading: authLoading } = useAuth();
-  const initialShowMobileStats = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const mq = window.matchMedia?.("(max-width: 639px)");
-    const isMobile = Boolean(mq?.matches);
-    return !isMobile;
-  }, []);
   const stats = useMemo<Stat[]>(
     () => [
       { to: 10, suffix: "+", label: "Comptes\nvendus", icon: Gamepad2 },
@@ -280,24 +274,6 @@ export default function HomeClient() {
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [desktopStart, setDesktopStart] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
-  const [showMobileStats, setShowMobileStats] = useState(initialShowMobileStats);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia?.("(max-width: 639px)");
-    const isMobile = Boolean(mq?.matches);
-    if (!isMobile) return;
-
-    const onScroll = () => {
-      if (window.scrollY > 48) {
-        setShowMobileStats(true);
-        window.removeEventListener("scroll", onScroll);
-      }
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -579,10 +555,6 @@ export default function HomeClient() {
                   </div>
                 </div>
               ) : null}
-            </div>
-
-            <div className={`sm:hidden transition-opacity duration-500 ${showMobileStats ? "opacity-100" : "opacity-0"}`}>
-              {showMobileStats ? <StatBar stats={stats} /> : null}
             </div>
 
             <div className="hidden sm:block">

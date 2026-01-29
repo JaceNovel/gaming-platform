@@ -311,7 +311,7 @@ function CheckoutStatusScreen() {
                 ) : postPurchaseKind === "subscription" ? (
                   <>
                     <h3 className="text-xl font-semibold">Abonnement confirmé</h3>
-                    <p className="mt-2 text-sm text-white/70">Veuillez vérifier votre compte dans ~2h.</p>
+                    <p className="mt-2 text-sm text-white/70">Veuillez vérifier votre compte dans 2h.</p>
                   </>
                 ) : (
                   <>

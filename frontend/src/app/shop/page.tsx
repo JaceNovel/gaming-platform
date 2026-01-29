@@ -104,22 +104,43 @@ const getDeliveryBadge = (product: Pick<ShopProduct, "type" | "deliveryEtaDays" 
   }
 
   if (type.includes("subscription") || type.includes("abonnement") || type.includes("premium")) {
-    return "~2h";
+    return "2h";
   }
 
   if (type.includes("account") || type.includes("compte")) {
-    return "~24h";
+    return "24h";
   }
 
   if (label) {
     return label;
   }
 
-  if (typeof product.deliveryEtaDays === "number" && Number.isFinite(product.deliveryEtaDays) && product.deliveryEtaDays > 0) {
-    return `${product.deliveryEtaDays} j`;
+  if (
+    typeof product.deliveryEtaDays === "number" &&
+    Number.isFinite(product.deliveryEtaDays) &&
+    product.deliveryEtaDays > 0
+  ) {
+    return `${product.deliveryEtaDays} jours`;
   }
 
   return "Délais variable";
+};
+
+const abbreviateDeliveryLabelForMobile = (value: string) => {
+  const input = String(value ?? "").trim();
+  if (!input) return input;
+
+  // Explicit mapping
+  if (input.toLowerCase() === "instantané" || input.toLowerCase() === "instantane") return "Int";
+
+  // Normalize days + hours
+  const normalized = input
+    .replace(/(\d+)\s*j(?![a-z])/gi, "$1 J")
+    .replace(/(\d+)\s*jour(s)?/gi, "$1 J")
+    .replace(/\bjour(s)?\b/gi, "J")
+    .replace(/(\d+)\s*h\b/gi, "$1H");
+
+  return normalized;
 };
 
 function MobileFiltersSheet({
@@ -299,6 +320,7 @@ function StripCard({
 }) {
   const cardImage = product.bannerUrl ?? product.imageUrl ?? FALLBACK_PRODUCT_IMAGE;
   const deliveryBadge = getDeliveryBadge(product);
+  const deliveryBadgeMobile = abbreviateDeliveryLabelForMobile(deliveryBadge);
   return (
     <div className="relative flex min-w-[180px] flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between text-xs font-medium text-white/70">
@@ -307,7 +329,8 @@ function StripCard({
           {label}
         </span>
         <span className="rounded-full border border-white/15 bg-black/40 px-2 py-1 text-[10px] font-semibold text-white/80">
-          {deliveryBadge}
+          <span className="sm:hidden">{deliveryBadgeMobile}</span>
+          <span className="hidden sm:inline">{deliveryBadge}</span>
         </span>
         {product.discountPercent && (
           <span className="rounded-full bg-amber-400/20 px-2 py-1 text-[10px] text-amber-200">
@@ -524,6 +547,7 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
       : product.category;
 
   const deliveryBadge = getDeliveryBadge(product);
+  const deliveryBadgeMobile = abbreviateDeliveryLabelForMobile(deliveryBadge);
 
   const handleAdd = (event: MouseEvent<HTMLButtonElement>) => {
     setAdding(true);
@@ -551,7 +575,8 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
           {badgeLabel}
         </span>
         <span className="absolute right-4 top-4 rounded-full border border-white/20 bg-black/40 px-3 py-1 text-xs font-semibold text-white/90">
-          {deliveryBadge}
+          <span className="sm:hidden">{deliveryBadgeMobile}</span>
+          <span className="hidden sm:inline">{deliveryBadge}</span>
         </span>
       </div>
       <div className="mt-4 space-y-2">

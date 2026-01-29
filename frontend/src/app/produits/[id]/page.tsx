@@ -112,12 +112,25 @@ const getDeliveryHint = (product: ApiProduct | null) => {
   const eta = etaRaw === null || etaRaw === undefined ? null : Number(etaRaw);
 
   if (type.includes("recharge") || type.includes("topup")) return "Instantané";
-  if (type.includes("subscription") || type.includes("abonnement") || type.includes("premium")) return "~2h";
-  if (type.includes("account") || type.includes("compte")) return "~24h";
+  if (type.includes("subscription") || type.includes("abonnement") || type.includes("premium")) return "2h";
+  if (type.includes("account") || type.includes("compte")) return "24h";
 
   if (label) return label;
   if (Number.isFinite(eta) && (eta as number) > 0) return `${eta} jour${eta === 1 ? "" : "s"}`;
   return "Délais variable";
+};
+
+const abbreviateDeliveryLabelForMobile = (value: string) => {
+  const input = String(value ?? "").trim();
+  if (!input) return input;
+
+  if (input.toLowerCase() === "instantané" || input.toLowerCase() === "instantane") return "Int";
+
+  return input
+    .replace(/(\d+)\s*j(?![a-z])/gi, "$1 J")
+    .replace(/(\d+)\s*jour(s)?/gi, "$1 J")
+    .replace(/\bjour(s)?\b/gi, "J")
+    .replace(/(\d+)\s*h\b/gi, "$1H");
 };
 
 function ImageCarousel({
@@ -315,6 +328,7 @@ export default function ProductDetailsPage() {
   }, [product]);
   const tagsLabel = tags.length ? tags.join(", ") : "Aucun tag";
   const deliveryHint = useMemo(() => getDeliveryHint(product), [product]);
+  const deliveryHintMobile = useMemo(() => abbreviateDeliveryLabelForMobile(deliveryHint), [deliveryHint]);
 
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
@@ -369,9 +383,17 @@ export default function ProductDetailsPage() {
     router.push(`/checkout?product=${checkoutProductId}`);
   };
 
-  const infoRows = [
+  const infoRows: Array<{ label: string; value: React.ReactNode }> = [
     { label: "Catégorie", value: categoryLabel },
-    { label: "Livraison estimée", value: deliveryHint },
+    {
+      label: "Livraison estimée",
+      value: (
+        <>
+          <span className="sm:hidden">{deliveryHintMobile}</span>
+          <span className="hidden sm:inline">{deliveryHint}</span>
+        </>
+      ),
+    },
     { label: "Marque", value: brandLabel ?? "N/A" },
     { label: "Stock", value: `${stockCount} unité${stockCount > 1 ? "s" : ""}` },
     { label: "Tags", value: tagsLabel },
@@ -538,7 +560,9 @@ export default function ProductDetailsPage() {
 
                   <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
                     <p>
-                      <span className="font-semibold text-white">Livraison estimée :</span> {deliveryHint}.
+                      <span className="font-semibold text-white">Livraison estimée :</span>{" "}
+                      <span className="sm:hidden">{deliveryHintMobile}</span>
+                      <span className="hidden sm:inline">{deliveryHint}</span>.
                     </p>
                   </div>
                 </div>

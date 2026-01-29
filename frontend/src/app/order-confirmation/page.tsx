@@ -338,7 +338,7 @@ function OrderConfirmationScreen() {
                   </p>
                 ) : postPurchaseKind === "subscription" ? (
                   <p className="mt-2 text-sm text-white/70">
-                    Veuillez vérifier votre compte dans ~2h. Vous serez notifié dès que l’activation est terminée.
+                    Veuillez vérifier votre compte dans 2h. Vous serez notifié dès que l’activation est terminée.
                   </p>
                 ) : (
                   <p className="mt-2 text-sm text-white/70">
