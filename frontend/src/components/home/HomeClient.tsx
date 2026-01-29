@@ -1,14 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, Zap, Bot, Heart, ShoppingCart } from "lucide-react";
+import { ArrowRight, Bot, Crown, Gamepad2, Heart, KeyRound, ShieldCheck, ShoppingCart, Wallet, Zap } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "../../lib/imageProxy";
+import { useAuth } from "@/components/auth/AuthProvider";
 
-type Stat = { value: string; label: string };
+type Stat = {
+  to: number;
+  suffix?: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
 type ProductCard = {
   id: number;
   title: string;
@@ -56,26 +62,19 @@ function GlowPill({
 function GlassButton({
   children,
   href,
-  tone = "cyan",
   className = "",
 }: {
   children: React.ReactNode;
   href: string;
-  tone?: "cyan" | "gold";
   className?: string;
 }) {
-  const toneCls =
-    tone === "gold"
-      ? "from-amber-400/70 via-yellow-300/30 to-fuchsia-400/20"
-      : "from-cyan-400/70 via-blue-400/30 to-fuchsia-400/20";
-
   return (
     <Link
       href={href}
       className={`group relative inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold text-white transition active:scale-[0.98] ${className}`}
     >
       <span
-        className={`absolute inset-0 -z-10 rounded-xl bg-gradient-to-r ${toneCls} opacity-80 blur-[14px]`}
+        className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-cyan-400/70 via-blue-400/30 to-fuchsia-400/20 opacity-80 blur-[14px]"
       />
       <span className="absolute inset-0 -z-10 rounded-xl bg-white/8 ring-1 ring-white/20 backdrop-blur-md" />
       <span className="absolute inset-[1px] -z-10 rounded-[11px] bg-black/35" />
@@ -83,6 +82,84 @@ function GlassButton({
       <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 group-hover:ring-white/25" />
     </Link>
   );
+}
+
+function OutlineButton({
+  children,
+  href,
+  className = "",
+}: {
+  children: React.ReactNode;
+  href: string;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`group relative inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold text-white/90 transition active:scale-[0.98] ${className}`}
+    >
+      <span className="absolute inset-0 -z-10 rounded-xl bg-white/6 ring-1 ring-white/18 backdrop-blur-md" />
+      <span className="absolute inset-[1px] -z-10 rounded-[11px] bg-black/35" />
+      <span className="relative">{children}</span>
+      <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/8 group-hover:ring-white/20" />
+    </Link>
+  );
+}
+
+function StaticNumber({ to, suffix = "" }: { to: number; suffix?: string }) {
+  return (
+    <>
+      {formatNumber(to)}
+      {suffix}
+    </>
+  );
+}
+
+function AnimatedCountUp({ to, suffix = "" }: { to: number; suffix?: string }) {
+  const [value, setValue] = useState(0);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+
+    const durationMs = 900;
+    const start = performance.now();
+    let raf = 0;
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(Math.round(eased * to));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to]);
+
+  return (
+    <>
+      {formatNumber(value)}
+      {suffix}
+    </>
+  );
+}
+
+function CountUp({ to, suffix = "" }: { to: number; suffix?: string }) {
+  const reduced = useMemo(
+    () =>
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    [],
+  );
+
+  if (reduced || to <= 0) {
+    return <StaticNumber to={to} suffix={suffix} />;
+  }
+
+  return <AnimatedCountUp to={to} suffix={suffix} />;
 }
 
 function StatBar({ stats }: { stats: Stat[] }) {
@@ -96,8 +173,11 @@ function StatBar({ stats }: { stats: Stat[] }) {
               key={s.label}
               className="flex min-h-[92px] min-w-[160px] flex-col justify-between rounded-xl bg-black/25 p-3 ring-1 ring-white/10 sm:min-w-0"
             >
-              <div className="text-lg font-extrabold tracking-tight text-white">
-                {s.value}
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-lg font-extrabold tracking-tight text-white">
+                  <CountUp to={s.to} suffix={s.suffix} />
+                </div>
+                <s.icon className="h-5 w-5 shrink-0 text-cyan-200/90" />
               </div>
               <div className="mt-1 whitespace-pre-line text-xs leading-4 text-white/70">
                 {s.label}
@@ -181,26 +261,81 @@ function ProductCardUI({
 export default function HomeClient() {
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
-  const [stats, setStats] = useState<Stat[]>([
-    { value: "10+", label: "Comptes\nvendus" },
-    { value: "5", label: "Recharges\neffectuées" },
-    { value: "3", label: "Membres\npremium" },
-    { value: "200+", label: "Likes\nactifs" },
-  ]);
+  const { user, loading: authLoading } = useAuth();
+  const initialShowMobileStats = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const mq = window.matchMedia?.("(max-width: 639px)");
+    const isMobile = Boolean(mq?.matches);
+    return !isMobile;
+  }, []);
+  const stats = useMemo<Stat[]>(
+    () => [
+      { to: 10, suffix: "+", label: "Comptes\nvendus", icon: Gamepad2 },
+      { to: 5, label: "Recharges\ninstantanées", icon: Zap },
+      { to: 3, label: "Membres\nPremium", icon: Crown },
+      { to: 200, suffix: "+", label: "Utilisateurs\nactifs", icon: Heart },
+    ],
+    [],
+  );
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [desktopStart, setDesktopStart] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+  const [showMobileStats, setShowMobileStats] = useState(initialShowMobileStats);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia?.("(max-width: 639px)");
+    const isMobile = Boolean(mq?.matches);
+    if (!isMobile) return;
+
+    const onScroll = () => {
+      if (window.scrollY > 48) {
+        setShowMobileStats(true);
+        window.removeEventListener("scroll", onScroll);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     let active = true;
+    type ApiProduct = {
+      id: number;
+      name: string;
+      description?: string | null;
+      discount_price?: number | string | null;
+      price?: number | string | null;
+      likes_count?: number | string | null;
+      category?: string | null;
+      type?: string | null;
+      game?: { name?: string | null } | null;
+      banner?: string | null;
+      cover?: string | null;
+      image_url?: string | null;
+      images?: Array<{ url?: string | null }> | null;
+      details?: {
+        banner?: string | null;
+        cover?: string | null;
+        image?: string | null;
+        description?: string | null;
+        subtitle?: string | null;
+      } | null;
+    };
+
     const loadProducts = async () => {
       try {
         const res = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=3`);
         if (!res.ok) return;
         const data = await res.json();
-        const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        const items = Array.isArray(data?.data)
+          ? (data.data as ApiProduct[])
+          : Array.isArray(data)
+            ? (data as ApiProduct[])
+            : [];
         if (!active) return;
-        const mapped = items.map((item: any) => {
+        const mapped = items.map((item) => {
           const priceValue = Number(item?.discount_price ?? item?.price ?? 0);
           const image =
             item?.details?.banner ??
@@ -372,33 +507,82 @@ export default function HomeClient() {
             </div>
 
             <div className="mt-5 text-center">
-              <h1 className="text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+              <h1 className="bb-hero-title text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
                 <span className="neon-text">BADBOY</span>
                 <span className="text-white/70">SHOP</span>
               </h1>
+
+              {!authLoading && user ? (
+                <p className="mx-auto mt-2 max-w-[520px] text-sm font-semibold text-white/85 sm:text-base">
+                  Bon retour <span className="text-cyan-200">{user.name}</span>
+                </p>
+              ) : null}
+
               <p className="mx-auto mt-2 max-w-[420px] text-base font-semibold leading-6 text-white/85 sm:max-w-2xl sm:text-xl">
                 La plateforme gaming d’élite
               </p>
-              <p className="mx-auto mt-2 max-w-[420px] text-xs leading-5 text-white/70 sm:max-w-2xl sm:text-base">
+
+              <p className="mx-auto mt-2 max-w-[560px] text-sm font-semibold text-cyan-200/90 sm:text-base">
+                Le gaming sans attente, sans risque, sans stress.
+              </p>
+
+              <p className="mx-auto mt-2 max-w-[420px] text-xs leading-5 text-white/70 sm:hidden">
+                Recharges, comptes & services premium sécurisés
+              </p>
+              <p className="mx-auto mt-2 hidden max-w-2xl text-base leading-6 text-white/70 sm:block">
                 Recharges, comptes, coaching premium et services digitaux sécurisés
               </p>
 
               <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <GlassButton
                   href="/shop"
-                  tone="cyan"
                   className="w-full max-w-[340px] shadow-[0_0_30px_rgba(110,231,255,0.35)] sm:w-auto sm:max-w-none"
                 >
                   Explorer la boutique
                 </GlassButton>
-                <GlassButton
+                <OutlineButton
                   href="/premium"
-                  tone="gold"
-                  className="w-full max-w-[340px] shadow-[0_0_30px_rgba(244,206,106,0.35)] sm:w-auto sm:max-w-none"
+                  className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
                 >
                   Devenir Premium
-                </GlassButton>
+                </OutlineButton>
               </div>
+
+              {!authLoading && user ? (
+                <div className="mx-auto mt-4 w-full max-w-[420px] sm:max-w-xl">
+                  <div className="flex gap-2 overflow-x-auto pb-1 sm:justify-center">
+                    <Link
+                      href="/account"
+                      className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/7 px-3 py-2 text-xs font-semibold text-white/90 ring-1 ring-white/15"
+                    >
+                      <Wallet className="h-4 w-4 text-cyan-200" />
+                      Recharger le wallet
+                    </Link>
+                    <Link
+                      href="/cart"
+                      className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/7 px-3 py-2 text-xs font-semibold text-white/90 ring-1 ring-white/15"
+                    >
+                      <ArrowRight className="h-4 w-4 text-cyan-200" />
+                      Continuer une commande
+                    </Link>
+                    <Link
+                      href={user.is_premium ? "/account" : "/premium"}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/7 px-3 py-2 text-xs font-semibold text-white/90 ring-1 ring-white/15"
+                    >
+                      {user.is_premium ? (
+                        <Crown className="h-4 w-4 text-amber-200" />
+                      ) : (
+                        <KeyRound className="h-4 w-4 text-cyan-200" />
+                      )}
+                      {user.is_premium ? "Accès Premium" : "Redeem / Premium"}
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className={`sm:hidden transition-opacity duration-500 ${showMobileStats ? "opacity-100" : "opacity-0"}`}>
+              {showMobileStats ? <StatBar stats={stats} /> : null}
             </div>
 
             <div className="hidden sm:block">
