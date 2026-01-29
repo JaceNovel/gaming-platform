@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/components/auth/AuthProvider";
 import RequireAuth from "@/components/auth/RequireAuth";
@@ -493,7 +493,11 @@ function ChatScreen() {
 }
 
 export default function Chat() {
-  return <ChatWidgetRedirect />;
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-zinc-400">Ouverture du chat…</div>}>
+      <ChatWidgetRedirect />
+    </Suspense>
+  );
 }
 
 function ChatWidgetRedirect() {
