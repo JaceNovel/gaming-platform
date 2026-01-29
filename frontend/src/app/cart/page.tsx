@@ -17,6 +17,7 @@ type CartItem = {
   quantity: number;
   type?: string;
   gameId?: string;
+  deliveryLabel?: string;
 };
 
 function CartScreen() {
@@ -222,6 +223,14 @@ function CartScreen() {
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-base font-semibold text-white">{item.name}</p>
+
+                        {item.deliveryLabel ? (
+                          <div className="mt-2 flex justify-start">
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-semibold text-white/80">
+                              {item.deliveryLabel}
+                            </span>
+                          </div>
+                        ) : null}
 
                         {String(item.type ?? "").toLowerCase() === "subscription" && (
                           <div className="mt-3 space-y-2">

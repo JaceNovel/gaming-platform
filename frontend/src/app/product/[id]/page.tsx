@@ -9,6 +9,7 @@ import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useCartFlight } from "@/hooks/useCartFlight";
+import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
 
 type Product = {
   id: number;
@@ -91,7 +92,7 @@ export default function ProductPage() {
   const handleAddToCart = (event: MouseEvent<HTMLButtonElement>) => {
     if (typeof window === "undefined" || !product) return;
     const stored = localStorage.getItem("bbshop_cart");
-    let cart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string }> = [];
+    let cart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string; deliveryLabel?: string }> = [];
     if (stored) {
       try {
         cart = JSON.parse(stored);
@@ -103,6 +104,11 @@ export default function ProductPage() {
     if (existing) {
       existing.quantity = Number(existing.quantity ?? 0) + 1;
     } else {
+      const delivery = getDeliveryDisplay({
+        type: product.type ?? null,
+        display_section: null,
+        delivery_estimate_label: null,
+      });
       cart.push({
         id: product.id,
         name: product.name,
@@ -110,6 +116,7 @@ export default function ProductPage() {
         price: priceValue,
         priceLabel: `${formatNumber(priceValue)} FCFA`,
         type: product.type ?? "",
+        deliveryLabel: delivery?.label ?? undefined,
         quantity: 1,
       });
     }

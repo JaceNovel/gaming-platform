@@ -38,6 +38,7 @@ type ShopProduct = {
   displaySection?: string | null;
   deliveryEtaDays?: number | null;
   estimatedDeliveryLabel?: string | null;
+  deliveryEstimateLabel?: string | null;
 };
 
 type CategoryOption = {
@@ -95,53 +96,7 @@ const slugifyCategory = (value?: string | null) =>
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
-const getDeliveryBadge = (product: Pick<ShopProduct, "type" | "deliveryEtaDays" | "estimatedDeliveryLabel">) => {
-  const type = String(product.type ?? "").toLowerCase();
-  const label = String(product.estimatedDeliveryLabel ?? "").trim();
-
-  if (type.includes("recharge") || type.includes("topup")) {
-    return "Instantané";
-  }
-
-  if (type.includes("subscription") || type.includes("abonnement") || type.includes("premium")) {
-    return "2h";
-  }
-
-  if (type.includes("account") || type.includes("compte")) {
-    return "24h";
-  }
-
-  if (label) {
-    return label;
-  }
-
-  if (
-    typeof product.deliveryEtaDays === "number" &&
-    Number.isFinite(product.deliveryEtaDays) &&
-    product.deliveryEtaDays > 0
-  ) {
-    return `${product.deliveryEtaDays} jours`;
-  }
-
-  return "Délais variable";
-};
-
-const abbreviateDeliveryLabelForMobile = (value: string) => {
-  const input = String(value ?? "").trim();
-  if (!input) return input;
-
-  // Explicit mapping
-  if (input.toLowerCase() === "instantané" || input.toLowerCase() === "instantane") return "Int";
-
-  // Normalize days + hours
-  const normalized = input
-    .replace(/(\d+)\s*j(?![a-z])/gi, "$1 J")
-    .replace(/(\d+)\s*jour(s)?/gi, "$1 J")
-    .replace(/\bjour(s)?\b/gi, "J")
-    .replace(/(\d+)\s*h\b/gi, "$1H");
-
-  return normalized;
-};
+import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
 
 function MobileFiltersSheet({
   open,
@@ -319,18 +274,17 @@ function StripCard({
   icon?: typeof Tag;
 }) {
   const cardImage = product.bannerUrl ?? product.imageUrl ?? FALLBACK_PRODUCT_IMAGE;
-  const deliveryBadge = getDeliveryBadge(product);
-  const deliveryBadgeMobile = abbreviateDeliveryLabelForMobile(deliveryBadge);
+  const delivery = getDeliveryDisplay({
+    type: product.type,
+    displaySection: product.displaySection ?? null,
+    deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
+  });
   return (
     <div className="relative flex min-w-[180px] flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between text-xs font-medium text-white/70">
         <span className="flex items-center gap-1">
           <Icon className="h-3.5 w-3.5 text-amber-300" />
           {label}
-        </span>
-        <span className="rounded-full border border-white/15 bg-black/40 px-2 py-1 text-[10px] font-semibold text-white/80">
-          <span className="sm:hidden">{deliveryBadgeMobile}</span>
-          <span className="hidden sm:inline">{deliveryBadge}</span>
         </span>
         {product.discountPercent && (
           <span className="rounded-full bg-amber-400/20 px-2 py-1 text-[10px] text-amber-200">
@@ -352,6 +306,19 @@ function StripCard({
       {product.oldPrice && (
         <div className="text-[11px] text-white/40 line-through">{formatNumber(product.oldPrice)} FCFA</div>
       )}
+      {delivery ? (
+        <div className="mt-2 flex justify-end">
+          <span
+            className={`rounded-full border px-2 py-1 text-[10px] font-semibold tracking-wide ${
+              delivery.tone === "bolt"
+                ? "border-amber-200/25 bg-amber-400/10 text-amber-200"
+                : "border-cyan-200/20 bg-cyan-400/10 text-cyan-100"
+            }`}
+          >
+            {delivery.label}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -546,8 +513,11 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
       ? "Populaire"
       : product.category;
 
-  const deliveryBadge = getDeliveryBadge(product);
-  const deliveryBadgeMobile = abbreviateDeliveryLabelForMobile(deliveryBadge);
+  const delivery = getDeliveryDisplay({
+    type: product.type,
+    displaySection: product.displaySection ?? null,
+    deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
+  });
 
   const handleAdd = (event: MouseEvent<HTMLButtonElement>) => {
     setAdding(true);
@@ -574,10 +544,6 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
         <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
           {badgeLabel}
         </span>
-        <span className="absolute right-4 top-4 rounded-full border border-white/20 bg-black/40 px-3 py-1 text-xs font-semibold text-white/90">
-          <span className="sm:hidden">{deliveryBadgeMobile}</span>
-          <span className="hidden sm:inline">{deliveryBadge}</span>
-        </span>
       </div>
       <div className="mt-4 space-y-2">
         <p className="text-xs font-medium text-white/60">{product.category}</p>
@@ -603,6 +569,21 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
           {product.likes}
         </button>
       </div>
+
+      {delivery ? (
+        <div className="mt-2 flex justify-end">
+          <span
+            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+              delivery.tone === "bolt"
+                ? "border-amber-200/25 bg-amber-400/10 text-amber-200"
+                : "border-cyan-200/20 bg-cyan-400/10 text-cyan-100"
+            }`}
+          >
+            {delivery.label}
+          </span>
+        </div>
+      ) : null}
+
       <div className="mt-5 flex flex-col gap-2">
         <button
           onClick={handleAdd}
@@ -663,7 +644,7 @@ export default function ShopPage() {
         const data = await res.json();
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
         if (!active) return;
-        const mapped = items.map((item: any) => {
+          const mapped = items.map((item: any) => {
           const priceValue = Number(item?.discount_price ?? item?.price ?? 0);
           const baseOld = Number(item?.old_price ?? item?.price ?? priceValue);
           const oldPrice = baseOld > priceValue ? baseOld : Math.round(priceValue * 1.18);
@@ -768,7 +749,7 @@ export default function ShopPage() {
 
   const handleAddToCart = (product: ShopProduct, origin?: HTMLElement | null) => {
     if (typeof window === "undefined") return;
-    let nextCart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string }> = [];
+    let nextCart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string; deliveryLabel?: string }> = [];
     const stored = localStorage.getItem("bbshop_cart");
     if (stored) {
       try {
@@ -782,6 +763,11 @@ export default function ShopPage() {
     if (existing) {
       existing.quantity = Number(existing.quantity ?? 0) + 1;
     } else {
+      const delivery = getDeliveryDisplay({
+        type: product.type,
+        displaySection: product.displaySection ?? null,
+        deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
+      });
       nextCart.push({
         id: product.id,
         name: product.name,
@@ -789,6 +775,7 @@ export default function ShopPage() {
         price: product.priceValue,
         priceLabel: product.priceLabel,
         type: product.type,
+        deliveryLabel: delivery?.label ?? undefined,
         quantity: 1,
       });
     }

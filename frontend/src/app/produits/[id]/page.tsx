@@ -8,6 +8,7 @@ import { ShoppingCart } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
+import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
 
 type ApiProduct = {
   id: number | string;
@@ -16,7 +17,9 @@ type ApiProduct = {
   description?: string | null;
   type?: string | null;
   estimated_delivery_label?: string | null;
+  delivery_estimate_label?: string | null;
   delivery_eta_days?: number | null;
+  display_section?: string | null;
   details?: {
     description?: string | null;
     tags?: string[] | string | null;
@@ -105,32 +108,14 @@ const extractImages = (product: ApiProduct | null): string[] => {
     .filter((value): value is string => Boolean(value));
 };
 
-const getDeliveryHint = (product: ApiProduct | null) => {
-  const type = String(product?.type ?? "").toLowerCase();
-  const label = String(product?.estimated_delivery_label ?? "").trim();
-  const etaRaw = product?.delivery_eta_days;
-  const eta = etaRaw === null || etaRaw === undefined ? null : Number(etaRaw);
+const getNormalizedDeliveryLabel = (product: ApiProduct | null): string | null => {
+  const delivery = getDeliveryDisplay({
+    type: product?.type ?? null,
+    display_section: product?.display_section ?? null,
+    delivery_estimate_label: product?.delivery_estimate_label ?? null,
+  });
 
-  if (type.includes("recharge") || type.includes("topup")) return "Instantané";
-  if (type.includes("subscription") || type.includes("abonnement") || type.includes("premium")) return "2h";
-  if (type.includes("account") || type.includes("compte")) return "24h";
-
-  if (label) return label;
-  if (Number.isFinite(eta) && (eta as number) > 0) return `${eta} jour${eta === 1 ? "" : "s"}`;
-  return "Délais variable";
-};
-
-const abbreviateDeliveryLabelForMobile = (value: string) => {
-  const input = String(value ?? "").trim();
-  if (!input) return input;
-
-  if (input.toLowerCase() === "instantané" || input.toLowerCase() === "instantane") return "Int";
-
-  return input
-    .replace(/(\d+)\s*j(?![a-z])/gi, "$1 J")
-    .replace(/(\d+)\s*jour(s)?/gi, "$1 J")
-    .replace(/\bjour(s)?\b/gi, "J")
-    .replace(/(\d+)\s*h\b/gi, "$1H");
+  return delivery?.label ?? null;
 };
 
 function ImageCarousel({
@@ -327,13 +312,12 @@ export default function ProductDetailsPage() {
     return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
   }, [product]);
   const tagsLabel = tags.length ? tags.join(", ") : "Aucun tag";
-  const deliveryHint = useMemo(() => getDeliveryHint(product), [product]);
-  const deliveryHintMobile = useMemo(() => abbreviateDeliveryLabelForMobile(deliveryHint), [deliveryHint]);
+  const deliveryLabel = useMemo(() => getNormalizedDeliveryLabel(product), [product]);
 
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
     const cartRaw = window.localStorage.getItem("bbshop_cart");
-    let cart: Array<{ id: number | string; name: string; price: number; priceLabel: string; description?: string; quantity: number }>; // eslint-disable-line max-len
+    let cart: Array<{ id: number | string; name: string; price: number; priceLabel: string; description?: string; quantity: number; type?: string; deliveryLabel?: string }>; // eslint-disable-line max-len
     try {
       cart = cartRaw ? JSON.parse(cartRaw) : [];
     } catch {
@@ -349,6 +333,8 @@ export default function ProductDetailsPage() {
         price: priceValue,
         priceLabel: formatPrice(priceValue),
         description,
+        type: String(product.type ?? ""),
+        deliveryLabel: deliveryLabel ?? undefined,
         quantity: 1,
       });
     }
@@ -385,15 +371,7 @@ export default function ProductDetailsPage() {
 
   const infoRows: Array<{ label: string; value: React.ReactNode }> = [
     { label: "Catégorie", value: categoryLabel },
-    {
-      label: "Livraison estimée",
-      value: (
-        <>
-          <span className="sm:hidden">{deliveryHintMobile}</span>
-          <span className="hidden sm:inline">{deliveryHint}</span>
-        </>
-      ),
-    },
+    ...(deliveryLabel ? [{ label: "Livraison", value: deliveryLabel }] : []),
     { label: "Marque", value: brandLabel ?? "N/A" },
     { label: "Stock", value: `${stockCount} unité${stockCount > 1 ? "s" : ""}` },
     { label: "Tags", value: tagsLabel },
@@ -559,11 +537,7 @@ export default function ProductDetailsPage() {
                   </div>
 
                   <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                    <p>
-                      <span className="font-semibold text-white">Livraison estimée :</span>{" "}
-                      <span className="sm:hidden">{deliveryHintMobile}</span>
-                      <span className="hidden sm:inline">{deliveryHint}</span>.
-                    </p>
+                    {deliveryLabel ? <p className="font-semibold text-white">{deliveryLabel}</p> : null}
                   </div>
                 </div>
               </div>

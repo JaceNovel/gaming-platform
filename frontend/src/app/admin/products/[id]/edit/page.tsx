@@ -38,6 +38,7 @@ type ApiProduct = {
   shipping_required?: boolean | null;
   delivery_type?: string | null;
   delivery_eta_days?: number | null;
+  delivery_estimate_label?: string | null;
   display_section?: string | null;
   images?: Array<{ url?: string | null; path?: string | null; position?: number | null } | string> | null;
   details?: {
@@ -88,6 +89,7 @@ export default function AdminProductsEditPage() {
   const [shippingRequired, setShippingRequired] = useState(false);
   const [deliveryType, setDeliveryType] = useState("in_stock");
   const [deliveryEtaDays, setDeliveryEtaDays] = useState("2");
+  const [deliveryEstimateLabel, setDeliveryEstimateLabel] = useState("");
   const [displaySection, setDisplaySection] = useState("none");
   const [isActive, setIsActive] = useState(true);
   const [imageUrl, setImageUrl] = useState("");
@@ -168,6 +170,7 @@ export default function AdminProductsEditPage() {
         setShippingRequired(Boolean(product?.shipping_required ?? false));
         setDeliveryType(product?.delivery_type ?? "in_stock");
         setDeliveryEtaDays(product?.delivery_eta_days ? String(product.delivery_eta_days) : "2");
+        setDeliveryEstimateLabel(String(product?.delivery_estimate_label ?? ""));
         setDisplaySection(product?.display_section ?? "none");
         setImageUrl(product?.details?.image ?? "");
         setBannerUrl(product?.details?.banner ?? "");
@@ -266,6 +269,10 @@ export default function AdminProductsEditPage() {
         shipping_required: shippingRequired,
         delivery_type: shippingRequired ? deliveryType : undefined,
         delivery_eta_days: deliveryEtaDays.trim() ? Number(deliveryEtaDays) : undefined,
+        delivery_estimate_label:
+          type === "item" && displaySection !== "emote_skin" && deliveryEstimateLabel.trim()
+            ? deliveryEstimateLabel.trim()
+            : undefined,
         display_section: displaySection === "none" ? undefined : displaySection,
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
@@ -625,6 +632,22 @@ export default function AdminProductsEditPage() {
                   <option value="gaming_accounts">Compte Gaming</option>
                 </select>
               </div>
+
+              {type === "item" && displaySection !== "emote_skin" && (
+                <div>
+                  <label className="text-sm font-medium">Délai de livraison estimé (accessoire)</label>
+                  <input
+                    value={deliveryEstimateLabel}
+                    onChange={(e) => setDeliveryEstimateLabel(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                    placeholder="ex: 7–10 jours"
+                    disabled={loadingProduct}
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Optionnel. S'affiche sur la carte produit et la page détail.
+                  </p>
+                </div>
+              )}
               <label className="flex items-center gap-2 text-sm text-slate-600">
                 <input
                   type="checkbox"

@@ -52,6 +52,7 @@ export default function AdminProductsAddPage() {
   const [shippingRequired, setShippingRequired] = useState(false);
   const [deliveryType, setDeliveryType] = useState("in_stock");
   const [deliveryEtaDays, setDeliveryEtaDays] = useState("2");
+  const [deliveryEstimateLabel, setDeliveryEstimateLabel] = useState("");
   const [displaySection, setDisplaySection] = useState("none");
   const [isActive, setIsActive] = useState(true);
   const [imageUrl, setImageUrl] = useState("");
@@ -138,6 +139,10 @@ export default function AdminProductsAddPage() {
         shipping_required: shippingRequired,
         delivery_type: shippingRequired ? deliveryType : undefined,
         delivery_eta_days: deliveryEtaDays.trim() ? Number(deliveryEtaDays) : undefined,
+        delivery_estimate_label:
+          type === "item" && displaySection !== "emote_skin" && deliveryEstimateLabel.trim()
+            ? deliveryEstimateLabel.trim()
+            : undefined,
         display_section: displaySection === "none" ? undefined : displaySection,
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
@@ -212,6 +217,7 @@ export default function AdminProductsAddPage() {
       setShippingRequired(false);
       setDeliveryType("in_stock");
       setDeliveryEtaDays("2");
+      setDeliveryEstimateLabel("");
       setDisplaySection("none");
       setIsActive(true);
       setImageUrl("");
@@ -526,6 +532,21 @@ export default function AdminProductsAddPage() {
                   <option value="gaming_accounts">Compte Gaming</option>
                 </select>
               </div>
+
+              {type === "item" && displaySection !== "emote_skin" && (
+                <div>
+                  <label className="text-sm font-medium">Délai de livraison estimé (accessoire)</label>
+                  <input
+                    value={deliveryEstimateLabel}
+                    onChange={(e) => setDeliveryEstimateLabel(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                    placeholder="ex: 7–10 jours"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Optionnel. S'affiche sur la carte produit et la page détail.
+                  </p>
+                </div>
+              )}
               <label className="flex items-center gap-2 text-sm text-slate-600">
                 <input
                   type="checkbox"

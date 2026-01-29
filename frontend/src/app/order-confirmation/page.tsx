@@ -7,6 +7,7 @@ import SectionTitle from "@/components/ui/SectionTitle";
 import GlowButton from "@/components/ui/GlowButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
+import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
 
 type StatusKey = "loading" | "success" | "failed" | "pending" | "cancelled" | "error";
 
@@ -37,6 +38,8 @@ type RedeemCodesResponse = {
 type OrderItemProduct = {
   type?: string | null;
   name?: string | null;
+  delivery_estimate_label?: string | null;
+  display_section?: string | null;
 };
 
 type OrderItemRow = {
@@ -82,6 +85,22 @@ function OrderConfirmationScreen() {
   const [outOfStock, setOutOfStock] = useState(false);
   const [postPurchaseKind, setPostPurchaseKind] = useState<PostPurchaseKind>("accessory");
   const [postPurchaseTitle, setPostPurchaseTitle] = useState<string>("Votre achat est confirmé");
+  const [postPurchaseAccessoryEstimateLabel, setPostPurchaseAccessoryEstimateLabel] = useState<string | null>(null);
+
+  const postPurchaseDeliveryLabel = useMemo(() => {
+    if (postPurchaseKind === "redeem") return getDeliveryDisplay({ type: "recharge" })?.label ?? null;
+    if (postPurchaseKind === "subscription") return getDeliveryDisplay({ type: "subscription" })?.label ?? null;
+    if (postPurchaseKind === "account") return getDeliveryDisplay({ type: "account" })?.label ?? null;
+    if (postPurchaseKind === "accessory" && postPurchaseAccessoryEstimateLabel) {
+      return (
+        getDeliveryDisplay({
+          type: "item",
+          delivery_estimate_label: postPurchaseAccessoryEstimateLabel,
+        })?.label ?? null
+      );
+    }
+    return null;
+  }, [postPurchaseAccessoryEstimateLabel, postPurchaseKind]);
 
   const numericOrderId = useMemo(() => {
     const n = Number(order);
@@ -143,6 +162,12 @@ function OrderConfirmationScreen() {
               .map((row) => String(row?.product?.type ?? "").toLowerCase())
               .filter(Boolean);
 
+            const firstAccessoryEstimateLabel =
+              orderItems
+                .map((row) => row?.product)
+                .find((p) => String(p?.type ?? "").toLowerCase() === "item")?.delivery_estimate_label ?? null;
+            setPostPurchaseAccessoryEstimateLabel(firstAccessoryEstimateLabel);
+
             const codesRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}/redeem-codes`);
             const codesPayload = (await codesRes.json().catch(() => null)) as RedeemCodesResponse | null;
             if (codesRes.ok) {
@@ -154,6 +179,7 @@ function OrderConfirmationScreen() {
               if (isRedeem) {
                 setPostPurchaseKind("redeem");
                 setPostPurchaseTitle("Recharge confirmée");
+                setPostPurchaseAccessoryEstimateLabel(null);
                 setShowModal(true);
                 return;
               }
@@ -161,6 +187,7 @@ function OrderConfirmationScreen() {
               if (types.includes("account")) {
                 setPostPurchaseKind("account");
                 setPostPurchaseTitle("Commande en préparation");
+                setPostPurchaseAccessoryEstimateLabel(null);
                 setShowModal(true);
                 return;
               }
@@ -168,6 +195,7 @@ function OrderConfirmationScreen() {
               if (types.includes("subscription")) {
                 setPostPurchaseKind("subscription");
                 setPostPurchaseTitle("Abonnement confirmé");
+                setPostPurchaseAccessoryEstimateLabel(null);
                 setShowModal(true);
                 return;
               }
@@ -284,6 +312,11 @@ function OrderConfirmationScreen() {
             ) : (
               <>
                 <h3 className="text-xl font-semibold">{postPurchaseTitle}</h3>
+                {postPurchaseDeliveryLabel ? (
+                  <div className="mt-3 inline-flex max-w-full rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
+                    {postPurchaseDeliveryLabel}
+                  </div>
+                ) : null}
 
                 {postPurchaseKind === "redeem" ? (
                   redeemCodes.length ? (
@@ -334,11 +367,11 @@ function OrderConfirmationScreen() {
                   )
                 ) : postPurchaseKind === "account" ? (
                   <p className="mt-2 text-sm text-white/70">
-                    Les identifiants seront envoyés par email dans un délai de 24h. Pensez à vérifier vos spams.
+                    Les identifiants seront envoyés par email. Pensez à vérifier vos spams.
                   </p>
                 ) : postPurchaseKind === "subscription" ? (
                   <p className="mt-2 text-sm text-white/70">
-                    Veuillez vérifier votre compte dans 2h. Vous serez notifié dès que l’activation est terminée.
+                    Activation en cours. Vous serez notifié dès que l’activation est terminée.
                   </p>
                 ) : (
                   <p className="mt-2 text-sm text-white/70">

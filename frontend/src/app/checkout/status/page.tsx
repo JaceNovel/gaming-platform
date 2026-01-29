@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
 import SectionTitle from "@/components/ui/SectionTitle";
 import GlowButton from "@/components/ui/GlowButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
+import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
 
 type StatusKey = "loading" | "success" | "failed" | "pending" | "error";
 
@@ -51,6 +52,13 @@ function CheckoutStatusScreen() {
   const [showModal, setShowModal] = useState(false);
   const [outOfStock, setOutOfStock] = useState(false);
   const [postPurchaseKind, setPostPurchaseKind] = useState<PostPurchaseKind>("accessory");
+
+  const postPurchaseDeliveryLabel = useMemo(() => {
+    if (postPurchaseKind === "redeem") return getDeliveryDisplay({ type: "recharge" })?.label ?? null;
+    if (postPurchaseKind === "subscription") return getDeliveryDisplay({ type: "subscription" })?.label ?? null;
+    if (postPurchaseKind === "account") return getDeliveryDisplay({ type: "account" })?.label ?? null;
+    return null;
+  }, [postPurchaseKind]);
 
   const transactionId = searchParams.get("transaction_id") ?? searchParams.get("id");
   const orderId = searchParams.get("order_id");
@@ -200,6 +208,11 @@ function CheckoutStatusScreen() {
       <SectionTitle eyebrow="Paiement" label="Statut du paiement" />
       <div className="glass-card space-y-4 rounded-2xl border border-white/10 p-6">
         <p className={`text-lg font-semibold ${statusStyle}`}>{message}</p>
+        {status === "success" && postPurchaseDeliveryLabel ? (
+          <div className="inline-flex max-w-full rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
+            {postPurchaseDeliveryLabel}
+          </div>
+        ) : null}
         <p className="text-sm text-white/60">
           Transaction
           <span className="ml-2 font-mono text-white/80">
@@ -305,13 +318,13 @@ function CheckoutStatusScreen() {
                   <>
                     <h3 className="text-xl font-semibold">Compte en préparation</h3>
                     <p className="mt-2 text-sm text-white/70">
-                      Les identifiants seront envoyés par email dans un délai de 24h. Pensez à vérifier vos spams.
+                      Les identifiants seront envoyés par email. Pensez à vérifier vos spams.
                     </p>
                   </>
                 ) : postPurchaseKind === "subscription" ? (
                   <>
                     <h3 className="text-xl font-semibold">Abonnement confirmé</h3>
-                    <p className="mt-2 text-sm text-white/70">Veuillez vérifier votre compte dans 2h.</p>
+                    <p className="mt-2 text-sm text-white/70">Activation en cours. Vous serez notifié dès que c’est terminé.</p>
                   </>
                 ) : (
                   <>
