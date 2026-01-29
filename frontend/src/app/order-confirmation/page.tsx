@@ -186,7 +186,7 @@ function OrderConfirmationScreen() {
 
               if (types.includes("account")) {
                 setPostPurchaseKind("account");
-                setPostPurchaseTitle("Commande en préparation");
+                setPostPurchaseTitle("Nous préparons le compte");
                 setPostPurchaseAccessoryEstimateLabel(null);
                 setShowModal(true);
                 return;
@@ -194,7 +194,7 @@ function OrderConfirmationScreen() {
 
               if (types.includes("subscription")) {
                 setPostPurchaseKind("subscription");
-                setPostPurchaseTitle("Abonnement confirmé");
+                setPostPurchaseTitle("Votre demande est en attente");
                 setPostPurchaseAccessoryEstimateLabel(null);
                 setShowModal(true);
                 return;
@@ -261,46 +261,11 @@ function OrderConfirmationScreen() {
   };
 
   return (
-    <div className="mobile-shell min-h-screen space-y-6 py-6 pb-24">
-      <SectionTitle eyebrow="Paiement" label="Confirmation" />
+    <div className="mobile-shell min-h-screen py-6 pb-24">
+      {showModal ? null : <SectionTitle eyebrow="Paiement" label="Confirmation" />}
 
-      <div className="glass-card space-y-4 rounded-2xl border border-white/10 p-6">
-        <p className={`text-lg font-semibold ${statusStyle}`}>{message}</p>
-
-        <div className="space-y-1 text-sm text-white/60">
-          <p>
-            Commande <span className="ml-2 font-semibold text-white">{details.orderId ?? numericOrderId ?? "N/A"}</span>
-          </p>
-          <p>
-            Transaction <span className="ml-2 font-mono text-white/80">{details.transactionId ?? transactionIdFromUrl ?? "N/A"}</span>
-          </p>
-        </div>
-
-        <div className="h-px bg-white/10" />
-
-        <div className="flex flex-wrap gap-3">
-          <GlowButton className="flex-1 justify-center" onClick={fetchStatus} disabled={checking}>
-            {checking ? "Vérification..." : "Actualiser"}
-          </GlowButton>
-
-          {status === "success" && (
-            <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/account")}
-            >
-              Voir mes commandes
-            </GlowButton>
-          )}
-
-          {(status === "failed" || status === "cancelled" || status === "error") && (
-            <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/checkout")}
-            >
-              Revenir au checkout
-            </GlowButton>
-          )}
-        </div>
-      </div>
-
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      {showModal ? (
+        <div className="flex min-h-[75dvh] items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl bg-[#0b0b16] p-6 text-white shadow-2xl">
             {outOfStock ? (
               <>
@@ -367,11 +332,11 @@ function OrderConfirmationScreen() {
                   )
                 ) : postPurchaseKind === "account" ? (
                   <p className="mt-2 text-sm text-white/70">
-                    Les identifiants seront envoyés par email. Pensez à vérifier vos spams.
+                    Nous préparons votre compte. Les identifiants seront envoyés par email. Pensez à vérifier vos spams.
                   </p>
                 ) : postPurchaseKind === "subscription" ? (
                   <p className="mt-2 text-sm text-white/70">
-                    Activation en cours. Vous serez notifié dès que l’activation est terminée.
+                    Votre demande est en attente. Activation en cours, vous serez notifié dès que c’est terminé.
                   </p>
                 ) : (
                   <p className="mt-2 text-sm text-white/70">
@@ -381,14 +346,32 @@ function OrderConfirmationScreen() {
               </>
             )}
 
-            <div className="mt-6 flex gap-3">
-              <GlowButton className="flex-1 justify-center" onClick={() => setShowModal(false)}>
-                Fermer
+            <div className="mt-6 flex flex-wrap gap-3">
+              <GlowButton className="flex-1 justify-center" onClick={() => router.push("/account")}>
+                Mon compte
               </GlowButton>
-              <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/account")}>
-                Mes commandes
+              <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>
+                Retour boutique
               </GlowButton>
             </div>
+          </div>
+        </div>
+      ) : (
+        <div className="glass-card mt-6 space-y-4 rounded-2xl border border-white/10 p-6">
+          <p className={`text-lg font-semibold ${statusStyle}`}>{message}</p>
+
+          <div className="space-y-1 text-sm text-white/60">
+            <p>
+              Commande <span className="ml-2 font-semibold text-white">{details.orderId ?? numericOrderId ?? "N/A"}</span>
+            </p>
+            <p>
+              Transaction <span className="ml-2 font-mono text-white/80">{details.transactionId ?? transactionIdFromUrl ?? "N/A"}</span>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <GlowButton className="flex-1 justify-center" onClick={() => router.push("/account")}>Mon compte</GlowButton>
+            <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>Retour boutique</GlowButton>
           </div>
         </div>
       )}

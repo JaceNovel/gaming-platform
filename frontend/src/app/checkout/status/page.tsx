@@ -204,59 +204,11 @@ function CheckoutStatusScreen() {
   };
 
   return (
-    <div className="mobile-shell min-h-screen space-y-6 py-6 pb-24">
-      <SectionTitle eyebrow="Paiement" label="Statut du paiement" />
-      <div className="glass-card space-y-4 rounded-2xl border border-white/10 p-6">
-        <p className={`text-lg font-semibold ${statusStyle}`}>{message}</p>
-        {status === "success" && postPurchaseDeliveryLabel ? (
-          <div className="inline-flex max-w-full rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
-            {postPurchaseDeliveryLabel}
-          </div>
-        ) : null}
-        <p className="text-sm text-white/60">
-          Transaction
-          <span className="ml-2 font-mono text-white/80">
-            {details.transactionId ?? transactionId ?? "N/A"}
-          </span>
-        </p>
-        <p className="text-sm text-white/60">
-          Commande
-          <span className="ml-2 font-semibold text-white">
-            {details.orderId ?? orderId ?? "N/A"}
-          </span>
-        </p>
-        <div className="h-px bg-white/10" />
-        <div className="flex flex-wrap gap-3">
-          <GlowButton
-            className="flex-1 justify-center"
-            onClick={fetchStatus}
-            disabled={checking}
-          >
-            {checking ? "Vérification..." : "Actualiser"}
-          </GlowButton>
-          {status === "success" && (
-            <GlowButton
-              variant="secondary"
-              className="flex-1 justify-center"
-              onClick={handleOrdersRedirect}
-            >
-              Voir mes commandes
-            </GlowButton>
-          )}
-          {(status === "failed" || status === "error") && (
-            <GlowButton
-              variant="secondary"
-              className="flex-1 justify-center"
-              onClick={() => router.push("/checkout")}
-            >
-              Revenir au checkout
-            </GlowButton>
-          )}
-        </div>
-      </div>
+    <div className="mobile-shell min-h-screen py-6 pb-24">
+      {showModal ? null : <SectionTitle eyebrow="Paiement" label="Statut du paiement" />}
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      {showModal ? (
+        <div className="flex min-h-[75dvh] items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl bg-[#0b0b16] p-6 text-white shadow-2xl">
             {outOfStock ? (
               <>
@@ -316,14 +268,14 @@ function CheckoutStatusScreen() {
                   </>
                 ) : postPurchaseKind === "account" ? (
                   <>
-                    <h3 className="text-xl font-semibold">Compte en préparation</h3>
+                    <h3 className="text-xl font-semibold">Nous préparons le compte</h3>
                     <p className="mt-2 text-sm text-white/70">
                       Les identifiants seront envoyés par email. Pensez à vérifier vos spams.
                     </p>
                   </>
                 ) : postPurchaseKind === "subscription" ? (
                   <>
-                    <h3 className="text-xl font-semibold">Abonnement confirmé</h3>
+                    <h3 className="text-xl font-semibold">Votre demande est en attente</h3>
                     <p className="mt-2 text-sm text-white/70">Activation en cours. Vous serez notifié dès que c’est terminé.</p>
                   </>
                 ) : (
@@ -336,12 +288,19 @@ function CheckoutStatusScreen() {
                 )}
               </>
             )}
-            <button
-              onClick={() => setShowModal(false)}
-              className="mt-4 w-full rounded-full bg-white/10 px-4 py-2 text-sm"
-            >
-              Fermer
-            </button>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <GlowButton className="flex-1 justify-center" onClick={() => router.push("/account")}>Mon compte</GlowButton>
+              <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>Retour boutique</GlowButton>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="glass-card mt-6 space-y-4 rounded-2xl border border-white/10 p-6">
+          <p className={`text-lg font-semibold ${statusStyle}`}>{message}</p>
+          <div className="flex flex-wrap gap-3">
+            <GlowButton className="flex-1 justify-center" onClick={handleOrdersRedirect}>Mon compte</GlowButton>
+            <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>Retour boutique</GlowButton>
           </div>
         </div>
       )}
