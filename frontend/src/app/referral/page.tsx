@@ -124,7 +124,12 @@ function ReferralClient() {
     <main className="min-h-[100dvh] bg-[#04020c] text-white">
       <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
         <div className="flex items-center justify-between gap-3">
-          <SectionTitle title="Parrainage" subtitle="Partage ton lien, gagne une commission sur le premier dépôt de tes filleuls." />
+          <div>
+            <SectionTitle eyebrow="Compte" label="Parrainage" />
+            <p className="mt-1 text-sm text-white/60">
+              Partage ton lien, gagne une commission sur le premier dépôt de tes filleuls.
+            </p>
+          </div>
           <GlowButton variant="secondary" onClick={load} disabled={loading}>
             <span className="inline-flex items-center gap-2">
               <RefreshCcw className="h-4 w-4" />

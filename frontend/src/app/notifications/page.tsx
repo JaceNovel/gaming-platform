@@ -146,10 +146,10 @@ function NotificationsClient() {
   return (
     <main className="min-h-[100dvh] bg-[#04020c] text-white">
       <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
-        <SectionTitle
-          title="Notifications"
-          subtitle="Active les notifications web pour recevoir les confirmations (wallet, commissions, etc.)."
-        />
+        <SectionTitle eyebrow="Compte" label="Notifications" />
+        <p className="mt-1 text-sm text-white/60">
+          Active les notifications web pour recevoir les confirmations (wallet, commissions, etc.).
+        </p>
 
         <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-5">
           <p className="text-sm font-semibold">Statut</p>
