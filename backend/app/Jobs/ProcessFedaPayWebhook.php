@@ -170,6 +170,7 @@ class ProcessFedaPayWebhook implements ShouldQueue
                         $walletService->credit($order->user, $reference, (float) $payment->amount, [
                             'source' => 'fedapay_topup_webhook',
                             'payment_id' => $payment->id,
+                            'reason' => 'topup',
                         ]);
 
                         // VIP referral: sponsor earns 3% of the referred user's first deposit.

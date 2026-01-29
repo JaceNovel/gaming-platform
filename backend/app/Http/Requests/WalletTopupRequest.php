@@ -15,6 +15,7 @@ class WalletTopupRequest extends FormRequest
     {
         return [
             'amount' => ['required', 'numeric', 'min:100'],
+            'return_url' => ['nullable', 'url', 'max:2048'],
         ];
     }
 }

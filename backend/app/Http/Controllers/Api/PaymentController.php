@@ -272,6 +272,7 @@ class PaymentController extends Controller
                                         app(WalletService::class)->credit($order->user, $reference, (float) $payment->amount, [
                                             'source' => 'fedapay_topup_status',
                                             'payment_id' => $payment->id,
+                                            'reason' => 'topup',
                                         ]);
 
                                         $orderMeta = $order->meta ?? [];

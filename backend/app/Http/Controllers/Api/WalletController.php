@@ -83,7 +83,8 @@ class WalletController extends Controller
                 'message' => 'Email requis pour effectuer le paiement.',
             ], 422);
         }
-        $amount = (float) $request->validated()['amount'];
+        $validated = $request->validated();
+        $amount = (float) $validated['amount'];
         $wallet = $this->walletService->getOrCreateWallet($user);
         $reference = $this->walletService->generateReference('WTP');
 
@@ -121,13 +122,25 @@ class WalletController extends Controller
                 return [$order->fresh(['payment', 'user']), $payment->fresh(), $walletTx];
             });
 
-            $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
-            $callbackUrl = $frontUrl !== ''
-                ? $frontUrl . '/wallet/topup/return?' . Arr::query([
-                    'provider' => 'fedapay',
-                    'order_id' => $order->id,
-                ])
-                : null;
+            $returnUrl = trim((string) ($validated['return_url'] ?? ''));
+            $callbackUrl = null;
+
+            if ($returnUrl !== '') {
+                $callbackUrl = $returnUrl
+                    . (str_contains($returnUrl, '?') ? '&' : '?')
+                    . Arr::query([
+                        'provider' => 'fedapay',
+                        'order_id' => $order->id,
+                    ]);
+            } else {
+                $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
+                $callbackUrl = $frontUrl !== ''
+                    ? $frontUrl . '/wallet/topup/return?' . Arr::query([
+                        'provider' => 'fedapay',
+                        'order_id' => $order->id,
+                    ])
+                    : null;
+            }
 
             $initResult = $this->fedaPayService->initPayment($order, $user, [
                 'amount' => $amount,
