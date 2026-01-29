@@ -833,6 +833,14 @@ export default function ShopPage() {
             </div>
 
             <div className="space-y-12">
+              <ProductGrid
+                title="Produits populaires"
+                subtitle="Les comptes et recharges les plus likés par la communauté."
+                products={popularProducts}
+                onAddToCart={handleAddToCart}
+                onView={handleViewProduct}
+                onLike={handleToggleLike}
+              />
               {gamingAccountProducts.length > 0 && (
                 <ProductGrid
                   title="Compte Gaming"
@@ -844,9 +852,9 @@ export default function ShopPage() {
                 />
               )}
               <ProductGrid
-                title="Produits populaires"
-                subtitle="Les comptes et recharges les plus likés par la communauté."
-                products={popularProducts}
+                title="Promotions cosmiques"
+                subtitle="Réductions limitées sur les meilleures offres du moment."
+                products={promoProducts}
                 onAddToCart={handleAddToCart}
                 onView={handleViewProduct}
                 onLike={handleToggleLike}
@@ -861,14 +869,6 @@ export default function ShopPage() {
                   onLike={handleToggleLike}
                 />
               )}
-              <ProductGrid
-                title="Promotions cosmiques"
-                subtitle="Réductions limitées sur les meilleures offres du moment."
-                products={promoProducts}
-                onAddToCart={handleAddToCart}
-                onView={handleViewProduct}
-                onLike={handleToggleLike}
-              />
               <ProductGrid
                 title="Derniers ajouts"
                 subtitle="Comptes fraîchement listés et recharges spéciales."
@@ -941,6 +941,27 @@ export default function ShopPage() {
       </div>
 
       <section className="mobile-shell space-y-4 py-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">Produits populaires</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
+            {loading
+              ? Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="min-w-[180px] rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="h-4 w-16 rounded-full bg-white/10" />
+                    <div className="mt-3 h-24 rounded-xl bg-white/10" />
+                    <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
+                  </div>
+                ))
+              : popularProducts.map((product) => (
+                  <Link key={product.id} href={`/produits/${product.id}`} className="min-w-[180px] snap-start">
+                    <StripCard product={product} label="Populaire" icon={Heart} />
+                  </Link>
+                ))}
+          </div>
+        </div>
+
         {gamingAccountProducts.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -966,20 +987,24 @@ export default function ShopPage() {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Produits populaires</h2>
+            <h2 className="text-lg font-bold">Produit cosmique</h2>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
             {loading
               ? Array.from({ length: 4 }).map((_, idx) => (
-                  <div key={idx} className="min-w-[180px] rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="h-4 w-16 rounded-full bg-white/10" />
-                    <div className="mt-3 h-24 rounded-xl bg-white/10" />
+                  <div key={idx} className="min-w-[190px] flex-shrink-0 snap-start rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <div className="h-20 rounded-xl bg-white/10" />
                     <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
+                    <div className="mt-2 h-3 w-1/2 rounded-full bg-white/10" />
                   </div>
                 ))
-              : popularProducts.map((product) => (
-                  <Link key={product.id} href={`/produits/${product.id}`} className="min-w-[180px] snap-start">
-                    <StripCard product={product} label="Populaire" icon={Heart} />
+              : promoProducts.slice(0, 6).map((product) => (
+                  <Link
+                    key={product.id}
+                    href={`/produits/${product.id}`}
+                    className="min-w-[210px] flex-shrink-0 snap-center"
+                  >
+                    <StripCard product={product} label="Cosmique" icon={Sparkles} />
                   </Link>
                 ))}
           </div>
@@ -1011,31 +1036,6 @@ export default function ShopPage() {
             </div>
           </div>
         )}
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Produit cosmique</h2>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
-            {loading
-              ? Array.from({ length: 4 }).map((_, idx) => (
-                  <div key={idx} className="min-w-[190px] flex-shrink-0 snap-start rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <div className="h-20 rounded-xl bg-white/10" />
-                    <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
-                    <div className="mt-2 h-3 w-1/2 rounded-full bg-white/10" />
-                  </div>
-                ))
-              : promoProducts.slice(0, 6).map((product) => (
-                  <Link
-                    key={product.id}
-                    href={`/produits/${product.id}`}
-                    className="min-w-[210px] flex-shrink-0 snap-center"
-                  >
-                    <StripCard product={product} label="Cosmique" icon={Sparkles} />
-                  </Link>
-                ))}
-          </div>
-        </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">

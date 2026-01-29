@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://badboyshop.online").replace(/\/$/, "");
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -17,6 +19,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "BADBOYSHOP - Gaming Platform",
   description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
+  metadataBase: new URL(SITE_URL),
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: "/images/badboyshop-logo.png",
     shortcut: "/images/badboyshop-logo.png",
@@ -25,7 +31,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "BADBOYSHOP - Gaming Platform",
     description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
-    url: "https://badboyshop.com",
+    url: SITE_URL,
     siteName: "BADBOYSHOP",
     images: [
       {
