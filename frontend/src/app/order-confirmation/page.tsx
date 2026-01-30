@@ -64,6 +64,7 @@ function OrderConfirmationScreen() {
 
   const order = searchParams.get("order");
   const initialStatus = normalizeClientStatus(searchParams.get("status"));
+  const transactionIdFromUrl = searchParams.get("transaction_id") ?? searchParams.get("id");
 
   const [status, setStatus] = useState<StatusKey>("loading");
   const [message, setMessage] = useState("Vérification du paiement...");

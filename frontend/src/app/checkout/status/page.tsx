@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
 import SectionTitle from "@/components/ui/SectionTitle";
 import GlowButton from "@/components/ui/GlowButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
-import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
 
 type StatusKey = "loading" | "success" | "failed" | "pending" | "error";
 
@@ -28,32 +27,37 @@ type OrderShowResponse = {
   order_items?: OrderItemRow[];
 };
 
+type RedeemCodeRow = {
+  code: string;
+  label?: string | null;
+  diamonds?: number | null;
+  quantity_index?: number;
+};
+
+type RedeemCodesResponse = {
+  has_redeem_items?: boolean;
+  codes?: RedeemCodeRow[];
+  guide_url?: string | null;
+};
+
 type PostPurchaseKind = "redeem" | "account" | "subscription" | "accessory";
 
 function CheckoutStatusScreen() {
   const { authFetch } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
+
   const [status, setStatus] = useState<StatusKey>("loading");
   const [message, setMessage] = useState("Vérification du paiement...");
   const [pollStartedAt] = useState(() => Date.now());
-  const [details, setDetails] = useState<{ transactionId?: string; orderId?: number }>({});
-  const [checking, setChecking] = useState(false);
-  const [redeemCodes, setRedeemCodes] = useState<
-    Array<{ code: string; label?: string | null; diamonds?: number | null; quantity_index?: number }>
-  >([]);
+
+  const [redeemCodes, setRedeemCodes] = useState<RedeemCodeRow[]>([]);
   const [guideUrl, setGuideUrl] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [outOfStock, setOutOfStock] = useState(false);
   const [postPurchaseKind, setPostPurchaseKind] = useState<PostPurchaseKind>("accessory");
 
-  const postPurchaseDeliveryLabel = useMemo(() => {
-    if (postPurchaseKind === "redeem") return getDeliveryDisplay({ type: "recharge" })?.label ?? null;
-    if (postPurchaseKind === "subscription") return getDeliveryDisplay({ type: "subscription" })?.label ?? null;
-    if (postPurchaseKind === "account") return getDeliveryDisplay({ type: "account" })?.label ?? null;
-    return null;
-  }, [postPurchaseKind]);
-
+  const doneRef = useRef(false);
   const orderId = searchParams.get("order_id") ?? searchParams.get("order");
 
   const numericOrderId = useMemo(() => {
@@ -62,164 +66,187 @@ function CheckoutStatusScreen() {
   }, [orderId]);
 
   const fetchStatus = useCallback(async () => {
-    if (!transactionId && !orderId) {
+    if (!numericOrderId) {
       setStatus("error");
-      setMessage("Référence de paiement introuvable.");
+      setMessage("Référence de commande introuvable.");
       return;
     }
 
-    setChecking(true);
     try {
-      const qs = new URLSearchParams();
-      if (transactionId) qs.set("transaction_id", transactionId);
-      if (orderId) qs.set("order_id", orderId);
-      qs.set("wait", "1");
+      const orderRes = await authFetch(`${API_BASE}/orders/${numericOrderId}`);
+      const orderPayload = (await orderRes.json().catch(() => null)) as OrderShowResponse | null;
 
-      const endpoint = provider === "cinetpay" ? "cinetpay" : "fedapay";
-      const res = await authFetch(`${API_BASE}/payments/${endpoint}/status?${qs.toString()}`);
-      const payload = (await res.json().catch(() => null)) as PaymentStatusResponse | null;
-
-      if (!res.ok) {
+      if (!orderRes.ok) {
         setStatus("error");
-        setMessage(payload?.message ?? "Impossible de vérifier le paiement.");
+        setMessage("Impossible de vérifier la commande.");
         return;
       }
 
-      const paymentStatus = (payload?.data?.payment_status ?? "pending").toLowerCase();
-      const orderStatus = (payload?.data?.order_status ?? "").toLowerCase();
-      const orderType = String(payload?.data?.order_type ?? "").toLowerCase();
-      setDetails({
-        transactionId: payload?.data?.transaction_id ?? transactionId ?? undefined,
-        orderId: payload?.data?.order_id ?? (orderId ? Number(orderId) : undefined),
-      });
+      const orderStatus = String(orderPayload?.status ?? "").toLowerCase();
+      const orderType = String(orderPayload?.type ?? "").toLowerCase();
+      const meta = (orderPayload?.meta ?? {}) as Record<string, unknown>;
+      const fulfillmentStatus = String(meta?.fulfillment_status ?? "").toLowerCase();
 
-      const isPaid = ["paid", "completed", "success", "successful"].includes(paymentStatus);
-
-      if (isPaid) {
+      if (orderStatus === "payment_success") {
+        doneRef.current = true;
         setStatus("success");
+
         if (orderType === "wallet_topup") {
-          setMessage("Paiement confirmé ! Votre wallet va être rechargé.");
+          setMessage("Paiement confirmé. Votre wallet va être mis à jour.");
           setShowModal(false);
-          setTimeout(() => {
-            router.replace("/account?topup_status=success");
+          window.setTimeout(() => {
+            router.replace("/account?topup_status=pending");
           }, 800);
           return;
         }
+
         if (orderType === "premium_subscription") {
-          if (!numericOrderId) {
+          setMessage("Paiement confirmé. Votre abonnement VIP va être activé.");
           setShowModal(false);
-            setMessage("Référence de commande introuvable.");
+          return;
         }
-        if (orderStatus === "paid_but_out_of_stock") {
+
+        if (fulfillmentStatus === "out_of_stock" || fulfillmentStatus === "waiting_stock") {
           setOutOfStock(true);
           setMessage("Commande payée – en attente de réapprovisionnement.");
           setShowModal(true);
-            const orderRes = await authFetch(`${API_BASE}/orders/${numericOrderId}`);
-            const orderPayload = (await orderRes.json().catch(() => null)) as OrderShowResponse | null;
-            if (!orderRes.ok) {
-              setStatus("error");
-              setMessage("Impossible de vérifier la commande.");
-              return;
-            }
+          return;
+        }
 
-            const orderStatus = String(orderPayload?.status ?? "").toLowerCase();
-            const orderType = String(orderPayload?.type ?? "").toLowerCase();
-            setDetails({ orderId: orderPayload?.id ?? numericOrderId });
+        setOutOfStock(false);
+        setMessage("Paiement confirmé !");
 
-            if (orderStatus === "payment_success") {
-              setStatus("success");
+        const orderItemsRaw = orderPayload?.orderItems ?? orderPayload?.order_items ?? [];
+        const orderItems = Array.isArray(orderItemsRaw) ? orderItemsRaw : [];
+        const types = orderItems
+          .map((row) => String(row?.product?.type ?? "").toLowerCase())
+          .filter(Boolean);
 
-              if (orderType === "wallet_topup") {
-                setMessage("Paiement confirmé. Votre wallet va être mis à jour.");
-                setShowModal(false);
-                setTimeout(() => {
-                  router.replace("/account?topup_status=pending");
-                }, 800);
-                return;
-              }
-
-              if (orderType === "premium_subscription") {
-                setMessage("Paiement confirmé. Votre abonnement VIP va être activé.");
-                setShowModal(false);
-                return;
-              }
-
-              const meta = (orderPayload?.meta ?? {}) as Record<string, unknown>;
-              const fulfillmentStatus = String(meta?.fulfillment_status ?? "").toLowerCase();
-              if (fulfillmentStatus === "out_of_stock" || fulfillmentStatus === "waiting_stock") {
-                setOutOfStock(true);
-                setMessage("Commande payée – en attente de réapprovisionnement.");
-                setShowModal(true);
-                return;
-              }
-
-              setMessage("Paiement confirmé.");
-
-              const orderItemsRaw = orderPayload?.orderItems ?? orderPayload?.order_items ?? [];
-              const orderItems = Array.isArray(orderItemsRaw) ? orderItemsRaw : [];
-              const types = orderItems
-                .map((row) => String(row?.product?.type ?? "").toLowerCase())
-                .filter(Boolean);
-
-              const codesRes = await authFetch(`${API_BASE}/orders/${numericOrderId}/redeem-codes`);
-              const codesPayload = await codesRes.json().catch(() => null);
-              if (codesRes.ok) {
-                const isRedeem = Boolean(codesPayload?.has_redeem_items);
-                if (isRedeem) {
-                  setPostPurchaseKind("redeem");
-                  setRedeemCodes(Array.isArray(codesPayload?.codes) ? codesPayload.codes : []);
-                  setGuideUrl(codesPayload?.guide_url ?? null);
-                  setShowModal(true);
-                  return;
-                }
-
-                if (types.includes("account")) {
-                  setPostPurchaseKind("account");
-                  setShowModal(true);
-                  return;
-                }
-
-                if (types.includes("subscription")) {
-                  setPostPurchaseKind("subscription");
-                  setShowModal(true);
-                  return;
-                }
-
-                setPostPurchaseKind("accessory");
-                setShowModal(true);
-              }
-
-              return;
-            }
-
-            if (orderStatus === "payment_failed") {
-              setStatus("failed");
-              if (orderType === "wallet_topup") {
-                setMessage("Recharge wallet échouée ou non validée. Merci de réessayer.");
-              } else {
-                setMessage("Paiement échoué ou non validé. Merci de réessayer.");
-              }
-              return;
-            }
-
-            // Still processing
-            const elapsed = Date.now() - pollStartedAt;
-            if (elapsed <= 30_000) {
-              setStatus("loading");
-              setMessage("Vérification du paiement...");
-              return;
-            }
-
-            setStatus("pending");
-            setMessage("Paiement en attente de confirmation.");
+        const codesRes = await authFetch(`${API_BASE}/orders/${numericOrderId}/redeem-codes`);
+        const codesPayload = (await codesRes.json().catch(() => null)) as RedeemCodesResponse | null;
+        if (codesRes.ok) {
+          const isRedeem = Boolean(codesPayload?.has_redeem_items);
+          if (isRedeem) {
+            setPostPurchaseKind("redeem");
+            setRedeemCodes(Array.isArray(codesPayload?.codes) ? codesPayload.codes : []);
+            setGuideUrl(codesPayload?.guide_url ?? null);
+            setShowModal(true);
             return;
+          }
+
+          if (types.includes("account")) {
+            setPostPurchaseKind("account");
+            setShowModal(true);
+            return;
+          }
+
+          if (types.includes("subscription")) {
+            setPostPurchaseKind("subscription");
+            setShowModal(true);
+            return;
+          }
+
+          setPostPurchaseKind("accessory");
+          setShowModal(true);
+        }
+
+        return;
+      }
+
+      if (orderStatus === "payment_failed") {
+        doneRef.current = true;
+        setStatus("failed");
+        if (orderType === "wallet_topup") {
+          setMessage("Recharge wallet échouée ou annulée.");
+        } else {
+          setMessage("Paiement refusé ou expiré. Merci de réessayer.");
+        }
+        return;
+      }
+
+      const elapsed = Date.now() - pollStartedAt;
+      if (elapsed <= 30_000) {
+        setStatus("loading");
+        setMessage("Vérification du paiement...");
+        return;
+      }
+
+      setStatus("pending");
+      if (orderType === "wallet_topup") {
+        setMessage("Recharge wallet en attente de confirmation...");
+      } else {
+        setMessage("Paiement en attente de confirmation...");
+      }
+    } catch {
+      setStatus("error");
+      setMessage("Connexion impossible pour vérifier le paiement.");
+    }
+  }, [authFetch, numericOrderId, pollStartedAt, router]);
+
+  useEffect(() => {
+    doneRef.current = false;
+
+    if (!numericOrderId) {
+      setStatus("error");
+      setMessage("Référence de commande introuvable.");
+      return;
+    }
+
+    let active = true;
+
+    const tick = async () => {
+      if (!active) return;
+      if (doneRef.current) return;
+      await fetchStatus();
+    };
+
+    void tick();
+
+    const interval = window.setInterval(() => {
+      void tick();
+    }, 2000);
+
+    const timeout = window.setTimeout(() => {
+      window.clearInterval(interval);
+    }, 35_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [fetchStatus, numericOrderId]);
+
+  const statusStyle =
+    status === "success"
+      ? "text-emerald-300"
+      : status === "failed"
+        ? "text-rose-300"
+        : status === "pending"
+          ? "text-amber-200"
+          : "text-white";
+
+  const handleOrdersRedirect = () => router.push("/account");
+
+  const handleCopy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // ignore
+    }
+  };
+
+  return (
+    <div className="mobile-shell min-h-screen py-6 pb-24">
+      {showModal ? null : <SectionTitle eyebrow="Paiement" label="Statut du paiement" />}
+
       {showModal ? (
         <div className="flex min-h-[75dvh] items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl bg-[#0b0b16] p-6 text-white shadow-2xl">
             {outOfStock ? (
               <>
                 <h3 className="text-xl font-semibold">En attente de réapprovisionnement</h3>
-        }, [authFetch, numericOrderId, pollStartedAt, router]);
+                <p className="mt-2 text-sm text-white/70">
                   Vos codes seront envoyés dès que le stock est réapprovisionné.
                 </p>
               </>
@@ -257,10 +284,7 @@ function CheckoutStatusScreen() {
                             Copier tout
                           </button>
                           {guideUrl && (
-                            <a
-                              href={guideUrl}
-                              className="rounded-full bg-emerald-500/80 px-4 py-2 text-xs text-white"
-                            >
+                            <a href={guideUrl} className="rounded-full bg-emerald-500/80 px-4 py-2 text-xs text-white">
                               Télécharger le guide
                             </a>
                           )}
@@ -282,7 +306,9 @@ function CheckoutStatusScreen() {
                 ) : postPurchaseKind === "subscription" ? (
                   <>
                     <h3 className="text-xl font-semibold">Votre demande est en attente</h3>
-                    <p className="mt-2 text-sm text-white/70">Activation en préparation. Vous serez notifié dès que c’est terminé.</p>
+                    <p className="mt-2 text-sm text-white/70">
+                      Activation en préparation. Vous serez notifié dès que c’est terminé.
+                    </p>
                   </>
                 ) : (
                   <>
@@ -296,8 +322,12 @@ function CheckoutStatusScreen() {
             )}
 
             <div className="mt-6 flex flex-wrap gap-3">
-              <GlowButton className="flex-1 justify-center" onClick={() => router.push("/account")}>Mon compte</GlowButton>
-              <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>Retour boutique</GlowButton>
+              <GlowButton className="flex-1 justify-center" onClick={() => router.push("/account")}>
+                Mon compte
+              </GlowButton>
+              <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>
+                Retour boutique
+              </GlowButton>
             </div>
           </div>
         </div>
@@ -305,8 +335,12 @@ function CheckoutStatusScreen() {
         <div className="glass-card mt-6 space-y-4 rounded-2xl border border-white/10 p-6">
           <p className={`text-lg font-semibold ${statusStyle}`}>{message}</p>
           <div className="flex flex-wrap gap-3">
-            <GlowButton className="flex-1 justify-center" onClick={handleOrdersRedirect}>Mon compte</GlowButton>
-            <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>Retour boutique</GlowButton>
+            <GlowButton className="flex-1 justify-center" onClick={handleOrdersRedirect}>
+              Mon compte
+            </GlowButton>
+            <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>
+              Retour boutique
+            </GlowButton>
           </div>
         </div>
       )}
