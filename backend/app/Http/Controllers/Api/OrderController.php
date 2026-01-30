@@ -21,7 +21,24 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $orders = $request->user()->orders()->with(['orderItems.product', 'payment'])->latest()->paginate(20);
+        $includeTopups = filter_var((string) $request->query('include_wallet_topups', '0'), FILTER_VALIDATE_BOOLEAN);
+
+        $query = $request->user()
+            ->orders()
+            ->with(['orderItems.product', 'payment'])
+            ->latest();
+
+        if (!$includeTopups) {
+            $query->where('type', '!=', 'wallet_topup');
+        }
+
+        $orders = $query->paginate(20);
+
+        $orders->getCollection()->transform(function (Order $order) {
+            $order->setAttribute('has_redeem_items', $order->requiresRedeemFulfillment());
+            return $order;
+        });
+
         return response()->json($orders);
     }
 
@@ -217,9 +234,15 @@ class OrderController extends Controller
                 ]);
             }
 
-            if ($product->redeem_code_delivery && !$denominationId) {
-                $denominationId = RedeemDenomination::where('product_id', $product->id)
-                    ->where('active', true)
+            $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
+                || (bool) $product->redeem_code_delivery
+                || strtolower((string) ($product->type ?? '')) === 'redeem';
+
+            if ($requiresDenomination && !$denominationId) {
+                $denominationId = RedeemDenomination::where('active', true)
+                    ->where(function ($q) use ($product) {
+                        $q->whereNull('product_id')->orWhere('product_id', $product->id);
+                    })
                     ->orderByDesc('diamonds')
                     ->value('id');
             }
