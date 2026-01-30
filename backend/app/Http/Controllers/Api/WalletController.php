@@ -16,6 +16,8 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+use Illuminate\Validation\Rule;
+
 class WalletController extends Controller
 {
     public function __construct(
@@ -174,10 +176,179 @@ class WalletController extends Controller
                 'payment_url' => $initResult['payment_url'],
                 'transaction_id' => $initResult['transaction_id'],
                 'reference' => $reference,
+                'order_id' => $order->id,
             ]);
         } catch (\Throwable $e) {
             Log::error('Topup init failed', ['error' => $e->getMessage(), 'user_id' => $user->id]);
             return response()->json(['message' => 'Payment initiation failed'], 500);
+        }
+    }
+
+    public function reconcileTopup(Request $request)
+    {
+        $validated = $request->validate([
+            'order_id' => ['nullable', 'integer', Rule::exists('orders', 'id')],
+            'transaction_id' => ['nullable', 'string', 'max:191'],
+        ]);
+
+        $user = $request->user();
+
+        $baseQuery = Payment::with(['order.user', 'walletTransaction'])
+            ->where('method', 'fedapay')
+            ->whereHas('order', function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                    ->where('type', 'wallet_topup');
+            });
+
+        $payment = null;
+        if (!empty($validated['transaction_id'])) {
+            $payment = (clone $baseQuery)
+                ->where('transaction_id', $validated['transaction_id'])
+                ->latest('id')
+                ->first();
+        }
+
+        if (!$payment && !empty($validated['order_id'])) {
+            $payment = (clone $baseQuery)
+                ->where('order_id', (int) $validated['order_id'])
+                ->latest('id')
+                ->first();
+        }
+
+        if (!$payment) {
+            $payment = (clone $baseQuery)
+                ->whereNotIn('status', ['completed', 'failed'])
+                ->whereNotNull('transaction_id')
+                ->latest('id')
+                ->first();
+        }
+
+        if (!$payment) {
+            return response()->json([
+                'status' => 'none',
+                'message' => 'No pending topup found',
+            ]);
+        }
+
+        $order = $payment->order;
+        $reference = (string) ($payment->walletTransaction?->reference ?? $order?->reference ?? '');
+
+        // Already finalized.
+        if (in_array($payment->status, ['completed', 'failed'], true)) {
+            return response()->json([
+                'status' => $payment->status,
+                'order_id' => $payment->order_id,
+                'transaction_id' => $payment->transaction_id,
+            ]);
+        }
+
+        if (!$payment->transaction_id) {
+            return response()->json([
+                'status' => $payment->status,
+                'order_id' => $payment->order_id,
+                'transaction_id' => null,
+                'message' => 'Missing transaction_id',
+            ], 422);
+        }
+
+        try {
+            $verification = $this->fedaPayService->retrieveTransaction($payment->transaction_id);
+            $normalized = $this->fedaPayService->normalizeStatus($verification);
+
+            $amountFromProvider = (float) (
+                Arr::get($verification, 'amount')
+                    ?? Arr::get($verification, 'data.amount')
+                    ?? Arr::get($verification, 'transaction.amount')
+                    ?? Arr::get($verification, 'data.transaction.amount')
+                    ?? 0
+            );
+
+            if ($normalized === 'pending') {
+                return response()->json([
+                    'status' => 'pending',
+                    'order_id' => $payment->order_id,
+                    'transaction_id' => $payment->transaction_id,
+                ]);
+            }
+
+            DB::transaction(function () use ($payment, $order, $normalized, $verification, $amountFromProvider, $reference) {
+                $meta = $payment->webhook_data ?? [];
+                if (!is_array($meta)) {
+                    $meta = [];
+                }
+                $meta['reconcile_verification'] = $verification;
+
+                $payment->update([
+                    'status' => $normalized,
+                    'webhook_data' => $meta,
+                ]);
+
+                if ($order) {
+                    $order->update([
+                        'status' => $normalized === 'completed'
+                            ? 'paid'
+                            : ($normalized === 'failed' ? 'failed' : $order->status),
+                    ]);
+
+                    if ($normalized === 'completed' && $order->user && $reference !== '') {
+                        if ($amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) > 0.01) {
+                            Log::error('fedapay:error', [
+                                'stage' => 'topup-reconcile-amount',
+                                'payment_id' => $payment->id,
+                                'expected' => (float) $payment->amount,
+                                'received' => $amountFromProvider,
+                            ]);
+                        } else {
+                            $this->walletService->credit($order->user, $reference, (float) $payment->amount, [
+                                'source' => 'fedapay_topup_reconcile',
+                                'payment_id' => $payment->id,
+                                'reason' => 'topup',
+                            ]);
+
+                            $orderMeta = $order->meta ?? [];
+                            if (!is_array($orderMeta)) {
+                                $orderMeta = [];
+                            }
+                            if (empty($orderMeta['wallet_credited_at'])) {
+                                $orderMeta['wallet_credited_at'] = now()->toIso8601String();
+                                $order->update(['meta' => $orderMeta]);
+                            }
+                        }
+                    }
+
+                    if ($normalized === 'failed' && $payment->walletTransaction) {
+                        $payment->walletTransaction->update(['status' => 'failed']);
+                    }
+                }
+
+                AdminLog::create([
+                    'admin_id' => null,
+                    'action' => 'wallet_topup_reconcile',
+                    'details' => json_encode([
+                        'payment_id' => $payment->id,
+                        'order_id' => $payment->order_id,
+                        'status' => $normalized,
+                    ]),
+                ]);
+            });
+
+            return response()->json([
+                'status' => $normalized,
+                'order_id' => $payment->order_id,
+                'transaction_id' => $payment->transaction_id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('fedapay:error', [
+                'stage' => 'topup-reconcile',
+                'payment_id' => $payment->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'status' => 'pending',
+                'order_id' => $payment->order_id,
+                'transaction_id' => $payment->transaction_id,
+            ], 202);
         }
     }
 

@@ -10,36 +10,100 @@ const getAuthHeaders = (): Record<string, string> => {
     "X-Requested-With": "XMLHttpRequest",
   };
   if (typeof window === "undefined") return headers;
-  const token = localStorage.getItem("bbshop_token");
+  let token: string | null = null;
+  try {
+    token = localStorage.getItem("bbshop_token");
+  } catch {
+    token = null;
+  }
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
+};
+
+type LastTopupHint = {
+  provider?: string;
+  order_id?: string | number;
+  transaction_id?: string;
+  reference?: string;
+  created_at?: string;
+};
+
+const safeReadLastTopup = (): LastTopupHint | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("bbshop_last_topup");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as LastTopupHint;
+  } catch {
+    return null;
+  }
+};
+
+const safeReadToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem("bbshop_token");
+  } catch {
+    return null;
+  }
 };
 
 export default function WalletTopupReturnClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const transactionId = useMemo(
-    () => searchParams.get("transaction_id") ?? searchParams.get("cpm_trans_id") ?? searchParams.get("id"),
-    [searchParams]
-  );
-  const orderId = useMemo(() => searchParams.get("order_id"), [searchParams]);
-  const provider = useMemo(() => String(searchParams.get("provider") ?? "fedapay").toLowerCase(), [searchParams]);
+  const transactionId = useMemo(() => {
+    const direct = searchParams.get("transaction_id") ?? searchParams.get("cpm_trans_id") ?? searchParams.get("id");
+    if (direct) return direct;
+    return safeReadLastTopup()?.transaction_id ?? null;
+  }, [searchParams]);
+  const orderId = useMemo(() => {
+    const direct = searchParams.get("order_id");
+    if (direct) return direct;
+    const hint = safeReadLastTopup();
+    if (!hint?.order_id) return null;
+    return String(hint.order_id);
+  }, [searchParams]);
+  const provider = useMemo(() => {
+    const direct = String(searchParams.get("provider") ?? "").toLowerCase();
+    if (direct) return direct;
+    const hint = safeReadLastTopup()?.provider;
+    return String(hint ?? "fedapay").toLowerCase();
+  }, [searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const token = localStorage.getItem("bbshop_token");
+    const token = safeReadToken();
     if (!token) {
-      router.replace("/auth/login");
+      const next = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+      window.location.replace(`/auth/login?next=${next}`);
       return;
     }
 
     let cancelled = false;
 
-    const redirectToProfile = (status: string) => {
+    const hardRedirect = (url: string) => {
+      try {
+        window.location.replace(url);
+      } catch {
+        // fallback
+        window.location.href = url;
+      }
+    };
+
+    const redirectToWallet = (status: string) => {
       const safe = encodeURIComponent(status);
-      router.replace(`/wallet?topup_status=${safe}`);
+      const target = `/wallet?topup_status=${safe}`;
+      try {
+        router.replace(target);
+      } catch {
+        // ignore
+      }
+      // Ensure navigation even if router is stuck (in-app webviews / hydration issues).
+      window.setTimeout(() => hardRedirect(target), 250);
     };
 
     const poll = async () => {
@@ -48,9 +112,23 @@ export default function WalletTopupReturnClient() {
       if (orderId) params.set("order_id", orderId);
 
       if (!params.toString()) {
-        redirectToProfile("pending");
+        // No provider identifiers; try a server-side "best effort" reconcile (latest pending topup), then go back.
+        try {
+          await fetch(`${API_BASE}/wallet/topup/reconcile`, {
+            method: "POST",
+            headers: getAuthHeaders(),
+          });
+        } catch {
+          // ignore
+        }
+        redirectToWallet("pending");
         return;
       }
+
+      // Safety: force a redirect even if polling hangs.
+      const forceTimer = window.setTimeout(() => {
+        if (!cancelled) redirectToWallet("pending");
+      }, 20000);
 
       for (let attempt = 0; attempt < 12; attempt += 1) {
         if (cancelled) return;
@@ -62,7 +140,8 @@ export default function WalletTopupReturnClient() {
           });
 
           if (res.status === 401) {
-            router.replace("/auth/login");
+            const next = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+            hardRedirect(`/auth/login?next=${next}`);
             return;
           }
 
@@ -70,12 +149,14 @@ export default function WalletTopupReturnClient() {
           const paymentStatus = String(payload?.data?.payment_status ?? "pending").toLowerCase();
 
           if (["completed", "paid", "success"].includes(paymentStatus)) {
-            redirectToProfile("success");
+            window.clearTimeout(forceTimer);
+            redirectToWallet("success");
             return;
           }
 
           if (["failed", "refused", "cancelled", "canceled"].includes(paymentStatus)) {
-            redirectToProfile("failed");
+            window.clearTimeout(forceTimer);
+            redirectToWallet("failed");
             return;
           }
         } catch {
@@ -85,7 +166,19 @@ export default function WalletTopupReturnClient() {
         await new Promise((r) => setTimeout(r, 2000));
       }
 
-      redirectToProfile("pending");
+      window.clearTimeout(forceTimer);
+      // Final attempt: reconcile last pending topup server-side.
+      try {
+        await fetch(`${API_BASE}/wallet/topup/reconcile`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ order_id: orderId ?? undefined, transaction_id: transactionId ?? undefined }),
+        });
+      } catch {
+        // ignore
+      }
+
+      redirectToWallet("pending");
     };
 
     poll();

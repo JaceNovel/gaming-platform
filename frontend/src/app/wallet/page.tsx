@@ -175,6 +175,40 @@ function WalletClient() {
   }, [router, searchParams]);
 
   useEffect(() => {
+    if (!HAS_API_ENV) return;
+    const status = (searchParams.get("topup_status") ?? "").toLowerCase();
+    if (!status) return;
+
+    let cancelled = false;
+
+    const reconcile = async () => {
+      try {
+        const hintRaw = localStorage.getItem("bbshop_last_topup");
+        const hint = hintRaw ? JSON.parse(hintRaw) : null;
+        await authFetch(`${API_BASE}/wallet/topup/reconcile`, {
+          method: "POST",
+          body: JSON.stringify({
+            order_id: hint?.order_id ?? undefined,
+            transaction_id: hint?.transaction_id ?? undefined,
+          }),
+        });
+      } catch {
+        // best effort
+      } finally {
+        if (!cancelled) {
+          void loadWallet({ silent: true });
+        }
+      }
+    };
+
+    void reconcile();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
     void loadWallet();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [limit]);
@@ -249,6 +283,19 @@ function WalletClient() {
       const paymentUrl = typeof payload?.payment_url === "string" ? payload.payment_url : "";
       if (!paymentUrl) {
         throw new Error("Lien de paiement indisponible");
+      }
+
+      try {
+        const hint = {
+          provider: "fedapay",
+          transaction_id: payload?.transaction_id ? String(payload.transaction_id) : undefined,
+          order_id: payload?.order_id ? String(payload.order_id) : undefined,
+          reference: payload?.reference ? String(payload.reference) : undefined,
+          created_at: new Date().toISOString(),
+        };
+        localStorage.setItem("bbshop_last_topup", JSON.stringify(hint));
+      } catch {
+        // best effort
       }
 
       setTopupMessage("Redirection vers FedaPay...");

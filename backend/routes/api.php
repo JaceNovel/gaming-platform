@@ -174,6 +174,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/wallet', [WalletController::class, 'show']);
     Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
     Route::post('/wallet/topup/init', [WalletController::class, 'initTopup']);
+    Route::post('/wallet/topup/reconcile', [WalletController::class, 'reconcileTopup']);
 
     // Referrals
     Route::get('/referrals/me', [ReferralController::class, 'me']);

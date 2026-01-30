@@ -704,6 +704,19 @@ function AccountClient() {
         throw new Error("Lien de paiement indisponible");
       }
 
+      try {
+        const hint = {
+          provider: "fedapay",
+          transaction_id: payload?.transaction_id ? String(payload.transaction_id) : undefined,
+          order_id: payload?.order_id ? String(payload.order_id) : undefined,
+          reference: payload?.reference ? String(payload.reference) : undefined,
+          created_at: new Date().toISOString(),
+        };
+        localStorage.setItem("bbshop_last_topup", JSON.stringify(hint));
+      } catch {
+        // best effort
+      }
+
       setRechargeStatus("success");
       setRechargeMessage("Redirection vers FedaPay...");
       window.location.href = paymentUrl;
