@@ -76,7 +76,8 @@ function OrderConfirmationScreen() {
   const provider = String(searchParams.get("provider") ?? "fedapay").toLowerCase();
 
   const [status, setStatus] = useState<StatusKey>("loading");
-  const [message, setMessage] = useState("Vérification du paiement en cours...");
+  const [message, setMessage] = useState("Vérification du paiement...");
+  const [pollStartedAt] = useState(() => Date.now());
   const [details, setDetails] = useState<{ transactionId?: string; orderId?: number }>({});
   const [checking, setChecking] = useState(false);
   const [redeemCodes, setRedeemCodes] = useState<RedeemCodeRow[]>([]);
@@ -141,7 +142,7 @@ function OrderConfirmationScreen() {
         setStatus("success");
         if (orderStatus === "paid_but_out_of_stock") {
           setOutOfStock(true);
-          setMessage("Commande payée – en attente de réapprovisionnement.");
+          setMessage("Commande payée – stock indisponible pour le moment.");
           setShowModal(true);
         } else {
           setOutOfStock(false);
@@ -209,14 +210,10 @@ function OrderConfirmationScreen() {
         return;
       }
 
-      if (paymentStatus === "failed") {
-        setStatus("failed");
-        setMessage("❌ Paiement refusé ou expiré. Merci de réessayer.");
-        return;
-      }
-
-      setStatus("pending");
-      setMessage("⏳ Paiement en attente de confirmation...");
+      // Business rule: non-confirmed is treated as failed.
+      // We still keep polling for a short time to allow late confirmation.
+      setStatus("failed");
+      setMessage("Paiement non confirmé. Si vous avez payé, patientez quelques secondes : la page se mettra à jour automatiquement.");
     } catch {
       setStatus(initialStatus ?? "error");
       setMessage("Connexion impossible pour vérifier le paiement.");
@@ -236,12 +233,17 @@ function OrderConfirmationScreen() {
   }, [fetchStatus, initialStatus]);
 
   useEffect(() => {
-    if (status !== "pending") return;
+    if (status === "success" || status === "error") return;
+
+    // Keep polling even when status is "failed" because "non confirmé" is treated as failed.
+    const elapsed = Date.now() - pollStartedAt;
+    if (elapsed > 120_000) return;
+
     const interval = setInterval(() => {
       fetchStatus();
     }, 5000);
     return () => clearInterval(interval);
-  }, [fetchStatus, status]);
+  }, [fetchStatus, pollStartedAt, status]);
 
   const statusStyle =
     status === "success"
@@ -336,11 +338,11 @@ function OrderConfirmationScreen() {
                   </p>
                 ) : postPurchaseKind === "subscription" ? (
                   <p className="mt-2 text-sm text-white/70">
-                    Votre demande est en attente. Activation en cours, vous serez notifié dès que c’est terminé.
+                    Votre demande est en attente. Activation en préparation, vous serez notifié dès que c’est terminé.
                   </p>
                 ) : (
                   <p className="mt-2 text-sm text-white/70">
-                    Merci pour votre achat. Votre commande est en cours de traitement. Vous serez notifié dès qu’elle sera prête.
+                    Merci pour votre achat. Votre commande est en préparation. Vous serez notifié dès qu’elle sera prête.
                   </p>
                 )}
               </>

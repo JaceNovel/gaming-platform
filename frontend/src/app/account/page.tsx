@@ -1155,7 +1155,7 @@ function AccountClient() {
                         </p>
                       </div>
                       <p className="text-xs text-white/60">
-                        {lastWalletTransaction.status === "success" ? "Transaction validée" : "En cours de validation"}
+                        {lastWalletTransaction.status === "success" ? "Transaction validée" : "En validation"}
                       </p>
                     </div>
                   )}

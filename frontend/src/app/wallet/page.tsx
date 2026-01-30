@@ -452,7 +452,7 @@ function WalletClient() {
                             <span
                               className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${statusChipClass(tx.status)}`}
                             >
-                              {tx.status === "success" ? "Validée" : tx.status === "failed" ? "Échouée" : "En cours"}
+                              {tx.status === "success" ? "Validée" : tx.status === "failed" ? "Échouée" : "En validation"}
                             </span>
                             {tx.reference ? (
                               <button

@@ -169,7 +169,7 @@ export default function AdminOffersPage() {
               disabled={loading}
               className="mt-2 w-full rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white"
             >
-              {loading ? "En cours..." : "Ajouter les likes"}
+              {loading ? "Traitement..." : "Ajouter les likes"}
             </button>
             {status && <p className="text-sm text-slate-500">{status}</p>}
           </div>

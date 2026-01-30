@@ -198,7 +198,7 @@ export default function AdminCouponsAddPage() {
               disabled={loading}
               className="mt-6 w-full rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white"
             >
-              {loading ? "En cours..." : "Créer le code promo"}
+              {loading ? "Création..." : "Créer le code promo"}
             </button>
             {status && <p className="mt-3 text-center text-sm text-slate-500">{status}</p>}
           </div>

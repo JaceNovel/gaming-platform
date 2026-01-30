@@ -81,10 +81,13 @@ const statusColor = (status?: string | null) => {
   if (["paid", "success", "completed", "fulfilled"].includes(normalized)) {
     return "bg-emerald-100 text-emerald-700";
   }
-  if (["failed", "canceled", "cancelled"].includes(normalized)) {
-    return "bg-rose-100 text-rose-700";
-  }
-  return "bg-amber-100 text-amber-700";
+  return "bg-rose-100 text-rose-700";
+};
+
+const statusLabel = (status?: string | null) => {
+  const normalized = String(status ?? "").toLowerCase();
+  if (["paid", "success", "completed", "fulfilled"].includes(normalized)) return "Complétée";
+  return "Échec";
 };
 
 const buildLinePath = (values: number[], width = 520, height = 180) => {
@@ -209,9 +212,6 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <span className="rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-700">
-          En cours: {overview?.data?.pending_orders_count ?? 0}
-        </span>
         <span className="rounded-full bg-rose-100 px-3 py-1 font-semibold text-rose-700">
           Échecs (commandes): {overview?.data?.failed_orders_count ?? 0}
         </span>
@@ -279,7 +279,7 @@ export default function AdminDashboardPage() {
                       <span
                         className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] ${statusColor(order.payment_status)}`}
                       >
-                        {order.payment_status ?? "pending"}
+                        {statusLabel(order.payment_status)}
                       </span>
                     </td>
                   </tr>

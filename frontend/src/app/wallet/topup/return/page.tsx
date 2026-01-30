@@ -10,7 +10,7 @@ function WalletTopupReturnShell() {
         <SectionTitle eyebrow="Wallet" label="Validation du rechargement" />
         <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-3">
           <p className="text-sm text-white/80">
-            Recharge wallet en cours de validation. Vous allez être redirigé vers votre wallet.
+            Recharge wallet en validation. Vous allez être redirigé vers votre wallet.
           </p>
           <p className="text-xs text-white/50">
             Si la redirection ne se fait pas, retournez au wallet manuellement.

@@ -694,7 +694,7 @@ export default function AdminProductsAddPage() {
               disabled={loading}
               className="w-full rounded-xl bg-red-500 px-4 py-3 text-sm font-semibold text-white"
             >
-              {loading ? "En cours..." : "Ajouter le produit"}
+              {loading ? "Ajout..." : "Ajouter le produit"}
             </button>
             {status && <p className="mt-3 text-center text-sm text-slate-500">{status}</p>}
           </div>

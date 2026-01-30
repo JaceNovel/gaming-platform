@@ -59,21 +59,17 @@ type MeRedeemsResponse = {
 const prettyOrderStatus = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
   if (!s) return "—";
-  if (s === "paid" || s === "completed") return "Payée";
-  if (s === "fulfilled") return "Livrée";
-  if (s === "pending") return "En cours";
-  if (s === "failed") return "Échouée";
-  if (s === "paid_but_out_of_stock") return "Rupture";
-  if (s === "paid_waiting_stock") return "En attente";
+  if (["paid", "completed", "fulfilled"].includes(s)) return "Complétée";
+  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "Échec";
   return status ?? "—";
 };
 
 const statusBadgeClass = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
-  if (s === "paid" || s === "fulfilled") return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
-  if (s === "failed") return "bg-rose-500/20 border-rose-300/30 text-rose-100";
-  if (s === "paid_but_out_of_stock") return "bg-amber-400/20 border-amber-300/30 text-amber-100";
-  if (s === "paid_waiting_stock") return "bg-amber-400/20 border-amber-300/30 text-amber-100";
+  if (["paid", "completed", "fulfilled"].includes(s)) return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
+  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
+    return "bg-rose-500/20 border-rose-300/30 text-rose-100";
+  }
   return "bg-white/10 border-white/20 text-white/80";
 };
 
@@ -356,15 +352,15 @@ function CodesClient() {
                             <div className="px-4 pb-4">
                               {String(order.status ?? "").toLowerCase() === "paid_but_out_of_stock" ? (
                                 <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
-                                  Rupture de stock. On te livre dès que possible.
+                                  Échec : rupture de stock. Contacte le support si besoin.
                                 </div>
                               ) : String(order.status ?? "").toLowerCase() === "paid_waiting_stock" ? (
                                 <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
-                                  En attente de stock. On te livre dès que possible.
+                                  Échec : stock indisponible pour le moment. Contacte le support si besoin.
                                 </div>
                               ) : (
                                 <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
-                                  Livraison en cours. Tes codes apparaîtront ici dès qu’ils seront prêts.
+                                  Livraison : si votre paiement est confirmé, vos codes apparaissent ici automatiquement.
                                 </div>
                               )}
 
@@ -421,11 +417,11 @@ function CodesClient() {
                         <div className="px-4 pb-4">
                           {String(group.order?.status ?? "").toLowerCase() === "paid_but_out_of_stock" ? (
                             <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
-                              Rupture de stock. On te livre dès que possible.
+                              Échec : rupture de stock. Contacte le support si besoin.
                             </div>
                           ) : String(group.order?.status ?? "").toLowerCase() === "paid_waiting_stock" ? (
                             <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
-                              En attente de stock. On te livre dès que possible.
+                              Échec : stock indisponible pour le moment. Contacte le support si besoin.
                             </div>
                           ) : deliveredItems.length === 0 ? (
                             <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">

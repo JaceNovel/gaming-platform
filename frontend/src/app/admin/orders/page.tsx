@@ -48,6 +48,13 @@ const formatAmount = (value?: number | null) => {
   return `${Math.round(value).toLocaleString()} FCFA`;
 };
 
+const toOutcomeLabel = (raw?: string | null) => {
+  const v = String(raw ?? "").toLowerCase();
+  if (["paid", "completed", "success", "fulfilled"].includes(v)) return "Complétée";
+  if (!v) return "—";
+  return "Échec";
+};
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
@@ -121,10 +128,11 @@ export default function AdminOrdersPage() {
             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
           >
             <option value="all">Tous statuts</option>
-            <option value="paid">Paid</option>
-            <option value="pending">Pending</option>
-            <option value="failed">Failed</option>
-            <option value="paid_but_out_of_stock">Paid but out of stock</option>
+            <option value="paid">Complétée (paid)</option>
+            <option value="fulfilled">Complétée (fulfilled)</option>
+            <option value="failed">Échec</option>
+            <option value="paid_but_out_of_stock">Échec (rupture)</option>
+            <option value="paid_waiting_stock">Échec (stock indisponible)</option>
           </select>
           <select
             value={paymentStatus}
@@ -132,9 +140,8 @@ export default function AdminOrdersPage() {
             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
           >
             <option value="all">Paiement</option>
-            <option value="paid">Paid</option>
-            <option value="pending">Pending</option>
-            <option value="failed">Failed</option>
+            <option value="completed">Complétée</option>
+            <option value="failed">Échec</option>
           </select>
           <input
             type="date"
@@ -199,8 +206,8 @@ export default function AdminOrdersPage() {
                     </div>
                   </td>
                   <td className="py-2 pr-4">{formatAmount(order.total_price)}</td>
-                  <td className="py-2 pr-4">{order.status ?? "—"}</td>
-                  <td className="py-2 pr-4">{order.payment?.status ?? "—"}</td>
+                  <td className="py-2 pr-4">{toOutcomeLabel(order.status)}</td>
+                  <td className="py-2 pr-4">{toOutcomeLabel(order.payment?.status)}</td>
                   <td className="py-2 pr-4 text-xs text-slate-500">{order.created_at ?? "—"}</td>
                   <td className="py-2 pr-4">
                     <Link

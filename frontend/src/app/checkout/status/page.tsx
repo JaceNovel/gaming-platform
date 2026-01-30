@@ -42,7 +42,8 @@ function CheckoutStatusScreen() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<StatusKey>("loading");
-  const [message, setMessage] = useState("Vérification du paiement en cours...");
+  const [message, setMessage] = useState("Vérification du paiement...");
+  const [pollStartedAt] = useState(() => Date.now());
   const [details, setDetails] = useState<{ transactionId?: string; orderId?: number }>({});
   const [checking, setChecking] = useState(false);
   const [redeemCodes, setRedeemCodes] = useState<
@@ -158,20 +159,15 @@ function CheckoutStatusScreen() {
             setShowModal(true);
           }
         }
-      } else if (paymentStatus === "failed") {
-        setStatus("failed");
-        if (orderType === "wallet_topup") {
-          setMessage("Recharge wallet échouée ou annulée.");
-        } else {
-          setMessage("Paiement refusé ou expiré. Merci de réessayer.");
-        }
+      }
+
+      // Business rule: non-confirmed is treated as failed.
+      // Keep polling briefly to allow late confirmation.
+      setStatus("failed");
+      if (orderType === "wallet_topup") {
+        setMessage("Recharge wallet non confirmée. Si vous avez payé, patientez quelques secondes : la page se mettra à jour automatiquement.");
       } else {
-        setStatus("pending");
-        if (orderType === "wallet_topup") {
-          setMessage("Recharge wallet en attente de confirmation...");
-        } else {
-          setMessage("Paiement en attente de confirmation...");
-        }
+        setMessage("Paiement non confirmé. Si vous avez payé, patientez quelques secondes : la page se mettra à jour automatiquement.");
       }
     } catch (error) {
       setStatus("error");
@@ -185,14 +181,24 @@ function CheckoutStatusScreen() {
     fetchStatus();
   }, [fetchStatus]);
 
+  useEffect(() => {
+    if (status === "success" || status === "error") return;
+    const elapsed = Date.now() - pollStartedAt;
+    if (elapsed > 120_000) return;
+
+    const interval = setInterval(() => {
+      fetchStatus();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchStatus, pollStartedAt, status]);
+
   const statusStyle =
     status === "success"
       ? "text-emerald-300"
       : status === "failed"
         ? "text-rose-300"
-        : status === "pending"
-          ? "text-amber-200"
-          : "text-white";
+        : "text-white";
 
   const handleOrdersRedirect = () => router.push("/account");
   const handleCopy = async (value: string) => {
@@ -276,13 +282,13 @@ function CheckoutStatusScreen() {
                 ) : postPurchaseKind === "subscription" ? (
                   <>
                     <h3 className="text-xl font-semibold">Votre demande est en attente</h3>
-                    <p className="mt-2 text-sm text-white/70">Activation en cours. Vous serez notifié dès que c’est terminé.</p>
+                    <p className="mt-2 text-sm text-white/70">Activation en préparation. Vous serez notifié dès que c’est terminé.</p>
                   </>
                 ) : (
                   <>
                     <h3 className="text-xl font-semibold">Achat confirmé</h3>
                     <p className="mt-2 text-sm text-white/70">
-                      Merci pour votre achat. Votre commande est en cours de traitement.
+                      Merci pour votre achat. Votre commande est en préparation.
                     </p>
                   </>
                 )}

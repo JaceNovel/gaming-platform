@@ -299,7 +299,7 @@ export default function RegisterClient() {
                 disabled={disableSubmit}
                 className="w-full rounded-2xl bg-gradient-to-r from-emerald-300 via-cyan-400 to-fuchsia-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(16,185,129,0.35)] transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading ? "Création en cours..." : "Activer mon cockpit"}
+                {loading ? "Création..." : "Activer mon cockpit"}
               </button>
             </form>
 

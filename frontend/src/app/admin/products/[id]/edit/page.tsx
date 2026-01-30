@@ -104,6 +104,56 @@ export default function AdminProductsEditPage() {
   const [loading, setLoading] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(true);
 
+  const [redeemCodesText, setRedeemCodesText] = useState("");
+  const [redeemImportStatus, setRedeemImportStatus] = useState<string>("");
+  const [redeemImporting, setRedeemImporting] = useState(false);
+
+  const importRedeemCodes = useCallback(async () => {
+    if (!productId) return;
+
+    const codes = redeemCodesText.trim();
+    if (!codes) {
+      setRedeemImportStatus("Collez au moins un code.");
+      return;
+    }
+
+    setRedeemImportStatus("");
+    setRedeemImporting(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/redeem-codes/import`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          product_id: Number(productId),
+          codes,
+        }),
+      });
+
+      const payload = await res.json().catch(() => null) as
+        | { imported?: number; duplicates?: number; message?: string }
+        | null;
+
+      if (!res.ok) {
+        setRedeemImportStatus(payload?.message ?? `Import impossible (HTTP ${res.status})`);
+        return;
+      }
+
+      const imported = Number(payload?.imported ?? 0);
+      const duplicates = Number(payload?.duplicates ?? 0);
+      setRedeemImportStatus(`Import terminé. Importés: ${imported}. Doublons: ${duplicates}.`);
+      setRedeemCodesText("");
+    } catch {
+      setRedeemImportStatus("Import impossible");
+    } finally {
+      setRedeemImporting(false);
+    }
+  }, [productId, redeemCodesText]);
+
   const loadCategories = useCallback(async () => {
     try {
       const res = await fetch(buildUrl("/admin/categories"), {
@@ -386,7 +436,7 @@ export default function AdminProductsEditPage() {
                           className="mt-2 block w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white"
                         />
                         {uploadingAccountImages && (
-                          <p className="mt-2 text-xs text-slate-500">Upload en cours…</p>
+                          <p className="mt-2 text-xs text-slate-500">Upload...</p>
                         )}
                       </div>
                     </div>
@@ -487,6 +537,30 @@ export default function AdminProductsEditPage() {
                 />
               </div>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-base font-semibold">Redeem Codes</h3>
+            <p className="mt-2 text-xs text-slate-500">
+              Ajoutez du stock après création du produit. Un code par ligne (ou séparés par virgules).
+            </p>
+            <textarea
+              value={redeemCodesText}
+              onChange={(e) => setRedeemCodesText(e.target.value)}
+              rows={6}
+              className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+              placeholder="CODE1\nCODE2\nCODE3"
+              disabled={loadingProduct || redeemImporting}
+            />
+            <button
+              type="button"
+              onClick={() => void importRedeemCodes()}
+              disabled={loadingProduct || redeemImporting}
+              className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+            >
+              {redeemImporting ? "Import..." : "Importer des codes"}
+            </button>
+            {redeemImportStatus && <p className="mt-3 text-center text-sm text-slate-600">{redeemImportStatus}</p>}
           </div>
         </div>
 
@@ -706,7 +780,7 @@ export default function AdminProductsEditPage() {
               disabled={loading || loadingProduct}
               className="w-full rounded-xl bg-red-500 px-4 py-3 text-sm font-semibold text-white"
             >
-              {loading ? "En cours..." : "Enregistrer les modifications"}
+              {loading ? "Enregistrement..." : "Enregistrer les modifications"}
             </button>
             {status && <p className="mt-3 text-center text-sm text-slate-500">{status}</p>}
           </div>

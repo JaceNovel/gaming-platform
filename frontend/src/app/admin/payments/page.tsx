@@ -39,6 +39,13 @@ const formatAmount = (value?: number | null) => {
   return `${Math.round(value).toLocaleString()} FCFA`;
 };
 
+const toOutcomeLabel = (raw?: string | null) => {
+  const v = String(raw ?? "").toLowerCase();
+  if (["paid", "completed", "success", "fulfilled"].includes(v)) return "Complétée";
+  if (!v) return "—";
+  return "Échec";
+};
+
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -96,9 +103,8 @@ export default function AdminPaymentsPage() {
             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
           >
             <option value="all">Tous statuts</option>
-            <option value="paid">Paid</option>
-            <option value="pending">Pending</option>
-            <option value="failed">Failed</option>
+            <option value="completed">Complétée</option>
+            <option value="failed">Échec</option>
           </select>
         </div>
       </div>
@@ -143,7 +149,7 @@ export default function AdminPaymentsPage() {
                     <div className="text-xs text-slate-500">{payment.order?.user?.email ?? "—"}</div>
                   </td>
                   <td className="py-2 pr-4">{formatAmount(payment.amount)}</td>
-                  <td className="py-2 pr-4">{payment.status ?? "—"}</td>
+                  <td className="py-2 pr-4">{toOutcomeLabel(payment.status)}</td>
                   <td className="py-2 pr-4 text-xs text-slate-600">{payment.transaction_id ?? "—"}</td>
                   <td className="py-2 pr-4 text-xs text-slate-500">{payment.created_at ?? "—"}</td>
                 </tr>

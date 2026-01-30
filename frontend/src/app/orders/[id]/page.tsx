@@ -76,21 +76,17 @@ const formatCurrency = (amount: number, countryCode?: string | null) => {
 const prettyStatus = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
   if (!s) return "—";
-  if (s === "pending") return "En cours";
-  if (s === "paid") return "Payée";
-  if (s === "fulfilled") return "Livrée";
-  if (s === "failed") return "Échouée";
-  if (s === "paid_but_out_of_stock") return "Rupture de stock";
-  if (s === "paid_waiting_stock") return "En attente de stock";
+  if (["paid", "completed", "fulfilled"].includes(s)) return "Complétée";
+  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "Échec";
   return status ?? "—";
 };
 
 const statusBadgeClass = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
-  if (s === "paid" || s === "fulfilled") return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
-  if (s === "failed") return "bg-rose-500/20 border-rose-400/30 text-rose-100";
-  if (s === "paid_but_out_of_stock") return "bg-amber-400/20 border-amber-300/30 text-amber-100";
-  if (s === "paid_waiting_stock") return "bg-amber-400/20 border-amber-300/30 text-amber-100";
+  if (["paid", "completed", "fulfilled"].includes(s)) return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
+  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
+    return "bg-rose-500/20 border-rose-400/30 text-rose-100";
+  }
   return "bg-white/10 border-white/20 text-white/80";
 };
 

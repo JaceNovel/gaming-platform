@@ -133,7 +133,7 @@ export default function AdminGamesAddPage() {
             disabled={loading}
             className="w-full rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white"
           >
-            {loading ? "En cours..." : "Ajouter le jeu"}
+            {loading ? "Ajout..." : "Ajouter le jeu"}
           </button>
           {status && <p className="mt-3 text-center text-sm text-slate-500">{status}</p>}
         </div>

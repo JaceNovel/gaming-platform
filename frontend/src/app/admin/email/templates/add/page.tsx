@@ -130,7 +130,7 @@ export default function AdminEmailTemplateAddPage() {
             disabled={loading}
             className="w-full rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white"
           >
-            {loading ? "En cours..." : "Créer le template"}
+            {loading ? "Création..." : "Créer le template"}
           </button>
           {status && <p className="text-sm text-slate-500">{status}</p>}
         </div>

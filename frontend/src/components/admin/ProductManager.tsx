@@ -203,7 +203,7 @@ export function ProductManager({ products, onRefresh }: Props) {
           disabled={loading}
           className="md:col-span-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
         >
-          {loading ? "En cours..." : "Ajouter l'article"}
+          {loading ? "Traitement..." : "Ajouter l'article"}
         </button>
       </form>
 

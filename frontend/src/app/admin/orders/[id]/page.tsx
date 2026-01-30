@@ -48,6 +48,13 @@ const formatAmount = (value?: number | null) => {
   return `${Math.round(value).toLocaleString()} FCFA`;
 };
 
+const toOutcomeLabel = (raw?: string | null) => {
+  const v = String(raw ?? "").toLowerCase();
+  if (["paid", "completed", "success", "fulfilled"].includes(v)) return "Complétée";
+  if (!v) return "—";
+  return "Échec";
+};
+
 export default function AdminOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -183,7 +190,7 @@ export default function AdminOrderDetailPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-2 text-sm">
               <div><span className="text-slate-400">Référence:</span> {order.reference ?? "—"}</div>
-              <div><span className="text-slate-400">Statut:</span> {order.status ?? "—"}</div>
+              <div><span className="text-slate-400">Statut:</span> {toOutcomeLabel(order.status)}</div>
               <div><span className="text-slate-400">Montant:</span> {formatAmount(order.total_price)}</div>
               <div><span className="text-slate-400">Créée:</span> {order.created_at ?? "—"}</div>
             </div>

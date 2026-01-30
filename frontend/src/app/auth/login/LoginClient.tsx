@@ -216,7 +216,7 @@ export default function LoginClient() {
                 disabled={disableSubmit}
                 className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-orange-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(14,165,233,0.35)] transition disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading ? "Connexion en cours..." : "Entrer dans le cockpit"}
+                {loading ? "Connexion..." : "Entrer dans le cockpit"}
               </button>
             </form>
 
