@@ -121,8 +121,8 @@ function ReferralClient() {
   };
 
   return (
-    <main className="min-h-[100dvh] bg-[#04020c] text-white">
-      <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+    <main className="min-h-[100dvh] bg-[#04020c] text-white pb-24">
+      <div className="mobile-shell py-8 space-y-6">
         <div className="flex items-center justify-between gap-3">
           <div>
             <SectionTitle eyebrow="Compte" label="Parrainage" />
@@ -150,7 +150,7 @@ function ReferralClient() {
           </div>
         )}
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
             <p className="text-xs uppercase tracking-[0.3em] text-white/50">Ton code</p>
             <div className="mt-3 flex items-center justify-between gap-3">
@@ -216,7 +216,7 @@ function ReferralClient() {
           </div>
         </div>
 
-        <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <p className="text-sm font-semibold">Historique des filleuls</p>
           <p className="mt-1 text-xs text-white/60">Tu vois ici tes inscriptions attribuées et la commission quand elle est déclenchée.</p>
 

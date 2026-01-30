@@ -241,6 +241,10 @@ function WalletClient() {
     const interval = window.setInterval(() => {
       if (!active) return;
       ticks += 1;
+      void authFetch(`${API_BASE}/wallet/topup/reconcile`, {
+        method: "POST",
+        body: JSON.stringify({ limit: 5 }),
+      }).catch(() => null);
       void loadWallet({ silent: true });
       if (ticks >= 10) {
         window.clearInterval(interval);

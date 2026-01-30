@@ -143,11 +143,12 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
       if (numericId) return numericId;
 
       try {
-        const res = await authFetch(`${API_BASE}/orders`);
+        const res = await authFetch(`${API_BASE}/orders?include_wallet_topups=1`);
         if (!res.ok) return null;
         const data = await res.json();
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-        const match = items.find((row: any) => String(row?.reference ?? "") === String(params.id));
+        const needle = decodeURIComponent(String(params.id ?? "")).trim();
+        const match = items.find((row: any) => String(row?.reference ?? "").trim() === needle);
         const id = match?.id;
         return id ? String(id) : null;
       } catch {

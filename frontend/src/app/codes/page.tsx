@@ -19,6 +19,7 @@ type OrderRow = {
   type?: string | null;
   created_at?: string | null;
   total_price?: number | null;
+  has_redeem_items?: boolean;
   orderItems?: Array<{ product?: { name?: string; type?: string } }>;
   order_items?: Array<{ product?: { name?: string; type?: string } }>;
   meta?: any;
@@ -77,6 +78,7 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
 };
 
 const isRedeemOrder = (order: OrderRow): boolean => {
+  if (order.has_redeem_items === true) return true;
   const type = String(order.type ?? "").toLowerCase();
   if (type === "redeem_purchase") return true;
   const meta = order.meta ?? {};
