@@ -72,6 +72,9 @@ export default function AdminProductsAddPage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [redeemEnabled, setRedeemEnabled] = useState(false);
+  const [redeemCodesText, setRedeemCodesText] = useState("");
+
   const loadCategories = useCallback(async () => {
     try {
       const res = await fetch(buildUrl("/admin/categories"), {
@@ -114,6 +117,12 @@ export default function AdminProductsAddPage() {
     }
   }, [accountImages, imageUrl, type]);
 
+  useEffect(() => {
+    if (!redeemEnabled) return;
+    // For redeem delivery, stock is driven by the redeem pool, not this field.
+    if (stock !== "0") setStock("0");
+  }, [redeemEnabled, stock]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("");
@@ -147,6 +156,8 @@ export default function AdminProductsAddPage() {
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
         images: type === "account" ? cleanedAccountImages : undefined,
+        stock_mode: redeemEnabled ? "redeem_pool" : undefined,
+        redeem_code_delivery: redeemEnabled ? true : undefined,
       };
 
       const res = await fetch(`${API_BASE}/admin/products`, {
@@ -182,6 +193,41 @@ export default function AdminProductsAddPage() {
 
       const created = await res.json().catch(() => ({}));
       const productId = created?.id ?? created?.data?.id;
+
+      // If redeem delivery is enabled, import codes for the product right away.
+      if (productId && redeemEnabled) {
+        const codes = redeemCodesText.trim();
+        if (!codes) {
+          setStatus("Produit ajouté. Ajoutez des codes pour activer la livraison.");
+        } else {
+          const importRes = await fetch(`${API_BASE}/admin/redeem-codes/import`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+              ...getAuthHeaders(),
+            },
+            credentials: "include",
+            body: JSON.stringify({
+              product_id: Number(productId),
+              codes,
+            }),
+          });
+
+          if (!importRes.ok) {
+            const parsed = await importRes.json().catch(() => null);
+            const message = parsed?.message ?? "Import des codes impossible";
+            setStatus(`Produit ajouté, mais import codes échoué: ${message} (HTTP ${importRes.status})`);
+            return;
+          }
+
+          const result = await importRes.json().catch(() => ({}));
+          const imported = Number(result?.imported ?? 0);
+          const duplicates = Number(result?.duplicates ?? 0);
+          setStatus(`Produit ajouté. Codes importés: ${imported}. Doublons ignorés: ${duplicates}.`);
+        }
+      }
 
       // If user selected local files for account carousel, upload them after creation.
       if (productId && type === "account" && accountImageFiles.length) {
@@ -224,7 +270,11 @@ export default function AdminProductsAddPage() {
       setBannerUrl("");
       setAccountImages([""]);
       setAccountImageFiles([]);
-      setStatus(accountImageFiles.length ? "Produit ajouté + images uploadées." : "Produit ajouté.");
+      setRedeemEnabled(false);
+      setRedeemCodesText("");
+      if (!redeemEnabled) {
+        setStatus(accountImageFiles.length ? "Produit ajouté + images uploadées." : "Produit ajouté.");
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Création impossible";
       setStatus(message || "Création impossible");
@@ -389,9 +439,52 @@ export default function AdminProductsAddPage() {
                   type="number"
                   min="0"
                   required
+                  disabled={redeemEnabled}
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                 />
+                {redeemEnabled && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Stock géré automatiquement par les Redeem Codes (pool). Laissez à 0.
+                  </p>
+                )}
               </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-base font-semibold">Redeem Codes</h3>
+            <div className="mt-6 space-y-4">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={redeemEnabled}
+                  onChange={(e) => setRedeemEnabled(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300"
+                />
+                <span>
+                  <span className="block text-sm font-medium">Livraison par Redeem Codes</span>
+                  <span className="block text-xs text-slate-500">
+                    À l’ajout du produit, tu peux importer tous les codes. Après paiement, le client verra son code dans Profil → Mes codes.
+                  </span>
+                </span>
+              </label>
+
+              {redeemEnabled && (
+                <div>
+                  <label className="text-sm font-medium">Codes (1 par ligne ou séparés par virgule) *</label>
+                  <textarea
+                    value={redeemCodesText}
+                    onChange={(e) => setRedeemCodesText(e.target.value)}
+                    required
+                    rows={8}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-mono"
+                    placeholder={`ABC-123\nDEF-456\nGHI-789`}
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Les doublons (déjà présents dans la base) seront ignorés automatiquement.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -544,7 +637,7 @@ export default function AdminProductsAddPage() {
                     placeholder="ex: 7–10 jours"
                   />
                   <p className="mt-1 text-xs text-slate-500">
-                    Optionnel. S'affiche sur la carte produit et la page détail.
+                    Optionnel. S&apos;affiche sur la carte produit et la page détail.
                   </p>
                 </div>
               )}

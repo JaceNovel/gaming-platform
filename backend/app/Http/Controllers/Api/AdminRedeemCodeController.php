@@ -12,6 +12,7 @@ use App\Services\RedeemStockAlertService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -56,13 +57,24 @@ class AdminRedeemCodeController extends Controller
             'code' => 'required|string|max:191',
         ]);
 
-        $code = RedeemCode::create([
-            'denomination_id' => $data['denomination_id'],
-            'code' => trim($data['code']),
-            'status' => 'available',
-            'imported_by' => $request->user()->id,
-            'imported_at' => now(),
-        ]);
+        try {
+            $code = RedeemCode::create([
+                'denomination_id' => $data['denomination_id'],
+                'code' => trim($data['code']),
+                'status' => 'available',
+                'imported_by' => $request->user()->id,
+                'imported_at' => now(),
+            ]);
+        } catch (QueryException $e) {
+            // Unique index on redeem_codes.code: return a clean validation-like error.
+            $sqlState = (string) ($e->errorInfo[0] ?? '');
+            $driverCode = (string) ($e->errorInfo[1] ?? '');
+            if ($sqlState === '23000' || $driverCode === '1062') {
+                return response()->json(['message' => 'Ce code existe déjà.'], 422);
+            }
+
+            throw $e;
+        }
 
         $stockService->logRedeemImport($code->denomination, 1, $request->user(), [
             'source' => 'redeem_manual',
@@ -282,7 +294,7 @@ class AdminRedeemCodeController extends Controller
             $lotCode = trim((string) $data['lot_code']);
             if ($lotCode !== '') {
                 $lot = RedeemLot::firstOrCreate(
-                    ['code' => $lotCode],
+                    ['code' => $lotCode, 'denomination_id' => $denomination->id],
                     [
                         'denomination_id' => $denomination->id,
                         'label' => $data['lot_label'] ?? null,
@@ -301,12 +313,13 @@ class AdminRedeemCodeController extends Controller
             return response()->json(['message' => 'No codes found'], 422);
         }
 
-        $existing = RedeemCode::where('denomination_id', $denomination->id)
-            ->whereIn('code', $rawCodes->all())
+        // redeem_codes.code is globally unique. Dedupe against the whole table to avoid
+        // unique-constraint crashes when the same code was imported under another denomination.
+        $existingGlobal = RedeemCode::whereIn('code', $rawCodes->all())
             ->pluck('code')
             ->all();
 
-        $existingSet = collect($existing);
+        $existingSet = collect($existingGlobal);
         $toInsert = $rawCodes->diff($existingSet)->values();
 
         if ($request->boolean('dry_run')) {
@@ -331,13 +344,15 @@ class AdminRedeemCodeController extends Controller
             'updated_at' => $now,
         ])->all();
 
-        DB::transaction(function () use ($insertPayload) {
+        $inserted = 0;
+        DB::transaction(function () use ($insertPayload, &$inserted) {
             foreach (array_chunk($insertPayload, 500) as $chunk) {
-                RedeemCode::insert($chunk);
+                // Insert while ignoring duplicates (global unique index on code).
+                $inserted += (int) DB::table('redeem_codes')->insertOrIgnore($chunk);
             }
         });
 
-        $stockService->logRedeemImport($denomination, count($insertPayload), $request->user(), [
+        $stockService->logRedeemImport($denomination, $inserted, $request->user(), [
             'source' => 'redeem_import',
         ]);
 
@@ -349,8 +364,8 @@ class AdminRedeemCodeController extends Controller
             [
                 'message' => 'Import codes',
                 'denomination_id' => $denomination->id,
-                'imported' => count($insertPayload),
-                'duplicates' => $existingSet->count(),
+                'imported' => $inserted,
+                'duplicates' => max(0, $rawCodes->count() - $inserted),
             ],
             actionType: 'redeem_stock',
             request: $request
@@ -358,8 +373,8 @@ class AdminRedeemCodeController extends Controller
 
         return response()->json([
             'message' => 'Codes imported',
-            'imported' => count($insertPayload),
-            'duplicates' => $existingSet->count(),
+            'imported' => $inserted,
+            'duplicates' => max(0, $rawCodes->count() - $inserted),
         ]);
     }
 
