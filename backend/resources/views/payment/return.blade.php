@@ -1,6 +1,6 @@
 <html>
 <head>
-    <title>Paiement en cours de validation</title>
+    <title>Validation du paiement</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
         body { font-family: sans-serif; background: #0a192f; color: #fff; text-align: center; padding: 60px 10px; }
@@ -10,7 +10,7 @@
 </head>
 <body>
     <div class="card">
-        <h1>Paiement en cours...</h1>
+        <h1>Validation du paiement</h1>
         <p>Vous allez être redirigé vers l'application pour suivre le statut du paiement.</p>
     </div>
 </body>

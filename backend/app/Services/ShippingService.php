@@ -54,7 +54,7 @@ class ShippingService
             throw new \RuntimeException('Order has no physical items');
         }
 
-        if (!in_array($order->status, ['paid', 'fulfilled'], true)) {
+        if (!$order->isPaymentSuccess()) {
             throw new \RuntimeException('Order not paid');
         }
 

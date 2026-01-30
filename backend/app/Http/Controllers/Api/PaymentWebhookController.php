@@ -7,6 +7,7 @@ use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\PremiumMembership;
 use App\Services\CinetPayService;
@@ -120,7 +121,9 @@ class PaymentWebhookController extends Controller
                 'webhook_data' => $meta,
             ]);
 
-            $orderStatus = $normalized === 'completed' ? 'paid' : 'failed';
+            $orderStatus = $normalized === 'completed'
+                ? Order::STATUS_PAYMENT_SUCCESS
+                : Order::STATUS_PAYMENT_FAILED;
             $payment->order->update(['status' => $orderStatus]);
 
             if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'premium_subscription') {
@@ -210,15 +213,27 @@ class PaymentWebhookController extends Controller
             if ($normalized === 'completed' && $payment->order->type !== 'wallet_topup') {
                 $payment->order->loadMissing('orderItems.product');
 
+                $orderMeta = $payment->order->meta ?? [];
+                if (!is_array($orderMeta)) {
+                    $orderMeta = [];
+                }
+
+                if (!empty($orderMeta['fulfillment_dispatched_at'])) {
+                    return;
+                }
+
                 if ($payment->order->hasPhysicalItems()) {
                     app(ShippingService::class)->computeShippingForOrder($payment->order);
                 }
 
                 if ($payment->order->requiresRedeemFulfillment()) {
-                    ProcessRedeemFulfillment::dispatch($payment->order->id);
+                    ProcessRedeemFulfillment::dispatchSync($payment->order->id);
                 } else {
-                    ProcessOrderDelivery::dispatch($payment->order);
+                    ProcessOrderDelivery::dispatchSync($payment->order);
                 }
+
+                $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
+                $payment->order->update(['meta' => $orderMeta]);
             }
         });
 

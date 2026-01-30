@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\ProcessRedeemFulfillment;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\OrderItem;
@@ -129,15 +128,7 @@ class OrderController extends Controller
         $orderModel->loadMissing('orderItems');
         $hasRedeemItems = $orderModel->requiresRedeemFulfillment();
 
-        if (!in_array($orderModel->status, ['paid', 'fulfilled', 'paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
-            return response()->json([
-                'status' => $orderModel->status,
-                'codes' => [],
-                'has_redeem_items' => $hasRedeemItems,
-            ]);
-        }
-
-        if (in_array($orderModel->status, ['paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
+        if (!$orderModel->isPaymentSuccess()) {
             return response()->json([
                 'status' => $orderModel->status,
                 'codes' => [],
@@ -160,29 +151,7 @@ class OrderController extends Controller
             ->orderBy('id')
             ->get();
 
-        // Self-heal: if payment is confirmed but codes haven't been allocated yet (e.g. no worker),
-        // attempt synchronous fulfillment once, then reload deliveries.
-        if ($hasRedeemItems && $deliveries->isEmpty() && in_array($orderModel->status, ['paid', 'fulfilled'], true)) {
-            try {
-                ProcessRedeemFulfillment::dispatchSync($orderModel->id);
-            } catch (\Throwable $e) {
-                // Don't block the client: they can retry or request resend.
-            }
-
-            $orderModel->refresh();
-            if (in_array($orderModel->status, ['paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
-                return response()->json([
-                    'status' => $orderModel->status,
-                    'codes' => [],
-                    'has_redeem_items' => $hasRedeemItems,
-                ]);
-            }
-
-            $deliveries = RedeemCodeDelivery::with(['redeemCode.denomination'])
-                ->where('order_id', $orderModel->id)
-                ->orderBy('id')
-                ->get();
-        }
+        // Delivery is webhook-only. If there are no deliveries yet, the client will simply see an empty list.
 
         $codes = $deliveries->map(fn ($delivery) => [
             'code' => $delivery->redeemCode?->code,
@@ -221,7 +190,7 @@ class OrderController extends Controller
             return response()->json(['message' => 'Order does not contain redeem codes'], 422);
         }
 
-        if (!in_array($orderModel->status, ['paid', 'fulfilled'], true)) {
+        if (!$orderModel->isPaymentSuccess()) {
             return response()->json(['message' => 'Codes not available yet'], 422);
         }
 
@@ -408,7 +377,7 @@ class OrderController extends Controller
                 'user_id' => $user->id,
                 'type' => $requiresRedeemFulfillment ? 'redeem_purchase' : 'purchase',
                 'total_price' => $finalTotal,
-                'status' => 'pending',
+                'status' => Order::STATUS_PAYMENT_PROCESSING,
                 'items' => $validatedItems,
                 'meta' => $requiresRedeemFulfillment
                     ? array_merge(['requires_redeem' => true], $promotionSummary['meta'])

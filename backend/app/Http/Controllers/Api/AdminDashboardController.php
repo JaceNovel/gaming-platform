@@ -35,18 +35,9 @@ class AdminDashboardController extends Controller
         $totalCustomers = $this->realUsers()->where('role', 'user')->count();
         $avgOrderValue = $totalOrders > 0 ? round($revenueTotal / $totalOrders, 2) : 0;
         $failedPaymentsCount = Payment::where('status', 'failed')->count();
-        $pendingOrdersCount = Order::whereIn('status', ['pending', 'PENDING'])->count();
-        $failedOrdersCount = Order::whereIn('status', ['failed', 'FAILED'])->count();
-        $completedOrdersCount = Order::whereIn('status', [
-            'paid',
-            'PAID',
-            'fulfilled',
-            'FULFILLED',
-            'paid_but_out_of_stock',
-            'PAID_BUT_OUT_OF_STOCK',
-            'paid_waiting_stock',
-            'PAID_WAITING_STOCK',
-        ])->count();
+        $pendingOrdersCount = Order::where('status', Order::STATUS_PAYMENT_PROCESSING)->count();
+        $failedOrdersCount = Order::where('status', Order::STATUS_PAYMENT_FAILED)->count();
+        $completedOrdersCount = Order::where('status', Order::STATUS_PAYMENT_SUCCESS)->count();
 
         $availableRedeems = RedeemDenomination::withCount([
             'codes as available_count' => fn ($query) => $query->where('status', 'available'),
@@ -60,7 +51,7 @@ class AdminDashboardController extends Controller
         $conversionRate = null;
         $totalUsers = $this->realUsers()->count();
         if ($totalUsers > 0) {
-            $paidUsers = Order::where('status', 'paid')
+            $paidUsers = Order::where('status', Order::STATUS_PAYMENT_SUCCESS)
                 ->whereIn('user_id', $this->realUsers()->select('id'))
                 ->distinct('user_id')
                 ->count('user_id');
@@ -105,7 +96,7 @@ class AdminDashboardController extends Controller
 
         $rows = Payment::query()
             ->selectRaw("{$groupExpr} as bucket, SUM(amount) as total")
-            ->where('status', 'paid')
+            ->where('status', 'completed')
             ->whereBetween('created_at', [$start->startOfDay(), $end->endOfDay()])
             ->groupBy('bucket')
             ->orderBy('bucket')

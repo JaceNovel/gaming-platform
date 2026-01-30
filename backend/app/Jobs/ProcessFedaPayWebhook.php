@@ -7,6 +7,7 @@ use App\Models\PaymentAttempt;
 use App\Models\Product;
 use App\Models\PremiumMembership;
 use App\Models\Referral;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\FedaPayService;
 use App\Services\ShippingService;
@@ -62,44 +63,57 @@ class ProcessFedaPayWebhook implements ShouldQueue
 
         if (!$payment) {
             Log::warning('fedapay:webhook-missing', ['transaction_id' => $transactionId]);
+
+            // Track unknown transaction attempts for audit/debug.
+            PaymentAttempt::updateOrCreate(
+                ['transaction_id' => $transactionId],
+                [
+                    'order_id' => null,
+                    'amount' => 0,
+                    'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
+                    'status' => 'failed',
+                    'provider' => 'fedapay',
+                    'processed_at' => now(),
+                    'raw_payload' => [
+                        'event_id' => $eventId,
+                        'event_name' => $eventName,
+                        'webhook' => $payload,
+                        'error' => 'payment_not_found',
+                    ],
+                ]
+            );
             return;
         }
 
         // Idempotence: skip if already final
-        if (in_array((string) $payment->status, ['completed', 'failed', 'paid'], true)) {
+        if (in_array((string) $payment->status, ['completed', 'failed'], true)) {
             Log::info('fedapay:webhook-idempotent', ['payment_id' => $payment->id, 'status' => $payment->status]);
             return;
         }
 
         $attempt = PaymentAttempt::where('transaction_id', $transactionId)->first();
-        if ($attempt && in_array((string) $attempt->status, ['completed', 'failed', 'paid'], true)) {
+        if ($attempt && in_array((string) $attempt->status, ['completed', 'failed'], true)) {
             Log::info('fedapay:webhook-idempotent', ['transaction_id' => $transactionId, 'status' => $attempt->status]);
             return;
         }
 
         // Always verify with provider API (source of truth)
         $verification = $fedaPayService->retrieveTransaction($transactionId);
-        $normalized = $fedaPayService->normalizeStatus($verification, Arr::get($object, 'status'));
 
-        if ($normalized === 'pending') {
-            PaymentAttempt::updateOrCreate(
-                ['transaction_id' => $transactionId],
-                [
-                    'order_id' => $payment->order_id,
-                    'amount' => (float) $payment->amount,
-                    'currency' => strtoupper((string) ($payment->order->currency ?? config('fedapay.default_currency', 'XOF'))),
-                    'status' => 'pending',
-                    'provider' => 'fedapay',
-                    'raw_payload' => [
-                        'event_id' => $eventId,
-                        'event_name' => $eventName,
-                        'webhook' => $payload,
-                        'verification' => $verification,
-                    ],
-                ]
-            );
+        $statusCandidates = array_filter(array_map(static fn ($v) => $v !== null ? strtolower((string) $v) : null, [
+            Arr::get($verification, 'status'),
+            Arr::get($verification, 'transaction.status'),
+            Arr::get($verification, 'data.status'),
+            Arr::get($object, 'status'),
+        ]));
 
-            return;
+        // STRICT: paid only if provider status is EXACTLY SUCCESS/APPROVED.
+        $isApproved = false;
+        foreach ($statusCandidates as $st) {
+            if (in_array($st, ['success', 'approved'], true)) {
+                $isApproved = true;
+                break;
+            }
         }
 
         $amountFromProvider = (float) (
@@ -110,7 +124,34 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 ?? 0
         );
 
-        if ($amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) > 0.01) {
+        $currencyFromProvider = strtoupper((string) (
+            Arr::get($verification, 'currency.iso')
+                ?? Arr::get($verification, 'currency')
+                ?? Arr::get($verification, 'data.currency.iso')
+                ?? Arr::get($verification, 'data.currency')
+                ?? ''
+        ));
+        $expectedCurrency = strtoupper((string) config('fedapay.default_currency', 'XOF'));
+
+        $referenceFromProvider = (string) (
+            Arr::get($verification, 'merchant_reference')
+                ?? Arr::get($verification, 'data.merchant_reference')
+                ?? Arr::get($verification, 'transaction.merchant_reference')
+                ?? Arr::get($verification, 'data.transaction.merchant_reference')
+                ?? ''
+        );
+
+        $referenceMatches = $referenceFromProvider !== ''
+            && $payment->order
+            && (string) ($payment->order->reference ?? '') !== ''
+            && hash_equals((string) $payment->order->reference, $referenceFromProvider);
+
+        $amountMatches = $amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) <= 0.01;
+        $currencyMatches = $currencyFromProvider === '' || $currencyFromProvider === $expectedCurrency;
+
+        $isValidPayment = $isApproved && $amountMatches && $currencyMatches && $referenceMatches;
+
+        if (!$amountMatches) {
             Log::error('fedapay:error', [
                 'stage' => 'webhook-amount',
                 'payment_id' => $payment->id,
@@ -138,8 +179,29 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 ]
             );
 
-            return;
+            // Continue processing to mark order/payment as failed.
         }
+
+        if (!$currencyMatches) {
+            Log::error('fedapay:error', [
+                'stage' => 'webhook-currency',
+                'payment_id' => $payment->id,
+                'expected' => $expectedCurrency,
+                'received' => $currencyFromProvider,
+            ]);
+        }
+
+        if (!$referenceMatches) {
+            Log::error('fedapay:error', [
+                'stage' => 'webhook-reference',
+                'payment_id' => $payment->id,
+                'order_id' => $payment->order_id,
+                'expected' => (string) ($payment->order?->reference ?? ''),
+                'received' => $referenceFromProvider,
+            ]);
+        }
+
+        $normalized = $isValidPayment ? 'completed' : 'failed';
 
         DB::transaction(function () use ($payment, $normalized, $payload, $verification, $transactionId, $eventId, $eventName, $walletService, $shippingService) {
             $meta = $payment->webhook_data ?? [];
@@ -159,12 +221,18 @@ class ProcessFedaPayWebhook implements ShouldQueue
             ]);
 
             if ($payment->order) {
-                $orderStatus = $normalized === 'completed' ? 'paid' : 'failed';
-                $payment->order->update(['status' => $orderStatus]);
+                $order = $payment->order->fresh(['orderItems.product', 'user']);
+
+                $newOrderStatus = $normalized === 'completed'
+                    ? Order::STATUS_PAYMENT_SUCCESS
+                    : Order::STATUS_PAYMENT_FAILED;
+
+                if ((string) $order->status !== $newOrderStatus) {
+                    $order->update(['status' => $newOrderStatus]);
+                }
 
                 // Wallet topup
-                if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'wallet_topup') {
-                    $order = $payment->order->fresh(['user']);
+                if ($normalized === 'completed' && (string) ($order->type ?? '') === 'wallet_topup') {
                     $reference = (string) ($payment->walletTransaction?->reference ?? $order->reference ?? '');
                     if ($order?->user && $reference !== '') {
                         $walletService->credit($order->user, $reference, (float) $payment->amount, [
@@ -214,8 +282,7 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 }
 
                 // VIP activation
-                if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'premium_subscription') {
-                    $order = $payment->order->fresh(['user']);
+                if ($normalized === 'completed' && (string) ($order->type ?? '') === 'premium_subscription') {
                     $orderMeta = $order->meta ?? [];
                     if (!is_array($orderMeta)) {
                         $orderMeta = [];
@@ -274,10 +341,8 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 }
 
                 // Sales + fulfillment (non wallet)
-                if ($normalized === 'completed' && (string) ($payment->order->type ?? '') !== 'wallet_topup') {
-                    $payment->order->loadMissing('orderItems.product');
-
-                    $orderMeta = $payment->order->meta ?? [];
+                if ($normalized === 'completed' && (string) ($order->type ?? '') !== 'wallet_topup') {
+                    $orderMeta = $order->meta ?? [];
                     if (!is_array($orderMeta)) {
                         $orderMeta = [];
                     }
@@ -294,21 +359,23 @@ class ProcessFedaPayWebhook implements ShouldQueue
                         $orderMeta['sales_recorded_at'] = now()->toIso8601String();
                     }
 
-                    if (empty($orderMeta['fulfillment_dispatched_at'])) {
-                        if ($payment->order->hasPhysicalItems()) {
-                            $shippingService->computeShippingForOrder($payment->order);
+                    // Delivery is allowed only for payment_success, and must be idempotent.
+                    if (empty($orderMeta['fulfillment_dispatched_at']) && $order->canBeFulfilled()) {
+                        if ($order->hasPhysicalItems()) {
+                            $shippingService->computeShippingForOrder($order);
                         }
 
-                        if ($payment->order->requiresRedeemFulfillment()) {
-                            ProcessRedeemFulfillment::dispatch($payment->order->id);
+                        if ($order->requiresRedeemFulfillment()) {
+                            ProcessRedeemFulfillment::dispatchSync($order->id);
                         } else {
-                            ProcessOrderDelivery::dispatch($payment->order);
+                            ProcessOrderDelivery::dispatchSync($order);
                         }
 
                         $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
+                        $order->update(['meta' => $orderMeta]);
+                    } elseif (!empty($orderMeta)) {
+                        $order->update(['meta' => $orderMeta]);
                     }
-
-                    $payment->order->update(['meta' => $orderMeta]);
                 }
             }
 
@@ -317,7 +384,7 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 [
                     'order_id' => $payment->order_id,
                     'amount' => (float) $payment->amount,
-                    'currency' => strtoupper((string) ($payment->order->currency ?? config('fedapay.default_currency', 'XOF'))),
+                    'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
                     'status' => $normalized,
                     'provider' => 'fedapay',
                     'processed_at' => now(),
@@ -335,6 +402,8 @@ class ProcessFedaPayWebhook implements ShouldQueue
             'payment_id' => $payment->id,
             'order_id' => $payment->order_id,
             'status' => $normalized,
+            'transaction_id' => $transactionId,
+            'processed_at' => now()->toIso8601String(),
         ]);
     }
 }

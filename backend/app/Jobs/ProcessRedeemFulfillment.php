@@ -76,7 +76,13 @@ class ProcessRedeemFulfillment implements ShouldQueue
                     || strtoupper((string) ($orderItem->product?->stock_type ?? '')) === 'PREORDER'
                     || strtolower((string) ($orderItem->product?->delivery_type ?? '')) === 'preorder';
 
-                $order->update(['status' => $isPreorder ? 'paid_waiting_stock' : 'paid_but_out_of_stock']);
+                $orderMeta = $order->meta ?? [];
+                if (!is_array($orderMeta)) {
+                    $orderMeta = [];
+                }
+                $orderMeta['fulfillment_status'] = $isPreorder ? 'waiting_stock' : 'out_of_stock';
+                $orderMeta['fulfillment_status_set_at'] = now()->toIso8601String();
+                $order->update(['meta' => $orderMeta]);
 
                 Mail::to($order->user->email)->queue(new OutOfStockMail($order));
 
@@ -98,20 +104,13 @@ class ProcessRedeemFulfillment implements ShouldQueue
             return;
         }
 
-        if ($order->hasPhysicalItems()) {
-            $order->update([
-                'status' => 'paid',
-            ]);
-        } else {
-            $order->update([
-                'status' => 'fulfilled',
-            ]);
-        }
-
         $orderMeta = $order->meta ?? [];
         if (!is_array($orderMeta)) {
             $orderMeta = [];
         }
+        $orderMeta['fulfillment_status'] = $order->hasPhysicalItems() ? 'shipping_pending' : 'fulfilled';
+        $orderMeta['fulfillment_completed_at'] = now()->toIso8601String();
+        $order->update(['meta' => $orderMeta]);
 
         $codesText = collect($allCodes)
             ->map(fn ($code) => $code->code)

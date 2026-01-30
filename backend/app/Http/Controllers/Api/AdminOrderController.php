@@ -130,7 +130,7 @@ class AdminOrderController extends Controller
             return response()->json(['message' => 'Order has no physical items'], 422);
         }
 
-        if (!in_array($order->status, ['paid', 'fulfilled'], true)) {
+        if (!$order->isPaymentSuccess()) {
             return response()->json(['message' => 'Order not paid'], 422);
         }
 

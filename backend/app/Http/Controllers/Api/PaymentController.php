@@ -9,6 +9,8 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\Product;
+use App\Models\RedeemCode;
+use App\Models\RedeemDenomination;
 use App\Models\PremiumMembership;
 use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
@@ -53,7 +55,7 @@ class PaymentController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        if ($order->status !== 'pending') {
+        if ((string) $order->status !== Order::STATUS_PAYMENT_PROCESSING) {
             return response()->json(['message' => 'Order is not payable'], 400);
         }
 
@@ -201,9 +203,8 @@ class PaymentController extends Controller
 
     /**
      * Public return endpoint for FedaPay.
-     * FedaPay redirects the user here after payment (browser redirect, not a webhook).
-     * We verify with the provider, update DB, run redeem fulfillment synchronously when needed,
-     * then redirect to the frontend order confirmation page.
+     * Browser redirect is NOT a payment proof. We never validate nor fulfill here.
+     * The ONLY source of truth is the signed server webhook.
      */
     public function redirectFedapayReturn(Request $request)
     {
@@ -221,104 +222,7 @@ class PaymentController extends Controller
             ? $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : '')
             : '/';
 
-        try {
-            $paymentQuery = Payment::with(['order.orderItems.product', 'order.user'])
-                ->where('method', 'fedapay');
-
-            $payment = null;
-            if ($transactionId !== '') {
-                $payment = (clone $paymentQuery)->where('transaction_id', $transactionId)->latest('id')->first();
-            }
-            if (!$payment && $orderId > 0) {
-                $payment = (clone $paymentQuery)->where('order_id', $orderId)->latest('id')->first();
-            }
-
-            if ($payment && $payment->transaction_id) {
-                $verification = $this->fedaPayService->retrieveTransaction((string) $payment->transaction_id);
-                $normalized = $this->fedaPayService->normalizeStatus($verification);
-
-                if ($normalized !== 'pending') {
-                    $amountFromProvider = (float) (
-                        Arr::get($verification, 'amount')
-                            ?? Arr::get($verification, 'data.amount')
-                            ?? Arr::get($verification, 'transaction.amount')
-                            ?? Arr::get($verification, 'data.transaction.amount')
-                            ?? 0
-                    );
-
-                    DB::transaction(function () use ($payment, $normalized, $verification, $amountFromProvider) {
-                        $meta = $payment->webhook_data ?? [];
-                        if (!is_array($meta)) {
-                            $meta = [];
-                        }
-                        $meta['return_verification'] = $verification;
-
-                        $payment->update([
-                            'status' => $normalized,
-                            'webhook_data' => $meta,
-                        ]);
-
-                        $order = $payment->order;
-                        if (!$order) {
-                            return;
-                        }
-
-                        if ($normalized === 'completed') {
-                            if (!in_array((string) $order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
-                                $order->update(['status' => 'paid']);
-                            }
-                        }
-
-                        if ($normalized === 'failed') {
-                            $order->update(['status' => 'failed']);
-                        }
-
-                        // Guard amount mismatch
-                        if ($normalized === 'completed' && $amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) > 0.01) {
-                            Log::error('fedapay:error', [
-                                'stage' => 'return-amount',
-                                'payment_id' => $payment->id,
-                                'expected' => (float) $payment->amount,
-                                'received' => $amountFromProvider,
-                            ]);
-                            return;
-                        }
-
-                        // Synchronous redeem fulfillment so codes appear immediately even without workers.
-                        if ($normalized === 'completed' && (string) ($order->type ?? '') !== 'wallet_topup') {
-                            $order->loadMissing('orderItems.product');
-
-                            $orderMeta = $order->meta ?? [];
-                            if (!is_array($orderMeta)) {
-                                $orderMeta = [];
-                            }
-
-                            if ($order->requiresRedeemFulfillment() && empty($orderMeta['fulfillment_dispatched_at'])) {
-                                try {
-                                    ProcessRedeemFulfillment::dispatchSync($order->id);
-                                    $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
-                                } catch (\Throwable $e) {
-                                    // best effort
-                                }
-                            }
-
-                            if (!empty($orderMeta)) {
-                                $order->update(['meta' => $orderMeta]);
-                            }
-                        }
-                    });
-                }
-
-                $orderId = (int) ($payment->order_id ?? $orderId);
-            }
-        } catch (\Throwable $e) {
-            Log::warning('fedapay:error', [
-                'stage' => 'return',
-                'message' => $e->getMessage(),
-                'order_id' => $orderId,
-                'transaction_id' => $transactionId,
-            ]);
-        }
+        // Intentionally no provider verification and no DB writes here.
 
         $redirect = $frontUrl !== ''
             ? $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : '')
@@ -361,246 +265,19 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Payment not found'], 404);
         }
 
-        $status = $payment->status;
-
-        if (!in_array($payment->status, ['completed', 'failed'], true) && $payment->transaction_id) {
-            try {
-                $verification = $this->fedaPayService->retrieveTransaction($payment->transaction_id);
-                $normalized = $this->fedaPayService->normalizeStatus($verification);
-                $amountFromProvider = (float) (
-                    Arr::get($verification, 'amount')
-                        ?? Arr::get($verification, 'data.amount')
-                        ?? Arr::get($verification, 'transaction.amount')
-                        ?? Arr::get($verification, 'data.transaction.amount')
-                        ?? 0
-                );
-
-                if ($normalized !== 'pending') {
-                    DB::transaction(function () use ($payment, $normalized, $verification, $amountFromProvider) {
-                        $previousOrderStatus = $payment->order?->status;
-                        $meta = $payment->webhook_data ?? [];
-                        if (!is_array($meta)) {
-                            $meta = [];
-                        }
-                        $meta['verification'] = $verification;
-
-                        $payment->update([
-                            'status' => $normalized,
-                            'webhook_data' => $meta,
-                        ]);
-
-                        if ($payment->order) {
-                            $payment->order->update([
-                                'status' => $normalized === 'completed'
-                                    ? 'paid'
-                                    : ($normalized === 'failed' ? 'failed' : $payment->order->status),
-                            ]);
-
-                            if ((string) ($payment->order->type ?? '') === 'wallet_topup') {
-                                $order = $payment->order->fresh(['user']);
-                                $reference = (string) ($payment->walletTransaction?->reference ?? $order->reference ?? '');
-
-                                if ($normalized === 'completed' && $order?->user && $reference !== '') {
-                                    if ($amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) > 0.01) {
-                                        Log::error('fedapay:error', [
-                                            'stage' => 'topup-status-amount',
-                                            'payment_id' => $payment->id,
-                                            'expected' => (float) $payment->amount,
-                                            'received' => $amountFromProvider,
-                                        ]);
-                                    } else {
-                                        app(WalletService::class)->credit($order->user, $reference, (float) $payment->amount, [
-                                            'source' => 'fedapay_topup_status',
-                                            'payment_id' => $payment->id,
-                                            'reason' => 'topup',
-                                        ]);
-
-                                        $orderMeta = $order->meta ?? [];
-                                        if (!is_array($orderMeta)) {
-                                            $orderMeta = [];
-                                        }
-                                        if (empty($orderMeta['wallet_credited_at'])) {
-                                            $orderMeta['wallet_credited_at'] = now()->toIso8601String();
-                                            $order->update(['meta' => $orderMeta]);
-                                        }
-                                    }
-                                }
-
-                                if ($normalized === 'failed' && $payment->walletTransaction) {
-                                    $payment->walletTransaction->update(['status' => 'failed']);
-                                }
-                            }
-
-                            if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'premium_subscription') {
-                                $order = $payment->order->fresh(['user']);
-                                $orderMeta = $order->meta ?? [];
-                                if (!is_array($orderMeta)) {
-                                    $orderMeta = [];
-                                }
-
-                                if (empty($orderMeta['premium_activated_at'])) {
-                                    $level = (string) ($orderMeta['premium_level'] ?? 'bronze');
-                                    $gameId = (int) ($orderMeta['game_id'] ?? 0);
-                                    $gameUsername = (string) ($orderMeta['game_username'] ?? '');
-
-                                    if ($gameId > 0 && $gameUsername !== '') {
-                                        $levels = [
-                                            'bronze' => ['duration' => 30],
-                                            'platine' => ['duration' => 30],
-                                        ];
-                                        $duration = $levels[$level]['duration'] ?? 30;
-
-                                        $membership = PremiumMembership::updateOrCreate(
-                                            [
-                                                'user_id' => $order->user_id,
-                                                'game_id' => $gameId,
-                                            ],
-                                            [
-                                                'level' => $level,
-                                                'game_username' => $gameUsername,
-                                                'expiration_date' => Carbon::now()->addDays($duration),
-                                                'is_active' => true,
-                                                'renewal_count' => DB::raw('renewal_count + 1'),
-                                            ]
-                                        );
-
-                                        $order->user?->update([
-                                            'is_premium' => true,
-                                            'premium_level' => $level,
-                                            'premium_expiration' => $membership->expiration_date,
-                                        ]);
-
-                                        $orderMeta['premium_activated_at'] = now()->toIso8601String();
-                                        $order->update(['meta' => $orderMeta]);
-                                    }
-                                }
-                            }
-
-                            if ($normalized === 'completed'
-                                && $payment->order->type !== 'wallet_topup'
-                                && $previousOrderStatus !== 'paid') {
-                                $payment->order->loadMissing('orderItems.product');
-
-                                $orderMeta = $payment->order->meta ?? [];
-                                if (!is_array($orderMeta)) {
-                                    $orderMeta = [];
-                                }
-
-                                if (empty($orderMeta['sales_recorded_at'])) {
-                                    foreach ($payment->order->orderItems as $item) {
-                                        if (!$item?->product_id) {
-                                            continue;
-                                        }
-                                        $qty = max(1, (int) ($item->quantity ?? 1));
-                                        Product::where('id', $item->product_id)->increment('purchases_count');
-                                        Product::where('id', $item->product_id)->increment('sold_count', $qty);
-                                    }
-                                    $orderMeta['sales_recorded_at'] = now()->toIso8601String();
-                                }
-
-                                if (empty($orderMeta['fulfillment_dispatched_at'])) {
-                                    if ($payment->order->requiresRedeemFulfillment()) {
-                                        ProcessRedeemFulfillment::dispatch($payment->order->id);
-                                    } else {
-                                        ProcessOrderDelivery::dispatch($payment->order);
-                                    }
-                                    $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
-                                }
-
-                                $payment->order->update(['meta' => $orderMeta]);
-                            }
-                        }
-                    });
-
-                    $status = $normalized;
-                }
-            } catch (\Throwable $e) {
-                Log::warning('fedapay:error', [
-                    'stage' => 'status-check',
-                    'payment_id' => $payment->id,
-                    'message' => $e->getMessage(),
-                ]);
-            }
+        $order = $payment->order;
+        if (!$order) {
+            return response()->json(['message' => 'Order not found for payment'], 404);
         }
 
-        // Self-heal wallet topups: if payment is completed but wallet wasn't credited (queue/webhook issues), credit now.
-        if ($payment->order && (string) ($payment->order->type ?? '') === 'wallet_topup' && $payment->order->user) {
-            $order = $payment->order->fresh(['user']);
-            $orderMeta = $order->meta ?? [];
-            if (!is_array($orderMeta)) {
-                $orderMeta = [];
-            }
-
-            $creditedAt = $orderMeta['wallet_credited_at'] ?? null;
-            $walletTxStatus = (string) ($payment->walletTransaction?->status ?? '');
-
-            if ((string) $payment->status === 'completed' && (empty($creditedAt) || $walletTxStatus !== 'success')) {
-                $reference = (string) ($payment->walletTransaction?->reference ?? $order->reference ?? '');
-                if ($reference !== '') {
-                    try {
-                        app(WalletService::class)->credit($order->user, $reference, (float) $payment->amount, [
-                            'source' => 'fedapay_topup_status_reconcile',
-                            'payment_id' => $payment->id,
-                            'reason' => 'topup',
-                        ]);
-
-                        if (empty($orderMeta['wallet_credited_at'])) {
-                            $orderMeta['wallet_credited_at'] = now()->toIso8601String();
-                            $order->update(['meta' => $orderMeta]);
-                        }
-                    } catch (\Throwable $e) {
-                        Log::warning('fedapay:error', [
-                            'stage' => 'wallet-topup-reconcile',
-                            'payment_id' => $payment->id,
-                            'message' => $e->getMessage(),
-                        ]);
-                    }
-                }
-            }
-        }
-
-        if ($payment->status === 'completed' && $payment->order && $payment->order->type !== 'wallet_topup') {
-            $payment->order->loadMissing('orderItems.product');
-
-            if (!in_array($payment->order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
-                $payment->order->update(['status' => 'paid']);
-            }
-
-            $orderMeta = $payment->order->meta ?? [];
-            if (!is_array($orderMeta)) {
-                $orderMeta = [];
-            }
-
-            if (empty($orderMeta['sales_recorded_at'])) {
-                foreach ($payment->order->orderItems as $item) {
-                    if (!$item?->product_id) {
-                        continue;
-                    }
-                    $qty = max(1, (int) ($item->quantity ?? 1));
-                    Product::where('id', $item->product_id)->increment('purchases_count');
-                    Product::where('id', $item->product_id)->increment('sold_count', $qty);
-                }
-                $orderMeta['sales_recorded_at'] = now()->toIso8601String();
-            }
-
-            if (empty($orderMeta['fulfillment_dispatched_at'])) {
-                if ($payment->order->requiresRedeemFulfillment()) {
-                    ProcessRedeemFulfillment::dispatch($payment->order->id);
-                } else {
-                    ProcessOrderDelivery::dispatch($payment->order);
-                }
-                $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
-            }
-
-            $payment->order->update(['meta' => $orderMeta]);
-        }
+        $paymentStatus = $order->isPaymentSuccess() ? 'paid' : ($order->isPaymentFailed() ? 'failed' : 'processing');
 
         return response()->json([
             'success' => true,
             'data' => [
-                'payment_status' => $status === 'completed' ? 'paid' : $status,
-                'order_status' => $payment->order->status,
-                'order_type' => $payment->order->type,
+                'payment_status' => $paymentStatus,
+                'order_status' => $order->status,
+                'order_type' => $order->type,
                 'transaction_id' => $payment->transaction_id,
                 'order_id' => $payment->order_id,
             ],
@@ -623,7 +300,7 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Wallet topup cannot be paid with wallet'], 422);
         }
 
-        if (!in_array((string) $order->status, ['pending'], true)) {
+        if ((string) $order->status !== Order::STATUS_PAYMENT_PROCESSING) {
             return response()->json(['message' => 'Order is not payable'], 400);
         }
 
@@ -701,7 +378,7 @@ class PaymentController extends Controller
                 $payment->save();
 
                 $order->payment_id = $payment->id;
-                $order->status = 'paid';
+                $order->status = Order::STATUS_PAYMENT_SUCCESS;
 
                 $orderMeta = $order->meta ?? [];
                 if (!is_array($orderMeta)) {
@@ -722,9 +399,9 @@ class PaymentController extends Controller
 
                 if (empty($orderMeta['fulfillment_dispatched_at'])) {
                     if ($order->requiresRedeemFulfillment()) {
-                        ProcessRedeemFulfillment::dispatch($order->id);
+                        ProcessRedeemFulfillment::dispatchSync($order->id);
                     } else {
-                        ProcessOrderDelivery::dispatch($order);
+                        ProcessOrderDelivery::dispatchSync($order);
                     }
                     $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
                 }
@@ -787,7 +464,7 @@ class PaymentController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        if ($order->status !== 'pending') {
+        if ((string) $order->status !== Order::STATUS_PAYMENT_PROCESSING) {
             return response()->json(['message' => 'Order is not payable'], 400);
         }
 
@@ -948,210 +625,72 @@ class PaymentController extends Controller
             return response()->json(['message' => 'Payment not found'], 404);
         }
 
-        $status = $payment->status;
-
-        if (!in_array($payment->status, ['completed', 'failed'], true) && $payment->transaction_id) {
-            try {
-                $verification = $this->cinetPayService->verifyTransaction($payment->transaction_id);
-                $normalized = $this->cinetPayService->normalizeStatus($verification);
-                $amountFromProvider = (float) Arr::get($verification, 'data.amount', 0);
-
-                if ($normalized !== 'pending') {
-                    DB::transaction(function () use ($payment, $normalized, $verification, $amountFromProvider) {
-                            $previousOrderStatus = $payment->order?->status;
-                        $meta = $payment->webhook_data ?? [];
-                        if (!is_array($meta)) {
-                            $meta = [];
-                        }
-                        $meta['verification'] = $verification;
-
-                        $payment->update([
-                            'status' => $normalized,
-                            'webhook_data' => $meta,
-                        ]);
-
-                        if ($payment->order) {
-                            $payment->order->update([
-                                'status' => $normalized === 'completed'
-                                    ? 'paid'
-                                    : ($normalized === 'failed' ? 'failed' : $payment->order->status),
-                            ]);
-
-                            // Wallet topups must credit the wallet. Webhook can fail in production,
-                            // so we also credit on status polling in an idempotent way.
-                            if ((string) ($payment->order->type ?? '') === 'wallet_topup') {
-                                $order = $payment->order->fresh(['user']);
-                                $reference = (string) ($payment->walletTransaction?->reference ?? $order->reference ?? '');
-
-                                if ($normalized === 'completed' && $order?->user && $reference !== '') {
-                                    if ($amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) > 0.01) {
-                                        Log::error('cinetpay:error', [
-                                            'stage' => 'topup-status-amount',
-                                            'payment_id' => $payment->id,
-                                            'expected' => (float) $payment->amount,
-                                            'received' => $amountFromProvider,
-                                        ]);
-                                    } else {
-                                        app(WalletService::class)->credit($order->user, $reference, (float) $payment->amount, [
-                                            'source' => 'cinetpay_topup_status',
-                                            'payment_id' => $payment->id,
-                                        ]);
-
-                                        $orderMeta = $order->meta ?? [];
-                                        if (!is_array($orderMeta)) {
-                                            $orderMeta = [];
-                                        }
-                                        if (empty($orderMeta['wallet_credited_at'])) {
-                                            $orderMeta['wallet_credited_at'] = now()->toIso8601String();
-                                            $order->update(['meta' => $orderMeta]);
-                                        }
-                                    }
-                                }
-
-                                if ($normalized === 'failed' && $payment->walletTransaction) {
-                                    $payment->walletTransaction->update(['status' => 'failed']);
-                                }
-                            }
-
-                            if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'premium_subscription') {
-                                $order = $payment->order->fresh(['user']);
-                                $orderMeta = $order->meta ?? [];
-                                if (!is_array($orderMeta)) {
-                                    $orderMeta = [];
-                                }
-
-                                if (empty($orderMeta['premium_activated_at'])) {
-                                    $level = (string) ($orderMeta['premium_level'] ?? 'bronze');
-                                    $gameId = (int) ($orderMeta['game_id'] ?? 0);
-                                    $gameUsername = (string) ($orderMeta['game_username'] ?? '');
-
-                                    if ($gameId > 0 && $gameUsername !== '') {
-                                        $levels = [
-                                            'bronze' => ['duration' => 30],
-                                            'platine' => ['duration' => 30],
-                                        ];
-                                        $duration = $levels[$level]['duration'] ?? 30;
-
-                                        $membership = PremiumMembership::updateOrCreate(
-                                            [
-                                                'user_id' => $order->user_id,
-                                                'game_id' => $gameId,
-                                            ],
-                                            [
-                                                'level' => $level,
-                                                'game_username' => $gameUsername,
-                                                'expiration_date' => Carbon::now()->addDays($duration),
-                                                'is_active' => true,
-                                                'renewal_count' => DB::raw('renewal_count + 1'),
-                                            ]
-                                        );
-
-                                        $order->user?->update([
-                                            'is_premium' => true,
-                                            'premium_level' => $level,
-                                            'premium_expiration' => $membership->expiration_date,
-                                        ]);
-
-                                        $orderMeta['premium_activated_at'] = now()->toIso8601String();
-                                        $order->update(['meta' => $orderMeta]);
-                                    }
-                                }
-                            }
-
-                                if ($normalized === 'completed'
-                                    && $payment->order->type !== 'wallet_topup'
-                                    && $previousOrderStatus !== 'paid') {
-                                    $payment->order->loadMissing('orderItems.product');
-
-                                    $orderMeta = $payment->order->meta ?? [];
-                                    if (!is_array($orderMeta)) {
-                                        $orderMeta = [];
-                                    }
-
-                                    if (empty($orderMeta['sales_recorded_at'])) {
-                                        foreach ($payment->order->orderItems as $item) {
-                                            if (!$item?->product_id) {
-                                                continue;
-                                            }
-                                            $qty = max(1, (int) ($item->quantity ?? 1));
-                                            Product::where('id', $item->product_id)->increment('purchases_count');
-                                            Product::where('id', $item->product_id)->increment('sold_count', $qty);
-                                        }
-                                        $orderMeta['sales_recorded_at'] = now()->toIso8601String();
-                                    }
-
-                                    if (empty($orderMeta['fulfillment_dispatched_at'])) {
-                                        if ($payment->order->requiresRedeemFulfillment()) {
-                                            ProcessRedeemFulfillment::dispatch($payment->order->id);
-                                        } else {
-                                            ProcessOrderDelivery::dispatch($payment->order);
-                                        }
-                                        $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
-                                    }
-
-                                    $payment->order->update(['meta' => $orderMeta]);
-                                }
-                        }
-                    });
-
-                    $status = $normalized;
-                }
-            } catch (\Throwable $e) {
-                Log::warning('cinetpay:error', [
-                    'stage' => 'status-check',
-                    'payment_id' => $payment->id,
-                    'message' => $e->getMessage(),
-                ]);
-            }
+        $order = $payment->order;
+        if (!$order) {
+            return response()->json(['message' => 'Order not found for payment'], 404);
         }
 
-        // If the webhook already marked the payment as completed, ensure the order status
-        // and fulfillment dispatch are not left behind.
-        if ($payment->status === 'completed' && $payment->order && $payment->order->type !== 'wallet_topup') {
-            $payment->order->loadMissing('orderItems.product');
-
-            if (!in_array($payment->order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
-                $payment->order->update(['status' => 'paid']);
-            }
-
-            $orderMeta = $payment->order->meta ?? [];
-            if (!is_array($orderMeta)) {
-                $orderMeta = [];
-            }
-
-            if (empty($orderMeta['sales_recorded_at'])) {
-                foreach ($payment->order->orderItems as $item) {
-                    if (!$item?->product_id) {
-                        continue;
-                    }
-                    $qty = max(1, (int) ($item->quantity ?? 1));
-                    Product::where('id', $item->product_id)->increment('purchases_count');
-                    Product::where('id', $item->product_id)->increment('sold_count', $qty);
-                }
-                $orderMeta['sales_recorded_at'] = now()->toIso8601String();
-            }
-
-            if (empty($orderMeta['fulfillment_dispatched_at'])) {
-                if ($payment->order->requiresRedeemFulfillment()) {
-                    ProcessRedeemFulfillment::dispatch($payment->order->id);
-                } else {
-                    ProcessOrderDelivery::dispatch($payment->order);
-                }
-                $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
-            }
-
-            $payment->order->update(['meta' => $orderMeta]);
-        }
+        $paymentStatus = $order->isPaymentSuccess() ? 'paid' : ($order->isPaymentFailed() ? 'failed' : 'processing');
 
         return response()->json([
             'success' => true,
             'data' => [
-                'payment_status' => $status === 'completed' ? 'paid' : $status,
-                'order_status' => $payment->order->status,
-                'order_type' => $payment->order->type,
+                'payment_status' => $paymentStatus,
+                'order_status' => $order->status,
+                'order_type' => $order->type,
                 'transaction_id' => $payment->transaction_id,
                 'order_id' => $payment->order_id,
             ],
         ]);
+    }
+
+    private function attachRedeemDenominationsIfMissing(Order $order): bool
+    {
+        $order->loadMissing(['orderItems.product']);
+
+        $updated = false;
+
+        foreach ($order->orderItems as $orderItem) {
+            if (!empty($orderItem->redeem_denomination_id)) {
+                continue;
+            }
+
+            $product = $orderItem->product;
+            if (!$product) {
+                continue;
+            }
+
+            $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
+                || (bool) ($product->redeem_code_delivery ?? false)
+                || strtolower((string) ($product->type ?? '')) === 'redeem';
+
+            if (!$requiresDenomination) {
+                continue;
+            }
+
+            $quantity = max(1, (int) ($orderItem->quantity ?? 1));
+
+            // Prefer product-scoped denominations first to keep codes tied to the product.
+            $denominations = RedeemDenomination::query()
+                ->where('active', true)
+                ->where('product_id', $product->id)
+                ->orderByDesc('diamonds')
+                ->orderBy('id')
+                ->get();
+
+            foreach ($denominations as $denomination) {
+                $available = RedeemCode::where('denomination_id', $denomination->id)
+                    ->where('status', 'available')
+                    ->count();
+
+                if ($available >= $quantity) {
+                    $orderItem->update(['redeem_denomination_id' => $denomination->id]);
+                    $updated = true;
+                    break;
+                }
+            }
+        }
+
+        return $updated;
     }
 }

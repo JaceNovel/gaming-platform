@@ -8,6 +8,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
+    public const STATUS_PAYMENT_PROCESSING = 'payment_processing';
+    public const STATUS_PAYMENT_SUCCESS = 'payment_success';
+    public const STATUS_PAYMENT_FAILED = 'payment_failed';
+
     protected $fillable = [
         'user_id',
         'type',
@@ -84,5 +88,25 @@ class Order extends Model
         }
 
         return $this->orderItems()->where('is_physical', true)->exists();
+    }
+
+    public function isPaymentProcessing(): bool
+    {
+        return (string) $this->status === self::STATUS_PAYMENT_PROCESSING;
+    }
+
+    public function isPaymentSuccess(): bool
+    {
+        return (string) $this->status === self::STATUS_PAYMENT_SUCCESS;
+    }
+
+    public function isPaymentFailed(): bool
+    {
+        return (string) $this->status === self::STATUS_PAYMENT_FAILED;
+    }
+
+    public function canBeFulfilled(): bool
+    {
+        return $this->isPaymentSuccess();
     }
 }

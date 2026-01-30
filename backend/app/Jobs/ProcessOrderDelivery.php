@@ -61,16 +61,28 @@ class ProcessOrderDelivery implements ShouldQueue
                 }
             }
 
-            $newStatus = $hasProcessing ? 'processing' : ($hasPhysical ? 'paid' : 'delivered');
+            $newDeliveryState = $hasProcessing ? 'processing' : ($hasPhysical ? 'shipping_pending' : 'delivered');
             if ($hasRefund) {
                 $statuses = $this->order->orderItems->pluck('delivery_status')->map(fn ($v) => (string) $v);
                 $allRefunded = $statuses->every(fn ($s) => $s === 'refunded');
-                $newStatus = $allRefunded ? 'cancelled_refunded' : ($hasProcessing ? 'processing' : 'partially_refunded');
+                $newDeliveryState = $allRefunded ? 'refunded' : ($hasProcessing ? 'processing' : 'partially_refunded');
             }
-            $payload = ['status' => $newStatus];
+
+            $orderMeta = $this->order->meta ?? [];
+            if (!is_array($orderMeta)) {
+                $orderMeta = [];
+            }
+            $orderMeta['delivery_state'] = $newDeliveryState;
+            $orderMeta['delivery_processed_at'] = now()->toIso8601String();
+
+            $payload = ['meta' => $orderMeta];
             if ($hasPhysical) {
                 $payload['shipping_status'] = $this->order->shipping_status ?: 'pending';
             }
+            if ($newDeliveryState === 'delivered' && empty($this->order->delivered_at)) {
+                $payload['delivered_at'] = now();
+            }
+
             $this->order->update($payload);
 
             Log::info('Order delivery processed', ['order_id' => $this->order->id]);
@@ -188,7 +200,7 @@ class ProcessOrderDelivery implements ShouldQueue
             'user_id' => $this->order->user_id,
             'to' => $this->order->user->email,
             'type' => 'topup_confirmation',
-            'subject' => 'Paiement confirmé - Traitement en cours',
+            'subject' => 'Paiement confirmé - Traitement',
             'status' => 'sent',
             'sent_at' => now(),
         ]);
@@ -207,7 +219,7 @@ class ProcessOrderDelivery implements ShouldQueue
             'user_id' => $this->order->user_id,
             'to' => $this->order->user->email,
             'type' => 'article_confirmation',
-            'subject' => 'Commande confirmée - Livraison en cours',
+            'subject' => 'Commande confirmée - Livraison',
             'status' => 'sent',
             'sent_at' => now(),
         ]);

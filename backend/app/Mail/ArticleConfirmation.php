@@ -30,7 +30,7 @@ class ArticleConfirmation extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Commande confirmée - Livraison en cours',
+            subject: 'Commande confirmée - Livraison',
         );
     }
 

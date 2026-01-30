@@ -54,7 +54,7 @@ HTML,
                 'name' => 'Confirmation recharge',
                 'subject' => 'Confirmation de recharge BADBOYSHOP',
                 'body' => <<<HTML
-<h2>Recharge en cours</h2>
+<h2>Recharge en validation</h2>
 <p>Bonjour {{user.name}},</p>
 <p>Votre demande de recharge pour la commande <strong>{{order.reference}}</strong> a bien été reçue.</p>
 <p>Notre équipe traite votre demande.</p>
