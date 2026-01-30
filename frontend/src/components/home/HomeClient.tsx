@@ -266,6 +266,7 @@ export default function HomeClient() {
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
   const { user, loading: authLoading } = useAuth();
+  const quickActionsRef = useRef<HTMLDivElement | null>(null);
   const stats = useMemo<Stat[]>(
     () => [
       { to: 10, suffix: "+", label: "Comptes\nvendus", icon: Gamepad2 },
@@ -278,6 +279,63 @@ export default function HomeClient() {
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [desktopStart, setDesktopStart] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+
+  useEffect(() => {
+    const el = quickActionsRef.current;
+    if (!el) return;
+    if (typeof window === "undefined") return;
+
+    const isMobile = window.matchMedia("(max-width: 639px)").matches;
+    if (!isMobile) return;
+
+    let rafId: number | null = null;
+    let pausedUntil = 0;
+
+    const pause = () => {
+      pausedUntil = Date.now() + 2500;
+    };
+
+    const step = () => {
+      const now = Date.now();
+      if (now < pausedUntil) {
+        rafId = window.requestAnimationFrame(step);
+        return;
+      }
+
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) {
+        rafId = window.requestAnimationFrame(step);
+        return;
+      }
+
+      const next = el.scrollLeft + 0.6;
+      if (next >= max - 1) {
+        el.scrollLeft = 0;
+        pausedUntil = Date.now() + 1200;
+      } else {
+        el.scrollLeft = next;
+      }
+
+      rafId = window.requestAnimationFrame(step);
+    };
+
+    el.addEventListener("touchstart", pause, { passive: true });
+    el.addEventListener("touchmove", pause, { passive: true });
+    el.addEventListener("wheel", pause, { passive: true });
+    el.addEventListener("pointerdown", pause, { passive: true });
+    el.addEventListener("pointermove", pause, { passive: true });
+
+    rafId = window.requestAnimationFrame(step);
+
+    return () => {
+      el.removeEventListener("touchstart", pause);
+      el.removeEventListener("touchmove", pause);
+      el.removeEventListener("wheel", pause);
+      el.removeEventListener("pointerdown", pause);
+      el.removeEventListener("pointermove", pause);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -533,7 +591,7 @@ export default function HomeClient() {
 
               {!authLoading && user ? (
                 <div className="mx-auto mt-4 w-full max-w-[420px] sm:max-w-xl">
-                  <div className="flex gap-2 overflow-x-auto pb-1 sm:justify-center">
+                  <div ref={quickActionsRef} className="flex gap-2 overflow-x-auto pb-1 sm:justify-center">
                     <Link
                       href="/account"
                       className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/7 px-3 py-2 text-xs font-semibold text-white/90 ring-1 ring-white/15"

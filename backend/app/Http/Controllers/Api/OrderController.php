@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessRedeemFulfillment;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\OrderItem;
@@ -63,6 +64,30 @@ class OrderController extends Controller
             ->where('order_id', $order->id)
             ->orderBy('id')
             ->get();
+
+        // Self-heal: if payment is confirmed but codes haven't been allocated yet (e.g. no worker),
+        // attempt synchronous fulfillment once, then reload deliveries.
+        if ($hasRedeemItems && $deliveries->isEmpty() && in_array($order->status, ['paid', 'fulfilled'], true)) {
+            try {
+                ProcessRedeemFulfillment::dispatchSync($order->id);
+            } catch (\Throwable $e) {
+                // Don't block the client: they can retry or request resend.
+            }
+
+            $order->refresh();
+            if ($order->status === 'paid_but_out_of_stock') {
+                return response()->json([
+                    'status' => $order->status,
+                    'codes' => [],
+                    'has_redeem_items' => $hasRedeemItems,
+                ]);
+            }
+
+            $deliveries = RedeemCodeDelivery::with(['redeemCode.denomination'])
+                ->where('order_id', $order->id)
+                ->orderBy('id')
+                ->get();
+        }
 
         $codes = $deliveries->map(fn ($delivery) => [
             'code' => $delivery->redeemCode?->code,

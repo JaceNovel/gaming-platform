@@ -31,9 +31,10 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: "Codes (recharges)",
     summary: "Où trouver vos codes et comment les copier.",
     bullets: [
-      "Après paiement, une fenêtre affiche vos codes (si disponible).",
-      "Vous pouvez copier un code ou tout copier en une fois.",
-      "Si le stock est faible, les codes peuvent arriver un peu plus tard.",
+      "Après paiement, vos codes apparaissent dans Profil → Mes codes.",
+      "Vous pouvez copier un code (ou tout copier) et renvoyer par email.",
+      "Si vous ne voyez rien tout de suite: attendez 10–30s puis Actualiser.",
+      "En cas de rupture, la commande passe en attente (stock) et vous serez notifié.",
     ],
   },
   {

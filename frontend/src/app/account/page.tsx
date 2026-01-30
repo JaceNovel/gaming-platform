@@ -530,7 +530,7 @@ function AccountClient() {
     setCountryMessage("");
     try {
       const selected = COUNTRY_OPTIONS.find((opt) => opt.code === countryFormCode);
-      const res = await authFetch(`${API_BASE}/me`, {
+      const res = await authFetch(`${API_BASE}/me/profile`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

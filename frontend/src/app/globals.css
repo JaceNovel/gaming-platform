@@ -97,6 +97,22 @@ body {
   padding: 0 16px;
 }
 
+/* Help pages: keep mobile sizing, expand on desktop */
+.help-shell {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+@media (min-width: 1024px) {
+  .help-shell {
+    max-width: none;
+    margin: 0;
+    padding: 0 32px;
+  }
+}
+
 .grid-bg {
   background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
