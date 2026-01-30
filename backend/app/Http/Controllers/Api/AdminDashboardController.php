@@ -44,6 +44,8 @@ class AdminDashboardController extends Controller
             'FULFILLED',
             'paid_but_out_of_stock',
             'PAID_BUT_OUT_OF_STOCK',
+            'paid_waiting_stock',
+            'PAID_WAITING_STOCK',
         ])->count();
 
         $availableRedeems = RedeemDenomination::withCount([

@@ -12,6 +12,7 @@ class RedeemCode extends Model
 
     protected $fillable = [
         'denomination_id',
+        'lot_id',
         'code',
         'status',
         'reserved_until',
@@ -39,6 +40,11 @@ class RedeemCode extends Model
     public function denomination(): BelongsTo
     {
         return $this->belongsTo(RedeemDenomination::class, 'denomination_id');
+    }
+
+    public function lot(): BelongsTo
+    {
+        return $this->belongsTo(RedeemLot::class, 'lot_id');
     }
 
     public function assignedOrder(): BelongsTo

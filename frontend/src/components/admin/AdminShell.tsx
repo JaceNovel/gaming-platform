@@ -8,7 +8,6 @@ import {
   Boxes,
   CreditCard,
   Gift,
-  Headset,
   Heart,
   Key,
   LayoutDashboard,
@@ -67,7 +66,7 @@ const MENU_ITEMS = [
   { label: "Offres", icon: Heart, href: "/admin/offers" },
   { label: "Email", icon: Mail, href: "/admin/email" },
   { label: "Notifications", icon: Bell, href: "/admin/notifications" },
-  { label: "Demandes d'Importation", icon: Boxes, href: "/admin/redeem" },
+  { label: "Demandes d’importation", icon: Boxes, href: "/admin/redeem" },
   { label: "Avis Clients", icon: Star, href: "/admin/reviews" },
   { label: "Paramètres", icon: Settings, href: "/admin/settings" },
   {
@@ -75,6 +74,7 @@ const MENU_ITEMS = [
     icon: Key,
     href: "/admin/redeem-codes",
     children: [
+      { label: "Lots", href: "/admin/redeem-lots/list" },
       { label: "Liste", href: "/admin/redeem-codes/list" },
       { label: "Ajouter", href: "/admin/redeem-codes/add" },
       { label: "Low Stock", href: "/admin/redeem-codes/low-stock" },
@@ -115,7 +115,7 @@ export default function AdminShell({
           <div className="text-sm uppercase tracking-[0.3em] text-white/50">BADBOYSHOP</div>
           <h1 className="mt-3 text-xl font-semibold">Accès admin limité</h1>
           <p className="mt-2 text-sm text-white/70">
-            Connectez-vous sur un PC pour accéder à l'administration.
+            Connectez-vous sur un PC pour accéder à l’administration.
           </p>
         </div>
       </div>

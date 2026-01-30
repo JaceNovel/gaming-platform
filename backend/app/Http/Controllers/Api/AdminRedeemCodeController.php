@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\RedeemCode;
 use App\Models\RedeemDenomination;
+use App\Models\RedeemLot;
 use App\Models\Product;
 use App\Services\AdminAuditLogger;
 use App\Services\RedeemStockAlertService;
@@ -203,6 +204,11 @@ class AdminRedeemCodeController extends Controller
         $data = $request->validate([
             'denomination_id' => 'nullable|exists:redeem_denominations,id|required_without:product_id',
             'product_id' => 'nullable|exists:products,id|required_without:denomination_id',
+            'lot_id' => 'nullable|exists:redeem_lots,id',
+            'lot_code' => 'nullable|string|max:64',
+            'lot_label' => 'nullable|string|max:255',
+            'lot_supplier' => 'nullable|string|max:128',
+            'lot_purchase_price_fcfa' => 'nullable|integer|min:0',
             'codes' => 'nullable|string',
             'file' => 'nullable|file|mimes:txt,csv',
             'dry_run' => 'sometimes|boolean',
@@ -268,6 +274,27 @@ class AdminRedeemCodeController extends Controller
                 ]);
             }
         }
+
+        $lotId = null;
+        if (!empty($data['lot_id'])) {
+            $lotId = (int) $data['lot_id'];
+        } elseif (!empty($data['lot_code'])) {
+            $lotCode = trim((string) $data['lot_code']);
+            if ($lotCode !== '') {
+                $lot = RedeemLot::firstOrCreate(
+                    ['code' => $lotCode],
+                    [
+                        'denomination_id' => $denomination->id,
+                        'label' => $data['lot_label'] ?? null,
+                        'supplier' => $data['lot_supplier'] ?? null,
+                        'purchase_price_fcfa' => $data['lot_purchase_price_fcfa'] ?? null,
+                        'received_at' => now(),
+                        'created_by' => $request->user()->id,
+                    ]
+                );
+                $lotId = $lot->id;
+            }
+        }
         $rawCodes = $this->collectCodes($data['codes'] ?? '', $request->file('file'));
 
         if ($rawCodes->isEmpty()) {
@@ -295,6 +322,7 @@ class AdminRedeemCodeController extends Controller
         $now = now();
         $insertPayload = $toInsert->map(fn ($code) => [
             'denomination_id' => $denomination->id,
+            'lot_id' => $lotId,
             'code' => $code,
             'status' => 'available',
             'imported_by' => $request->user()->id,

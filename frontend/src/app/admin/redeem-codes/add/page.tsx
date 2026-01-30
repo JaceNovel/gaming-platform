@@ -10,14 +10,6 @@ type Product = {
   sku?: string | null;
 };
 
-type Denomination = {
-  id: number;
-  product_id?: number | null;
-  code?: string | null;
-  label?: string | null;
-  product?: { id: number; name?: string | null; sku?: string | null } | null;
-};
-
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
   if (typeof window === "undefined") return headers;
@@ -28,8 +20,13 @@ const getAuthHeaders = (): Record<string, string> => {
   return headers;
 };
 
-const normalizeList = <T,>(payload: any): T[] => {
-  if (Array.isArray(payload?.data)) return payload.data as T[];
+const hasDataArray = (payload: unknown): payload is { data: unknown[] } => {
+  if (!payload || typeof payload !== "object") return false;
+  return Array.isArray((payload as { data?: unknown }).data);
+};
+
+const normalizeList = <T,>(payload: unknown): T[] => {
+  if (hasDataArray(payload)) return payload.data as T[];
   if (Array.isArray(payload)) return payload as T[];
   return [];
 };
@@ -37,6 +34,7 @@ const normalizeList = <T,>(payload: any): T[] => {
 export default function AdminRedeemCodesAddPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [productId, setProductId] = useState("");
+  const [lotCode, setLotCode] = useState("");
   const [codes, setCodes] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState("");
@@ -84,6 +82,7 @@ export default function AdminRedeemCodesAddPage() {
     try {
       const formData = new FormData();
       formData.append("product_id", productId);
+      if (lotCode.trim()) formData.append("lot_code", lotCode.trim());
       if (codes.trim()) formData.append("codes", codes.trim());
       if (file) formData.append("file", file);
 
@@ -140,6 +139,19 @@ export default function AdminRedeemCodesAddPage() {
               {!loadingProducts && products.length === 0 && (
                 <p className="mt-2 text-xs text-slate-500">Aucun produit trouvé. Vérifiez votre API / accès réseau.</p>
               )}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Lot (optionnel)</label>
+              <input
+                value={lotCode}
+                onChange={(e) => setLotCode(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                placeholder="LOT-2026-01"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                Permet de regrouper l’import dans un lot (traçabilité).
+              </p>
             </div>
 
             <div>

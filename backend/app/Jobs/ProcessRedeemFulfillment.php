@@ -72,7 +72,11 @@ class ProcessRedeemFulfillment implements ShouldQueue
                     'denomination_id' => $orderItem->redeem_denomination_id,
                 ]);
 
-                $order->update(['status' => 'paid_but_out_of_stock']);
+                $isPreorder = strtolower((string) ($orderItem->delivery_type ?? '')) === 'preorder'
+                    || strtoupper((string) ($orderItem->product?->stock_type ?? '')) === 'PREORDER'
+                    || strtolower((string) ($orderItem->product?->delivery_type ?? '')) === 'preorder';
+
+                $order->update(['status' => $isPreorder ? 'paid_waiting_stock' : 'paid_but_out_of_stock']);
 
                 Mail::to($order->user->email)->queue(new OutOfStockMail($order));
 

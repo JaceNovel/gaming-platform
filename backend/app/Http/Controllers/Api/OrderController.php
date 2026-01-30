@@ -19,6 +19,79 @@ use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
+    private function resolveOrderForUser(Request $request, string $orderIdOrReference): Order
+    {
+        $needle = urldecode($orderIdOrReference);
+
+        $order = Order::query()
+            ->where('user_id', $request->user()->id)
+            ->where(function ($q) use ($needle) {
+                if (ctype_digit($needle)) {
+                    $q->where('id', (int) $needle)->orWhere('reference', $needle);
+                } else {
+                    $q->where('reference', $needle);
+                }
+            })
+            ->first();
+
+        if (!$order) {
+            abort(404, 'Commande introuvable');
+        }
+
+        return $order;
+    }
+
+    private function attachRedeemDenominationsIfMissing(Order $order): bool
+    {
+        $order->loadMissing(['orderItems.product']);
+
+        $updated = false;
+
+        foreach ($order->orderItems as $orderItem) {
+            if (!empty($orderItem->redeem_denomination_id)) {
+                continue;
+            }
+
+            $product = $orderItem->product;
+            if (!$product) {
+                continue;
+            }
+
+            $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
+                || (bool) ($product->redeem_code_delivery ?? false)
+                || strtolower((string) ($product->type ?? '')) === 'redeem';
+
+            if (!$requiresDenomination) {
+                continue;
+            }
+
+            $quantity = max(1, (int) ($orderItem->quantity ?? 1));
+
+            $denominations = RedeemDenomination::query()
+                ->where('active', true)
+                ->where(function ($q) use ($product) {
+                    $q->where('product_id', $product->id)->orWhereNull('product_id');
+                })
+                ->orderByRaw('CASE WHEN product_id IS NULL THEN 1 ELSE 0 END')
+                ->orderByDesc('diamonds')
+                ->get();
+
+            foreach ($denominations as $denomination) {
+                $available = RedeemCode::where('denomination_id', $denomination->id)
+                    ->where('status', 'available')
+                    ->count();
+
+                if ($available >= $quantity) {
+                    $orderItem->update(['redeem_denomination_id' => $denomination->id]);
+                    $updated = true;
+                    break;
+                }
+            }
+        }
+
+        return $updated;
+    }
+
     public function index(Request $request)
     {
         $includeTopups = filter_var((string) $request->query('include_wallet_topups', '0'), FILTER_VALIDATE_BOOLEAN);
@@ -42,66 +115,71 @@ class OrderController extends Controller
         return response()->json($orders);
     }
 
-    public function show(Request $request, Order $order)
+    public function show(Request $request, string $order)
     {
-        if ($order->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $order->load(['orderItems.product', 'payment']);
-        return response()->json($order);
+        $orderModel = $this->resolveOrderForUser($request, $order);
+        $orderModel->load(['orderItems.product', 'payment']);
+        return response()->json($orderModel);
     }
 
-    public function redeemCodes(Request $request, Order $order)
+    public function redeemCodes(Request $request, string $order)
     {
-        if ($order->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $orderModel = $this->resolveOrderForUser($request, $order);
 
-        $order->loadMissing('orderItems');
-        $hasRedeemItems = $order->requiresRedeemFulfillment();
+        $orderModel->loadMissing('orderItems');
+        $hasRedeemItems = $orderModel->requiresRedeemFulfillment();
 
-        if (!in_array($order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock'], true)) {
+        if (!in_array($orderModel->status, ['paid', 'fulfilled', 'paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
             return response()->json([
-                'status' => $order->status,
+                'status' => $orderModel->status,
                 'codes' => [],
                 'has_redeem_items' => $hasRedeemItems,
             ]);
         }
 
-        if ($order->status === 'paid_but_out_of_stock') {
+        if (in_array($orderModel->status, ['paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
             return response()->json([
-                'status' => $order->status,
+                'status' => $orderModel->status,
                 'codes' => [],
                 'has_redeem_items' => $hasRedeemItems,
             ]);
+        }
+
+        // Self-heal (legacy): older paid orders may miss redeem_denomination_id even though the product uses redeem_pool.
+        if (!$hasRedeemItems) {
+            $updated = $this->attachRedeemDenominationsIfMissing($orderModel);
+            if ($updated) {
+                $orderModel->refresh();
+                $orderModel->loadMissing('orderItems');
+                $hasRedeemItems = $orderModel->requiresRedeemFulfillment();
+            }
         }
 
         $deliveries = RedeemCodeDelivery::with(['redeemCode.denomination'])
-            ->where('order_id', $order->id)
+            ->where('order_id', $orderModel->id)
             ->orderBy('id')
             ->get();
 
         // Self-heal: if payment is confirmed but codes haven't been allocated yet (e.g. no worker),
         // attempt synchronous fulfillment once, then reload deliveries.
-        if ($hasRedeemItems && $deliveries->isEmpty() && in_array($order->status, ['paid', 'fulfilled'], true)) {
+        if ($hasRedeemItems && $deliveries->isEmpty() && in_array($orderModel->status, ['paid', 'fulfilled'], true)) {
             try {
-                ProcessRedeemFulfillment::dispatchSync($order->id);
+                ProcessRedeemFulfillment::dispatchSync($orderModel->id);
             } catch (\Throwable $e) {
                 // Don't block the client: they can retry or request resend.
             }
 
-            $order->refresh();
-            if ($order->status === 'paid_but_out_of_stock') {
+            $orderModel->refresh();
+            if (in_array($orderModel->status, ['paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
                 return response()->json([
-                    'status' => $order->status,
+                    'status' => $orderModel->status,
                     'codes' => [],
                     'has_redeem_items' => $hasRedeemItems,
                 ]);
             }
 
             $deliveries = RedeemCodeDelivery::with(['redeemCode.denomination'])
-                ->where('order_id', $order->id)
+                ->where('order_id', $orderModel->id)
                 ->orderBy('id')
                 ->get();
         }
@@ -122,31 +200,33 @@ class OrderController extends Controller
             ->update(['revealed_at' => now()]);
 
         return response()->json([
-            'status' => $order->status,
+            'status' => $orderModel->status,
             'codes' => $codes,
             'guide_url' => url('/api/guides/shop2game-freefire'),
             'has_redeem_items' => $hasRedeemItems,
         ]);
     }
 
-    public function resendRedeemCodes(Request $request, Order $order)
+    public function resendRedeemCodes(Request $request, string $order)
     {
-        if ($order->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $orderModel = $this->resolveOrderForUser($request, $order);
 
-        $order->loadMissing(['user', 'orderItems']);
+        // Try to self-heal missing denominations before resend.
+        $this->attachRedeemDenominationsIfMissing($orderModel);
+        $orderModel->refresh();
 
-        if (!$order->requiresRedeemFulfillment()) {
+        $orderModel->loadMissing(['user', 'orderItems']);
+
+        if (!$orderModel->requiresRedeemFulfillment()) {
             return response()->json(['message' => 'Order does not contain redeem codes'], 422);
         }
 
-        if (!in_array($order->status, ['paid', 'fulfilled'], true)) {
+        if (!in_array($orderModel->status, ['paid', 'fulfilled'], true)) {
             return response()->json(['message' => 'Codes not available yet'], 422);
         }
 
         $deliveries = RedeemCodeDelivery::with(['redeemCode.denomination'])
-            ->where('order_id', $order->id)
+            ->where('order_id', $orderModel->id)
             ->orderBy('id')
             ->get();
 
@@ -159,18 +239,18 @@ class OrderController extends Controller
             return response()->json(['message' => 'No codes assigned'], 404);
         }
 
-        $email = trim((string) ($order->user?->email ?? ''));
+        $email = trim((string) ($orderModel->user?->email ?? ''));
         if ($email === '') {
             return response()->json(['message' => 'Email missing'], 422);
         }
 
         // Send synchronously to avoid relying on queue workers.
-        Mail::to($email)->send(new \App\Mail\RedeemCodeDelivery($order->loadMissing('user'), $redeemCodes->all()));
+        Mail::to($email)->send(new \App\Mail\RedeemCodeDelivery($orderModel->loadMissing('user'), $redeemCodes->all()));
 
         RedeemCode::whereIn('id', $redeemCodes->pluck('id')->all())->update(['last_resend_at' => now()]);
 
         \App\Models\EmailLog::create([
-            'user_id' => $order->user_id,
+            'user_id' => $orderModel->user_id,
             'to' => $email,
             'type' => 'redeem_code_resend',
             'subject' => 'Votre recharge Free Fire est prête',
@@ -273,7 +353,10 @@ class OrderController extends Controller
                     ->where('status', 'available')
                     ->count();
 
-                if ($availableCodes < $quantity) {
+                $isPreorder = strtoupper((string) ($product->stock_type ?? '')) === 'PREORDER'
+                    || strtolower((string) ($product->delivery_type ?? '')) === 'preorder';
+
+                if ($availableCodes < $quantity && !$isPreorder) {
                     throw ValidationException::withMessages([
                         'items' => 'Selected denomination is low on stock, please try a lower quantity',
                     ]);

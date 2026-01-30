@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminSettingsController;
 use App\Http\Controllers\Api\AdminOrderController;
 use App\Http\Controllers\Api\AdminRedeemCodeController;
+use App\Http\Controllers\Api\AdminRedeemLotController;
 use App\Http\Controllers\Api\AdminMeController;
 use App\Http\Controllers\Api\AdminAuditLogController;
 use App\Http\Controllers\Api\AuthController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\ImageProxyController;
+use App\Http\Controllers\Api\MeRedeemController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -120,8 +122,10 @@ Route::get('/likes/stats', [LikeController::class, 'stats']);
 // Webhooks (no auth required)
 Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.cinetpay.webhook');
 Route::match(['get', 'post'], '/payments/cinetpay/return', [PaymentWebhookController::class, 'redirect'])->name('api.payments.cinetpay.return');
+Route::match(['get', 'post'], '/payments/fedapay/return', [PaymentController::class, 'redirectFedapayReturn'])->name('api.payments.fedapay.return');
 Route::post('/payments/fedapay/webhook', [FedaPayWebhookController::class, 'handle'])->name('api.payments.fedapay.webhook');
 Route::post('/wallet/topup/webhook', [WalletController::class, 'webhookTopup'])->name('api.wallet.topup.webhook');
+Route::match(['get', 'post'], '/wallet/topup/return', [WalletController::class, 'redirectTopupReturn'])->name('api.wallet.topup.return');
 
 Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFreeFire']);
 
@@ -189,6 +193,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me/profile', [UserProfileController::class, 'show']);
     Route::patch('/me/profile', [UserProfileController::class, 'update']);
 
+    // Redeem deliveries
+    Route::get('/me/redeems', [MeRedeemController::class, 'index']);
+
     // Reviews
     Route::get('/reviews', [ReviewController::class, 'index']);
     Route::post('/reviews', [ReviewController::class, 'store']);
@@ -228,6 +235,9 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         ->middleware('permission:orders.manage');
 
     // Redeem inventory
+    Route::get('/redeem-lots', [AdminRedeemLotController::class, 'index'])->middleware('permission:redeems.view');
+    Route::post('/redeem-lots', [AdminRedeemLotController::class, 'store'])->middleware('permission:redeems.manage');
+
     Route::get('/redeem/denominations', [AdminRedeemCodeController::class, 'denominations'])->middleware('permission:redeems.view');
     Route::get('/redeem/stats', [AdminRedeemCodeController::class, 'stats'])->middleware('permission:redeems.view');
     Route::get('/redeem', [AdminRedeemCodeController::class, 'index'])->middleware('permission:redeems.view');

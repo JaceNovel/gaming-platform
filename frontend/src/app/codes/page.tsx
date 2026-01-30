@@ -22,19 +22,38 @@ type OrderRow = {
   has_redeem_items?: boolean;
   orderItems?: Array<{ product?: { name?: string; type?: string } }>;
   order_items?: Array<{ product?: { name?: string; type?: string } }>;
-  meta?: any;
+  meta?: Record<string, unknown> | null;
 };
 
-type RedeemCodesResponse = {
-  status?: string;
-  codes?: Array<{
-    code: string;
+type MeRedeemsRow = {
+  id: number;
+  created_at?: string | null;
+  order?: {
+    id: number;
+    reference?: string | null;
+    status?: string | null;
+    created_at?: string | null;
+  };
+  product?: {
+    id: number;
+    name?: string | null;
+    sku?: string | null;
+  };
+  denomination?: {
+    id?: number | null;
     label?: string | null;
     diamonds?: number | null;
-    quantity_index?: number | null;
-  }>;
-  has_redeem_items?: boolean;
-  guide_url?: string;
+  };
+  code?: string | null;
+  quantity_index?: number | null;
+  delivered_via?: string | null;
+};
+
+type MeRedeemsResponse = {
+  data?: MeRedeemsRow[];
+  current_page?: number;
+  last_page?: number;
+  next_page_url?: string | null;
 };
 
 const prettyOrderStatus = (status?: string | null) => {
@@ -45,6 +64,7 @@ const prettyOrderStatus = (status?: string | null) => {
   if (s === "pending") return "En cours";
   if (s === "failed") return "Échouée";
   if (s === "paid_but_out_of_stock") return "Rupture";
+  if (s === "paid_waiting_stock") return "En attente";
   return status ?? "—";
 };
 
@@ -53,6 +73,7 @@ const statusBadgeClass = (status?: string | null) => {
   if (s === "paid" || s === "fulfilled") return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
   if (s === "failed") return "bg-rose-500/20 border-rose-300/30 text-rose-100";
   if (s === "paid_but_out_of_stock") return "bg-amber-400/20 border-amber-300/30 text-amber-100";
+  if (s === "paid_waiting_stock") return "bg-amber-400/20 border-amber-300/30 text-amber-100";
   return "bg-white/10 border-white/20 text-white/80";
 };
 
@@ -83,11 +104,12 @@ const isRedeemOrder = (order: OrderRow): boolean => {
   if (type === "redeem_purchase") return true;
   const meta = order.meta ?? {};
   if (meta && typeof meta === "object") {
-    if (meta.requires_redeem === true) return true;
-    if (meta.requiresRedeem === true) return true;
+    const metaObj = meta as Record<string, unknown>;
+    if (metaObj.requires_redeem === true) return true;
+    if (metaObj.requiresRedeem === true) return true;
   }
 
-  const items = (order.orderItems ?? order.order_items ?? []) as Array<any>;
+  const items = (order.orderItems ?? order.order_items ?? []) as Array<{ product?: { type?: string | null } }>;
   const productType = String(items?.[0]?.product?.type ?? "").toLowerCase();
   return productType === "redeem";
 };
@@ -99,10 +121,12 @@ function CodesClient() {
 
   const [loading, setLoading] = useState(HAS_API_ENV);
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [deliveries, setDeliveries] = useState<MeRedeemsRow[]>([]);
+  const [deliveriesPage, setDeliveriesPage] = useState(1);
+  const [deliveriesLastPage, setDeliveriesLastPage] = useState(1);
+  const [deliveriesLoading, setDeliveriesLoading] = useState(false);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [codesByOrder, setCodesByOrder] = useState<Record<number, RedeemCodesResponse | null>>({});
-  const [codesLoading, setCodesLoading] = useState<Record<number, boolean>>({});
 
   const [banner, setBanner] = useState<string | null>(null);
   const loadSeq = useRef(0);
@@ -116,6 +140,25 @@ function CodesClient() {
   }, [searchParams]);
 
   const redeemOrders = useMemo(() => orders.filter(isRedeemOrder), [orders]);
+
+  const deliveriesByOrder = useMemo(() => {
+    const map = new Map<number, { order: MeRedeemsRow["order"]; items: MeRedeemsRow[] }>();
+
+    for (const row of deliveries) {
+      const orderId = row.order?.id;
+      if (!orderId) continue;
+      const existing = map.get(orderId);
+      if (existing) {
+        existing.items.push(row);
+      } else {
+        map.set(orderId, { order: row.order, items: [row] });
+      }
+    }
+
+    return Array.from(map.entries())
+      .map(([orderId, value]) => ({ orderId, order: value.order, items: value.items }))
+      .sort((a, b) => (b.orderId ?? 0) - (a.orderId ?? 0));
+  }, [deliveries]);
 
   const loadOrders = async () => {
     if (!HAS_API_ENV) {
@@ -140,22 +183,37 @@ function CodesClient() {
     }
   };
 
-  const loadCodesForOrder = async (orderId: number) => {
+  const loadMyRedeems = async (page = 1, mode: "replace" | "append" = "replace") => {
     if (!HAS_API_ENV) return;
 
-    setCodesLoading((prev) => ({ ...prev, [orderId]: true }));
+    setDeliveriesLoading(true);
     try {
-      const res = await authFetch(`${API_BASE}/orders/${encodeURIComponent(String(orderId))}/redeem-codes`);
-      const payload = await res.json().catch(() => null);
+      const res = await authFetch(`${API_BASE}/me/redeems?per_page=50&page=${encodeURIComponent(String(page))}`);
+      const payload = (await res.json().catch(() => null)) as MeRedeemsResponse | null;
       if (!res.ok) {
-        setCodesByOrder((prev) => ({ ...prev, [orderId]: null }));
+        if (mode === "replace") {
+          setDeliveries([]);
+          setDeliveriesPage(1);
+          setDeliveriesLastPage(1);
+        }
         return;
       }
-      setCodesByOrder((prev) => ({ ...prev, [orderId]: payload as RedeemCodesResponse }));
+
+      const rows = Array.isArray(payload?.data) ? payload!.data! : [];
+      const currentPage = Number(payload?.current_page ?? page) || page;
+      const lastPage = Number(payload?.last_page ?? currentPage) || currentPage;
+
+      setDeliveries((prev) => (mode === "append" ? [...prev, ...rows] : rows));
+      setDeliveriesPage(currentPage);
+      setDeliveriesLastPage(lastPage);
     } catch {
-      setCodesByOrder((prev) => ({ ...prev, [orderId]: null }));
+      if (mode === "replace") {
+        setDeliveries([]);
+        setDeliveriesPage(1);
+        setDeliveriesLastPage(1);
+      }
     } finally {
-      setCodesLoading((prev) => ({ ...prev, [orderId]: false }));
+      setDeliveriesLoading(false);
     }
   };
 
@@ -172,8 +230,8 @@ function CodesClient() {
         throw new Error(payload?.message ?? "Impossible d’envoyer l’email");
       }
       setBanner(payload?.message ?? "Codes envoyés par email.");
-    } catch (error: any) {
-      setBanner(error?.message ?? "Erreur inattendue");
+    } catch (error: unknown) {
+      setBanner(error instanceof Error ? error.message : "Erreur inattendue");
     } finally {
       window.setTimeout(() => setBanner(null), 3500);
     }
@@ -181,6 +239,7 @@ function CodesClient() {
 
   useEffect(() => {
     void loadOrders();
+    void loadMyRedeems(1, "replace");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -219,7 +278,10 @@ function CodesClient() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => void loadOrders()}
+                onClick={() => {
+                  void loadOrders();
+                  void loadMyRedeems(1, "replace");
+                }}
                 className="rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold"
               >
                 Actualiser
@@ -235,188 +297,199 @@ function CodesClient() {
           </div>
 
           <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
-            {loading ? (
+            {loading || deliveriesLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 6 }).map((_, idx) => (
                   <div key={idx} className="h-14 w-full animate-pulse rounded-2xl bg-white/5" />
                 ))}
               </div>
-            ) : redeemOrders.length === 0 ? (
+            ) : deliveriesByOrder.length === 0 ? (
               <div>
-                <p className="text-white/80 font-semibold">Aucun code trouvé</p>
-                <p className="mt-1 text-sm text-white/60">
-                  Les codes apparaissent ici après l’achat. Tu peux aussi consulter la boutique.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <GlowButton onClick={() => router.push("/shop")}>Aller à la boutique</GlowButton>
-                  <GlowButton variant="secondary" onClick={() => router.push("/account")}>Aller au profil</GlowButton>
-                </div>
+                {redeemOrders.length === 0 ? (
+                  <>
+                    <p className="text-white/80 font-semibold">Aucun code trouvé</p>
+                    <p className="mt-1 text-sm text-white/60">
+                      Les codes apparaissent ici après l’achat. Tu peux aussi consulter la boutique.
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <GlowButton onClick={() => router.push("/shop")}>Aller à la boutique</GlowButton>
+                      <GlowButton variant="secondary" onClick={() => router.push("/account")}>
+                        Aller au profil
+                      </GlowButton>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    {redeemOrders.map((order) => {
+                      const title =
+                        (order.orderItems ?? order.order_items ?? [])?.[0]?.product?.name ??
+                        order.reference ??
+                        `Commande ${order.id}`;
+
+                      const isOpen = selectedId === order.id;
+                      const badgeClass = statusBadgeClass(order.status);
+                      const orderStatus = prettyOrderStatus(order.status);
+                      const orderRef = order.reference ?? `#${order.id}`;
+
+                      return (
+                        <div key={order.id} className="rounded-2xl border border-white/10 bg-white/5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedId(isOpen ? null : order.id)}
+                            className="w-full px-4 py-4 flex items-center justify-between gap-3 text-left"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold">{title}</div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/60">
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 ${badgeClass}`}
+                                >
+                                  {orderStatus}
+                                </span>
+                                <span className="truncate">{orderRef}</span>
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-sm text-white/60">{isOpen ? "Fermer" : "Voir"}</div>
+                          </button>
+
+                          {isOpen && (
+                            <div className="px-4 pb-4">
+                              {String(order.status ?? "").toLowerCase() === "paid_but_out_of_stock" ? (
+                                <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
+                                  Rupture de stock. On te livre dès que possible.
+                                </div>
+                              ) : String(order.status ?? "").toLowerCase() === "paid_waiting_stock" ? (
+                                <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
+                                  En attente de stock. On te livre dès que possible.
+                                </div>
+                              ) : (
+                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                                  Livraison en cours. Tes codes apparaîtront ici dès qu’ils seront prêts.
+                                </div>
+                              )}
+
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <GlowButton onClick={() => void resendCodes(order.id)} variant="secondary">
+                                  Renvoyer par email
+                                </GlowButton>
+                                <Link
+                                  href={`/orders/${encodeURIComponent(order.reference ?? String(order.id))}`}
+                                  className="rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold"
+                                >
+                                  Voir commande
+                                </Link>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
-                {redeemOrders.map((order) => {
-                  const title =
-                    (order.orderItems ?? order.order_items ?? [])?.[0]?.product?.name ??
-                    order.reference ??
-                    `Commande ${order.id}`;
-                  const isSelected = selectedId === order.id;
-                  const codesResp = codesByOrder[order.id] ?? null;
-                  const codes = codesResp?.codes ?? [];
-                  const codesStatus = codesResp?.status ?? order.status;
-                  const codesLoadingNow = Boolean(codesLoading[order.id]);
+                {deliveriesByOrder.map((group) => {
+                  const orderStatus = prettyOrderStatus(group.order?.status);
+                  const badgeClass = statusBadgeClass(group.order?.status);
+                  const orderRef = group.order?.reference ?? `#${group.orderId}`;
+                  const isOpen = selectedId === group.orderId;
+
+                  const title = group.items?.[0]?.product?.name ?? `Commande ${orderRef}`;
+                  const deliveredItems = group.items.filter((x) => Boolean(x.code));
 
                   return (
-                    <div key={order.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div key={group.orderId} className="rounded-2xl border border-white/10 bg-white/5">
                       <button
                         type="button"
-                        onClick={() => {
-                          const next = isSelected ? null : order.id;
-                          setSelectedId(next);
-                          if (next && codesByOrder[order.id] === undefined) {
-                            void loadCodesForOrder(order.id);
-                          }
-                        }}
-                        className="w-full text-left"
+                        onClick={() => setSelectedId(isOpen ? null : group.orderId)}
+                        className="w-full px-4 py-4 flex items-center justify-between gap-3 text-left"
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-white">{title}</p>
-                            <p className="mt-1 text-xs text-white/60">
-                              {order.reference ? `${order.reference} • ` : ""}
-                              {order.created_at ? new Date(order.created_at).toLocaleString("fr-FR") : ""}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <span
-                              className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${statusBadgeClass(
-                                codesStatus,
-                              )}`}
-                            >
-                              {prettyOrderStatus(codesStatus)}
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold">{title}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/60">
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${badgeClass}`}>
+                              {orderStatus}
                             </span>
-                            <p className="mt-2 text-xs text-white/60">Tap pour voir</p>
+                            <span className="truncate">{orderRef}</span>
                           </div>
                         </div>
+                        <div className="shrink-0 text-sm text-white/60">{isOpen ? "Fermer" : "Voir"}</div>
                       </button>
 
-                      {isSelected && (
-                        <div className="mt-4">
-                          {codesLoadingNow ? (
-                            <div className="space-y-2">
-                              {Array.from({ length: 3 }).map((_, idx) => (
-                                <div key={idx} className="h-10 w-full animate-pulse rounded-xl bg-black/30" />
-                              ))}
+                      {isOpen && (
+                        <div className="px-4 pb-4">
+                          {String(group.order?.status ?? "").toLowerCase() === "paid_but_out_of_stock" ? (
+                            <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
+                              Rupture de stock. On te livre dès que possible.
                             </div>
-                          ) : codesResp && codesResp.status === "paid_but_out_of_stock" ? (
-                            <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-                              Rupture de stock: on prépare ta commande et on te prévient dès que possible.
+                          ) : String(group.order?.status ?? "").toLowerCase() === "paid_waiting_stock" ? (
+                            <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
+                              En attente de stock. On te livre dès que possible.
                             </div>
-                          ) : codes.length === 0 ? (
-                            <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
-                              Codes pas encore disponibles. Réessaie dans quelques instants.
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => void loadCodesForOrder(order.id)}
-                                  className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold"
-                                >
-                                  Réessayer
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void openTidioChat({
-                                    message: `Bonjour, je n’ai pas reçu mes codes. Commande: ${order.reference ?? order.id}`,
-                                  })}
-                                  className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-100"
-                                >
-                                  Contacter support
-                                </button>
-                              </div>
+                          ) : deliveredItems.length === 0 ? (
+                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                              Aucun code livré pour l’instant.
                             </div>
                           ) : (
-                            <>
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="text-xs text-white/60">
-                                  {codes.length} code(s)
-                                  {codesResp?.guide_url ? (
-                                    <span>
-                                      {" "}•{" "}
-                                      <Link
-                                        href={codesResp.guide_url}
-                                        target="_blank"
-                                        className="underline underline-offset-4 hover:text-white"
-                                      >
-                                        Guide
-                                      </Link>
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <div className="flex flex-wrap gap-2">
+                            <div className="space-y-2">
+                              {deliveredItems.map((row) => (
+                                <div
+                                  key={row.id}
+                                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold truncate">{row.code}</div>
+                                    <div className="text-xs text-white/60">
+                                      {row.denomination?.label ? row.denomination.label : "Code"}
+                                      {row.quantity_index ? ` • #${row.quantity_index}` : ""}
+                                    </div>
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={async () => {
-                                      const text = codes.map((c) => c.code).filter(Boolean).join("\n");
-                                      const ok = await copyToClipboard(text);
-                                      setBanner(ok ? "Codes copiés." : "Copie impossible sur cet appareil.");
-                                      window.setTimeout(() => setBanner(null), 1600);
+                                      const ok = await copyToClipboard(String(row.code ?? ""));
+                                      setBanner(ok ? "Code copié" : "Copie impossible");
+                                      window.setTimeout(() => setBanner(null), 2000);
                                     }}
-                                    className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold"
+                                    className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold"
                                   >
-                                    Copier tout
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => void resendCodes(order.id)}
-                                    className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-100"
-                                  >
-                                    Renvoyer par email
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => router.push(`/orders/${order.id}`)}
-                                    className="rounded-xl border border-white/15 bg-black/30 px-4 py-2 text-xs font-semibold"
-                                  >
-                                    Voir commande
+                                    Copier
                                   </button>
                                 </div>
-                              </div>
+                              ))}
 
-                              <div className="mt-3 space-y-2">
-                                {codes.map((c, idx) => (
-                                  <div
-                                    key={`${order.id}-${c.code}-${idx}`}
-                                    className="rounded-xl border border-white/10 bg-black/30 p-3"
-                                  >
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                      <div>
-                                        <p className="text-sm font-semibold text-white break-all">{c.code}</p>
-                                        <p className="mt-1 text-xs text-white/60">
-                                          {c.label ? `${c.label}` : ""}
-                                          {c.diamonds ? ` • ${c.diamonds} diamonds` : ""}
-                                        </p>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={async () => {
-                                          const ok = await copyToClipboard(c.code);
-                                          setBanner(ok ? "Code copié." : "Copie impossible sur cet appareil.");
-                                          window.setTimeout(() => setBanner(null), 1400);
-                                        }}
-                                        className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold"
-                                      >
-                                        Copier
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <GlowButton onClick={() => void resendCodes(group.orderId)} variant="secondary">
+                                  Renvoyer par email
+                                </GlowButton>
+                                <Link
+                                  href={`/orders/${encodeURIComponent(group.order?.reference ?? String(group.orderId))}`}
+                                  className="rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold"
+                                >
+                                  Voir commande
+                                </Link>
                               </div>
-                            </>
+                            </div>
                           )}
                         </div>
                       )}
                     </div>
                   );
                 })}
+
+                {deliveriesPage < deliveriesLastPage && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      disabled={deliveriesLoading}
+                      onClick={() => void loadMyRedeems(deliveriesPage + 1, "append")}
+                      className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold"
+                    >
+                      {deliveriesLoading ? "Chargement..." : "Charger plus"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

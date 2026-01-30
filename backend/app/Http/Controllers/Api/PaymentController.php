@@ -106,6 +106,16 @@ class PaymentController extends Controller
                 return $payment->fresh(['order']);
             });
 
+            // Use backend callback so the server can reconcile/fulfill immediately on redirect
+            // even if the SPA doesn't load correctly on the client.
+            $appUrl = rtrim((string) config('app.url', env('APP_URL', '')), '/');
+            $callbackUrl = $appUrl !== ''
+                ? $appUrl . '/api/payments/fedapay/return?' . Arr::query([
+                    'order_id' => $order->id,
+                    'provider' => 'fedapay',
+                ])
+                : null;
+
             $initResult = $this->fedaPayService->initPayment($order, $user, [
                 'amount' => $expectedAmount,
                 'currency' => $currency,
@@ -113,7 +123,7 @@ class PaymentController extends Controller
                 'customer_name' => $validated['customer_name'] ?? null,
                 'customer_phone' => $resolvedPhone,
                 'customer_email' => $resolvedEmail,
-                'callback_url' => $validated['callback_url'] ?? null,
+                'callback_url' => $callbackUrl,
                 'merchant_reference' => (string) ($order->reference ?? ''),
                 'metadata' => array_merge($validated['metadata'] ?? [], [
                     'order_id' => $order->id,
@@ -187,6 +197,134 @@ class PaymentController extends Controller
 
             return response()->json(['message' => 'Payment initiation failed'], 502);
         }
+    }
+
+    /**
+     * Public return endpoint for FedaPay.
+     * FedaPay redirects the user here after payment (browser redirect, not a webhook).
+     * We verify with the provider, update DB, run redeem fulfillment synchronously when needed,
+     * then redirect to the frontend order confirmation page.
+     */
+    public function redirectFedapayReturn(Request $request)
+    {
+        $orderId = (int) ($request->query('order_id') ?? $request->input('order_id') ?? 0);
+        $transactionId = (string) (
+            $request->query('transaction_id')
+                ?? $request->query('id')
+                ?? $request->input('transaction_id')
+                ?? $request->input('id')
+                ?? ''
+        );
+
+        $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
+        $fallbackRedirect = $frontUrl !== ''
+            ? $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : '')
+            : '/';
+
+        try {
+            $paymentQuery = Payment::with(['order.orderItems.product', 'order.user'])
+                ->where('method', 'fedapay');
+
+            $payment = null;
+            if ($transactionId !== '') {
+                $payment = (clone $paymentQuery)->where('transaction_id', $transactionId)->latest('id')->first();
+            }
+            if (!$payment && $orderId > 0) {
+                $payment = (clone $paymentQuery)->where('order_id', $orderId)->latest('id')->first();
+            }
+
+            if ($payment && $payment->transaction_id) {
+                $verification = $this->fedaPayService->retrieveTransaction((string) $payment->transaction_id);
+                $normalized = $this->fedaPayService->normalizeStatus($verification);
+
+                if ($normalized !== 'pending') {
+                    $amountFromProvider = (float) (
+                        Arr::get($verification, 'amount')
+                            ?? Arr::get($verification, 'data.amount')
+                            ?? Arr::get($verification, 'transaction.amount')
+                            ?? Arr::get($verification, 'data.transaction.amount')
+                            ?? 0
+                    );
+
+                    DB::transaction(function () use ($payment, $normalized, $verification, $amountFromProvider) {
+                        $meta = $payment->webhook_data ?? [];
+                        if (!is_array($meta)) {
+                            $meta = [];
+                        }
+                        $meta['return_verification'] = $verification;
+
+                        $payment->update([
+                            'status' => $normalized,
+                            'webhook_data' => $meta,
+                        ]);
+
+                        $order = $payment->order;
+                        if (!$order) {
+                            return;
+                        }
+
+                        if ($normalized === 'completed') {
+                            if (!in_array((string) $order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
+                                $order->update(['status' => 'paid']);
+                            }
+                        }
+
+                        if ($normalized === 'failed') {
+                            $order->update(['status' => 'failed']);
+                        }
+
+                        // Guard amount mismatch
+                        if ($normalized === 'completed' && $amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) > 0.01) {
+                            Log::error('fedapay:error', [
+                                'stage' => 'return-amount',
+                                'payment_id' => $payment->id,
+                                'expected' => (float) $payment->amount,
+                                'received' => $amountFromProvider,
+                            ]);
+                            return;
+                        }
+
+                        // Synchronous redeem fulfillment so codes appear immediately even without workers.
+                        if ($normalized === 'completed' && (string) ($order->type ?? '') !== 'wallet_topup') {
+                            $order->loadMissing('orderItems.product');
+
+                            $orderMeta = $order->meta ?? [];
+                            if (!is_array($orderMeta)) {
+                                $orderMeta = [];
+                            }
+
+                            if ($order->requiresRedeemFulfillment() && empty($orderMeta['fulfillment_dispatched_at'])) {
+                                try {
+                                    ProcessRedeemFulfillment::dispatchSync($order->id);
+                                    $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
+                                } catch (\Throwable $e) {
+                                    // best effort
+                                }
+                            }
+
+                            if (!empty($orderMeta)) {
+                                $order->update(['meta' => $orderMeta]);
+                            }
+                        }
+                    });
+                }
+
+                $orderId = (int) ($payment->order_id ?? $orderId);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('fedapay:error', [
+                'stage' => 'return',
+                'message' => $e->getMessage(),
+                'order_id' => $orderId,
+                'transaction_id' => $transactionId,
+            ]);
+        }
+
+        $redirect = $frontUrl !== ''
+            ? $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : '')
+            : $fallbackRedirect;
+
+        return redirect()->away($redirect);
     }
 
     public function statusFedapay(Request $request)
@@ -424,7 +562,7 @@ class PaymentController extends Controller
         if ($payment->status === 'completed' && $payment->order && $payment->order->type !== 'wallet_topup') {
             $payment->order->loadMissing('orderItems.product');
 
-            if (!in_array($payment->order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock'], true)) {
+            if (!in_array($payment->order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
                 $payment->order->update(['status' => 'paid']);
             }
 
@@ -972,7 +1110,7 @@ class PaymentController extends Controller
         if ($payment->status === 'completed' && $payment->order && $payment->order->type !== 'wallet_topup') {
             $payment->order->loadMissing('orderItems.product');
 
-            if (!in_array($payment->order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock'], true)) {
+            if (!in_array($payment->order->status, ['paid', 'fulfilled', 'paid_but_out_of_stock', 'paid_waiting_stock'], true)) {
                 $payment->order->update(['status' => 'paid']);
             }
 
