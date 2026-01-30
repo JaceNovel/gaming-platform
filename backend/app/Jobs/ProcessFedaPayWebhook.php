@@ -247,11 +247,12 @@ class ProcessFedaPayWebhook implements ShouldQueue
                         if ($referral && $alreadyEarned <= 0.0) {
                             $referrer = User::where('id', $referral->referrer_id)->first();
                             $isVip = $referrer && (bool) $referrer->is_premium && in_array((string) $referrer->premium_level, ['bronze', 'platine'], true);
-                            $rate = $isVip ? 0.03 : 0.01;
-                            $baseAmount = (float) $payment->amount;
-                            $commission = round($baseAmount * $rate, 2);
+                            if ($referrer && $isVip) {
+                                $rate = 0.03;
+                                $baseAmount = (float) $payment->amount;
+                                $commission = round($baseAmount * $rate, 2);
 
-                            if ($referrer && $commission > 0) {
+                                if ($commission > 0) {
                                 $walletService->credit($referrer, 'REFERRAL-' . $order->id, $commission, [
                                     'type' => $isVip ? 'vip_referral_bonus' : 'referral_bonus',
                                     'referred_user_id' => $order->user_id,
@@ -261,12 +262,13 @@ class ProcessFedaPayWebhook implements ShouldQueue
                                     'base_amount' => $baseAmount,
                                 ]);
 
-                                $referral->update([
-                                    'commission_earned' => $commission,
-                                    'commission_rate' => $rate,
-                                    'commission_base_amount' => $baseAmount,
-                                    'rewarded_at' => now(),
-                                ]);
+                                    $referral->update([
+                                        'commission_earned' => $commission,
+                                        'commission_rate' => $rate,
+                                        'commission_base_amount' => $baseAmount,
+                                        'rewarded_at' => now(),
+                                    ]);
+                                }
                             }
                         }
 

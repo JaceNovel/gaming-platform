@@ -158,9 +158,7 @@ function WalletClient() {
     const status = (searchParams.get("topup_status") ?? "").toLowerCase();
     if (!status) return;
 
-    if (status === "success" || status === "completed" || status === "paid") {
-      setBanner("Recharge wallet réussie.");
-    } else if (status === "failed" || status === "cancelled" || status === "canceled") {
+    if (status === "failed" || status === "cancelled" || status === "canceled") {
       setBanner("Recharge wallet échouée ou annulée.");
     } else {
       setBanner("Recharge wallet en attente de confirmation.");
@@ -173,40 +171,6 @@ function WalletClient() {
 
     return () => window.clearTimeout(timer);
   }, [router, searchParams]);
-
-  useEffect(() => {
-    if (!HAS_API_ENV) return;
-    const status = (searchParams.get("topup_status") ?? "").toLowerCase();
-    if (!status) return;
-
-    let cancelled = false;
-
-    const reconcile = async () => {
-      try {
-        const hintRaw = localStorage.getItem("bbshop_last_topup");
-        const hint = hintRaw ? JSON.parse(hintRaw) : null;
-        await authFetch(`${API_BASE}/wallet/topup/reconcile`, {
-          method: "POST",
-          body: JSON.stringify({
-            order_id: hint?.order_id ?? undefined,
-            transaction_id: hint?.transaction_id ?? undefined,
-          }),
-        });
-      } catch {
-        // best effort
-      } finally {
-        if (!cancelled) {
-          void loadWallet({ silent: true });
-        }
-      }
-    };
-
-    void reconcile();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
 
   useEffect(() => {
     void loadWallet();
@@ -241,10 +205,6 @@ function WalletClient() {
     const interval = window.setInterval(() => {
       if (!active) return;
       ticks += 1;
-      void authFetch(`${API_BASE}/wallet/topup/reconcile`, {
-        method: "POST",
-        body: JSON.stringify({ limit: 5 }),
-      }).catch(() => null);
       void loadWallet({ silent: true });
       if (ticks >= 10) {
         window.clearInterval(interval);

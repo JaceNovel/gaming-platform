@@ -98,7 +98,7 @@ class WalletController extends Controller
             ->whereHas('order', function ($q) use ($user) {
                 $q->where('user_id', $user->id)
                     ->where('type', 'wallet_topup')
-                    ->where('status', 'pending');
+                    ->where('status', Order::STATUS_PAYMENT_PROCESSING);
             })
             ->whereNotNull('transaction_id')
             ->where('created_at', '>=', now()->subMinutes(10))
@@ -142,7 +142,7 @@ class WalletController extends Controller
                 $order = Order::create([
                     'user_id' => $user->id,
                     'type' => 'wallet_topup',
-                    'status' => 'pending',
+                    'status' => Order::STATUS_PAYMENT_PROCESSING,
                     'total_price' => $amount,
                     'items' => null,
                     'meta' => ['wallet_transaction_id' => $walletTx->id],

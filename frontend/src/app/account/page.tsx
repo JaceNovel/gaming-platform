@@ -264,9 +264,7 @@ function AccountClient() {
     const status = (searchParams.get('topup_status') ?? '').toLowerCase();
     if (!status) return;
 
-    if (status === 'success' || status === 'completed' || status === 'paid') {
-      setTopupBanner('Recharge wallet réussie.');
-    } else if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
+    if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
       setTopupBanner('Recharge wallet échouée ou annulée.');
     } else {
       setTopupBanner('Recharge wallet en attente de confirmation.');

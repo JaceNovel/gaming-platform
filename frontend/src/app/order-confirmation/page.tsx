@@ -11,16 +11,6 @@ import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
 
 type StatusKey = "loading" | "success" | "failed" | "pending" | "cancelled" | "error";
 
-type PaymentStatusResponse = {
-  data?: {
-    payment_status?: string;
-    order_status?: string;
-    transaction_id?: string;
-    order_id?: number;
-  };
-  message?: string;
-};
-
 type RedeemCodeRow = {
   code: string;
   label?: string | null;
@@ -49,6 +39,8 @@ type OrderItemRow = {
 type OrderShowResponse = {
   id?: number;
   status?: string;
+  type?: string;
+  meta?: Record<string, unknown> | null;
   orderItems?: OrderItemRow[];
   order_items?: OrderItemRow[];
 };
@@ -72,8 +64,6 @@ function OrderConfirmationScreen() {
 
   const order = searchParams.get("order");
   const initialStatus = normalizeClientStatus(searchParams.get("status"));
-  const transactionIdFromUrl = searchParams.get("transaction_id") ?? searchParams.get("id");
-  const provider = String(searchParams.get("provider") ?? "fedapay").toLowerCase();
 
   const [status, setStatus] = useState<StatusKey>("loading");
   const [message, setMessage] = useState("Vérification du paiement...");
@@ -109,7 +99,7 @@ function OrderConfirmationScreen() {
   }, [order]);
 
   const fetchStatus = useCallback(async () => {
-    if (!numericOrderId && !transactionIdFromUrl) {
+    if (!numericOrderId) {
       setStatus("error");
       setMessage("Référence de commande introuvable.");
       return;
@@ -117,110 +107,112 @@ function OrderConfirmationScreen() {
 
     setChecking(true);
     try {
-      const qs = new URLSearchParams();
-      if (transactionIdFromUrl) qs.set("transaction_id", transactionIdFromUrl);
-      if (numericOrderId) qs.set("order_id", String(numericOrderId));
-
-      const endpoint = provider === "cinetpay" ? "cinetpay" : "fedapay";
-      const res = await authFetch(`${API_BASE}/payments/${endpoint}/status?${qs.toString()}`);
-      const payload = (await res.json().catch(() => null)) as PaymentStatusResponse | null;
-
-      if (!res.ok) {
+      const orderRes = await authFetch(`${API_BASE}/orders/${numericOrderId}`);
+      const orderPayload = (await orderRes.json().catch(() => null)) as OrderShowResponse | null;
+      if (!orderRes.ok) {
         setStatus(initialStatus ?? "error");
-        setMessage(payload?.message ?? "Impossible de vérifier le paiement.");
+        setMessage("Impossible de vérifier la commande.");
         return;
       }
 
-      const paymentStatus = (payload?.data?.payment_status ?? "pending").toLowerCase();
-      const orderStatus = (payload?.data?.order_status ?? "").toLowerCase();
-      const resolvedOrderId = payload?.data?.order_id ?? (numericOrderId ?? undefined);
-      const resolvedTxId = payload?.data?.transaction_id ?? (transactionIdFromUrl ?? undefined);
+      const orderStatus = String(orderPayload?.status ?? "").toLowerCase();
+      setDetails({ orderId: orderPayload?.id ?? numericOrderId });
 
-      setDetails({ orderId: resolvedOrderId, transactionId: resolvedTxId });
-
-      if (paymentStatus === "paid") {
+      if (orderStatus === "payment_success") {
         setStatus("success");
-        if (orderStatus === "paid_but_out_of_stock") {
+
+        const meta = (orderPayload?.meta ?? {}) as Record<string, unknown>;
+        const fulfillmentStatus = String(meta?.fulfillment_status ?? "").toLowerCase();
+        if (fulfillmentStatus === "out_of_stock" || fulfillmentStatus === "waiting_stock") {
           setOutOfStock(true);
           setMessage("Commande payée – stock indisponible pour le moment.");
           setShowModal(true);
-        } else {
-          setOutOfStock(false);
-          setMessage("✅ Paiement confirmé ! Merci pour votre achat.");
-          // Vider le panier après paiement confirmé
-          if (typeof window !== "undefined") {
-            window.localStorage.removeItem("bbshop_cart");
-          }
-
-          // Charger les codes (si commande redeem) et afficher la fenêtre
-          if (resolvedOrderId) {
-            // Charger la commande (pour connaître le type du produit)
-            const orderRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}`);
-            const orderPayload = (await orderRes.json().catch(() => null)) as OrderShowResponse | null;
-            const orderItemsRaw = orderPayload?.orderItems ?? orderPayload?.order_items ?? [];
-            const orderItems = Array.isArray(orderItemsRaw) ? orderItemsRaw : [];
-            const types = orderItems
-              .map((row) => String(row?.product?.type ?? "").toLowerCase())
-              .filter(Boolean);
-
-            const firstAccessoryEstimateLabel =
-              orderItems
-                .map((row) => row?.product)
-                .find((p) => String(p?.type ?? "").toLowerCase() === "item")?.delivery_estimate_label ?? null;
-            setPostPurchaseAccessoryEstimateLabel(firstAccessoryEstimateLabel);
-
-            const codesRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}/redeem-codes`);
-            const codesPayload = (await codesRes.json().catch(() => null)) as RedeemCodesResponse | null;
-            if (codesRes.ok) {
-              const list = Array.isArray(codesPayload?.codes) ? codesPayload!.codes! : [];
-              setRedeemCodes(list);
-              setGuideUrl(codesPayload?.guide_url ?? null);
-
-              const isRedeem = Boolean(codesPayload?.has_redeem_items);
-              if (isRedeem) {
-                setPostPurchaseKind("redeem");
-                setPostPurchaseTitle("Recharge confirmée");
-                setPostPurchaseAccessoryEstimateLabel(null);
-                setShowModal(true);
-                return;
-              }
-
-              if (types.includes("account")) {
-                setPostPurchaseKind("account");
-                setPostPurchaseTitle("Nous préparons le compte");
-                setPostPurchaseAccessoryEstimateLabel(null);
-                setShowModal(true);
-                return;
-              }
-
-              if (types.includes("subscription")) {
-                setPostPurchaseKind("subscription");
-                setPostPurchaseTitle("Votre demande est en attente");
-                setPostPurchaseAccessoryEstimateLabel(null);
-                setShowModal(true);
-                return;
-              }
-
-              setPostPurchaseKind("accessory");
-              setPostPurchaseTitle("Achat confirmé");
-              setShowModal(true);
-            }
-          }
+          return;
         }
+
+        setOutOfStock(false);
+        setMessage("Paiement confirmé ! Merci pour votre achat.");
+
+        // Vider le panier après paiement confirmé
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem("bbshop_cart");
+        }
+
+        const orderItemsRaw = orderPayload?.orderItems ?? orderPayload?.order_items ?? [];
+        const orderItems = Array.isArray(orderItemsRaw) ? orderItemsRaw : [];
+        const types = orderItems
+          .map((row) => String(row?.product?.type ?? "").toLowerCase())
+          .filter(Boolean);
+
+        const firstAccessoryEstimateLabel =
+          orderItems
+            .map((row) => row?.product)
+            .find((p) => String(p?.type ?? "").toLowerCase() === "item")?.delivery_estimate_label ?? null;
+        setPostPurchaseAccessoryEstimateLabel(firstAccessoryEstimateLabel);
+
+        const codesRes = await authFetch(`${API_BASE}/orders/${numericOrderId}/redeem-codes`);
+        const codesPayload = (await codesRes.json().catch(() => null)) as RedeemCodesResponse | null;
+        if (codesRes.ok) {
+          const list = Array.isArray(codesPayload?.codes) ? codesPayload!.codes! : [];
+          setRedeemCodes(list);
+          setGuideUrl(codesPayload?.guide_url ?? null);
+
+          const isRedeem = Boolean(codesPayload?.has_redeem_items);
+          if (isRedeem) {
+            setPostPurchaseKind("redeem");
+            setPostPurchaseTitle("Recharge confirmée");
+            setPostPurchaseAccessoryEstimateLabel(null);
+            setShowModal(true);
+            return;
+          }
+
+          if (types.includes("account")) {
+            setPostPurchaseKind("account");
+            setPostPurchaseTitle("Nous préparons le compte");
+            setPostPurchaseAccessoryEstimateLabel(null);
+            setShowModal(true);
+            return;
+          }
+
+          if (types.includes("subscription")) {
+            setPostPurchaseKind("subscription");
+            setPostPurchaseTitle("Votre demande est en attente");
+            setPostPurchaseAccessoryEstimateLabel(null);
+            setShowModal(true);
+            return;
+          }
+
+          setPostPurchaseKind("accessory");
+          setPostPurchaseTitle("Achat confirmé");
+          setShowModal(true);
+        }
+
         return;
       }
 
-      // Business rule: non-confirmed is treated as failed.
-      // We still keep polling for a short time to allow late confirmation.
+      if (orderStatus === "payment_failed") {
+        setStatus("failed");
+        setMessage("Paiement échoué ou non validé. Merci de réessayer.");
+        return;
+      }
+
+      // Non-confirmed: keep a short grace period where we only show verification.
+      const elapsed = Date.now() - pollStartedAt;
+      if (elapsed <= 30_000) {
+        setStatus("loading");
+        setMessage("Vérification du paiement...");
+        return;
+      }
+
       setStatus("failed");
-      setMessage("Paiement non confirmé. Si vous avez payé, patientez quelques secondes : la page se mettra à jour automatiquement.");
+      setMessage("Paiement échoué ou non validé. Merci de réessayer.");
     } catch {
       setStatus(initialStatus ?? "error");
       setMessage("Connexion impossible pour vérifier le paiement.");
     } finally {
       setChecking(false);
     }
-  }, [authFetch, initialStatus, numericOrderId, provider, transactionIdFromUrl]);
+  }, [authFetch, initialStatus, numericOrderId, pollStartedAt]);
 
   useEffect(() => {
     // Affiche un message immédiat basé sur le param `status`, puis vérifie côté serveur.
@@ -234,16 +226,17 @@ function OrderConfirmationScreen() {
 
   useEffect(() => {
     if (status === "success" || status === "error") return;
+    if (checking) return;
 
     // Keep polling even when status is "failed" because "non confirmé" is treated as failed.
     const elapsed = Date.now() - pollStartedAt;
-    if (elapsed > 120_000) return;
+    if (elapsed > 30_000) return;
 
     const interval = setInterval(() => {
       fetchStatus();
     }, 5000);
     return () => clearInterval(interval);
-  }, [fetchStatus, pollStartedAt, status]);
+  }, [checking, fetchStatus, pollStartedAt, status]);
 
   const statusStyle =
     status === "success"

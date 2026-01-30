@@ -328,6 +328,7 @@ function StripCard({
   const delivery = getDeliveryDisplay({
     type: product.type,
     displaySection: product.displaySection ?? null,
+    estimatedDeliveryLabel: product.estimatedDeliveryLabel ?? null,
     deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
   });
   return (
@@ -620,6 +621,7 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
   const delivery = getDeliveryDisplay({
     type: product.type,
     displaySection: product.displaySection ?? null,
+    estimatedDeliveryLabel: product.estimatedDeliveryLabel ?? null,
     deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
   });
 
@@ -927,6 +929,7 @@ export default function ShopPage() {
       const delivery = getDeliveryDisplay({
         type: product.type,
         displaySection: product.displaySection ?? null,
+        estimatedDeliveryLabel: product.estimatedDeliveryLabel ?? null,
         deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
       });
       nextCart.push({

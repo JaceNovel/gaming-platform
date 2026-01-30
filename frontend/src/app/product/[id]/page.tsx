@@ -125,6 +125,7 @@ export default function ProductPage() {
       const delivery = getDeliveryDisplay({
         type: product.type ?? null,
         display_section: product.display_section ?? null,
+        estimated_delivery_label: product.estimated_delivery_label ?? null,
         delivery_estimate_label: product.delivery_estimate_label ?? null,
       });
       cart.push({

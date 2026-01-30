@@ -65,7 +65,7 @@ class PremiumController extends Controller
             $order = Order::create([
                 'user_id' => $user->id,
                 'type' => 'premium_subscription',
-                'status' => 'pending',
+                'status' => Order::STATUS_PAYMENT_PROCESSING,
                 'total_price' => $price,
                 'items' => null,
                 'meta' => [
@@ -152,69 +152,26 @@ class PremiumController extends Controller
 
     public function subscribe(Request $request)
     {
-        $request->validate([
-            'level' => 'required|in:bronze,platine',
-            'game_id' => 'required|exists:games,id',
-            'game_username' => 'required|string|max:255',
+        // STRICT: premium activation is webhook-driven. This endpoint is a safe DB-only check.
+        $validated = $request->validate([
+            'order_id' => 'required|integer|exists:orders,id',
         ]);
 
         $user = $request->user();
 
-        // Check if game_username is already used for premium
-        $existing = PremiumMembership::where('game_id', $request->game_id)
-            ->where('game_username', $request->game_username)
-            ->where('is_active', true)
-            ->first();
+        $order = Order::with('user')
+            ->where('id', (int) $validated['order_id'])
+            ->where('user_id', $user->id)
+            ->where('type', 'premium_subscription')
+            ->firstOrFail();
 
-        if ($existing && $existing->user_id !== $user->id) {
-            return response()->json(['message' => 'This game username is already used for premium membership'], 400);
-        }
-
-        DB::transaction(function () use ($request, $user) {
-            $levels = [
-                'bronze' => ['price' => 10000, 'duration' => 30],
-                'platine' => ['price' => 13000, 'duration' => 30],
-            ];
-
-            $level = $levels[$request->level];
-
-            // Create or update membership
-            $membership = PremiumMembership::updateOrCreate(
-                [
-                    'user_id' => $user->id,
-                    'game_id' => $request->game_id,
-                ],
-                [
-                    'level' => $request->level,
-                    'game_username' => $request->game_username,
-                    'expiration_date' => Carbon::now()->addDays($level['duration']),
-                    'is_active' => true,
-                    'renewal_count' => DB::raw('renewal_count + 1'),
-                ]
-            );
-
-            // Update user
-            $user->update([
-                'is_premium' => true,
-                'premium_level' => $request->level,
-                'premium_expiration' => $membership->expiration_date,
-            ]);
-
-            // Generate referral code for VIP Bronze+.
-            if (in_array((string) $request->level, ['bronze', 'platine'], true) && empty($user->referral_code)) {
-                $code = strtoupper(Str::random(8));
-                $tries = 0;
-                while (\App\Models\User::where('referral_code', $code)->exists() && $tries < 6) {
-                    $code = strtoupper(Str::random(8));
-                    $tries++;
-                }
-                if (!\App\Models\User::where('referral_code', $code)->exists()) {
-                    $user->update(['referral_code' => $code]);
-                }
-            }
-        });
-
-        return response()->json(['message' => 'Premium subscription successful']);
+        return response()->json([
+            'payment_status' => $order->isPaymentSuccess() ? 'paid' : ($order->isPaymentFailed() ? 'failed' : 'processing'),
+            'order_status' => $order->status,
+            'is_premium' => (bool) $user->is_premium,
+            'premium_level' => $user->premium_level,
+            'premium_expiration' => $user->premium_expiration,
+        ]);
     }
 
     public function wallet(Request $request)

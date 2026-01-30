@@ -196,7 +196,66 @@ class AdminRedeemCodeController extends Controller
     }
     public function denominations(Request $request)
     {
+        // Ensure admin can always pick a product for redeem imports/lots.
+        // If no denomination exists yet for a redeem-capable product, auto-provision one.
+        $eligibleProducts = Product::query()
+            ->select(['id', 'name', 'sku', 'redeem_sku', 'type', 'stock_mode', 'redeem_code_delivery'])
+            ->where(function ($q) {
+                $q->where('redeem_code_delivery', true)
+                    ->orWhere('stock_mode', 'redeem_pool')
+                    ->orWhere('type', 'recharge');
+            })
+            ->orderBy('id')
+            ->get();
+
+        foreach ($eligibleProducts as $product) {
+            $alreadyHas = RedeemDenomination::where('product_id', $product->id)->exists();
+            if ($alreadyHas) {
+                continue;
+            }
+
+            $base = trim((string) ($product->redeem_sku ?? ''));
+            if ($base === '') {
+                $base = trim((string) ($product->sku ?? ''));
+            }
+            if ($base === '') {
+                $base = 'P' . $product->id;
+            }
+
+            $base = strtoupper(preg_replace('/[^A-Z0-9]+/', '', $base) ?: ('P' . $product->id));
+            $base = substr($base, 0, 24);
+
+            $label = trim((string) ($product->name ?? ''));
+            $label = $label !== '' ? ($label . ' (Auto)') : ('Produit ' . $product->id . ' (Auto)');
+
+            for ($i = 0; $i < 10; $i++) {
+                $suffix = $i === 0 ? ('-' . $product->id) : ('-' . $product->id . '-' . strtoupper(Str::random(4)));
+                $candidate = substr($base, 0, max(1, 32 - strlen($suffix))) . $suffix;
+
+                if (RedeemDenomination::where('code', $candidate)->exists()) {
+                    continue;
+                }
+
+                try {
+                    RedeemDenomination::create([
+                        'product_id' => $product->id,
+                        'code' => $candidate,
+                        'label' => $label,
+                        'diamonds' => 0,
+                        'active' => true,
+                    ]);
+                    break;
+                } catch (QueryException $e) {
+                    // Retry on rare race/unique collision.
+                    continue;
+                }
+            }
+        }
+
+        $eligibleProductIds = $eligibleProducts->pluck('id')->all();
+
         $denominations = RedeemDenomination::with('product:id,name,sku')
+            ->whereIn('product_id', $eligibleProductIds)
             ->withCount([
                 'codes as available_count' => fn ($query) => $query->where('status', 'available'),
                 'codes as reserved_count' => fn ($query) => $query->where('status', 'reserved'),
@@ -204,6 +263,7 @@ class AdminRedeemCodeController extends Controller
             ])
             ->orderByDesc('active')
             ->orderBy('diamonds')
+            ->orderBy('id')
             ->get();
 
         return response()->json([

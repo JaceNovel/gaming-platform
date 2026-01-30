@@ -11,17 +11,6 @@ import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
 
 type StatusKey = "loading" | "success" | "failed" | "pending" | "error";
 
-type PaymentStatusResponse = {
-  data?: {
-    payment_status?: string;
-    order_status?: string;
-    order_type?: string;
-    transaction_id?: string;
-    order_id?: number;
-  };
-  message?: string;
-};
-
 type OrderItemProduct = {
   type?: string | null;
 };
@@ -31,6 +20,10 @@ type OrderItemRow = {
 };
 
 type OrderShowResponse = {
+  id?: number;
+  status?: string;
+  type?: string;
+  meta?: Record<string, unknown> | null;
   orderItems?: OrderItemRow[];
   order_items?: OrderItemRow[];
 };
@@ -61,9 +54,12 @@ function CheckoutStatusScreen() {
     return null;
   }, [postPurchaseKind]);
 
-  const transactionId = searchParams.get("transaction_id") ?? searchParams.get("id");
-  const orderId = searchParams.get("order_id");
-  const provider = String(searchParams.get("provider") ?? "fedapay").toLowerCase();
+  const orderId = searchParams.get("order_id") ?? searchParams.get("order");
+
+  const numericOrderId = useMemo(() => {
+    const n = Number(orderId);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [orderId]);
 
   const fetchStatus = useCallback(async () => {
     if (!transactionId && !orderId) {
@@ -77,6 +73,7 @@ function CheckoutStatusScreen() {
       const qs = new URLSearchParams();
       if (transactionId) qs.set("transaction_id", transactionId);
       if (orderId) qs.set("order_id", orderId);
+      qs.set("wait", "1");
 
       const endpoint = provider === "cinetpay" ? "cinetpay" : "fedapay";
       const res = await authFetch(`${API_BASE}/payments/${endpoint}/status?${qs.toString()}`);
@@ -109,117 +106,120 @@ function CheckoutStatusScreen() {
           return;
         }
         if (orderType === "premium_subscription") {
-          setMessage("Paiement confirmé ! Votre abonnement VIP est activé.");
+          if (!numericOrderId) {
           setShowModal(false);
-          return;
+            setMessage("Référence de commande introuvable.");
         }
         if (orderStatus === "paid_but_out_of_stock") {
           setOutOfStock(true);
           setMessage("Commande payée – en attente de réapprovisionnement.");
           setShowModal(true);
-          return;
-        }
-
-        setMessage("Paiement confirmé !");
-        const resolvedOrderId = payload?.data?.order_id ?? (orderId ? Number(orderId) : undefined);
-        if (resolvedOrderId) {
-          const orderRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}`);
-          const orderPayload = (await orderRes.json().catch(() => null)) as OrderShowResponse | null;
-          const orderItemsRaw = orderPayload?.orderItems ?? orderPayload?.order_items ?? [];
-          const orderItems = Array.isArray(orderItemsRaw) ? orderItemsRaw : [];
-          const types = orderItems
-            .map((row) => String(row?.product?.type ?? "").toLowerCase())
-            .filter(Boolean);
-
-          const codesRes = await authFetch(`${API_BASE}/orders/${resolvedOrderId}/redeem-codes`);
-          const codesPayload = await codesRes.json().catch(() => null);
-          if (codesRes.ok) {
-            const isRedeem = Boolean(codesPayload?.has_redeem_items);
-            if (isRedeem) {
-              setPostPurchaseKind("redeem");
-              setRedeemCodes(Array.isArray(codesPayload?.codes) ? codesPayload.codes : []);
-              setGuideUrl(codesPayload?.guide_url ?? null);
-              setShowModal(true);
+            const orderRes = await authFetch(`${API_BASE}/orders/${numericOrderId}`);
+            const orderPayload = (await orderRes.json().catch(() => null)) as OrderShowResponse | null;
+            if (!orderRes.ok) {
+              setStatus("error");
+              setMessage("Impossible de vérifier la commande.");
               return;
             }
 
-            if (types.includes("account")) {
-              setPostPurchaseKind("account");
-              setShowModal(true);
+            const orderStatus = String(orderPayload?.status ?? "").toLowerCase();
+            const orderType = String(orderPayload?.type ?? "").toLowerCase();
+            setDetails({ orderId: orderPayload?.id ?? numericOrderId });
+
+            if (orderStatus === "payment_success") {
+              setStatus("success");
+
+              if (orderType === "wallet_topup") {
+                setMessage("Paiement confirmé. Votre wallet va être mis à jour.");
+                setShowModal(false);
+                setTimeout(() => {
+                  router.replace("/account?topup_status=pending");
+                }, 800);
+                return;
+              }
+
+              if (orderType === "premium_subscription") {
+                setMessage("Paiement confirmé. Votre abonnement VIP va être activé.");
+                setShowModal(false);
+                return;
+              }
+
+              const meta = (orderPayload?.meta ?? {}) as Record<string, unknown>;
+              const fulfillmentStatus = String(meta?.fulfillment_status ?? "").toLowerCase();
+              if (fulfillmentStatus === "out_of_stock" || fulfillmentStatus === "waiting_stock") {
+                setOutOfStock(true);
+                setMessage("Commande payée – en attente de réapprovisionnement.");
+                setShowModal(true);
+                return;
+              }
+
+              setMessage("Paiement confirmé.");
+
+              const orderItemsRaw = orderPayload?.orderItems ?? orderPayload?.order_items ?? [];
+              const orderItems = Array.isArray(orderItemsRaw) ? orderItemsRaw : [];
+              const types = orderItems
+                .map((row) => String(row?.product?.type ?? "").toLowerCase())
+                .filter(Boolean);
+
+              const codesRes = await authFetch(`${API_BASE}/orders/${numericOrderId}/redeem-codes`);
+              const codesPayload = await codesRes.json().catch(() => null);
+              if (codesRes.ok) {
+                const isRedeem = Boolean(codesPayload?.has_redeem_items);
+                if (isRedeem) {
+                  setPostPurchaseKind("redeem");
+                  setRedeemCodes(Array.isArray(codesPayload?.codes) ? codesPayload.codes : []);
+                  setGuideUrl(codesPayload?.guide_url ?? null);
+                  setShowModal(true);
+                  return;
+                }
+
+                if (types.includes("account")) {
+                  setPostPurchaseKind("account");
+                  setShowModal(true);
+                  return;
+                }
+
+                if (types.includes("subscription")) {
+                  setPostPurchaseKind("subscription");
+                  setShowModal(true);
+                  return;
+                }
+
+                setPostPurchaseKind("accessory");
+                setShowModal(true);
+              }
+
               return;
             }
 
-            if (types.includes("subscription")) {
-              setPostPurchaseKind("subscription");
-              setShowModal(true);
+            if (orderStatus === "payment_failed") {
+              setStatus("failed");
+              if (orderType === "wallet_topup") {
+                setMessage("Recharge wallet échouée ou non validée. Merci de réessayer.");
+              } else {
+                setMessage("Paiement échoué ou non validé. Merci de réessayer.");
+              }
               return;
             }
 
-            setPostPurchaseKind("accessory");
-            setShowModal(true);
-          }
-        }
-      }
+            // Still processing
+            const elapsed = Date.now() - pollStartedAt;
+            if (elapsed <= 30_000) {
+              setStatus("loading");
+              setMessage("Vérification du paiement...");
+              return;
+            }
 
-      // Business rule: non-confirmed is treated as failed.
-      // Keep polling briefly to allow late confirmation.
-      setStatus("failed");
-      if (orderType === "wallet_topup") {
-        setMessage("Recharge wallet non confirmée. Si vous avez payé, patientez quelques secondes : la page se mettra à jour automatiquement.");
-      } else {
-        setMessage("Paiement non confirmé. Si vous avez payé, patientez quelques secondes : la page se mettra à jour automatiquement.");
-      }
-    } catch (error) {
-      setStatus("error");
-      setMessage("Connexion impossible pour vérifier le paiement.");
-    } finally {
-      setChecking(false);
-    }
-  }, [authFetch, orderId, provider, transactionId]);
-
-  useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
-
-  useEffect(() => {
-    if (status === "success" || status === "error") return;
-    const elapsed = Date.now() - pollStartedAt;
-    if (elapsed > 120_000) return;
-
-    const interval = setInterval(() => {
-      fetchStatus();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [fetchStatus, pollStartedAt, status]);
-
-  const statusStyle =
-    status === "success"
-      ? "text-emerald-300"
-      : status === "failed"
-        ? "text-rose-300"
-        : "text-white";
-
-  const handleOrdersRedirect = () => router.push("/account");
-  const handleCopy = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // ignore
-    }
-  };
-
-  return (
-    <div className="mobile-shell min-h-screen py-6 pb-24">
-      {showModal ? null : <SectionTitle eyebrow="Paiement" label="Statut du paiement" />}
-
+            setStatus("pending");
+            setMessage("Paiement en attente de confirmation.");
+            return;
       {showModal ? (
         <div className="flex min-h-[75dvh] items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl bg-[#0b0b16] p-6 text-white shadow-2xl">
             {outOfStock ? (
               <>
                 <h3 className="text-xl font-semibold">En attente de réapprovisionnement</h3>
-                <p className="mt-2 text-sm text-white/70">
+        }, [authFetch, numericOrderId, pollStartedAt, router]);
                   Vos codes seront envoyés dès que le stock est réapprovisionné.
                 </p>
               </>
