@@ -57,7 +57,7 @@ class FedaPayService
             return false;
         }
 
-        [$timestamp, $signature] = $this->parseSignatureHeader($sig);
+        [$timestamp, $signatures] = $this->parseSignatureHeader($sig);
 
         if ($timestamp !== null) {
             $age = abs(time() - $timestamp);
@@ -66,12 +66,12 @@ class FedaPayService
             }
 
             $signedPayload = $timestamp . '.' . $rawBody;
-            $expected = hash_hmac('sha256', $signedPayload, $secret);
-            return hash_equals($expected, $signature);
+            if ($this->matchesAnySignature($signedPayload, $secret, $signatures)) {
+                return true;
+            }
         }
 
-        $expected = hash_hmac('sha256', $rawBody, $secret);
-        return hash_equals($expected, $signature);
+        return $this->matchesAnySignature($rawBody, $secret, $signatures);
     }
 
     private function parseSignatureHeader(string $header): array
@@ -86,7 +86,8 @@ class FedaPayService
         }
 
         // Parse key/value style: "t=...,v1=..." or "t=...; v1=..."
-        if (str_contains($header, '=') && (str_contains($header, 't=') || str_contains($header, 'v1='))) {
+        $candidates = [];
+        if (str_contains($header, '=')) {
             $pairs = preg_split('/[;,]/', $header) ?: [];
             $map = [];
             foreach ($pairs as $pair) {
@@ -96,20 +97,64 @@ class FedaPayService
                 }
                 [$k, $v] = array_map('trim', explode('=', $pair, 2));
                 if ($k !== '' && $v !== '') {
-                    $map[strtolower($k)] = $v;
+                    $key = strtolower($k);
+                    if (!array_key_exists($key, $map)) {
+                        $map[$key] = $v;
+                    } elseif (is_array($map[$key])) {
+                        $map[$key][] = $v;
+                    } else {
+                        $map[$key] = [$map[$key], $v];
+                    }
                 }
             }
 
             if (isset($map['t']) && ctype_digit((string) $map['t'])) {
                 $timestamp = (int) $map['t'];
             }
-            if (isset($map['v1'])) {
-                $signature = (string) $map['v1'];
+            foreach ($map as $key => $value) {
+                if (!preg_match('/^(v\d+|s|sig|signature)$/i', (string) $key)) {
+                    continue;
+                }
+                $values = is_array($value) ? $value : [$value];
+                foreach ($values as $item) {
+                    $item = trim((string) $item);
+                    if ($item !== '') {
+                        $candidates[] = $item;
+                    }
+                }
             }
         }
 
         $signature = trim((string) $signature);
-        return [$timestamp, $signature];
+        if ($signature !== '') {
+            $candidates[] = $signature;
+        }
+
+        $candidates = array_values(array_unique(array_filter($candidates, static fn ($v) => $v !== '')));
+        return [$timestamp, $candidates];
+    }
+
+    private function matchesAnySignature(string $payload, string $secret, array $signatures): bool
+    {
+        if ($payload === '' || $secret === '' || $signatures === []) {
+            return false;
+        }
+
+        $hex = hash_hmac('sha256', $payload, $secret);
+        $b64 = base64_encode(hash_hmac('sha256', $payload, $secret, true));
+
+        foreach ($signatures as $signature) {
+            $candidate = trim((string) $signature);
+            if ($candidate === '') {
+                continue;
+            }
+
+            if (hash_equals($hex, $candidate) || hash_equals($b64, $candidate)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function initPayment(Order $order, User $user, array $meta = []): array

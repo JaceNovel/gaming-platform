@@ -18,12 +18,17 @@ class RedeemCodeAllocator
             $assigned = [];
 
             for ($i = 1; $i <= $quantity; $i++) {
-                $code = RedeemCode::where('denomination_id', $denomination->id)
+                $query = RedeemCode::where('denomination_id', $denomination->id)
                     ->where('status', 'available')
-                    ->orderBy('id')
-                    ->lockForUpdate()
-                    ->skipLocked()
-                    ->first();
+                    ->orderBy('id');
+
+                if (method_exists($query->getQuery(), 'skipLocked')) {
+                    $query->lockForUpdate()->skipLocked();
+                } else {
+                    $query->lockForUpdate();
+                }
+
+                $code = $query->first();
 
                 if (!$code) {
                     throw RedeemStockDepletedException::forDenomination($denomination->id);

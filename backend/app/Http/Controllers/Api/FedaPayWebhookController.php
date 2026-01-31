@@ -17,6 +17,24 @@ class FedaPayWebhookController extends Controller
 
     public function handle(Request $request)
     {
+        if (filter_var(env('FEDAPAY_WEBHOOK_DEBUG', false), FILTER_VALIDATE_BOOL) || config('app.debug')) {
+            $allHeaders = $request->headers->all();
+            $sanitizedHeaders = $allHeaders;
+            foreach (['x-fedapay-signature', 'authorization'] as $sensitiveKey) {
+                if (isset($sanitizedHeaders[$sensitiveKey])) {
+                    $sanitizedHeaders[$sensitiveKey] = ['***'];
+                }
+            }
+
+            Log::info('FEDAPAY_WEBHOOK_DEBUG', [
+                'headers_keys' => array_keys($allHeaders),
+                'content_type' => $request->header('content-type'),
+                'raw_len' => strlen((string) $request->getContent()),
+                'raw_sha256' => hash('sha256', (string) $request->getContent()),
+                'all_headers' => $sanitizedHeaders,
+            ]);
+        }
+
         $raw = (string) $request->getContent();
         $signature = $request->header('X-FEDAPAY-SIGNATURE');
 
