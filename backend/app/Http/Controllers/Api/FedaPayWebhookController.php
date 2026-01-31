@@ -36,20 +36,25 @@ class FedaPayWebhookController extends Controller
         }
 
         $raw = (string) $request->getContent();
-        $signature = $request->header('X-FEDAPAY-SIGNATURE');
+        $signature = (string) ($request->header('x-fedapay-signature') ?? $request->header('X-FEDAPAY-SIGNATURE') ?? '');
 
         if (!$this->fedaPayService->verifyWebhookSignature($raw, $signature)) {
             Log::warning('fedapay:error', [
                 'stage' => 'webhook-signature',
-                'has_signature' => (bool) $signature,
+                'has_signature' => $signature !== '',
             ]);
-            return response()->json(['success' => false, 'message' => 'Invalid signature'], Response::HTTP_BAD_REQUEST);
+            return response()->json(['success' => false, 'message' => 'Invalid signature'], Response::HTTP_UNAUTHORIZED);
         }
 
         $payload = json_decode($raw, true);
         if (!is_array($payload)) {
             return response()->json(['success' => false, 'message' => 'Invalid JSON'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
+
+        // Attach a stable hash of the raw payload for idempotency.
+        $payload['_meta'] = is_array($payload['_meta'] ?? null) ? $payload['_meta'] : [];
+        $payload['_meta']['raw_hash'] = hash('sha256', $raw);
+        $payload['_meta']['received_at'] = now()->toIso8601String();
 
         // Process synchronously to avoid missing credits when no queue worker is running.
         // Keep the response 2xx so the provider doesn't retry unnecessarily.

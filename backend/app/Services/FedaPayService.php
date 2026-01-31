@@ -43,10 +43,6 @@ class FedaPayService
 
     /**
      * Verify webhook signature from header X-FEDAPAY-SIGNATURE.
-     *
-     * Supports common formats:
-     * - "t=1700000000,v1=..." (timestamped)
-     * - "v1=..." / "sha256=..." / raw hex digest
      */
     public function verifyWebhookSignature(string $rawBody, ?string $signatureHeader): bool
     {
@@ -57,104 +53,12 @@ class FedaPayService
             return false;
         }
 
-        [$timestamp, $signatures] = $this->parseSignatureHeader($sig);
-
-        if ($timestamp !== null) {
-            $age = abs(time() - $timestamp);
-            if ($this->webhookTolerance > 0 && $age > $this->webhookTolerance) {
-                return false;
-            }
-
-            $signedPayload = $timestamp . '.' . $rawBody;
-            if ($this->matchesAnySignature($signedPayload, $secret, $signatures)) {
-                return true;
-            }
+        if (str_starts_with($sig, 'sha256=')) {
+            $sig = substr($sig, strlen('sha256='));
         }
 
-        return $this->matchesAnySignature($rawBody, $secret, $signatures);
-    }
-
-    private function parseSignatureHeader(string $header): array
-    {
-        // Default: the whole header is the signature.
-        $timestamp = null;
-        $signature = $header;
-
-        // Strip common prefixes
-        if (str_starts_with($signature, 'sha256=')) {
-            $signature = substr($signature, strlen('sha256='));
-        }
-
-        // Parse key/value style: "t=...,v1=..." or "t=...; v1=..."
-        $candidates = [];
-        if (str_contains($header, '=')) {
-            $pairs = preg_split('/[;,]/', $header) ?: [];
-            $map = [];
-            foreach ($pairs as $pair) {
-                $pair = trim($pair);
-                if ($pair === '' || !str_contains($pair, '=')) {
-                    continue;
-                }
-                [$k, $v] = array_map('trim', explode('=', $pair, 2));
-                if ($k !== '' && $v !== '') {
-                    $key = strtolower($k);
-                    if (!array_key_exists($key, $map)) {
-                        $map[$key] = $v;
-                    } elseif (is_array($map[$key])) {
-                        $map[$key][] = $v;
-                    } else {
-                        $map[$key] = [$map[$key], $v];
-                    }
-                }
-            }
-
-            if (isset($map['t']) && ctype_digit((string) $map['t'])) {
-                $timestamp = (int) $map['t'];
-            }
-            foreach ($map as $key => $value) {
-                if (!preg_match('/^(v\d+|s|sig|signature)$/i', (string) $key)) {
-                    continue;
-                }
-                $values = is_array($value) ? $value : [$value];
-                foreach ($values as $item) {
-                    $item = trim((string) $item);
-                    if ($item !== '') {
-                        $candidates[] = $item;
-                    }
-                }
-            }
-        }
-
-        $signature = trim((string) $signature);
-        if ($signature !== '') {
-            $candidates[] = $signature;
-        }
-
-        $candidates = array_values(array_unique(array_filter($candidates, static fn ($v) => $v !== '')));
-        return [$timestamp, $candidates];
-    }
-
-    private function matchesAnySignature(string $payload, string $secret, array $signatures): bool
-    {
-        if ($payload === '' || $secret === '' || $signatures === []) {
-            return false;
-        }
-
-        $hex = hash_hmac('sha256', $payload, $secret);
-        $b64 = base64_encode(hash_hmac('sha256', $payload, $secret, true));
-
-        foreach ($signatures as $signature) {
-            $candidate = trim((string) $signature);
-            if ($candidate === '') {
-                continue;
-            }
-
-            if (hash_equals($hex, $candidate) || hash_equals($b64, $candidate)) {
-                return true;
-            }
-        }
-
-        return false;
+        $expected = hash_hmac('sha256', $rawBody, $secret);
+        return hash_equals($expected, $sig);
     }
 
     public function initPayment(Order $order, User $user, array $meta = []): array

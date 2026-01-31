@@ -50,11 +50,11 @@ class PaymentResyncService
             throw new \RuntimeException('Missing transaction id');
         }
 
-        // Reuse existing strict webhook processor logic (idempotent, provider-verified).
+        // Reuse existing strict webhook processor logic.
         $payload = [
             'id' => 'resync-' . (string) Str::uuid(),
-            'name' => 'resync',
-            'object' => [
+            'name' => 'transaction.resync',
+            'entity' => [
                 'id' => (string) $payment->transaction_id,
             ],
             'meta' => [

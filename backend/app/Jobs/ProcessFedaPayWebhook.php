@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
+use App\Models\PaymentEvent;
 use App\Models\Product;
 use App\Models\PremiumMembership;
 use App\Models\Referral;
@@ -37,23 +38,71 @@ class ProcessFedaPayWebhook implements ShouldQueue
         $eventName = strtolower((string) (Arr::get($payload, 'name') ?? Arr::get($payload, 'event') ?? ''));
         $eventId = (string) (Arr::get($payload, 'id') ?? Arr::get($payload, 'event_id') ?? '');
 
-        $object = Arr::get($payload, 'object');
+        $entity = Arr::get($payload, 'entity');
+        if (!is_array($entity)) {
+            $entity = [];
+        }
+
         $transactionId = (string) (
-            Arr::get($object, 'id')
+            Arr::get($entity, 'id')
+                ?? Arr::get($payload, 'object.id')
                 ?? Arr::get($payload, 'data.id')
                 ?? Arr::get($payload, 'data.transaction.id')
                 ?? Arr::get($payload, 'transaction.id')
                 ?? ''
         );
 
+        $statusFromPayload = strtolower((string) (Arr::get($entity, 'status') ?? Arr::get($payload, 'object.status') ?? ''));
+        $orderIdFromPayload = (int) (
+            Arr::get($entity, 'custom_metadata.order_id')
+                ?? Arr::get($entity, 'custom_metadata.orderId')
+                ?? 0
+        );
+        $amountFromPayload = (float) (Arr::get($entity, 'amount') ?? 0);
+        $payloadHash = (string) (Arr::get($payload, '_meta.raw_hash') ?? '');
+        if ($payloadHash === '') {
+            $payloadHash = hash('sha256', json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '');
+        }
+
         Log::info('fedapay:webhook-job', [
             'event' => $eventName,
             'event_id' => $eventId,
             'transaction_id' => $transactionId,
+            'status' => $statusFromPayload,
+            'order_id' => $orderIdFromPayload ?: null,
         ]);
 
         if ($transactionId === '') {
-            Log::warning('fedapay:webhook-skip', ['reason' => 'missing-transaction-id', 'payload' => $payload]);
+            Log::warning('fedapay:webhook-skip', [
+                'reason' => 'missing-transaction-id',
+                'event' => $eventName,
+                'event_id' => $eventId,
+            ]);
+            return;
+        }
+
+        // Idempotency: record the event and skip if already processed.
+        $paymentEvent = PaymentEvent::firstOrCreate(
+            [
+                'provider' => 'fedapay',
+                'tx_id' => $transactionId,
+                'event' => $eventName !== '' ? $eventName : null,
+                'payload_hash' => $payloadHash,
+            ],
+            [
+                'status' => $statusFromPayload !== '' ? $statusFromPayload : null,
+                'order_id' => $orderIdFromPayload ?: null,
+                'payload' => $payload,
+                'received_at' => Arr::get($payload, '_meta.received_at') ? now() : null,
+            ]
+        );
+
+        if ($paymentEvent->processed_at) {
+            Log::info('fedapay:webhook-idempotent', [
+                'transaction_id' => $transactionId,
+                'event' => $eventName,
+                'payload_hash' => $payloadHash,
+            ]);
             return;
         }
 
@@ -71,47 +120,108 @@ class ProcessFedaPayWebhook implements ShouldQueue
                     'order_id' => null,
                     'amount' => 0,
                     'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
-                    'status' => 'failed',
+                    'status' => 'unknown',
                     'provider' => 'fedapay',
                     'processed_at' => now(),
                     'raw_payload' => [
                         'event_id' => $eventId,
                         'event_name' => $eventName,
-                        'webhook' => $payload,
                         'error' => 'payment_not_found',
                     ],
                 ]
             );
+
+            $paymentEvent->update(['processed_at' => now()]);
             return;
         }
 
         // Idempotence: skip if already final
         if (in_array((string) $payment->status, ['completed', 'failed'], true)) {
             Log::info('fedapay:webhook-idempotent', ['payment_id' => $payment->id, 'status' => $payment->status]);
+            $paymentEvent->update(['processed_at' => now()]);
             return;
         }
 
         $attempt = PaymentAttempt::where('transaction_id', $transactionId)->first();
         if ($attempt && in_array((string) $attempt->status, ['completed', 'failed'], true)) {
             Log::info('fedapay:webhook-idempotent', ['transaction_id' => $transactionId, 'status' => $attempt->status]);
+            $paymentEvent->update(['processed_at' => now()]);
             return;
         }
 
-        // Always verify with provider API (source of truth)
+        // Pending events must not mark the order paid nor failed.
+        if (in_array($statusFromPayload, ['pending'], true)) {
+            DB::transaction(function () use ($payment, $payload, $eventId, $eventName, $transactionId, $paymentEvent) {
+                $meta = $payment->webhook_data ?? [];
+                if (!is_array($meta)) {
+                    $meta = [];
+                }
+
+                $meta['webhook_event'] = array_filter([
+                    'id' => $eventId,
+                    'name' => $eventName,
+                ]);
+                $meta['last_webhook'] = [
+                    'received_at' => now()->toIso8601String(),
+                    'payload_hash' => (string) ($paymentEvent->payload_hash ?? ''),
+                    'status' => $statusFromPayload,
+                ];
+
+                $payment->update([
+                    'status' => 'pending',
+                    'webhook_data' => $meta,
+                ]);
+
+                PaymentAttempt::updateOrCreate(
+                    ['transaction_id' => $transactionId],
+                    [
+                        'order_id' => $payment->order_id,
+                        'amount' => (float) $payment->amount,
+                        'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
+                        'status' => 'pending',
+                        'provider' => 'fedapay',
+                        'processed_at' => now(),
+                        'raw_payload' => [
+                            'event_id' => $eventId,
+                            'event_name' => $eventName,
+                        ],
+                    ]
+                );
+            });
+
+            $paymentEvent->update(['processed_at' => now()]);
+
+            Log::info('fedapay:webhook-pending', [
+                'payment_id' => $payment->id,
+                'order_id' => $payment->order_id,
+                'transaction_id' => $transactionId,
+            ]);
+            return;
+        }
+
+        // Verify with provider API (source of truth) for non-pending events.
         $verification = $fedaPayService->retrieveTransaction($transactionId);
 
         $statusCandidates = array_filter(array_map(static fn ($v) => $v !== null ? strtolower((string) $v) : null, [
             Arr::get($verification, 'status'),
             Arr::get($verification, 'transaction.status'),
             Arr::get($verification, 'data.status'),
-            Arr::get($object, 'status'),
+            $statusFromPayload,
         ]));
 
         // STRICT: paid only if provider status is EXACTLY SUCCESS/APPROVED.
         $isApproved = false;
         foreach ($statusCandidates as $st) {
-            if (in_array($st, ['success', 'approved'], true)) {
+            if (in_array($st, ['success', 'approved', 'transferred'], true)) {
                 $isApproved = true;
+                break;
+            }
+        }
+
+        $isFailed = false;
+        foreach ($statusCandidates as $st) {
+            if (in_array($st, ['failed', 'declined', 'canceled', 'cancelled', 'expired', 'refunded'], true)) {
+                $isFailed = true;
                 break;
             }
         }
@@ -201,14 +311,53 @@ class ProcessFedaPayWebhook implements ShouldQueue
             ]);
         }
 
-        $normalized = $isValidPayment ? 'completed' : 'failed';
+        $normalized = $isValidPayment ? 'completed' : ($isFailed ? 'failed' : 'pending');
 
-        DB::transaction(function () use ($payment, $normalized, $payload, $verification, $transactionId, $eventId, $eventName, $walletService, $shippingService) {
+        if ($normalized === 'pending') {
+            // Unknown/intermediate state; do not fail the order.
+            DB::transaction(function () use ($payment, $payload, $verification, $transactionId, $eventId, $eventName, $paymentEvent) {
+                $meta = $payment->webhook_data ?? [];
+                if (!is_array($meta)) {
+                    $meta = [];
+                }
+                $meta['webhook_event'] = array_filter([
+                    'id' => $eventId,
+                    'name' => $eventName,
+                ]);
+                $meta['verification'] = $verification;
+
+                $payment->update([
+                    'status' => 'pending',
+                    'webhook_data' => $meta,
+                ]);
+
+                PaymentAttempt::updateOrCreate(
+                    ['transaction_id' => $transactionId],
+                    [
+                        'order_id' => $payment->order_id,
+                        'amount' => (float) $payment->amount,
+                        'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
+                        'status' => 'pending',
+                        'provider' => 'fedapay',
+                        'processed_at' => now(),
+                        'raw_payload' => [
+                            'event_id' => $eventId,
+                            'event_name' => $eventName,
+                            'verification' => $verification,
+                        ],
+                    ]
+                );
+            });
+
+            $paymentEvent->update(['processed_at' => now()]);
+            return;
+        }
+
+        DB::transaction(function () use ($payment, $normalized, $payload, $verification, $transactionId, $eventId, $eventName, $walletService, $shippingService, $paymentEvent) {
             $meta = $payment->webhook_data ?? [];
             if (!is_array($meta)) {
                 $meta = [];
             }
-            $meta['webhook'] = $payload;
             $meta['verification'] = $verification;
             $meta['webhook_event'] = array_filter([
                 'id' => $eventId,
@@ -393,11 +542,12 @@ class ProcessFedaPayWebhook implements ShouldQueue
                     'raw_payload' => [
                         'event_id' => $eventId,
                         'event_name' => $eventName,
-                        'webhook' => $payload,
                         'verification' => $verification,
                     ],
                 ]
             );
+
+            $paymentEvent->update(['processed_at' => now()]);
         });
 
         Log::info('fedapay:webhook-processed', [

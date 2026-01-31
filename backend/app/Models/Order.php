@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
+    public const STATUS_AWAITING_PAYMENT = 'awaiting_payment';
     public const STATUS_PAYMENT_PROCESSING = 'payment_processing';
     public const STATUS_PAYMENT_SUCCESS = 'payment_success';
     public const STATUS_PAYMENT_FAILED = 'payment_failed';
@@ -114,7 +115,7 @@ class Order extends Model
 
     public function isPaymentProcessing(): bool
     {
-        return (string) $this->status === self::STATUS_PAYMENT_PROCESSING;
+        return in_array((string) $this->status, [self::STATUS_PAYMENT_PROCESSING, self::STATUS_AWAITING_PAYMENT], true);
     }
 
     public function isPaymentSuccess(): bool

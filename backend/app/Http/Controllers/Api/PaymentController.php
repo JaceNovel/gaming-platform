@@ -16,6 +16,7 @@ use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
 use App\Services\CinetPayService;
 use App\Services\FedaPayService;
+use App\Services\PaymentResyncService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -29,6 +30,7 @@ class PaymentController extends Controller
     public function __construct(
         private CinetPayService $cinetPayService,
         private FedaPayService $fedaPayService,
+        private PaymentResyncService $paymentResyncService,
     )
     {
     }
@@ -268,6 +270,27 @@ class PaymentController extends Controller
         $order = $payment->order;
         if (!$order) {
             return response()->json(['message' => 'Order not found for payment'], 404);
+        }
+
+        // Best-effort resync with provider (webhook may be delayed).
+        try {
+            if (!$order->isPaymentSuccess() && !$order->isPaymentFailed() && (string) ($payment->status ?? '') === 'pending' && $payment->transaction_id) {
+                $this->paymentResyncService->resync($payment, [
+                    'source' => 'status_endpoint',
+                    'order_id' => $order->id,
+                    'user_id' => $user->id,
+                ]);
+
+                $payment = $payment->fresh(['order.user', 'walletTransaction']);
+                $order = $payment?->order;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('fedapay:status-resync-failed', [
+                'order_id' => $order?->id,
+                'payment_id' => $payment->id,
+                'transaction_id' => $payment->transaction_id,
+                'message' => $e->getMessage(),
+            ]);
         }
 
         $paymentStatus = $order->isPaymentSuccess() ? 'paid' : ($order->isPaymentFailed() ? 'failed' : 'processing');
