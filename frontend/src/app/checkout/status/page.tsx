@@ -204,154 +204,34 @@ function CheckoutStatusScreen() {
 
     const interval = window.setInterval(() => {
       void tick();
-    }, 2000);
+    "use client";
 
-    const timeout = window.setTimeout(() => {
-      window.clearInterval(interval);
-    }, 35_000);
+    import { useEffect } from "react";
+    import { useRouter, useSearchParams } from "next/navigation";
+    import RequireAuth from "@/components/auth/RequireAuth";
 
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-      window.clearTimeout(timeout);
-    };
-  }, [fetchStatus, numericOrderId]);
+    function CheckoutStatusRedirect() {
+      const router = useRouter();
+      const searchParams = useSearchParams();
 
-  const statusStyle =
-    status === "success"
-      ? "text-emerald-300"
-      : status === "failed"
-        ? "text-rose-300"
-        : status === "pending"
-          ? "text-amber-200"
-          : "text-white";
+      useEffect(() => {
+        const order = searchParams.get("order_id") ?? searchParams.get("order");
+        const status = searchParams.get("status");
+        const params = new URLSearchParams();
+        if (status) params.set("payment_status", status);
+        if (order) params.set("order", order);
+        const target = params.toString() ? `/account?${params.toString()}` : "/account";
+        router.replace(target);
+      }, [router, searchParams]);
 
-  const handleOrdersRedirect = () => router.push("/account");
+      return null;
+    }
 
-  const handleCopy = async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // ignore
+    export default function CheckoutStatusPage() {
+      return (
+        <RequireAuth>
+          <CheckoutStatusRedirect />
+        </RequireAuth>
+      );
     }
   };
-
-  return (
-    <div className="mobile-shell min-h-screen py-6 pb-24">
-      {showModal ? null : <SectionTitle eyebrow="Paiement" label="Statut du paiement" />}
-
-      {showModal ? (
-        <div className="flex min-h-[75dvh] items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-[#0b0b16] p-6 text-white shadow-2xl">
-            {outOfStock ? (
-              <>
-                <h3 className="text-xl font-semibold">En attente de réapprovisionnement</h3>
-                <p className="mt-2 text-sm text-white/70">
-                  Vos codes seront envoyés dès que le stock est réapprovisionné.
-                </p>
-              </>
-            ) : (
-              <>
-                {postPurchaseKind === "redeem" ? (
-                  <>
-                    <h3 className="text-xl font-semibold">Recharge confirmée</h3>
-                    {redeemCodes.length ? (
-                      <>
-                        <p className="mt-2 text-sm text-white/70">Copiez vos codes ci-dessous.</p>
-                        <div className="mt-4 space-y-3">
-                          {redeemCodes.map((code, index) => (
-                            <div key={`${code.code}-${index}`} className="rounded-xl border border-white/10 p-3">
-                              <div className="text-xs text-white/50">
-                                {code.label ?? "Recharge"} {code.diamonds ? `(${code.diamonds} diamants)` : ""}
-                              </div>
-                              <div className="mt-1 flex items-center justify-between gap-2">
-                                <span className="font-mono text-sm text-white">{code.code}</span>
-                                <button
-                                  onClick={() => handleCopy(code.code)}
-                                  className="rounded-full border border-white/20 px-3 py-1 text-xs"
-                                >
-                                  Copier
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button
-                            onClick={() => handleCopy(redeemCodes.map((c) => c.code).join("\n"))}
-                            className="rounded-full bg-white/10 px-4 py-2 text-xs"
-                          >
-                            Copier tout
-                          </button>
-                          {guideUrl && (
-                            <a href={guideUrl} className="rounded-full bg-emerald-500/80 px-4 py-2 text-xs text-white">
-                              Télécharger le guide
-                            </a>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <p className="mt-2 text-sm text-white/70">
-                        Paiement confirmé. Vos codes peuvent prendre quelques instants à apparaître.
-                      </p>
-                    )}
-                  </>
-                ) : postPurchaseKind === "account" ? (
-                  <>
-                    <h3 className="text-xl font-semibold">Nous préparons le compte</h3>
-                    <p className="mt-2 text-sm text-white/70">
-                      Les identifiants seront envoyés par email. Pensez à vérifier vos spams.
-                    </p>
-                  </>
-                ) : postPurchaseKind === "subscription" ? (
-                  <>
-                    <h3 className="text-xl font-semibold">Votre demande est en attente</h3>
-                    <p className="mt-2 text-sm text-white/70">
-                      Activation en préparation. Vous serez notifié dès que c’est terminé.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="text-xl font-semibold">Achat confirmé</h3>
-                    <p className="mt-2 text-sm text-white/70">
-                      Merci pour votre achat. Votre commande est en préparation.
-                    </p>
-                  </>
-                )}
-              </>
-            )}
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <GlowButton className="flex-1 justify-center" onClick={() => router.push("/account")}>
-                Mon compte
-              </GlowButton>
-              <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>
-                Retour boutique
-              </GlowButton>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="glass-card mt-6 space-y-4 rounded-2xl border border-white/10 p-6">
-          <p className={`text-lg font-semibold ${statusStyle}`}>{message}</p>
-          <div className="flex flex-wrap gap-3">
-            <GlowButton className="flex-1 justify-center" onClick={handleOrdersRedirect}>
-              Mon compte
-            </GlowButton>
-            <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => router.push("/shop")}>
-              Retour boutique
-            </GlowButton>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function CheckoutStatusPage() {
-  return (
-    <RequireAuth>
-      <CheckoutStatusScreen />
-    </RequireAuth>
-  );
-}

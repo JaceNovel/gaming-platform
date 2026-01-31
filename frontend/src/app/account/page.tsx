@@ -252,6 +252,7 @@ function AccountClient() {
   const [countryStatus, setCountryStatus] = useState<"idle" | "success" | "error">("idle");
   const [countryMessage, setCountryMessage] = useState("");
   const [topupBanner, setTopupBanner] = useState<string | null>(null);
+  const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
 
   const referralInviteUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -272,6 +273,26 @@ function AccountClient() {
 
     const timer = setTimeout(() => {
       setTopupBanner(null);
+      router.replace('/account');
+    }, 4500);
+
+    return () => clearTimeout(timer);
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    const status = (searchParams.get('payment_status') ?? '').toLowerCase();
+    if (!status) return;
+
+    if (status === 'success' || status === 'paid' || status === 'completed') {
+      setPaymentBanner('Paiement confirmé. Merci pour votre achat.');
+    } else if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
+      setPaymentBanner('Paiement échoué ou annulé. Merci de réessayer.');
+    } else {
+      setPaymentBanner('Paiement en attente de confirmation.');
+    }
+
+    const timer = setTimeout(() => {
+      setPaymentBanner(null);
       router.replace('/account');
     }, 4500);
 
@@ -763,6 +784,11 @@ function AccountClient() {
           />
 
           <section className="space-y-8">
+            {paymentBanner && (
+              <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+                {paymentBanner}
+              </div>
+            )}
             {topupBanner && (
               <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-sm text-cyan-100">
                 {topupBanner}

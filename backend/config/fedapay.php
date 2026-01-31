@@ -3,7 +3,7 @@
 $appUrl = rtrim(env('APP_URL', ''), '/');
 $frontUrl = rtrim(env('FRONTEND_URL', $appUrl), '/');
 
-$defaultCallback = $frontUrl ? $frontUrl . '/order-confirmation' : null;
+$defaultCallback = $frontUrl ? $frontUrl . '/account' : null;
 
 return [
     // Secret key is required server-side. Never expose it to the frontend.

@@ -14,11 +14,11 @@ export default function PaymentReturnClient() {
 
   useEffect(() => {
     const params = new URLSearchParams();
+    if (orderId) params.set("order", orderId);
     if (transactionId) params.set("transaction_id", transactionId);
-    if (orderId) params.set("order_id", orderId);
 
-    const target = params.toString() ? `/checkout/status?${params.toString()}` : "/checkout/status";
-    const timer = setTimeout(() => router.replace(target), 1200);
+    const target = params.toString() ? `/account?${params.toString()}` : "/account";
+    const timer = setTimeout(() => router.replace(target), 700);
     return () => clearTimeout(timer);
   }, [orderId, router, transactionId]);
 

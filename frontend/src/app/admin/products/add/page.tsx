@@ -123,6 +123,12 @@ export default function AdminProductsAddPage() {
     if (stock !== "0") setStock("0");
   }, [redeemEnabled, stock]);
 
+  useEffect(() => {
+    if (type !== "item" || displaySection === "emote_skin") return;
+    if (deliveryEstimateLabel.trim()) return;
+    setDeliveryEstimateLabel("24H");
+  }, [deliveryEstimateLabel, displaySection, type]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("");
@@ -634,7 +640,7 @@ export default function AdminProductsAddPage() {
                     value={deliveryEstimateLabel}
                     onChange={(e) => setDeliveryEstimateLabel(e.target.value)}
                     className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
-                    placeholder="ex: 7–10 jours"
+                    placeholder="ex: 24H"
                   />
                   <p className="mt-1 text-xs text-slate-500">
                     Optionnel. S&apos;affiche sur la carte produit et la page détail.

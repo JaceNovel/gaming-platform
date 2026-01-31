@@ -37,7 +37,7 @@ const normalizeEtaLabel = (raw: string): string => {
   if (weeksMatch) return `${weeksMatch[1]} sem.`;
 
   const hoursMatch = lower.match(/^(\d+)\s*h\b/);
-  if (hoursMatch) return `${hoursMatch[1]}h`;
+  if (hoursMatch) return `${hoursMatch[1]}H`;
 
   return value;
 };
@@ -62,19 +62,19 @@ export const getDeliveryDisplay = (product: DeliveryInput | null | undefined): D
     return { label: "Instantané", tone: "bolt" };
   }
 
-  // Abonnement: always 2h.
+  // Abonnement: always 2H.
   if (type.includes("subscription") || type.includes("abonnement") || type.includes("premium")) {
-    return { label: "2h", tone: "clock" };
+    return { label: "2H", tone: "clock" };
   }
 
-  // Skin: always 2h (by shop section or explicit type).
+  // Skin: always 1H (by shop section or explicit type).
   if (type.includes("skin") || displaySection === "emote_skin") {
-    return { label: "2h", tone: "clock" };
+    return { label: "1H", tone: "clock" };
   }
 
-  // Compte gaming: always 24h.
+  // Compte gaming: always 24H.
   if (type.includes("account") || type.includes("compte")) {
-    return { label: "24h", tone: "clock" };
+    return { label: "24H", tone: "clock" };
   }
 
   // Accessoires: label is admin-defined.

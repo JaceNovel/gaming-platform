@@ -16,6 +16,6 @@ return [
     'default_channels' => env('CINETPAY_CHANNELS', 'MOBILE_MONEY'),
     'return_url' => env('CINETPAY_RETURN_URL', $appUrl ? $appUrl . '/api/payments/cinetpay/return' : null),
     'cancel_url' => env('CINETPAY_CANCEL_URL', $frontUrl ? $frontUrl . '/checkout/cancel' : null),
-    'frontend_status_url' => env('CINETPAY_FRONTEND_STATUS_URL', $frontUrl ? $frontUrl . '/checkout/status' : null),
+    'frontend_status_url' => env('CINETPAY_FRONTEND_STATUS_URL', $frontUrl ? $frontUrl . '/account' : null),
     'frontend_wallet_topup_url' => env('CINETPAY_FRONTEND_WALLET_TOPUP_URL', $frontUrl ? $frontUrl . '/wallet/topup/return' : null),
 ];
