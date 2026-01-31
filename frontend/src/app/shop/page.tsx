@@ -749,6 +749,19 @@ export default function ShopPage() {
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncUrlTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const inferTypeFromCategory = (categoryName?: string | null, displaySection?: string | null) => {
+    const name = String(categoryName ?? "").toLowerCase();
+    const section = String(displaySection ?? "").toLowerCase();
+
+    if (section === "emote_skin") return "skin";
+    if (name.includes("recharge") || name.includes("topup") || name.includes("diamant")) return "recharge";
+    if (name.includes("compte") || name.includes("account")) return "account";
+    if (name.includes("abonnement") || name.includes("subscription") || name.includes("vip")) return "subscription";
+    if (name.includes("emote") || name.includes("skin")) return "skin";
+    if (name.includes("accessoire") || name.includes("accessory")) return "item";
+    return "";
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -808,16 +821,17 @@ export default function ShopPage() {
           const baseOld = Number(item?.old_price ?? item?.price ?? priceValue);
           const oldPrice = baseOld > priceValue ? baseOld : Math.round(priceValue * 1.18);
           const discountPercent = oldPrice > priceValue ? Math.round(((oldPrice - priceValue) / oldPrice) * 100) : 0;
-          const type = String(item?.type ?? "").toLowerCase();
-          const fallbackCategory = type.includes("recharge") || type.includes("topup")
+          const rawType = String(item?.type ?? "").toLowerCase();
+          const fallbackCategory = rawType.includes("recharge") || rawType.includes("topup")
             ? "Recharges"
-            : type.includes("account")
+            : rawType.includes("account")
               ? "Comptes"
-              : type.includes("subscription") || type.includes("premium")
+              : rawType.includes("subscription") || rawType.includes("premium")
                 ? "Offres"
                 : "Accessoires";
           const categoryName = item?.category ?? item?.category_entity?.name ?? fallbackCategory;
           const categorySlug = item?.category_entity?.slug ?? (categoryName ? slugifyCategory(categoryName) : null);
+          const inferredType = rawType || inferTypeFromCategory(categoryName, item?.display_section ?? null);
           const imageUrl =
             item?.details?.image ??
             item?.image_url ??
@@ -847,7 +861,7 @@ export default function ShopPage() {
             likes: Number(item?.likes_count ?? 0),
             category: categoryName,
             categorySlug,
-            type: String(item?.type ?? ""),
+            type: inferredType,
             imageUrl: imageUrl ?? FALLBACK_PRODUCT_IMAGE,
             bannerUrl: bannerUrl,
             displaySection: item?.display_section ?? null,

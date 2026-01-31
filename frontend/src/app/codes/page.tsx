@@ -59,16 +59,26 @@ type MeRedeemsResponse = {
 const prettyOrderStatus = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
   if (!s) return "—";
-  if (["paid", "completed", "fulfilled"].includes(s)) return "Complétée";
-  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "Échec";
+  if (["payment_success", "paid", "completed", "fulfilled"].includes(s)) return "Paiement confirmé";
+  if (["payment_processing", "pending"].includes(s)) return "En validation";
+  if (["payment_failed", "failed"].includes(s)) return "Échec";
+  if (["paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "En attente stock";
   return status ?? "—";
 };
 
 const statusBadgeClass = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
-  if (["paid", "completed", "fulfilled"].includes(s)) return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
-  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
+  if (["payment_success", "paid", "completed", "fulfilled"].includes(s)) {
+    return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
+  }
+  if (["payment_processing", "pending"].includes(s)) {
+    return "bg-amber-400/20 border-amber-300/30 text-amber-100";
+  }
+  if (["payment_failed", "failed"].includes(s)) {
     return "bg-rose-500/20 border-rose-300/30 text-rose-100";
+  }
+  if (["paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
+    return "bg-amber-400/20 border-amber-300/30 text-amber-100";
   }
   return "bg-white/10 border-white/20 text-white/80";
 };
@@ -179,6 +189,19 @@ function CodesClient() {
     }
   };
 
+  const resyncPaymentStatuses = async () => {
+    if (!HAS_API_ENV) return;
+    const candidates = orders.filter((order) => {
+      const s = String(order.status ?? "").toLowerCase();
+      return s === "payment_failed" || s === "payment_processing" || s === "pending" || s === "failed";
+    });
+    if (!candidates.length) return;
+
+    await Promise.allSettled(
+      candidates.map((order) => authFetch(`${API_BASE}/payments/fedapay/status?order_id=${order.id}`))
+    );
+  };
+
   const loadMyRedeems = async (page = 1, mode: "replace" | "append" = "replace") => {
     if (!HAS_API_ENV) return;
 
@@ -275,8 +298,14 @@ function CodesClient() {
               <button
                 type="button"
                 onClick={() => {
-                  void loadOrders();
-                  void loadMyRedeems(1, "replace");
+                  void (async () => {
+                    setBanner("Vérification des paiements...");
+                    await resyncPaymentStatuses();
+                    await loadOrders();
+                    await loadMyRedeems(1, "replace");
+                    setBanner("Actualisation terminée.");
+                    window.setTimeout(() => setBanner(null), 2500);
+                  })();
                 }}
                 className="rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold"
               >
@@ -350,7 +379,15 @@ function CodesClient() {
 
                           {isOpen && (
                             <div className="px-4 pb-4">
-                              {String(order.status ?? "").toLowerCase() === "paid_but_out_of_stock" ? (
+                              {String(order.status ?? "").toLowerCase() === "payment_failed" ? (
+                                <div className="rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm text-rose-100">
+                                  Paiement en échec. Si vous avez payé, cliquez sur Actualiser pour revalider.
+                                </div>
+                              ) : String(order.status ?? "").toLowerCase() === "payment_processing" ? (
+                                <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
+                                  Paiement en cours de validation. Réessayez Actualiser dans quelques secondes.
+                                </div>
+                              ) : String(order.status ?? "").toLowerCase() === "paid_but_out_of_stock" ? (
                                 <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
                                   Échec : rupture de stock. Contacte le support si besoin.
                                 </div>
@@ -415,7 +452,15 @@ function CodesClient() {
 
                       {isOpen && (
                         <div className="px-4 pb-4">
-                          {String(group.order?.status ?? "").toLowerCase() === "paid_but_out_of_stock" ? (
+                          {String(group.order?.status ?? "").toLowerCase() === "payment_failed" ? (
+                            <div className="rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm text-rose-100">
+                              Paiement en échec. Si vous avez payé, cliquez sur Actualiser pour revalider.
+                            </div>
+                          ) : String(group.order?.status ?? "").toLowerCase() === "payment_processing" ? (
+                            <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
+                              Paiement en cours de validation. Réessayez Actualiser dans quelques secondes.
+                            </div>
+                          ) : String(group.order?.status ?? "").toLowerCase() === "paid_but_out_of_stock" ? (
                             <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
                               Échec : rupture de stock. Contacte le support si besoin.
                             </div>
