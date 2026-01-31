@@ -73,10 +73,32 @@ class Order extends Model
     public function requiresRedeemFulfillment(): bool
     {
         if ($this->relationLoaded('orderItems')) {
-            return $this->orderItems->contains(fn ($item) => !empty($item->redeem_denomination_id));
+            return $this->orderItems->contains(function ($item) {
+                if (!empty($item->redeem_denomination_id)) {
+                    return true;
+                }
+
+                $product = $item->product;
+                if (!$product) {
+                    return false;
+                }
+
+                return (
+                    (string) ($product->stock_mode ?? '') === 'redeem_pool'
+                    || (bool) ($product->redeem_code_delivery ?? false)
+                    || strtolower((string) ($product->type ?? '')) === 'redeem'
+                );
+            });
         }
 
-        return $this->redeemItems()->exists();
+        return $this->orderItems()
+            ->whereNotNull('redeem_denomination_id')
+            ->orWhereHas('product', function ($query) {
+                $query->where('stock_mode', 'redeem_pool')
+                    ->orWhere('redeem_code_delivery', true)
+                    ->orWhere('type', 'redeem');
+            })
+            ->exists();
     }
 
     public function hasPhysicalItems(): bool

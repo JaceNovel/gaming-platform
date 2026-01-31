@@ -8,6 +8,7 @@ use App\Mail\OutOfStockMail;
 use App\Models\Order;
 use App\Models\RedeemCode;
 use App\Models\RedeemCodeDelivery;
+use App\Models\RedeemDenomination;
 use App\Services\RedeemCodeAllocator;
 use App\Services\RedeemStockAlertService;
 use App\Services\NotificationService;
@@ -33,7 +34,15 @@ class ProcessRedeemFulfillment implements ShouldQueue
         $order = Order::with(['user', 'orderItems.redeemDenomination', 'orderItems.redeemCode', 'orderItems.product'])
             ->find($this->orderId);
 
-        if (!$order || !$order->requiresRedeemFulfillment()) {
+        if (!$order) {
+            return;
+        }
+
+        $this->attachRedeemDenominationsIfMissing($order);
+        $order->refresh();
+        $order->loadMissing(['orderItems.redeemDenomination', 'orderItems.redeemCode', 'orderItems.product', 'user']);
+
+        if (!$order->requiresRedeemFulfillment()) {
             return;
         }
 
@@ -143,5 +152,56 @@ class ProcessRedeemFulfillment implements ShouldQueue
             'order_id' => $order->id,
             'codes_sent' => count($assignedCodes),
         ]);
+    }
+
+    private function attachRedeemDenominationsIfMissing(Order $order): bool
+    {
+        $order->loadMissing(['orderItems.product']);
+
+        $updated = false;
+
+        foreach ($order->orderItems as $orderItem) {
+            if (!empty($orderItem->redeem_denomination_id)) {
+                continue;
+            }
+
+            $product = $orderItem->product;
+            if (!$product) {
+                continue;
+            }
+
+            $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
+                || (bool) ($product->redeem_code_delivery ?? false)
+                || strtolower((string) ($product->type ?? '')) === 'redeem';
+
+            if (!$requiresDenomination) {
+                continue;
+            }
+
+            $quantity = max(1, (int) ($orderItem->quantity ?? 1));
+
+            $denominations = RedeemDenomination::query()
+                ->where('active', true)
+                ->where(function ($q) use ($product) {
+                    $q->where('product_id', $product->id)->orWhereNull('product_id');
+                })
+                ->orderByRaw('CASE WHEN product_id IS NULL THEN 1 ELSE 0 END')
+                ->orderByDesc('diamonds')
+                ->get();
+
+            foreach ($denominations as $denomination) {
+                $available = RedeemCode::where('denomination_id', $denomination->id)
+                    ->where('status', 'available')
+                    ->count();
+
+                if ($available >= $quantity) {
+                    $orderItem->update(['redeem_denomination_id' => $denomination->id]);
+                    $updated = true;
+                    break;
+                }
+            }
+        }
+
+        return $updated;
     }
 }
