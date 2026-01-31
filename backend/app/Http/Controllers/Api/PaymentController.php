@@ -16,7 +16,6 @@ use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
 use App\Services\CinetPayService;
 use App\Services\FedaPayService;
-use App\Services\PaymentResyncService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -30,7 +29,6 @@ class PaymentController extends Controller
     public function __construct(
         private CinetPayService $cinetPayService,
         private FedaPayService $fedaPayService,
-        private PaymentResyncService $paymentResyncService,
     )
     {
     }
@@ -205,8 +203,8 @@ class PaymentController extends Controller
 
     /**
      * Public return endpoint for FedaPay.
-        * Browser redirect is NOT a payment proof. We resync with the provider API here.
-        * Webhooks remain optional; the provider verification is the source of truth.
+     * Browser redirect is NOT a payment proof. We never validate nor fulfill here.
+     * The ONLY source of truth is the signed server webhook.
      */
     public function redirectFedapayReturn(Request $request)
     {
@@ -220,72 +218,17 @@ class PaymentController extends Controller
         );
 
         $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
-        $payment = null;
+        $fallbackRedirect = $frontUrl !== ''
+            ? $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : '')
+            : '/';
 
-        if ($transactionId !== '') {
-            $payment = Payment::with(['order.orderItems'])
-                ->where('method', 'fedapay')
-                ->where('transaction_id', $transactionId)
-                ->latest('id')
-                ->first();
-        }
+        // Intentionally no provider verification and no DB writes here.
 
-        if (!$payment && $orderId > 0) {
-            $payment = Payment::with(['order.orderItems'])
-                ->where('method', 'fedapay')
-                ->where('order_id', $orderId)
-                ->latest('id')
-                ->first();
-        }
+        $redirect = $frontUrl !== ''
+            ? $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : '')
+            : $fallbackRedirect;
 
-        if ($payment) {
-            try {
-                $this->paymentResyncService->resync($payment, [
-                    'source' => 'return_redirect',
-                    'order_id' => $orderId > 0 ? $orderId : null,
-                    'transaction_id' => $transactionId !== '' ? $transactionId : $payment->transaction_id,
-                ]);
-            } catch (\Throwable $e) {
-                Log::warning('fedapay:return-resync-failed', [
-                    'order_id' => $orderId,
-                    'transaction_id' => $transactionId,
-                    'message' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        $payment = $payment?->fresh(['order.orderItems']);
-        $order = $payment?->order;
-
-        if (!$order && $orderId > 0) {
-            $order = Order::with('orderItems')->find($orderId);
-        }
-
-        $statusKey = 'pending';
-        if ($order?->isPaymentSuccess() || (string) ($payment?->status ?? '') === 'completed') {
-            $statusKey = 'success';
-        } elseif ($order?->isPaymentFailed() || (string) ($payment?->status ?? '') === 'failed') {
-            $statusKey = 'failed';
-        }
-
-        if ($frontUrl === '') {
-            return redirect()->away('/');
-        }
-
-        if ($order && (string) ($order->type ?? '') === 'wallet_topup') {
-            return redirect()->away($frontUrl . '/wallet?topup_status=' . $statusKey);
-        }
-
-        if ($order && $order->requiresRedeemFulfillment()) {
-            return redirect()->away($frontUrl . '/codes?payment_status=' . $statusKey . '&order=' . ($order->id ?? $orderId));
-        }
-
-        $target = $frontUrl . '/account?payment_status=' . $statusKey;
-        if ($orderId > 0) {
-            $target .= '&order=' . $orderId;
-        }
-
-        return redirect()->away($target);
+        return redirect()->away($redirect);
     }
 
     public function statusFedapay(Request $request)
@@ -321,23 +264,6 @@ class PaymentController extends Controller
         if (!$payment) {
             return response()->json(['message' => 'Payment not found'], 404);
         }
-
-        try {
-            $this->paymentResyncService->resync($payment, [
-                'source' => 'status_api',
-                'order_id' => $payment->order_id,
-                'transaction_id' => $payment->transaction_id,
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('fedapay:status-resync-failed', [
-                'payment_id' => $payment->id,
-                'order_id' => $payment->order_id,
-                'transaction_id' => $payment->transaction_id,
-                'message' => $e->getMessage(),
-            ]);
-        }
-
-        $payment = $payment->fresh(['order.user', 'walletTransaction']);
 
         $order = $payment->order;
         if (!$order) {

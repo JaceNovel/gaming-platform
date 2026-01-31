@@ -161,6 +161,8 @@ function CheckoutScreen() {
       const currency = String(order?.currency ?? "XOF").toUpperCase();
       const customer = buildCustomerPayload();
 
+      const callbackUrl = `${window.location.origin}/order-confirmation?order=${orderId}`;
+
       const payRes = await authFetch(`${API_BASE}/payments/fedapay/init`, {
         method: "POST",
         body: JSON.stringify({
@@ -172,6 +174,7 @@ function CheckoutScreen() {
           customer_name: customer.customer_name,
           customer_phone: customer.customer_phone_number,
           description: `Commande #${orderId} - ${customer.customer_email || ""}`,
+          callback_url: callbackUrl,
           metadata: {
             source: "checkout",
             product_id: productId,

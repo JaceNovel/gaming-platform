@@ -10,7 +10,6 @@ use App\Models\PremiumMembership;
 use App\Models\WalletBd;
 use App\Services\FedaPayService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
@@ -89,12 +88,9 @@ class PremiumController extends Controller
             return [$order->fresh(['user', 'payment']), $payment->fresh()];
         });
 
-        $appUrl = rtrim((string) config('app.url', env('APP_URL', '')), '/');
-        $callbackUrl = $appUrl !== ''
-            ? $appUrl . '/api/payments/fedapay/return?' . Arr::query([
-                'order_id' => $order->id,
-                'provider' => 'fedapay',
-            ])
+        $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
+        $callbackUrl = $frontUrl !== ''
+            ? $frontUrl . '/checkout/status?provider=fedapay&order_id=' . $order->id
             : null;
 
         $initResult = $this->fedaPayService->initPayment($order, $user, [
