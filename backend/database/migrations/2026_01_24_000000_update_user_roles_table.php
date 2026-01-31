@@ -7,6 +7,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
         DB::statement("ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(32)");
         DB::statement("UPDATE users SET role = 'user' WHERE role IS NULL");
         DB::statement("ALTER TABLE users ALTER COLUMN role SET DEFAULT 'user'");
@@ -17,6 +20,9 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
         DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
         DB::statement("ALTER TABLE users ALTER COLUMN role DROP DEFAULT");
         DB::statement("ALTER TABLE users ALTER COLUMN role DROP NOT NULL");

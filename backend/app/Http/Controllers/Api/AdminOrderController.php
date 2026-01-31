@@ -6,6 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Mail\RedeemCodeDelivery;
 use App\Models\Order;
 use App\Models\RedeemCode;
+use App\Models\Payment;
+use App\Models\Product;
+use App\Jobs\ProcessOrderDelivery;
+use App\Jobs\ProcessRedeemFulfillment;
 use App\Services\AdminAuditLogger;
 use App\Services\ShippingService;
 use Dompdf\Dompdf;
@@ -13,6 +17,7 @@ use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class AdminOrderController extends Controller
 {
@@ -103,6 +108,86 @@ class AdminOrderController extends Controller
         $order->save();
 
         return response()->json(['order' => $order]);
+    }
+
+    public function updatePaymentStatus(Request $request, Order $order, AdminAuditLogger $auditLogger)
+    {
+        $data = $request->validate([
+            'status' => 'required|string|in:completed,failed',
+        ]);
+
+        if ((string) ($order->type ?? '') === 'wallet_topup') {
+            return response()->json(['message' => 'Manual validation disabled for wallet topup'], 422);
+        }
+
+        $normalized = strtolower($data['status']);
+
+        DB::transaction(function () use ($order, $normalized) {
+            $order->loadMissing(['orderItems.product', 'payment']);
+
+            $payment = $order->payment;
+            if (!$payment) {
+                $payment = Payment::create([
+                    'order_id' => $order->id,
+                    'amount' => (float) ($order->total_price ?? 0),
+                    'method' => 'manual',
+                    'status' => $normalized,
+                    'transaction_id' => 'manual-' . $order->id . '-' . now()->timestamp,
+                ]);
+                $order->update(['payment_id' => $payment->id]);
+            } else {
+                $payment->update(['status' => $normalized]);
+            }
+
+            if ($normalized === 'completed') {
+                $order->update(['status' => Order::STATUS_PAYMENT_SUCCESS]);
+            } else {
+                $order->update(['status' => Order::STATUS_PAYMENT_FAILED]);
+            }
+
+            if ($normalized === 'completed') {
+                $orderMeta = $order->meta ?? [];
+                if (!is_array($orderMeta)) {
+                    $orderMeta = [];
+                }
+
+                if (empty($orderMeta['sales_recorded_at'])) {
+                    foreach ($order->orderItems as $item) {
+                        if (!$item?->product_id) {
+                            continue;
+                        }
+                        $qty = max(1, (int) ($item->quantity ?? 1));
+                        Product::where('id', $item->product_id)->increment('purchases_count');
+                        Product::where('id', $item->product_id)->increment('sold_count', $qty);
+                    }
+                    $orderMeta['sales_recorded_at'] = now()->toIso8601String();
+                }
+
+                if (empty($orderMeta['fulfillment_dispatched_at']) && $order->canBeFulfilled()) {
+                    if ($order->requiresRedeemFulfillment()) {
+                        ProcessRedeemFulfillment::dispatchSync($order->id);
+                    } else {
+                        ProcessOrderDelivery::dispatchSync($order);
+                    }
+                    $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
+                }
+
+                $order->update(['meta' => $orderMeta]);
+            }
+        });
+
+        $auditLogger->log(
+            $request->user(),
+            'order_payment_status',
+            [
+                'order_id' => $order->id,
+                'status' => $normalized,
+            ],
+            actionType: 'payments',
+            request: $request
+        );
+
+        return response()->json(['order' => $order->fresh(['payment'])]);
     }
 
     public function deliveryNotePdf(Order $order)

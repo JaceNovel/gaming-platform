@@ -225,6 +225,7 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::get('/orders/recent', [AdminOrderController::class, 'recent'])->middleware('permission:orders.view');
     Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
     Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->middleware('permission:orders.manage');
+    Route::patch('/orders/{order}/payment/status', [AdminOrderController::class, 'updatePaymentStatus'])->middleware('permission:orders.manage');
     Route::post('/orders/{order}/delivery-note-pdf', [AdminOrderController::class, 'deliveryNotePdf']);
     Route::post('/orders/{order}/resend-code', [AdminOrderController::class, 'resendCode']);
     Route::post('/orders/{order}/shipping/generate-document', [AdminOrderController::class, 'generateShippingDocument'])

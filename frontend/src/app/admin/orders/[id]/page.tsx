@@ -21,6 +21,7 @@ type Order = {
   status?: string | null;
   total_price?: number | null;
   created_at?: string | null;
+  payment?: { status?: string | null } | null;
   shipping_status?: string | null;
   shipping_eta_days?: number | null;
   shipping_estimated_date?: string | null;
@@ -63,7 +64,9 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [shippingStatus, setShippingStatus] = useState("pending");
+  const [paymentStatus, setPaymentStatus] = useState("pending");
   const [saving, setSaving] = useState(false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
   const [docLoading, setDocLoading] = useState(false);
 
   const loadOrder = useCallback(async () => {
@@ -81,6 +84,7 @@ export default function AdminOrderDetailPage() {
       const payload = (await res.json()) as Order;
       setOrder(payload);
       setShippingStatus(payload.shipping_status ?? "pending");
+      setPaymentStatus(payload.payment?.status ?? "pending");
     } catch (err) {
       setError("Impossible de charger la commande");
     } finally {
@@ -131,6 +135,30 @@ export default function AdminOrderDetailPage() {
       setError("Impossible de mettre à jour le statut de livraison");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePaymentStatusSave = async (nextStatus: "completed" | "failed") => {
+    if (!order) return;
+    setPaymentSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/orders/${order.id}/payment/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      const payload = await res.json();
+      const updated = payload?.order ?? order;
+      setOrder(updated);
+      setPaymentStatus(updated?.payment?.status ?? nextStatus);
+    } catch {
+      setError("Impossible de mettre à jour le statut de paiement");
+    } finally {
+      setPaymentSaving(false);
     }
   };
 
@@ -191,6 +219,7 @@ export default function AdminOrderDetailPage() {
             <div className="space-y-2 text-sm">
               <div><span className="text-slate-400">Référence:</span> {order.reference ?? "—"}</div>
               <div><span className="text-slate-400">Statut:</span> {toOutcomeLabel(order.status)}</div>
+              <div><span className="text-slate-400">Paiement:</span> {order.payment?.status ?? "—"}</div>
               <div><span className="text-slate-400">Montant:</span> {formatAmount(order.total_price)}</div>
               <div><span className="text-slate-400">Créée:</span> {order.created_at ?? "—"}</div>
             </div>
@@ -204,6 +233,27 @@ export default function AdminOrderDetailPage() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 text-sm font-semibold text-slate-700">Paiement</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-sm text-slate-600">Statut actuel: {paymentStatus}</div>
+          <button
+            onClick={() => handlePaymentStatusSave("completed")}
+            className="rounded-xl bg-emerald-600 px-3 py-2 text-xs text-white"
+            disabled={paymentSaving}
+          >
+            {paymentSaving ? "Enregistrement..." : "Marquer payé"}
+          </button>
+          <button
+            onClick={() => handlePaymentStatusSave("failed")}
+            className="rounded-xl bg-rose-600 px-3 py-2 text-xs text-white"
+            disabled={paymentSaving}
+          >
+            {paymentSaving ? "Enregistrement..." : "Marquer échec"}
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
