@@ -204,11 +204,23 @@ function ProductCardUI({
   showAddToCart?: boolean;
   imageOverrideSrc?: string | null;
 }) {
-  const cardImageSrc = imageOverrideSrc ? imageOverrideSrc : toDisplayImageSrc(p.image) ?? p.image;
+  const thumbSrc = toDisplayImageSrc(p.image) ?? p.image;
 
   return (
     <div className="relative w-[260px] shrink-0 snap-start overflow-hidden rounded-2xl bg-white/6 ring-1 ring-white/15 backdrop-blur-md sm:w-full sm:min-w-0 sm:shrink">
+      {imageOverrideSrc ? (
+        <img
+          src={imageOverrideSrc}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+          aria-hidden="true"
+        />
+      ) : null}
       <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
+      {imageOverrideSrc ? (
+        <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/10 to-black/55" />
+      ) : null}
       <div className="relative p-4">
         <div className="flex items-start justify-between gap-3">
           <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/10">
@@ -223,7 +235,7 @@ function ProductCardUI({
         <div className="mt-3 flex items-center gap-3">
           <div className="relative h-14 w-14 overflow-hidden rounded-xl ring-1 ring-white/15">
             <img
-              src={cardImageSrc}
+              src={thumbSrc}
               alt={p.title}
               className="h-full w-full object-cover opacity-90"
               loading="lazy"
