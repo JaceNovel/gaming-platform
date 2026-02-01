@@ -8,6 +8,7 @@ import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "../../lib/imageProxy";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
 
 type Stat = {
   to: number;
@@ -195,12 +196,16 @@ function ProductCardUI({
   onAddToCart,
   onBuy,
   showAddToCart = true,
+  imageOverrideSrc,
 }: {
   p: ProductCard;
   onAddToCart: (product: ProductCard, origin?: HTMLElement | null) => void;
   onBuy: (product: ProductCard, origin?: HTMLElement | null) => void;
   showAddToCart?: boolean;
+  imageOverrideSrc?: string | null;
 }) {
+  const cardImageSrc = imageOverrideSrc ? imageOverrideSrc : toDisplayImageSrc(p.image) ?? p.image;
+
   return (
     <div className="relative w-[260px] shrink-0 snap-start overflow-hidden rounded-2xl bg-white/6 ring-1 ring-white/15 backdrop-blur-md sm:w-full sm:min-w-0 sm:shrink">
       <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent" />
@@ -218,7 +223,7 @@ function ProductCardUI({
         <div className="mt-3 flex items-center gap-3">
           <div className="relative h-14 w-14 overflow-hidden rounded-xl ring-1 ring-white/15">
             <img
-              src={toDisplayImageSrc(p.image) ?? p.image}
+              src={cardImageSrc}
               alt={p.title}
               className="h-full w-full object-cover opacity-90"
               loading="lazy"
@@ -416,6 +421,12 @@ export default function HomeClient() {
   }, []);
 
   const topProducts = useMemo(() => products, [products]);
+
+  const mobilePopular = useMemo(() => {
+    if (topProducts.length <= 4) return topProducts;
+    return topProducts.slice(0, 4);
+  }, [topProducts]);
+
   const desktopPopular = useMemo(() => {
     const length = topProducts.length;
     if (length <= 3) return topProducts;
@@ -658,22 +669,24 @@ export default function HomeClient() {
           ) : (
             <>
               <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory sm:hidden">
-                {topProducts.map((p) => (
+                {mobilePopular.map((p, idx) => (
                   <ProductCardUI
                     key={p.id}
                     p={p}
                     onAddToCart={addToCart}
                     onBuy={handleBuy}
+                    imageOverrideSrc={getHomePopularSlotImage(idx)}
                   />
                 ))}
               </div>
               <div className={`hidden sm:grid sm:grid-cols-3 sm:gap-4 transition-all duration-[3000ms] ${transitioning ? "blur-sm opacity-70" : "blur-0 opacity-100"}`}>
-                {desktopPopular.map((p) => (
+                {desktopPopular.map((p, idx) => (
                   <ProductCardUI
                     key={`desktop-${p.id}`}
                     p={p}
                     onAddToCart={addToCart}
                     onBuy={handleBuy}
+                    imageOverrideSrc={getHomePopularSlotImage(idx)}
                   />
                 ))}
               </div>
