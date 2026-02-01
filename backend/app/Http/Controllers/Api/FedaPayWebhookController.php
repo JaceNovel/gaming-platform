@@ -27,13 +27,14 @@ class FedaPayWebhookController extends Controller
             ]);
         }
 
-        // 3) Parse signature header (Stripe-like: t=...,v1=...)
+        // 3) Parse signature header (Stripe-like: t=...,v1=... or t=...,s=...)
         $parsed = $this->parseFedaPaySignatureHeader($h);
         $timestamp = (string) ($parsed['timestamp'] ?? '');
         $v1List = (array) ($parsed['v1'] ?? []);
 
-        // 7) If header contains timestamp but no v1 => reject
-        if ($timestamp !== '' && count($v1List) === 0) {
+        // 7) If header contains timestamp and signature-like key but no extracted signature => reject
+        $hasSignatureLikeKey = preg_match('/(?:^|[\s,;])(v1|s|sig|signature)\s*=\s*/i', $h) === 1;
+        if ($timestamp !== '' && $hasSignatureLikeKey && count($v1List) === 0) {
             Log::warning('fedapay:invalid-signature', [
                 'raw_len' => strlen($raw),
                 'raw_sha256' => hash('sha256', $raw),
@@ -150,14 +151,14 @@ class FedaPayWebhookController extends Controller
                 $timestamp = $v;
                 continue;
             }
-            if ($k === 'v1' && $v !== '') {
+            if (in_array($k, ['v1', 's', 'sig', 'signature'], true) && $v !== '') {
                 $v1[] = $v;
                 continue;
             }
         }
 
         if ($timestamp !== null || $v1 !== []) {
-            return ['timestamp' => $timestamp, 'v1' => $v1, 'format' => 't_v1'];
+            return ['timestamp' => $timestamp, 'v1' => $v1, 'format' => $timestamp !== null ? 't_sig' : 'sig_only'];
         }
 
         // Fallback raw: treat entire header as the signature

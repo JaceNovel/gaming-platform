@@ -116,6 +116,43 @@ class FedaPayWebhookSignatureTest extends TestCase
     }
 
     #[Test]
+    public function header_t_s_validates_timestamp_dot_raw_hex(): void
+    {
+        $secret = 'whsec_test_secret_1234567890';
+        $this->setWebhookSecret($secret);
+
+        $order = Order::factory()->create([
+            'status' => Order::STATUS_PAYMENT_PROCESSING,
+            'total_price' => 5000,
+            'reference' => 'ORD-TEST-S',
+        ]);
+
+        Payment::factory()->create([
+            'order_id' => $order->id,
+            'amount' => 5000,
+            'status' => 'pending',
+            'method' => 'fedapay',
+            'transaction_id' => 'TX-FEDA-S',
+        ]);
+
+        $this->mock(FedaPayService::class, function ($mock) use ($order) {
+            $mock->shouldReceive('retrieveTransaction')->andReturn([
+                'status' => 'approved',
+                'amount' => 5000,
+                'currency' => ['iso' => 'XOF'],
+                'merchant_reference' => $order->reference,
+            ]);
+        });
+
+        $raw = '{"id":"evt_s","name":"transaction.approved","entity":{"id":"TX-FEDA-S","status":"approved","custom_metadata":{"order_id":' . $order->id . '}}}';
+        $timestamp = '1769906176';
+        $sig = hash_hmac('sha256', $timestamp . '.' . $raw, $secret);
+
+        $resp = $this->postRawWebhook($raw, 't=' . $timestamp . ',s=' . $sig);
+        $resp->assertOk();
+    }
+
+    #[Test]
     public function raw_legacy_header_validates_hmac_on_raw_body(): void
     {
         $secret = 'whsec_test_secret_1234567890';
