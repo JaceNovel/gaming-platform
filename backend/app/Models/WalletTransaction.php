@@ -20,11 +20,16 @@ class WalletTransaction extends Model
         'reference',
         'meta',
         'status',
+        'provider',
+        'provider_transaction_id',
+        'provider_reference',
+        'paid_at',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'meta' => 'array',
+        'paid_at' => 'datetime',
     ];
 
     public function wallet(): BelongsTo
