@@ -64,11 +64,20 @@ class WalletService
             $tx->status = 'success';
             $tx->save();
 
-            AdminLog::create([
-                'admin_id' => is_numeric($adminId) ? (int) $adminId : null,
-                'action' => 'wallet_credit',
-                'details' => json_encode(['user_id' => $user->id, 'amount' => $amount, 'reference' => $reference]),
-            ]);
+            try {
+                AdminLog::create([
+                    'admin_id' => is_numeric($adminId) ? (int) $adminId : null,
+                    'action' => 'wallet_credit',
+                    'details' => json_encode(['user_id' => $user->id, 'amount' => $amount, 'reference' => $reference]),
+                ]);
+            } catch (Throwable $e) {
+                // Best-effort audit log (never block wallet credit).
+                Log::warning('wallet:admin-log-skipped', [
+                    'user_id' => $user->id,
+                    'reference' => $reference,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             return $tx;
         });

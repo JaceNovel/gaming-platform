@@ -158,22 +158,31 @@ class ProcessFedaPayWebhook implements ShouldQueue
             ]);
 
             // Track unknown transaction attempts for audit/debug.
-            PaymentAttempt::updateOrCreate(
-                ['transaction_id' => $transactionId],
-                [
+            try {
+                PaymentAttempt::updateOrCreate(
+                    ['transaction_id' => $transactionId],
+                    [
+                        'order_id' => null,
+                        'amount' => 0,
+                        'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
+                        'status' => 'unknown',
+                        'provider' => 'fedapay',
+                        'processed_at' => now(),
+                        'raw_payload' => [
+                            'event_id' => $eventId,
+                            'event_name' => $eventName,
+                            'error' => 'payment_not_found',
+                        ],
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('fedapay:payment-attempt-skipped', [
+                    'transaction_id' => $transactionId,
+                    'payment_id' => null,
                     'order_id' => null,
-                    'amount' => 0,
-                    'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
-                    'status' => 'unknown',
-                    'provider' => 'fedapay',
-                    'processed_at' => now(),
-                    'raw_payload' => [
-                        'event_id' => $eventId,
-                        'event_name' => $eventName,
-                        'error' => 'payment_not_found',
-                    ],
-                ]
-            );
+                    'message' => $e->getMessage(),
+                ]);
+            }
 
             if ($paymentEvent) {
                 $paymentEvent->update(['processed_at' => now()]);
@@ -223,21 +232,30 @@ class ProcessFedaPayWebhook implements ShouldQueue
                     'webhook_data' => $meta,
                 ]);
 
-                PaymentAttempt::updateOrCreate(
-                    ['transaction_id' => $transactionId],
-                    [
+                try {
+                    PaymentAttempt::updateOrCreate(
+                        ['transaction_id' => $transactionId],
+                        [
+                            'order_id' => $payment->order_id,
+                            'amount' => (float) $payment->amount,
+                            'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
+                            'status' => 'pending',
+                            'provider' => 'fedapay',
+                            'processed_at' => now(),
+                            'raw_payload' => [
+                                'event_id' => $eventId,
+                                'event_name' => $eventName,
+                            ],
+                        ]
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('fedapay:payment-attempt-skipped', [
+                        'transaction_id' => $transactionId,
+                        'payment_id' => $payment->id,
                         'order_id' => $payment->order_id,
-                        'amount' => (float) $payment->amount,
-                        'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
-                        'status' => 'pending',
-                        'provider' => 'fedapay',
-                        'processed_at' => now(),
-                        'raw_payload' => [
-                            'event_id' => $eventId,
-                            'event_name' => $eventName,
-                        ],
-                    ]
-                );
+                        'message' => $e->getMessage(),
+                    ]);
+                }
             });
 
             if ($paymentEvent) {
@@ -406,24 +424,33 @@ class ProcessFedaPayWebhook implements ShouldQueue
             ]);
 
             // Do not mark as paid if amount mismatched
-            PaymentAttempt::updateOrCreate(
-                ['transaction_id' => $transactionId],
-                [
+            try {
+                PaymentAttempt::updateOrCreate(
+                    ['transaction_id' => $transactionId],
+                    [
+                        'order_id' => $payment->order_id,
+                        'amount' => (float) $payment->amount,
+                        'currency' => strtoupper((string) ($payment->order->currency ?? config('fedapay.default_currency', 'XOF'))),
+                        'status' => 'failed',
+                        'provider' => 'fedapay',
+                        'processed_at' => now(),
+                        'raw_payload' => [
+                            'event_id' => $eventId,
+                            'event_name' => $eventName,
+                            'webhook' => $payload,
+                            'verification' => $verification,
+                            'error' => 'amount_mismatch',
+                        ],
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('fedapay:payment-attempt-skipped', [
+                    'transaction_id' => $transactionId,
+                    'payment_id' => $payment->id,
                     'order_id' => $payment->order_id,
-                    'amount' => (float) $payment->amount,
-                    'currency' => strtoupper((string) ($payment->order->currency ?? config('fedapay.default_currency', 'XOF'))),
-                    'status' => 'failed',
-                    'provider' => 'fedapay',
-                    'processed_at' => now(),
-                    'raw_payload' => [
-                        'event_id' => $eventId,
-                        'event_name' => $eventName,
-                        'webhook' => $payload,
-                        'verification' => $verification,
-                        'error' => 'amount_mismatch',
-                    ],
-                ]
-            );
+                    'message' => $e->getMessage(),
+                ]);
+            }
 
             // Continue processing to mark order/payment as failed.
         }
@@ -469,22 +496,31 @@ class ProcessFedaPayWebhook implements ShouldQueue
                     'webhook_data' => $meta,
                 ]);
 
-                PaymentAttempt::updateOrCreate(
-                    ['transaction_id' => $transactionId],
-                    [
+                try {
+                    PaymentAttempt::updateOrCreate(
+                        ['transaction_id' => $transactionId],
+                        [
+                            'order_id' => $payment->order_id,
+                            'amount' => (float) $payment->amount,
+                            'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
+                            'status' => 'pending',
+                            'provider' => 'fedapay',
+                            'processed_at' => now(),
+                            'raw_payload' => [
+                                'event_id' => $eventId,
+                                'event_name' => $eventName,
+                                'verification' => $verification,
+                            ],
+                        ]
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('fedapay:payment-attempt-skipped', [
+                        'transaction_id' => $transactionId,
+                        'payment_id' => $payment->id,
                         'order_id' => $payment->order_id,
-                        'amount' => (float) $payment->amount,
-                        'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
-                        'status' => 'pending',
-                        'provider' => 'fedapay',
-                        'processed_at' => now(),
-                        'raw_payload' => [
-                            'event_id' => $eventId,
-                            'event_name' => $eventName,
-                            'verification' => $verification,
-                        ],
-                    ]
-                );
+                        'message' => $e->getMessage(),
+                    ]);
+                }
             });
 
             if ($paymentEvent) {
@@ -683,22 +719,31 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 }
             }
 
-            PaymentAttempt::updateOrCreate(
-                ['transaction_id' => $transactionId],
-                [
+            try {
+                PaymentAttempt::updateOrCreate(
+                    ['transaction_id' => $transactionId],
+                    [
+                        'order_id' => $payment->order_id,
+                        'amount' => (float) $payment->amount,
+                        'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
+                        'status' => $normalized,
+                        'provider' => 'fedapay',
+                        'processed_at' => now(),
+                        'raw_payload' => [
+                            'event_id' => $eventId,
+                            'event_name' => $eventName,
+                            'verification' => $verification,
+                        ],
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('fedapay:payment-attempt-skipped', [
+                    'transaction_id' => $transactionId,
+                    'payment_id' => $payment->id,
                     'order_id' => $payment->order_id,
-                    'amount' => (float) $payment->amount,
-                    'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
-                    'status' => $normalized,
-                    'provider' => 'fedapay',
-                    'processed_at' => now(),
-                    'raw_payload' => [
-                        'event_id' => $eventId,
-                        'event_name' => $eventName,
-                        'verification' => $verification,
-                    ],
-                ]
-            );
+                    'message' => $e->getMessage(),
+                ]);
+            }
 
             Log::info('fedapay:webhook-processed', [
                 'payment_id' => $payment->id,
