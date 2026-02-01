@@ -6,7 +6,10 @@ import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
+import DeliveryBadge from "@/components/ui/DeliveryBadge";
 import { API_BASE } from "@/lib/config";
+import type { DeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
+import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 
 type CartItem = {
   id: number;
@@ -17,7 +20,28 @@ type CartItem = {
   quantity: number;
   type?: string;
   gameId?: string;
+  displaySection?: string | null;
+  deliveryEstimateLabel?: string | null;
   deliveryLabel?: string;
+};
+
+const legacyDeliveryLabelToBadge = (raw?: string | null): DeliveryBadgeDisplay | null => {
+  const v = String(raw ?? "").trim().toLowerCase();
+  if (!v) return null;
+  if (v === "int" || v.includes("instant")) {
+    return { tone: "bolt", desktopLabel: "⚡ Livraison instantanée", mobileLabel: "⚡ Instantané" };
+  }
+  if (v === "2h") {
+    return { tone: "clock", desktopLabel: "⏱️ Livraison estimée : ~2h", mobileLabel: "⏱️ ~2h" };
+  }
+  if (v === "1h") {
+    // Legacy: skins were displayed as 1H previously.
+    return { tone: "clock", desktopLabel: "⏱️ Livraison estimée : ~2h", mobileLabel: "⏱️ ~2h" };
+  }
+  if (v === "24h") {
+    return { tone: "clock", desktopLabel: "⏱️ Livraison estimée : ~24h", mobileLabel: "⏱️ ~24h" };
+  }
+  return null;
 };
 
 function CartScreen() {
@@ -224,13 +248,19 @@ function CartScreen() {
                       <div>
                         <p className="text-base font-semibold text-white">{item.name}</p>
 
-                        {item.deliveryLabel ? (
-                          <div className="mt-2 flex justify-start">
-                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-semibold text-white/80">
-                              {item.deliveryLabel}
-                            </span>
-                          </div>
-                        ) : null}
+                        {(() => {
+                          const badge =
+                            getDeliveryBadgeDisplay({
+                              type: item.type ?? null,
+                              displaySection: item.displaySection ?? null,
+                              deliveryEstimateLabel: item.deliveryEstimateLabel ?? null,
+                            }) ?? legacyDeliveryLabelToBadge(item.deliveryLabel);
+                          return badge ? (
+                            <div className="mt-2 flex justify-start">
+                              <DeliveryBadge delivery={badge} />
+                            </div>
+                          ) : null;
+                        })()}
 
                         {String(item.type ?? "").toLowerCase() === "subscription" && (
                           <div className="mt-3 space-y-2">

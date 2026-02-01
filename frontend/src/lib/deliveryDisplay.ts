@@ -5,6 +5,12 @@ export type DeliveryDisplay = {
   tone: DeliveryTone;
 };
 
+export type DeliveryBadgeDisplay = {
+  tone: DeliveryTone;
+  desktopLabel: string;
+  mobileLabel: string;
+};
+
 type DeliveryInput = {
   type?: string | null;
   displaySection?: string | null;
@@ -17,71 +23,84 @@ type DeliveryInput = {
 
 const norm = (value: unknown) => String(value ?? "").trim();
 
-const normalizeEtaLabel = (raw: string): string => {
-  const value = norm(raw);
-  if (!value) return value;
-
-  const lower = value.toLowerCase();
-
-  if (lower.includes("instant")) return "Instantané";
-
-  // Examples:
-  // - "2 jours" -> "2j"
-  // - "14 jours" -> "14j"
-  // - "2 semaines" -> "2 sem."
-  // - "24h" -> "24h"
-  const daysMatch = lower.match(/^(\d+)\s*(jour|jours)\b/);
-  if (daysMatch) return `${daysMatch[1]}j`;
-
-  const weeksMatch = lower.match(/^(\d+)\s*(semaine|semaines|sem\.?|sems\.?)(\b|\s)/);
-  if (weeksMatch) return `${weeksMatch[1]} sem.`;
-
-  const hoursMatch = lower.match(/^(\d+)\s*h\b/);
-  if (hoursMatch) return `${hoursMatch[1]}H`;
-
-  return value;
+const isSkin = (type: string, displaySection: string) => {
+  if (displaySection === "emote_skin") return true;
+  return type.includes("skin");
 };
 
-export const getDeliveryDisplay = (product: DeliveryInput | null | undefined): DeliveryDisplay | null => {
+const isRecharge = (type: string, displaySection: string) => {
+  if (displaySection === "recharge_direct") return true;
+  return type.includes("recharge") || type.includes("topup");
+};
+
+const isSubscription = (type: string) => {
+  return type.includes("subscription") || type.includes("abonnement") || type.includes("premium");
+};
+
+const isAccount = (type: string) => {
+  return type.includes("account") || type.includes("compte");
+};
+
+const isAccessory = (type: string, displaySection: string) => {
+  // In this codebase: accessories are stored as type=item, but skins are also item (display_section=emote_skin).
+  if (type !== "item" && !type.includes("accessory") && !type.includes("accessoire")) return false;
+  return displaySection !== "emote_skin";
+};
+
+export const getDeliveryBadgeDisplay = (product: DeliveryInput | null | undefined): DeliveryBadgeDisplay | null => {
   if (!product) return null;
 
   const type = norm(product.type).toLowerCase();
   const displaySection = norm(product.displaySection ?? product.display_section).toLowerCase();
-  const estimatedDeliveryLabel = norm(product.estimatedDeliveryLabel ?? product.estimated_delivery_label);
-  const deliveryEstimateLabel = norm(product.deliveryEstimateLabel ?? product.delivery_estimate_label);
+  const adminLabel = norm(product.deliveryEstimateLabel ?? product.delivery_estimate_label);
 
-  // Prefer server-computed delivery label when available.
-  if (estimatedDeliveryLabel) {
-    const label = normalizeEtaLabel(estimatedDeliveryLabel);
-    const tone: DeliveryTone = label.toLowerCase().includes("instant") ? "bolt" : "clock";
-    return { label, tone };
+  // Règles normalisées.
+  if (isRecharge(type, displaySection)) {
+    return {
+      tone: "bolt",
+      desktopLabel: "⚡ Livraison instantanée",
+      mobileLabel: "⚡ Instantané",
+    };
   }
 
-  // Recharge: always instant.
-  if (type.includes("recharge") || type.includes("topup")) {
-    return { label: "Instantané", tone: "bolt" };
+  if (isSubscription(type)) {
+    return {
+      tone: "clock",
+      desktopLabel: "⏱️ Livraison estimée : ~2h",
+      mobileLabel: "⏱️ ~2h",
+    };
   }
 
-  // Abonnement: always 2H.
-  if (type.includes("subscription") || type.includes("abonnement") || type.includes("premium")) {
-    return { label: "2H", tone: "clock" };
+  if (isSkin(type, displaySection)) {
+    return {
+      tone: "clock",
+      desktopLabel: "⏱️ Livraison estimée : ~2h",
+      mobileLabel: "⏱️ ~2h",
+    };
   }
 
-  // Skin: always 1H (by shop section or explicit type).
-  if (type.includes("skin") || displaySection === "emote_skin") {
-    return { label: "1H", tone: "clock" };
+  if (isAccount(type)) {
+    return {
+      tone: "clock",
+      desktopLabel: "⏱️ Livraison estimée : ~24h",
+      mobileLabel: "⏱️ ~24h",
+    };
   }
 
-  // Compte gaming: always 24H.
-  if (type.includes("account") || type.includes("compte")) {
-    return { label: "24H", tone: "clock" };
-  }
-
-  // Accessoires: label is admin-defined.
-  if (type === "item" || type.includes("accessory") || type.includes("accessoire")) {
-    if (!deliveryEstimateLabel) return null;
-    return { label: normalizeEtaLabel(deliveryEstimateLabel), tone: "clock" };
+  if (isAccessory(type, displaySection)) {
+    if (!adminLabel) return null;
+    return {
+      tone: "clock",
+      desktopLabel: `⏱️ Livraison estimée : ${adminLabel}`,
+      mobileLabel: `⏱️ ${adminLabel}`,
+    };
   }
 
   return null;
+};
+
+export const getDeliveryDisplay = (product: DeliveryInput | null | undefined): DeliveryDisplay | null => {
+  const badge = getDeliveryBadgeDisplay(product);
+  if (!badge) return null;
+  return { label: badge.desktopLabel, tone: badge.tone };
 };

@@ -146,7 +146,8 @@ const buildShopSearchFromFilters = (filters: {
   return params.toString();
 };
 
-import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
+import DeliveryBadge from "@/components/ui/DeliveryBadge";
+import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
 
 function MobileFiltersSheet({
@@ -325,10 +326,9 @@ function StripCard({
   icon?: typeof Tag;
 }) {
   const cardImage = product.bannerUrl ?? product.imageUrl ?? FALLBACK_PRODUCT_IMAGE;
-  const delivery = getDeliveryDisplay({
+  const delivery = getDeliveryBadgeDisplay({
     type: product.type,
     displaySection: product.displaySection ?? null,
-    estimatedDeliveryLabel: product.estimatedDeliveryLabel ?? null,
     deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
   });
   return (
@@ -360,15 +360,7 @@ function StripCard({
       )}
       {delivery ? (
         <div className="mt-2 flex justify-end">
-          <span
-            className={`rounded-full border px-2 py-1 text-[10px] font-semibold tracking-wide ${
-              delivery.tone === "bolt"
-                ? "border-amber-200/25 bg-amber-400/10 text-amber-200"
-                : "border-cyan-200/20 bg-cyan-400/10 text-cyan-100"
-            }`}
-          >
-            {delivery.label}
-          </span>
+          <DeliveryBadge delivery={delivery} />
         </div>
       ) : null}
     </div>
@@ -618,10 +610,9 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
       ? "Populaire"
       : product.category;
 
-  const delivery = getDeliveryDisplay({
+  const delivery = getDeliveryBadgeDisplay({
     type: product.type,
     displaySection: product.displaySection ?? null,
-    estimatedDeliveryLabel: product.estimatedDeliveryLabel ?? null,
     deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
   });
 
@@ -684,15 +675,7 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
 
       {delivery ? (
         <div className="mt-2 flex justify-end">
-          <span
-            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-              delivery.tone === "bolt"
-                ? "border-amber-200/25 bg-amber-400/10 text-amber-200"
-                : "border-cyan-200/20 bg-cyan-400/10 text-cyan-100"
-            }`}
-          >
-            {delivery.label}
-          </span>
+          <DeliveryBadge delivery={delivery} />
         </div>
       ) : null}
 
@@ -926,7 +909,18 @@ export default function ShopPage() {
 
   const handleAddToCart = (product: ShopProduct, origin?: HTMLElement | null) => {
     if (typeof window === "undefined") return;
-    let nextCart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string; deliveryLabel?: string }> = [];
+    let nextCart: Array<{
+      id: number;
+      name: string;
+      description?: string;
+      price: number;
+      priceLabel?: string;
+      quantity: number;
+      type?: string;
+      displaySection?: string | null;
+      deliveryEstimateLabel?: string | null;
+      deliveryLabel?: string;
+    }> = [];
     const stored = localStorage.getItem("bbshop_cart");
     if (stored) {
       try {
@@ -940,10 +934,9 @@ export default function ShopPage() {
     if (existing) {
       existing.quantity = Number(existing.quantity ?? 0) + 1;
     } else {
-      const delivery = getDeliveryDisplay({
+      const delivery = getDeliveryBadgeDisplay({
         type: product.type,
         displaySection: product.displaySection ?? null,
-        estimatedDeliveryLabel: product.estimatedDeliveryLabel ?? null,
         deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
       });
       nextCart.push({
@@ -953,7 +946,9 @@ export default function ShopPage() {
         price: product.priceValue,
         priceLabel: product.priceLabel,
         type: product.type,
-        deliveryLabel: delivery?.label ?? undefined,
+        displaySection: product.displaySection ?? null,
+        deliveryEstimateLabel: product.deliveryEstimateLabel ?? null,
+        deliveryLabel: delivery?.desktopLabel ?? undefined,
         quantity: 1,
       });
     }

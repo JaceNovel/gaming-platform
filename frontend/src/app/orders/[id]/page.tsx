@@ -7,6 +7,8 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
 import { openTidioChat } from "@/lib/tidioChat";
+import DeliveryBadge from "@/components/ui/DeliveryBadge";
+import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 
 const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
 
@@ -23,6 +25,8 @@ type OrderItem = {
     id?: number | string;
     name?: string;
     type?: string;
+    display_section?: string | null;
+    delivery_estimate_label?: string | null;
   };
 };
 
@@ -305,6 +309,18 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-semibold text-white">{it.product?.name ?? "Produit"}</p>
+                            {(() => {
+                              const delivery = getDeliveryBadgeDisplay({
+                                type: it.product?.type ?? null,
+                                display_section: it.product?.display_section ?? null,
+                                delivery_estimate_label: it.product?.delivery_estimate_label ?? null,
+                              });
+                              return delivery ? (
+                                <div className="mt-2 flex justify-start">
+                                  <DeliveryBadge delivery={delivery} />
+                                </div>
+                              ) : null;
+                            })()}
                             <p className="mt-1 text-xs text-white/60">
                               Quantité: {it.quantity} • {formatCurrency(Number(it.price ?? 0), currencyCountryCode)}
                             </p>

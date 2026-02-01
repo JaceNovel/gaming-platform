@@ -124,9 +124,10 @@ export default function AdminProductsAddPage() {
   }, [redeemEnabled, stock]);
 
   useEffect(() => {
-    if (type !== "item" || displaySection === "emote_skin") return;
-    if (deliveryEstimateLabel.trim()) return;
-    setDeliveryEstimateLabel("24H");
+    // Only accessories (type=item and not emote_skin) can have a custom delivery estimate label.
+    if (type === "item" && displaySection !== "emote_skin") return;
+    if (!deliveryEstimateLabel) return;
+    setDeliveryEstimateLabel("");
   }, [deliveryEstimateLabel, displaySection, type]);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -635,15 +636,15 @@ export default function AdminProductsAddPage() {
 
               {type === "item" && displaySection !== "emote_skin" && (
                 <div>
-                  <label className="text-sm font-medium">Délai de livraison estimé (accessoire)</label>
+                  <label className="text-sm font-medium">Délai de livraison estimé</label>
                   <input
                     value={deliveryEstimateLabel}
                     onChange={(e) => setDeliveryEstimateLabel(e.target.value)}
                     className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
-                    placeholder="ex: 24H"
+                    placeholder="ex: 7–10 jours, 3–5 jours"
                   />
                   <p className="mt-1 text-xs text-slate-500">
-                    Optionnel. S&apos;affiche sur la carte produit et la page détail.
+                    Optionnel (uniquement pour les accessoires gaming). S&apos;affiche sur la carte produit, la page détail, le panier et la commande.
                   </p>
                 </div>
               )}

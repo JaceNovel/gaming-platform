@@ -8,7 +8,8 @@ import { ShoppingCart } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
-import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
+import DeliveryBadge from "@/components/ui/DeliveryBadge";
+import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
 
 type ApiProduct = {
@@ -109,16 +110,12 @@ const extractImages = (product: ApiProduct | null): string[] => {
     .filter((value): value is string => Boolean(value));
 };
 
-const getNormalizedDeliveryLabel = (product: ApiProduct | null): string | null => {
-  const delivery = getDeliveryDisplay({
+const getDelivery = (product: ApiProduct | null) =>
+  getDeliveryBadgeDisplay({
     type: product?.type ?? null,
     display_section: product?.display_section ?? null,
-    estimated_delivery_label: product?.estimated_delivery_label ?? null,
     delivery_estimate_label: product?.delivery_estimate_label ?? null,
   });
-
-  return delivery?.label ?? null;
-};
 
 function ImageCarousel({
   images,
@@ -314,7 +311,7 @@ export default function ProductDetailsPage() {
     return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
   }, [product]);
   const tagsLabel = tags.length ? tags.join(", ") : "Aucun tag";
-  const deliveryLabel = useMemo(() => getNormalizedDeliveryLabel(product), [product]);
+  const delivery = useMemo(() => getDelivery(product), [product]);
   const isRechargeDirect = useMemo(
     () => String(product?.display_section ?? "").toLowerCase() === "recharge_direct",
     [product?.display_section]
@@ -323,7 +320,18 @@ export default function ProductDetailsPage() {
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
     const cartRaw = window.localStorage.getItem("bbshop_cart");
-    let cart: Array<{ id: number | string; name: string; price: number; priceLabel: string; description?: string; quantity: number; type?: string; deliveryLabel?: string }>; // eslint-disable-line max-len
+    let cart: Array<{
+      id: number | string;
+      name: string;
+      price: number;
+      priceLabel: string;
+      description?: string;
+      quantity: number;
+      type?: string;
+      displaySection?: string | null;
+      deliveryEstimateLabel?: string | null;
+      deliveryLabel?: string;
+    }>;
     try {
       cart = cartRaw ? JSON.parse(cartRaw) : [];
     } catch {
@@ -340,7 +348,9 @@ export default function ProductDetailsPage() {
         priceLabel: formatPrice(priceValue),
         description,
         type: String(product.type ?? ""),
-        deliveryLabel: deliveryLabel ?? undefined,
+        displaySection: product.display_section ?? null,
+        deliveryEstimateLabel: product.delivery_estimate_label ?? null,
+        deliveryLabel: delivery?.desktopLabel ?? undefined,
         quantity: 1,
       });
     }
@@ -399,7 +409,7 @@ export default function ProductDetailsPage() {
 
   const infoRows: Array<{ label: string; value: React.ReactNode }> = [
     { label: "Catégorie", value: categoryLabel },
-    ...(deliveryLabel ? [{ label: "Livraison", value: deliveryLabel }] : []),
+    ...(delivery ? [{ label: "Livraison", value: <DeliveryBadge delivery={delivery} /> }] : []),
     { label: "Marque", value: brandLabel ?? "N/A" },
     { label: "Stock", value: `${stockCount} unité${stockCount > 1 ? "s" : ""}` },
     { label: "Tags", value: tagsLabel },
@@ -568,9 +578,11 @@ export default function ProductDetailsPage() {
                     </button>
                   </div>
 
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                    {deliveryLabel ? <p className="font-semibold text-white">{deliveryLabel}</p> : null}
-                  </div>
+                  {delivery ? (
+                    <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                      <DeliveryBadge delivery={delivery} />
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

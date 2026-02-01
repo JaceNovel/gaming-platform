@@ -9,7 +9,8 @@ import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useCartFlight } from "@/hooks/useCartFlight";
-import { getDeliveryDisplay } from "@/lib/deliveryDisplay";
+import DeliveryBadge from "@/components/ui/DeliveryBadge";
+import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
 
 type Product = {
@@ -83,12 +84,18 @@ export default function ProductPage() {
   const priceValue = Number(product?.discount_price ?? product?.price ?? 0);
   const oldPrice = product?.old_price ? Number(product.old_price) : Math.round(priceValue * 1.2);
   const discountPercent = oldPrice > priceValue ? Math.round(((oldPrice - priceValue) / oldPrice) * 100) : 0;
-  const shippingWindow =
-    (product?.estimated_delivery_label
-      ? `Livraison ${product.estimated_delivery_label}`
-      : product?.stockType === "PREORDER"
-        ? "Précommande < 3 semaines"
-        : "Livraison < 48h");
+
+  const delivery = useMemo(
+    () =>
+      getDeliveryBadgeDisplay({
+        type: product?.type ?? null,
+        display_section: product?.display_section ?? null,
+        delivery_estimate_label: product?.delivery_estimate_label ?? null,
+      }),
+    [product?.delivery_estimate_label, product?.display_section, product?.type]
+  );
+
+  const shippingWindow = delivery?.desktopLabel ?? "";
   const ratingValue = product?.ratingAvg ?? 0;
   const ratingCount = product?.ratingCount ?? 0;
 
@@ -110,7 +117,18 @@ export default function ProductPage() {
     }
 
     const stored = localStorage.getItem("bbshop_cart");
-    let cart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string; deliveryLabel?: string }> = [];
+    let cart: Array<{
+      id: number;
+      name: string;
+      description?: string;
+      price: number;
+      priceLabel?: string;
+      quantity: number;
+      type?: string;
+      displaySection?: string | null;
+      deliveryEstimateLabel?: string | null;
+      deliveryLabel?: string;
+    }> = [];
     if (stored) {
       try {
         cart = JSON.parse(stored);
@@ -122,10 +140,9 @@ export default function ProductPage() {
     if (existing) {
       existing.quantity = Number(existing.quantity ?? 0) + 1;
     } else {
-      const delivery = getDeliveryDisplay({
+      const delivery = getDeliveryBadgeDisplay({
         type: product.type ?? null,
         display_section: product.display_section ?? null,
-        estimated_delivery_label: product.estimated_delivery_label ?? null,
         delivery_estimate_label: product.delivery_estimate_label ?? null,
       });
       cart.push({
@@ -135,7 +152,9 @@ export default function ProductPage() {
         price: priceValue,
         priceLabel: `${formatNumber(priceValue)} FCFA`,
         type: product.type ?? "",
-        deliveryLabel: delivery?.label ?? undefined,
+        displaySection: product.display_section ?? null,
+        deliveryEstimateLabel: product.delivery_estimate_label ?? null,
+        deliveryLabel: delivery?.desktopLabel ?? undefined,
         quantity: 1,
       });
     }
@@ -187,7 +206,7 @@ export default function ProductPage() {
     {
       icon: Truck,
       title: "Livraison",
-      value: shippingWindow,
+      value: shippingWindow || "—",
       note: "Suivi en temps réel",
     },
     {
@@ -235,7 +254,7 @@ export default function ProductPage() {
           <span className="rounded-full border border-white/15 bg-white/5 px-4 py-1 text-white/80">
             {product?.type ?? "Produit digital"}
           </span>
-          <span>{shippingWindow}</span>
+          {delivery ? <DeliveryBadge delivery={delivery} /> : null}
         </div>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1.1fr,0.9fr]">
@@ -309,7 +328,7 @@ export default function ProductPage() {
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
                   <p className="text-xs uppercase tracking-[0.35em] text-white/40">Statut</p>
                   <p className="mt-2 text-lg font-semibold text-white">{product?.stockType === "PREORDER" ? "Précommande" : "Disponible"}</p>
-                  <p className="text-xs text-white/60">{shippingWindow}</p>
+                  <div className="mt-2">{delivery ? <DeliveryBadge delivery={delivery} /> : null}</div>
                 </div>
               </div>
             </div>
@@ -368,7 +387,9 @@ export default function ProductPage() {
                       <tile.icon className="h-4 w-4 text-cyan-300" />
                       <p className="text-sm font-semibold">{tile.title}</p>
                     </div>
-                    <p className="mt-1 text-sm text-white/70">{tile.value}</p>
+                    <div className="mt-2 text-sm text-white/70">
+                      {tile.title === "Livraison" && delivery ? <DeliveryBadge delivery={delivery} /> : tile.value}
+                    </div>
                     <p className="text-xs text-white/40">{tile.note}</p>
                   </div>
                 ))}
