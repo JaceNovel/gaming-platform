@@ -19,7 +19,7 @@ type ApiProduct = {
 
 const getSiteUrl = () => {
   const raw = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
-  return raw !== "" ? raw.replace(/\/$/, "") : "https://badboyshop.online";
+  return raw !== "" ? raw.replace(/\/$/, "") : "https://www.badboyshop.online";
 };
 
 const getApiBase = () => {

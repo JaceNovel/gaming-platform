@@ -4,7 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://badboyshop.online").replace(/\/$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.badboyshop.online").replace(/\/$/, "");
+const ASSET_VERSION = "20260201";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,10 +24,15 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  manifest: "/manifest.json",
   icons: {
-    icon: "/images/badboyshop-logo.png",
-    shortcut: "/images/badboyshop-logo.png",
-    apple: "/images/badboyshop-logo.png",
+    icon: [
+      { url: `/favicon.ico?v=${ASSET_VERSION}` },
+      { url: `/favicon-16x16.png?v=${ASSET_VERSION}`, sizes: "16x16", type: "image/png" },
+      { url: `/favicon-32x32.png?v=${ASSET_VERSION}`, sizes: "32x32", type: "image/png" },
+    ],
+    apple: [{ url: `/apple-touch-icon.png?v=${ASSET_VERSION}`, sizes: "180x180", type: "image/png" }],
+    shortcut: [{ url: `/favicon.ico?v=${ASSET_VERSION}` }],
   },
   openGraph: {
     title: "BADBOYSHOP - Gaming Platform",
@@ -35,7 +41,7 @@ export const metadata: Metadata = {
     siteName: "BADBOYSHOP",
     images: [
       {
-        url: "/images/badboyshop-logo.png",
+        url: "/logo-512.png",
         width: 512,
         height: 512,
         alt: "BADBOYSHOP",
@@ -47,7 +53,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "BADBOYSHOP - Gaming Platform",
     description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
-    images: ["/images/badboyshop-logo.png"],
+    images: ["/logo-512.png"],
   },
 };
 
@@ -64,9 +70,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const orgJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "BADBOYSHOP",
+    url: "https://www.badboyshop.online",
+    logo: "https://www.badboyshop.online/logo-512.png",
+  };
+
   return (
     <html lang="fr" className="dark" suppressHydrationWarning>
       <head>
+        <meta name="theme-color" content="#0B0F19" />
         <Script async src="https://www.googletagmanager.com/gtag/js?id=G-66BKKJ3F7B" />
         <Script id="gtag-init">
           {`window.dataLayer = window.dataLayer || [];
@@ -74,6 +89,7 @@ function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
 gtag('config', 'G-66BKKJ3F7B');`}
         </Script>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       </head>
       <body
         suppressHydrationWarning

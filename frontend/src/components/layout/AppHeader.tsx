@@ -205,7 +205,7 @@ export default function AppHeader() {
           <Link href="/" className="flex items-center gap-3">
             <div className="relative h-11 w-11 overflow-hidden rounded-2xl ring-1 ring-white/20 bg-black/30">
               <Image
-                src="/images/badboyshop-logo.png"
+                src="/logo-v2.png"
                 alt="BADBOYSHOP"
                 width={44}
                 height={44}
@@ -382,7 +382,7 @@ export default function AppHeader() {
           <Link href="/" className="flex items-center gap-2">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-black/30 ring-1 ring-white/15">
               <Image
-                src="/images/badboyshop-logo.png"
+                src="/logo-v2.png"
                 alt="BADBOYSHOP"
                 width={36}
                 height={36}

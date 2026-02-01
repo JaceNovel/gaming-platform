@@ -378,7 +378,7 @@ function AccountClient() {
             product?.cover ??
             product?.details?.cover ??
             product?.game?.cover ??
-            "/images/badboyshop-logo.png";
+            "/logo-v2.png";
           const thumb = toDisplayImageSrc(thumbRaw) ?? thumbRaw;
           return {
             id: String(order.reference ?? order.id),

@@ -7,8 +7,8 @@ self.addEventListener("push", function (event) {
     const options = {
       body: data.body || "Nouvelle notification",
       data: { url: data.url || "/" },
-      icon: data.icon || "/images/logo.png",
-      badge: data.badge || "/images/logo.png",
+      icon: data.icon || "/android-chrome-192x192.png",
+      badge: data.badge || "/android-chrome-192x192.png",
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
