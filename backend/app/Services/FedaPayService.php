@@ -47,18 +47,55 @@ class FedaPayService
     public function verifyWebhookSignature(string $rawBody, ?string $signatureHeader): bool
     {
         $secret = trim((string) $this->webhookSecret);
-        $sig = trim((string) ($signatureHeader ?? ''));
+        $sigHeader = trim((string) ($signatureHeader ?? ''));
 
-        if ($secret === '' || $sig === '') {
+        if ($secret === '' || $sigHeader === '') {
             return false;
         }
 
-        if (str_starts_with($sig, 'sha256=')) {
-            $sig = substr($sig, strlen('sha256='));
+        [$sig, $format] = $this->extractSignature($sigHeader);
+        if ($sig === '') {
+            return false;
         }
 
-        $expected = hash_hmac('sha256', $rawBody, $secret);
-        return hash_equals($expected, $sig);
+        $expectedHex = hash_hmac('sha256', $rawBody, $secret);
+        $expectedB64 = base64_encode(hash_hmac('sha256', $rawBody, $secret, true));
+
+        // Compare in constant-time.
+        return hash_equals($expectedHex, $sig)
+            || hash_equals($expectedHex, strtolower($sig))
+            || hash_equals($expectedB64, $sig)
+            || hash_equals($expectedB64, strtolower($sig));
+    }
+
+    /**
+     * @return array{0:string,1:string} [signature, format]
+     */
+    private function extractSignature(string $sigHeader): array
+    {
+        $header = trim($sigHeader);
+        if ($header === '') {
+            return ['', 'missing'];
+        }
+
+        if (stripos($header, 'v1=') !== false) {
+            if (preg_match('/(?:^|[\s,;])v1\s*=\s*([^,;\s]+)/i', $header, $m)) {
+                $sig = trim((string) $m[1]);
+                $sig = trim($sig, " \t\n\r\0\x0B\"'");
+                return [$sig, 'v1'];
+            }
+        }
+
+        if (stripos($header, 'sha256=') !== false) {
+            if (preg_match('/(?:^|[\s,;])sha256\s*=\s*([^,;\s]+)/i', $header, $m)) {
+                $sig = trim((string) $m[1]);
+                $sig = trim($sig, " \t\n\r\0\x0B\"'");
+                return [$sig, 'sha256'];
+            }
+        }
+
+        $sig = trim($header, " \t\n\r\0\x0B\"'");
+        return [$sig, 'raw'];
     }
 
     public function initPayment(Order $order, User $user, array $meta = []): array
