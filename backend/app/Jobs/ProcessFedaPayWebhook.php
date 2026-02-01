@@ -44,19 +44,37 @@ class ProcessFedaPayWebhook implements ShouldQueue
             $entity = [];
         }
 
-        $transactionId = (string) (
-            Arr::get($entity, 'id')
-                ?? Arr::get($payload, 'object.id')
-                ?? Arr::get($payload, 'data.id')
-                ?? Arr::get($payload, 'data.transaction.id')
-                ?? Arr::get($payload, 'transaction.id')
-                ?? ''
-        );
+        $rawCandidates = [
+            // Most integrations store the numeric transaction id.
+            Arr::get($entity, 'id'),
+            Arr::get($payload, 'object.id'),
+            Arr::get($payload, 'data.id'),
+            Arr::get($payload, 'data.transaction.id'),
+            Arr::get($payload, 'transaction.id'),
+
+            // Some webhooks expose a separate string reference (e.g. trx_xxx).
+            Arr::get($entity, 'reference'),
+            Arr::get($payload, 'object.reference'),
+            Arr::get($payload, 'data.reference'),
+            Arr::get($payload, 'data.transaction.reference'),
+            Arr::get($payload, 'transaction.reference'),
+        ];
+
+        $candidateTransactionIds = array_values(array_unique(array_filter(
+            array_map(static fn ($v) => trim((string) $v), $rawCandidates),
+            static fn ($v) => $v !== ''
+        )));
+
+        $transactionId = (string) ($candidateTransactionIds[0] ?? '');
 
         $statusFromPayload = strtolower((string) (Arr::get($entity, 'status') ?? Arr::get($payload, 'object.status') ?? ''));
         $orderIdFromPayload = (int) (
             Arr::get($entity, 'custom_metadata.order_id')
                 ?? Arr::get($entity, 'custom_metadata.orderId')
+                ?? Arr::get($entity, 'metadata.custom_metadata.order_id')
+                ?? Arr::get($entity, 'metadata.custom_metadata.orderId')
+                ?? Arr::get($payload, 'custom_metadata.order_id')
+                ?? Arr::get($payload, 'metadata.custom_metadata.order_id')
                 ?? 0
         );
         $amountFromPayload = (float) (Arr::get($entity, 'amount') ?? 0);
@@ -69,6 +87,7 @@ class ProcessFedaPayWebhook implements ShouldQueue
             'event' => $eventName,
             'event_id' => $eventId,
             'transaction_id' => $transactionId,
+            'transaction_candidates' => $candidateTransactionIds,
             'status' => $statusFromPayload,
             'order_id' => $orderIdFromPayload ?: null,
         ]);
@@ -117,12 +136,26 @@ class ProcessFedaPayWebhook implements ShouldQueue
             ]);
         }
 
-        $payment = Payment::with(['order' => function ($q) {
+        $paymentQuery = Payment::with(['order' => function ($q) {
             $q->with(['orderItems.product', 'user']);
-        }, 'walletTransaction'])->where('transaction_id', $transactionId)->where('method', 'fedapay')->first();
+        }, 'walletTransaction'])->where('method', 'fedapay');
+
+        if (count($candidateTransactionIds) > 0) {
+            $paymentQuery->whereIn('transaction_id', $candidateTransactionIds);
+        } else {
+            $paymentQuery->where('transaction_id', $transactionId);
+        }
+
+        $payment = $paymentQuery->first();
 
         if (!$payment) {
-            Log::warning('fedapay:webhook-missing', ['transaction_id' => $transactionId]);
+            Log::warning('fedapay:webhook-missing', [
+                'transaction_id' => $transactionId,
+                'transaction_candidates' => $candidateTransactionIds,
+                'order_id' => $orderIdFromPayload ?: null,
+                'event' => $eventName,
+                'event_id' => $eventId,
+            ]);
 
             // Track unknown transaction attempts for audit/debug.
             PaymentAttempt::updateOrCreate(
@@ -168,7 +201,7 @@ class ProcessFedaPayWebhook implements ShouldQueue
 
         // Pending events must not mark the order paid nor failed.
         if (in_array($statusFromPayload, ['pending'], true)) {
-            DB::transaction(function () use ($payment, $payload, $eventId, $eventName, $transactionId, $paymentEvent) {
+            DB::transaction(function () use ($payment, $payload, $eventId, $eventName, $transactionId, $paymentEvent, $statusFromPayload) {
                 $meta = $payment->webhook_data ?? [];
                 if (!is_array($meta)) {
                     $meta = [];
@@ -219,12 +252,40 @@ class ProcessFedaPayWebhook implements ShouldQueue
         }
 
         // Verify with provider API (source of truth) for non-pending events.
-        $verification = $fedaPayService->retrieveTransaction($transactionId);
+        $verificationTxId = (string) ($payment->transaction_id ?? $transactionId);
+        if ($verificationTxId === '' && $transactionId !== '') {
+            $verificationTxId = $transactionId;
+        }
+        if ($verificationTxId !== '' && !ctype_digit($verificationTxId)) {
+            foreach ($candidateTransactionIds as $cand) {
+                if ($cand !== '' && ctype_digit($cand)) {
+                    $verificationTxId = $cand;
+                    break;
+                }
+            }
+        }
+
+        try {
+            $verification = $verificationTxId !== '' ? $fedaPayService->retrieveTransaction($verificationTxId) : [];
+        } catch (\Throwable $e) {
+            Log::error('fedapay:error', [
+                'stage' => 'webhook-verification',
+                'payment_id' => $payment->id,
+                'transaction_id' => (string) ($payment->transaction_id ?? $transactionId),
+                'verification_tx_id' => $verificationTxId !== '' ? $verificationTxId : null,
+                'message' => $e->getMessage(),
+            ]);
+            $verification = [];
+        }
 
         $statusCandidates = array_filter(array_map(static fn ($v) => $v !== null ? strtolower((string) $v) : null, [
             Arr::get($verification, 'status'),
             Arr::get($verification, 'transaction.status'),
             Arr::get($verification, 'data.status'),
+            Arr::get($verification, 'v1/transaction.status'),
+            Arr::get($verification, 'data.v1/transaction.status'),
+            Arr::get($verification, 'v1.transaction.status'),
+            Arr::get($verification, 'data.v1.transaction.status'),
             $statusFromPayload,
         ]));
 
@@ -250,14 +311,29 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 ?? Arr::get($verification, 'data.amount')
                 ?? Arr::get($verification, 'transaction.amount')
                 ?? Arr::get($verification, 'data.transaction.amount')
+                ?? Arr::get($verification, 'v1/transaction.amount')
+                ?? Arr::get($verification, 'data.v1/transaction.amount')
+                ?? Arr::get($verification, 'v1.transaction.amount')
+                ?? Arr::get($verification, 'data.v1.transaction.amount')
                 ?? 0
         );
+            if ($amountFromProvider <= 0 && $amountFromPayload > 0) {
+                $amountFromProvider = $amountFromPayload;
+            }
 
         $currencyFromProvider = strtoupper((string) (
             Arr::get($verification, 'currency.iso')
                 ?? Arr::get($verification, 'currency')
                 ?? Arr::get($verification, 'data.currency.iso')
                 ?? Arr::get($verification, 'data.currency')
+                ?? Arr::get($verification, 'v1/transaction.currency.iso')
+                ?? Arr::get($verification, 'v1/transaction.currency')
+                ?? Arr::get($verification, 'data.v1/transaction.currency.iso')
+                ?? Arr::get($verification, 'data.v1/transaction.currency')
+                ?? Arr::get($verification, 'v1.transaction.currency.iso')
+                ?? Arr::get($verification, 'v1.transaction.currency')
+                ?? Arr::get($verification, 'data.v1.transaction.currency.iso')
+                ?? Arr::get($verification, 'data.v1.transaction.currency')
                 ?? ''
         ));
         $expectedCurrency = strtoupper((string) config('fedapay.default_currency', 'XOF'));
@@ -267,7 +343,23 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 ?? Arr::get($verification, 'data.merchant_reference')
                 ?? Arr::get($verification, 'transaction.merchant_reference')
                 ?? Arr::get($verification, 'data.transaction.merchant_reference')
+                ?? Arr::get($verification, 'v1/transaction.merchant_reference')
+                ?? Arr::get($verification, 'data.v1/transaction.merchant_reference')
+                ?? Arr::get($verification, 'v1.transaction.merchant_reference')
+                ?? Arr::get($verification, 'data.v1.transaction.merchant_reference')
                 ?? ''
+        );
+
+        $orderIdFromProvider = (int) (
+            Arr::get($verification, 'custom_metadata.order_id')
+                ?? Arr::get($verification, 'data.custom_metadata.order_id')
+                ?? Arr::get($verification, 'transaction.custom_metadata.order_id')
+                ?? Arr::get($verification, 'data.transaction.custom_metadata.order_id')
+                ?? Arr::get($verification, 'v1/transaction.custom_metadata.order_id')
+                ?? Arr::get($verification, 'data.v1/transaction.custom_metadata.order_id')
+                ?? Arr::get($verification, 'v1.transaction.custom_metadata.order_id')
+                ?? Arr::get($verification, 'data.v1.transaction.custom_metadata.order_id')
+                ?? 0
         );
 
         $referenceMatches = $referenceFromProvider !== ''
@@ -275,10 +367,18 @@ class ProcessFedaPayWebhook implements ShouldQueue
             && (string) ($payment->order->reference ?? '') !== ''
             && hash_equals((string) $payment->order->reference, $referenceFromProvider);
 
+        $orderIdMatches = $payment->order_id
+            && (
+                ($orderIdFromProvider > 0 && (int) $payment->order_id === $orderIdFromProvider)
+                || ($orderIdFromPayload > 0 && (int) $payment->order_id === $orderIdFromPayload)
+            );
+
         $amountMatches = $amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) <= 0.01;
         $currencyMatches = $currencyFromProvider === '' || $currencyFromProvider === $expectedCurrency;
 
-        $isValidPayment = $isApproved && $amountMatches && $currencyMatches && $referenceMatches;
+        // We require APPROVED + amount/currency match, and then either merchant_reference match OR order_id match.
+        // Some provider schemas omit merchant_reference in /transactions/{id}, but custom_metadata.order_id is stable.
+        $isValidPayment = $isApproved && $amountMatches && $currencyMatches && ($referenceMatches || $orderIdMatches);
 
         if (!$amountMatches) {
             Log::error('fedapay:error', [
@@ -320,13 +420,15 @@ class ProcessFedaPayWebhook implements ShouldQueue
             ]);
         }
 
-        if (!$referenceMatches) {
+        if (!$referenceMatches && !$orderIdMatches) {
             Log::error('fedapay:error', [
                 'stage' => 'webhook-reference',
                 'payment_id' => $payment->id,
                 'order_id' => $payment->order_id,
                 'expected' => (string) ($payment->order?->reference ?? ''),
                 'received' => $referenceFromProvider,
+                'order_id_from_provider' => $orderIdFromProvider ?: null,
+                'order_id_from_payload' => $orderIdFromPayload ?: null,
             ]);
         }
 
