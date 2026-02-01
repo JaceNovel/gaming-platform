@@ -16,12 +16,11 @@
 		</ul>
 	</div>
 
-	<h3 style="margin:18px 0 8px 0;">Instructions</h3>
-	<ol style="margin:0; padding-left:18px; color:#cccccc;">
-		<li>Ouvrez Free Fire et accédez au centre de recharge.</li>
-		<li>Sélectionnez "Utiliser un code" puis saisissez le code ci-dessus.</li>
-		<li>Validez pour recevoir vos diamants.</li>
-	</ol>
+	<p style="margin:16px 0 0 0; color:#cccccc;">
+		Utilisation rapide : Free Fire → Centre de recharge → Utiliser un code → collez le code.
+	</p>
 
-	<p style="margin-top:16px;">Guide Shop2Game : <a style="color:#7dd3fc;" href="{{ $guideUrl ?? url('/api/guides/shop2game-freefire') }}">ouvrir le guide</a></p>
+	<p style="margin-top:14px;">
+		Guide (PDF) : <a style="color:#7dd3fc;" href="{{ $guideUrl }}">télécharger</a>
+	</p>
 @endcomponent

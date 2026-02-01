@@ -12,6 +12,7 @@ use App\Models\RedeemDenomination;
 use App\Services\RedeemCodeAllocator;
 use App\Services\RedeemStockAlertService;
 use App\Services\NotificationService;
+use App\Support\FrontendUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -126,7 +127,8 @@ class ProcessRedeemFulfillment implements ShouldQueue
             ->filter()
             ->values()
             ->implode("\n");
-        $message = "Vos codes de recharge pour la commande {$order->reference} :\n{$codesText}\nGuide: " . url('/api/guides/shop2game-freefire');
+        $guideUrl = FrontendUrls::guidePdfUrl();
+        $message = "Codes recharge {$order->reference}:\n{$codesText}\nGuide PDF: {$guideUrl}";
 
         if (empty($orderMeta['redeem_notification_sent_at'])) {
             $notificationService->notifyUser($order->user_id, 'redeem_code', $message);

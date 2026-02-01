@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\Order;
 use App\Services\EmailTemplateRenderer;
+use App\Support\FrontendUrls;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -40,13 +41,13 @@ class RedeemCodeDelivery extends Mailable
             'order' => $this->order->toArray(),
             'user' => $this->order->user?->toArray() ?? [],
             'codes_html' => "<ul>{$codesHtml}</ul>",
-            'guide_url' => url('/api/guides/shop2game-freefire'),
+            'guide_url' => FrontendUrls::guidePdfUrl(),
         ];
 
         $fallbackHtml = view('emails.redeem-code-delivery', [
             'order' => $this->order,
             'codes' => $this->codes,
-            'guideUrl' => url('/api/guides/shop2game-freefire'),
+            'guideUrl' => FrontendUrls::guidePdfUrl(),
         ])->render();
 
         $rendered = $renderer->render(

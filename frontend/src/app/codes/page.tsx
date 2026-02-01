@@ -11,6 +11,7 @@ import { API_BASE } from "@/lib/config";
 import { openTidioChat } from "@/lib/tidioChat";
 
 const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
+const REDEEM_GUIDE_PDF_PATH = "/images/badboy.pdf";
 
 type OrderRow = {
   id: number;
@@ -470,10 +471,25 @@ function CodesClient() {
                             </div>
                           ) : deliveredItems.length === 0 ? (
                             <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
-                              Aucun code livré pour l’instant.
+                              <p>Aucun code livré pour l’instant.</p>
+                              <a
+                                href={REDEEM_GUIDE_PDF_PATH}
+                                download
+                                className="mt-2 inline-flex items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100"
+                              >
+                                Télécharger le guide (PDF)
+                              </a>
                             </div>
                           ) : (
                             <div className="space-y-2">
+                              <a
+                                href={REDEEM_GUIDE_PDF_PATH}
+                                download
+                                className="inline-flex items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100"
+                              >
+                                Télécharger le guide (PDF)
+                              </a>
+
                               {deliveredItems.map((row) => (
                                 <div
                                   key={row.id}

@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
+use App\Support\FrontendUrls;
 class OrderController extends Controller
 {
     private function resolveOrderForUser(Request $request, string $orderIdOrReference): Order
@@ -171,7 +172,7 @@ class OrderController extends Controller
         return response()->json([
             'status' => $orderModel->status,
             'codes' => $codes,
-            'guide_url' => url('/api/guides/shop2game-freefire'),
+            'guide_url' => FrontendUrls::guidePdfUrl(),
             'has_redeem_items' => $hasRedeemItems,
         ]);
     }
