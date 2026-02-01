@@ -108,7 +108,8 @@ class FedaPayWebhookController extends Controller
         $payload['_meta']['received_at'] = now()->toIso8601String();
 
         // Process synchronously to avoid missing credits when no queue worker is running.
-        // Keep the response 2xx so the provider doesn't retry unnecessarily.
+        // If processing fails, return 5xx so the provider retries (otherwise a transient DB/API issue
+        // would permanently leave the payment in pending state).
         try {
             ProcessFedaPayWebhook::dispatchSync($payload);
         } catch (\Throwable $e) {
@@ -116,6 +117,8 @@ class FedaPayWebhookController extends Controller
                 'stage' => 'webhook-dispatch-sync',
                 'message' => $e->getMessage(),
             ]);
+
+            return response()->json(['received' => false], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         return response()->json(['received' => true]);

@@ -535,34 +535,43 @@ class ProcessFedaPayWebhook implements ShouldQueue
                         ]);
 
                         // Referral commission: sponsor earns a % of the referred user's first deposit.
-                        $referral = Referral::where('referred_id', $order->user_id)->lockForUpdate()->first();
-                        $alreadyEarned = $referral ? (float) $referral->commission_earned : 0.0;
-                        if ($referral && $alreadyEarned <= 0.0) {
-                            $referrer = User::where('id', $referral->referrer_id)->first();
-                            $isVip = $referrer && (bool) $referrer->is_premium && in_array((string) $referrer->premium_level, ['bronze', 'platine'], true);
-                            if ($referrer && $isVip) {
-                                $rate = 0.03;
-                                $baseAmount = (float) $payment->amount;
-                                $commission = round($baseAmount * $rate, 2);
+                        // Best-effort only: never block wallet topup crediting if referral tables/configs are missing.
+                        try {
+                            $referral = Referral::where('referred_id', $order->user_id)->lockForUpdate()->first();
+                            $alreadyEarned = $referral ? (float) $referral->commission_earned : 0.0;
+                            if ($referral && $alreadyEarned <= 0.0) {
+                                $referrer = User::where('id', $referral->referrer_id)->first();
+                                $isVip = $referrer && (bool) $referrer->is_premium && in_array((string) $referrer->premium_level, ['bronze', 'platine'], true);
+                                if ($referrer && $isVip) {
+                                    $rate = 0.03;
+                                    $baseAmount = (float) $payment->amount;
+                                    $commission = round($baseAmount * $rate, 2);
 
-                                if ($commission > 0) {
-                                $walletService->credit($referrer, 'REFERRAL-' . $order->id, $commission, [
-                                    'type' => $isVip ? 'vip_referral_bonus' : 'referral_bonus',
-                                    'referred_user_id' => $order->user_id,
-                                    'order_id' => $order->id,
-                                    'payment_id' => $payment->id,
-                                    'rate' => $rate,
-                                    'base_amount' => $baseAmount,
-                                ]);
+                                    if ($commission > 0) {
+                                        $walletService->credit($referrer, 'REFERRAL-' . $order->id, $commission, [
+                                            'type' => $isVip ? 'vip_referral_bonus' : 'referral_bonus',
+                                            'referred_user_id' => $order->user_id,
+                                            'order_id' => $order->id,
+                                            'payment_id' => $payment->id,
+                                            'rate' => $rate,
+                                            'base_amount' => $baseAmount,
+                                        ]);
 
-                                    $referral->update([
-                                        'commission_earned' => $commission,
-                                        'commission_rate' => $rate,
-                                        'commission_base_amount' => $baseAmount,
-                                        'rewarded_at' => now(),
-                                    ]);
+                                        $referral->update([
+                                            'commission_earned' => $commission,
+                                            'commission_rate' => $rate,
+                                            'commission_base_amount' => $baseAmount,
+                                            'rewarded_at' => now(),
+                                        ]);
+                                    }
                                 }
                             }
+                        } catch (\Throwable $e) {
+                            Log::warning('fedapay:referral-skip', [
+                                'order_id' => $order->id,
+                                'payment_id' => $payment->id,
+                                'message' => $e->getMessage(),
+                            ]);
                         }
 
                         $orderMeta = $order->meta ?? [];
@@ -690,6 +699,13 @@ class ProcessFedaPayWebhook implements ShouldQueue
                     ],
                 ]
             );
+
+            Log::info('fedapay:webhook-processed', [
+                'payment_id' => $payment->id,
+                'order_id' => $payment->order_id,
+                'transaction_id' => $transactionId,
+                'normalized' => $normalized,
+            ]);
 
             if ($paymentEvent) {
                 $paymentEvent->update(['processed_at' => now()]);
