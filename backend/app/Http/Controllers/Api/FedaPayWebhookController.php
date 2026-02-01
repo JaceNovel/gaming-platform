@@ -4,24 +4,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessFedaPayWebhook;
-use App\Services\FedaPayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class FedaPayWebhookController extends Controller
 {
-    public function __construct(private FedaPayService $fedaPayService)
-    {
-    }
-
     public function handle(Request $request)
     {
         // 1) Read raw body EXACT (never re-encode JSON)
         $raw = (string) $request->getContent();
 
-        // 2) Read signature header
-        $sigHeader = (string) ($request->header('x-fedapay-signature') ?? '');
+        // 2) Header
+        $h = (string) $request->header('x-fedapay-signature', '');
 
         // 7) Secret sanity check (do not leak its value)
         $secret = trim((string) env('FEDAPAY_WEBHOOK_SECRET', ''));
@@ -32,28 +27,70 @@ class FedaPayWebhookController extends Controller
             ]);
         }
 
-        // 3-5) Robust signature verification (hex + base64, multiple formats)
-        [$sig, $format] = $this->extractSignature($sigHeader);
-        $expectedHex = $secret !== '' ? hash_hmac('sha256', $raw, $secret) : '';
-        $expectedB64 = $secret !== '' ? base64_encode(hash_hmac('sha256', $raw, $secret, true)) : '';
+        // 3) Parse signature header (Stripe-like: t=...,v1=...)
+        $parsed = $this->parseFedaPaySignatureHeader($h);
+        $timestamp = (string) ($parsed['timestamp'] ?? '');
+        $v1List = (array) ($parsed['v1'] ?? []);
 
-        $sigLower = strtolower($sig);
-        $isValid = $expectedHex !== '' && (
-            hash_equals($expectedHex, $sig)
-            || hash_equals($expectedHex, $sigLower)
-            || hash_equals($expectedB64, $sig)
-            || hash_equals($expectedB64, $sigLower)
-        );
-
-        if (!$isValid) {
-            // 6) Debug SAFE (no secret, no full signature, no raw body)
+        // 7) If header contains timestamp but no v1 => reject
+        if ($timestamp !== '' && count($v1List) === 0) {
             Log::warning('fedapay:invalid-signature', [
                 'raw_len' => strlen($raw),
                 'raw_sha256' => hash('sha256', $raw),
-                'sig_format' => $format,
-                'sig_len' => strlen($sig),
-                'expected_hex_prefix' => $expectedHex !== '' ? substr($expectedHex, 0, 8) : null,
-                'sig_prefix' => $sig !== '' ? substr($sig, 0, 8) : null,
+                'header_prefix' => substr($h, 0, 20),
+                'timestamp_present' => true,
+                'v1_count' => 0,
+                'exp_ts_hex_prefix' => null,
+                'exp_raw_hex_prefix' => $secret !== '' ? substr(hash_hmac('sha256', $raw, $secret), 0, 8) : null,
+                'first_sig_prefix' => null,
+            ]);
+
+            return response()->json(['error' => 'invalid signature'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // 4) Compute expected candidates
+        $exp_raw_hex = $secret !== '' ? hash_hmac('sha256', $raw, $secret) : '';
+        $exp_raw_b64 = $secret !== '' ? base64_encode(hash_hmac('sha256', $raw, $secret, true)) : '';
+
+        $exp_ts_hex = '';
+        $exp_ts_b64 = '';
+        if ($secret !== '' && $timestamp !== '') {
+            $signedPayload = $timestamp . '.' . $raw;
+            $exp_ts_hex = hash_hmac('sha256', $signedPayload, $secret);
+            $exp_ts_b64 = base64_encode(hash_hmac('sha256', $signedPayload, $secret, true));
+        }
+
+        // 5) Compare constant-time against each v1 signature
+        $isValid = false;
+        foreach ($v1List as $sig) {
+            $sig = trim((string) $sig);
+            if ($sig === '') {
+                continue;
+            }
+            $sig = $this->cleanSignatureValue($sig);
+
+            $isValid = $isValid
+                || ($exp_ts_hex !== '' && hash_equals($exp_ts_hex, $sig))
+                || ($exp_ts_b64 !== '' && hash_equals($exp_ts_b64, $sig))
+                || ($exp_raw_hex !== '' && hash_equals($exp_raw_hex, $sig))
+                || ($exp_raw_b64 !== '' && hash_equals($exp_raw_b64, $sig));
+
+            if ($isValid) {
+                break;
+            }
+        }
+
+        if (!$isValid) {
+            // 6) Debug SAFE
+            Log::warning('fedapay:invalid-signature', [
+                'raw_len' => strlen($raw),
+                'raw_sha256' => hash('sha256', $raw),
+                'header_prefix' => substr($h, 0, 20),
+                'timestamp_present' => $timestamp !== '',
+                'v1_count' => count($v1List),
+                'exp_ts_hex_prefix' => $exp_ts_hex !== '' ? substr($exp_ts_hex, 0, 8) : null,
+                'exp_raw_hex_prefix' => $exp_raw_hex !== '' ? substr($exp_raw_hex, 0, 8) : null,
+                'first_sig_prefix' => isset($v1List[0]) ? substr($this->cleanSignatureValue((string) $v1List[0]), 0, 8) : null,
             ]);
 
             return response()->json(['error' => 'invalid signature'], Response::HTTP_UNAUTHORIZED);
@@ -84,39 +121,62 @@ class FedaPayWebhookController extends Controller
     }
 
     /**
-     * Extract signature from the `x-fedapay-signature` header.
-     * Supports: sha256=<hex>, v1=<hex>, t=<ts>,v1=<hex>, raw hex/base64.
+     * Parse FedaPay signature header.
      *
-     * @return array{0:string,1:string} [signature, format]
+     * @return array{timestamp:?string,v1:array<string>,format:string}
      */
-    private function extractSignature(string $sigHeader): array
+    private function parseFedaPaySignatureHeader(string $h): array
     {
-        $header = trim($sigHeader);
+        $header = trim($h);
         if ($header === '') {
-            return ['', 'missing'];
+            return ['timestamp' => null, 'v1' => [], 'format' => 'missing'];
         }
 
-        // Common: key/value list separated by commas.
-        // Example: t=1700000000,v1=abcdef...
-        if (stripos($header, 'v1=') !== false) {
-            if (preg_match('/(?:^|[\s,;])v1\s*=\s*([^,;\s]+)/i', $header, $m)) {
-                $sig = trim((string) $m[1]);
-                $sig = trim($sig, " \t\n\r\0\x0B\"'"
-                );
-                return [strtolower($sig), 'v1'];
+        $timestamp = null;
+        $v1 = [];
+
+        // Split on commas (e.g. t=...,v1=...,v1=...)
+        $parts = array_map('trim', explode(',', $header));
+        foreach ($parts as $part) {
+            if ($part === '' || !str_contains($part, '=')) {
+                continue;
+            }
+
+            [$k, $v] = array_map('trim', explode('=', $part, 2));
+            $k = strtolower($k);
+            $v = $this->cleanSignatureValue($v);
+
+            if ($k === 't' && $v !== '') {
+                $timestamp = $v;
+                continue;
+            }
+            if ($k === 'v1' && $v !== '') {
+                $v1[] = $v;
+                continue;
             }
         }
 
-        if (stripos($header, 'sha256=') !== false) {
-            if (preg_match('/(?:^|[\s,;])sha256\s*=\s*([^,;\s]+)/i', $header, $m)) {
-                $sig = trim((string) $m[1]);
-                $sig = trim($sig, " \t\n\r\0\x0B\"'"
-                );
-                return [strtolower($sig), 'sha256'];
-            }
+        if ($timestamp !== null || $v1 !== []) {
+            return ['timestamp' => $timestamp, 'v1' => $v1, 'format' => 't_v1'];
         }
 
-        $sig = trim($header, " \t\n\r\0\x0B\"'");
-        return [strtolower($sig), 'raw'];
+        // Fallback raw: treat entire header as the signature
+        $sig = $this->cleanSignatureValue($header);
+        return ['timestamp' => null, 'v1' => $sig !== '' ? [$sig] : [], 'format' => 'raw'];
+    }
+
+    private function cleanSignatureValue(string $value): string
+    {
+        $sig = trim($value);
+        $sig = trim($sig, " \t\n\r\0\x0B\"'");
+
+        // If someone passes key=value again, strip the prefix.
+        if (str_starts_with(strtolower($sig), 'v1=')) {
+            $sig = substr($sig, 3);
+        } elseif (str_starts_with(strtolower($sig), 'sha256=')) {
+            $sig = substr($sig, 7);
+        }
+
+        return trim($sig);
     }
 }

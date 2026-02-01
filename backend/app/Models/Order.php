@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
+    use HasFactory;
+
     public const STATUS_AWAITING_PAYMENT = 'awaiting_payment';
     public const STATUS_PAYMENT_PROCESSING = 'payment_processing';
     public const STATUS_PAYMENT_SUCCESS = 'payment_success';

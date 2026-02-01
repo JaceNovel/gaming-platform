@@ -172,12 +172,6 @@ class ProcessFedaPayWebhook implements ShouldQueue
                     'webhook_data' => $meta,
                 ]);
 
-                if ($payment->order && !$payment->order->isPaymentSuccess() && !$payment->order->isPaymentFailed()) {
-                    $payment->order->update([
-                        'status' => Order::STATUS_AWAITING_PAYMENT,
-                    ]);
-                }
-
                 PaymentAttempt::updateOrCreate(
                     ['transaction_id' => $transactionId],
                     [
