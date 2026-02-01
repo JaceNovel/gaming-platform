@@ -16,6 +16,7 @@ use App\Services\WalletService;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
@@ -82,28 +83,38 @@ class ProcessFedaPayWebhook implements ShouldQueue
         }
 
         // Idempotency: record the event and skip if already processed.
-        $paymentEvent = PaymentEvent::firstOrCreate(
-            [
-                'provider' => 'fedapay',
-                'tx_id' => $transactionId,
-                'event' => $eventName !== '' ? $eventName : null,
-                'payload_hash' => $payloadHash,
-            ],
-            [
-                'status' => $statusFromPayload !== '' ? $statusFromPayload : null,
-                'order_id' => $orderIdFromPayload ?: null,
-                'payload' => $payload,
-                'received_at' => Arr::get($payload, '_meta.received_at') ? now() : null,
-            ]
-        );
+        // If migrations haven't been applied yet (missing payment_events table), continue without idempotency.
+        $paymentEvent = null;
+        try {
+            $paymentEvent = PaymentEvent::firstOrCreate(
+                [
+                    'provider' => 'fedapay',
+                    'tx_id' => $transactionId,
+                    'event' => $eventName !== '' ? $eventName : null,
+                    'payload_hash' => $payloadHash,
+                ],
+                [
+                    'status' => $statusFromPayload !== '' ? $statusFromPayload : null,
+                    'order_id' => $orderIdFromPayload ?: null,
+                    'payload' => $payload,
+                    'received_at' => Arr::get($payload, '_meta.received_at') ? now() : null,
+                ]
+            );
 
-        if ($paymentEvent->processed_at) {
-            Log::info('fedapay:webhook-idempotent', [
+            if ($paymentEvent->processed_at) {
+                Log::info('fedapay:webhook-idempotent', [
+                    'transaction_id' => $transactionId,
+                    'event' => $eventName,
+                    'payload_hash' => $payloadHash,
+                ]);
+                return;
+            }
+        } catch (QueryException $e) {
+            Log::warning('fedapay:payment-events-unavailable', [
                 'transaction_id' => $transactionId,
                 'event' => $eventName,
-                'payload_hash' => $payloadHash,
+                'message' => $e->getMessage(),
             ]);
-            return;
         }
 
         $payment = Payment::with(['order' => function ($q) {
@@ -131,21 +142,27 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 ]
             );
 
-            $paymentEvent->update(['processed_at' => now()]);
+            if ($paymentEvent) {
+                $paymentEvent->update(['processed_at' => now()]);
+            }
             return;
         }
 
         // Idempotence: skip if already final
         if (in_array((string) $payment->status, ['completed', 'failed'], true)) {
             Log::info('fedapay:webhook-idempotent', ['payment_id' => $payment->id, 'status' => $payment->status]);
-            $paymentEvent->update(['processed_at' => now()]);
+            if ($paymentEvent) {
+                $paymentEvent->update(['processed_at' => now()]);
+            }
             return;
         }
 
         $attempt = PaymentAttempt::where('transaction_id', $transactionId)->first();
         if ($attempt && in_array((string) $attempt->status, ['completed', 'failed'], true)) {
             Log::info('fedapay:webhook-idempotent', ['transaction_id' => $transactionId, 'status' => $attempt->status]);
-            $paymentEvent->update(['processed_at' => now()]);
+            if ($paymentEvent) {
+                $paymentEvent->update(['processed_at' => now()]);
+            }
             return;
         }
 
@@ -189,7 +206,9 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 );
             });
 
-            $paymentEvent->update(['processed_at' => now()]);
+            if ($paymentEvent) {
+                $paymentEvent->update(['processed_at' => now()]);
+            }
 
             Log::info('fedapay:webhook-pending', [
                 'payment_id' => $payment->id,
@@ -349,7 +368,9 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 );
             });
 
-            $paymentEvent->update(['processed_at' => now()]);
+            if ($paymentEvent) {
+                $paymentEvent->update(['processed_at' => now()]);
+            }
             return;
         }
 
@@ -547,7 +568,9 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 ]
             );
 
-            $paymentEvent->update(['processed_at' => now()]);
+            if ($paymentEvent) {
+                $paymentEvent->update(['processed_at' => now()]);
+            }
         });
 
         Log::info('fedapay:webhook-processed', [
