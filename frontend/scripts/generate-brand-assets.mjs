@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import toIco from "to-ico";
 
 const INPUT = "public/images/Capture_d_écran_2026-01-27_001718-removebg-preview.png";
 
@@ -56,8 +55,17 @@ async function main() {
   outputs.push(await write("favicon-16x16.png", favicon16));
   outputs.push(await write("favicon-32x32.png", favicon32));
 
-  const ico = await toIco([favicon16, favicon32, favicon48]);
-  outputs.push(await write("favicon.ico", ico));
+  // We intentionally do NOT generate favicon.ico here anymore.
+  // The previous implementation used the `to-ico` package, which pulled in
+  // legacy dependencies with known vulnerabilities. Keep favicon.ico as a
+  // committed asset in `public/`.
+  const existingIco = path.join(publicDir, "favicon.ico");
+  if (!(await exists(existingIco))) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "favicon.ico is missing; please add a committed favicon.ico (PNG favicons were generated)."
+    );
+  }
 
   // Apple touch + Android Chrome
   outputs.push(await write("apple-touch-icon.png", await squarePng(180)));
