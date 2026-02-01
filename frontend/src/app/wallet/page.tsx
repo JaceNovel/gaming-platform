@@ -21,6 +21,10 @@ type WalletTx = {
   type: "credit" | "debit";
   status: "success" | "pending" | "failed";
   reference?: string | null;
+  order_id?: number | null;
+  transaction_id?: string | null;
+  order_status?: string | null;
+  payment_status?: string | null;
 };
 
 const normalizeCurrency = (currency?: string | null): { intl: string; label: string } => {
@@ -141,6 +145,10 @@ function WalletClient() {
               | "pending"
               | "failed",
             reference: tx.reference ? String(tx.reference) : null,
+            order_id: tx.order_id != null ? Number(tx.order_id) : null,
+            transaction_id: tx.transaction_id ? String(tx.transaction_id) : null,
+            order_status: tx.order_status ? String(tx.order_status) : null,
+            payment_status: tx.payment_status ? String(tx.payment_status) : null,
           };
         })
         .filter((t: WalletTx) => Boolean(t.id));
@@ -267,6 +275,33 @@ function WalletClient() {
     } catch (error: any) {
       setTopupMessage(error?.message ?? "Erreur inattendue");
       setTopupProcessing(false);
+    }
+  };
+
+  const verifyTopup = async (tx: WalletTx) => {
+    if (!HAS_API_ENV) return;
+    if (tx.status !== "pending") return;
+
+    const hasOrderId = typeof tx.order_id === "number" && Number.isFinite(tx.order_id) && (tx.order_id ?? 0) > 0;
+    const hasTransactionId = Boolean(tx.transaction_id);
+    if (!hasOrderId && !hasTransactionId) {
+      setBanner("Impossible de vérifier: identifiant manquant.");
+      window.setTimeout(() => setBanner(null), 2500);
+      return;
+    }
+
+    setBanner("Vérification du paiement...");
+    try {
+      const qs = hasOrderId
+        ? `order_id=${encodeURIComponent(String(tx.order_id))}`
+        : `transaction_id=${encodeURIComponent(String(tx.transaction_id))}`;
+      await authFetch(`${API_BASE}/payments/fedapay/status?${qs}`);
+      await loadWallet();
+      setBanner("Actualisation terminée.");
+    } catch {
+      setBanner("Vérification impossible. Réessaie plus tard.");
+    } finally {
+      window.setTimeout(() => setBanner(null), 2500);
     }
   };
 
@@ -429,7 +464,23 @@ function WalletClient() {
                                 Copier ref
                               </button>
                             ) : null}
+
+                            {tx.status === "pending" ? (
+                              <button
+                                type="button"
+                                onClick={() => void verifyTopup(tx)}
+                                className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100"
+                              >
+                                Vérifier
+                              </button>
+                            ) : null}
                           </div>
+
+                          {tx.status === "pending" && (tx.order_status || tx.payment_status) ? (
+                            <p className="mt-2 text-[11px] text-white/55">
+                              Statut commande: {tx.order_status ?? "—"} • Paiement: {tx.payment_status ?? "—"}
+                            </p>
+                          ) : null}
                         </div>
 
                         <div className="text-right">

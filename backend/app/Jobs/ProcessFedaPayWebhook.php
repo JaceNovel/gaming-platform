@@ -181,8 +181,9 @@ class ProcessFedaPayWebhook implements ShouldQueue
             return;
         }
 
-        // Idempotence: skip if already final
-        if (in_array((string) $payment->status, ['completed', 'failed'], true)) {
+        // Idempotence: treat COMPLETED as final.
+        // Do NOT treat FAILED as final because a delayed provider approval webhook may arrive later.
+        if ((string) $payment->status === 'completed') {
             Log::info('fedapay:webhook-idempotent', ['payment_id' => $payment->id, 'status' => $payment->status]);
             if ($paymentEvent) {
                 $paymentEvent->update(['processed_at' => now()]);
@@ -191,7 +192,7 @@ class ProcessFedaPayWebhook implements ShouldQueue
         }
 
         $attempt = PaymentAttempt::where('transaction_id', $transactionId)->first();
-        if ($attempt && in_array((string) $attempt->status, ['completed', 'failed'], true)) {
+        if ($attempt && (string) $attempt->status === 'completed') {
             Log::info('fedapay:webhook-idempotent', ['transaction_id' => $transactionId, 'status' => $attempt->status]);
             if ($paymentEvent) {
                 $paymentEvent->update(['processed_at' => now()]);
@@ -504,9 +505,13 @@ class ProcessFedaPayWebhook implements ShouldQueue
                 }
 
                 // Wallet topup
-                if ($normalized === 'completed' && (string) ($order->type ?? '') === 'wallet_topup') {
+                if ((string) ($order->type ?? '') === 'wallet_topup') {
                     $reference = (string) ($payment->walletTransaction?->reference ?? $order->reference ?? '');
-                    if ($order?->user && $reference !== '') {
+                    if ($normalized === 'failed') {
+                        if ($payment->walletTransaction) {
+                            $payment->walletTransaction->update(['status' => 'failed']);
+                        }
+                    } elseif ($normalized === 'completed' && $order?->user && $reference !== '') {
                         $walletService->credit($order->user, $reference, (float) $payment->amount, [
                             'source' => 'fedapay_topup_webhook',
                             'payment_id' => $payment->id,

@@ -48,7 +48,16 @@ class WalletController extends Controller
 
         $rows = $wallet->transactions()->latest('created_at')->limit($limit)->get();
 
-        $transactions = $rows->map(function (WalletTransaction $tx) use ($wallet) {
+        $walletTxIds = $rows->pluck('id')->filter()->values()->all();
+        $paymentsByWalletTx = Payment::with('order')
+            ->whereIn('wallet_transaction_id', $walletTxIds)
+            ->whereHas('order', function ($q) use ($wallet) {
+                $q->where('user_id', $wallet->user_id)->where('type', 'wallet_topup');
+            })
+            ->get()
+            ->keyBy('wallet_transaction_id');
+
+        $transactions = $rows->map(function (WalletTransaction $tx) use ($wallet, $paymentsByWalletTx) {
             $meta = is_array($tx->meta) ? $tx->meta : [];
             $typeHint = strtolower((string) ($meta['type'] ?? $meta['reason'] ?? ''));
 
@@ -59,6 +68,9 @@ class WalletController extends Controller
                 default => 'Transaction wallet',
             };
 
+            $payment = $paymentsByWalletTx->get($tx->id);
+            $order = $payment?->order;
+
             return [
                 'id' => $tx->id,
                 'label' => $label,
@@ -68,6 +80,10 @@ class WalletController extends Controller
                 'type' => $tx->type,
                 'status' => $tx->status,
                 'reference' => $tx->reference,
+                'order_id' => $payment?->order_id,
+                'transaction_id' => $payment?->transaction_id,
+                'order_status' => $order?->status,
+                'payment_status' => $payment?->status,
             ];
         })->values();
 
