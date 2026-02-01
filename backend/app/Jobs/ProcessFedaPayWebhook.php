@@ -377,9 +377,25 @@ class ProcessFedaPayWebhook implements ShouldQueue
         $amountMatches = $amountFromProvider > 0 && abs((float) $payment->amount - $amountFromProvider) <= 0.01;
         $currencyMatches = $currencyFromProvider === '' || $currencyFromProvider === $expectedCurrency;
 
-        // We require APPROVED + amount/currency match, and then either merchant_reference match OR order_id match.
-        // Some provider schemas omit merchant_reference in /transactions/{id}, but custom_metadata.order_id is stable.
-        $isValidPayment = $isApproved && $amountMatches && $currencyMatches && ($referenceMatches || $orderIdMatches);
+        // Heuristic: some providers may return amounts in minor units (x100). If so, normalize before comparing.
+        // This keeps us strict while avoiding false negatives.
+        if (!$amountMatches && $amountFromProvider > 0 && (float) $payment->amount > 0) {
+            $asMajor = $amountFromProvider / 100;
+            if (abs((float) $payment->amount - $asMajor) <= 0.01) {
+                $amountFromProvider = $asMajor;
+                $amountMatches = true;
+            }
+        }
+
+        // We require APPROVED + amount/currency match.
+        // Prefer merchant_reference/custom_metadata.order_id matches when available, but also accept a direct
+        // transaction_id match because we already located this Payment record by that transaction id.
+        $matchedByTransactionId = (string) $payment->transaction_id !== ''
+            && (in_array((string) $payment->transaction_id, $candidateTransactionIds, true)
+                || hash_equals((string) $payment->transaction_id, $transactionId));
+
+        // Some provider schemas omit merchant_reference in /transactions/{id}; custom_metadata.order_id is usually stable.
+        $isValidPayment = $isApproved && $amountMatches && $currencyMatches && ($referenceMatches || $orderIdMatches || $matchedByTransactionId);
 
         if (!$amountMatches) {
             Log::error('fedapay:error', [
@@ -421,7 +437,7 @@ class ProcessFedaPayWebhook implements ShouldQueue
             ]);
         }
 
-        if (!$referenceMatches && !$orderIdMatches) {
+        if (!$referenceMatches && !$orderIdMatches && !$matchedByTransactionId) {
             Log::error('fedapay:error', [
                 'stage' => 'webhook-reference',
                 'payment_id' => $payment->id,
