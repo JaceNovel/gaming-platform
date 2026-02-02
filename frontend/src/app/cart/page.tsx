@@ -49,6 +49,9 @@ function CartScreen() {
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -61,6 +64,29 @@ function CartScreen() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setWalletLoading(true);
+      try {
+        const res = await authFetch(`${API_BASE}/wallet`);
+        const data = await res.json().catch(() => null);
+        if (!active) return;
+        if (res.ok) {
+          const balanceValue = typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
+          setWalletBalance(Number.isFinite(balanceValue) ? balanceValue : 0);
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (active) setWalletLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [authFetch]);
 
   const removeItem = (id: number) => {
     setCartItems((prev) => {
@@ -163,7 +189,29 @@ function CartScreen() {
       }
       const currency = String(order?.currency ?? "XOF").toUpperCase();
 
-        const payRes = await authFetch(`${API_BASE}/payments/fedapay/init`, {
+      if (paymentMethod === "wallet") {
+        const payWalletRes = await authFetch(`${API_BASE}/payments/wallet/pay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order_id: orderId }),
+        });
+
+        const payWalletPayload = await payWalletRes.json().catch(() => null);
+        if (!payWalletRes.ok) {
+          setStatus(payWalletPayload?.message ?? "Paiement wallet impossible.");
+          return;
+        }
+
+        setStatus("Paiement wallet réussi.");
+        setCartItems([]);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("bbshop_cart");
+        }
+        window.location.href = "/account?wallet_paid=success";
+        return;
+      }
+
+      const payRes = await authFetch(`${API_BASE}/payments/fedapay/init`, {
         method: "POST",
         body: JSON.stringify({
           order_id: orderId,
@@ -346,11 +394,50 @@ function CartScreen() {
                 </div>
               </div>
 
-              <GlowButton className="w-full justify-center" onClick={handlePay} disabled={loading || !cartItems.length}>
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-sm font-semibold text-white">Mode de paiement</p>
+                <label className="flex items-center gap-2 text-sm text-white/80">
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="fedapay"
+                    checked={paymentMethod === "fedapay"}
+                    onChange={() => setPaymentMethod("fedapay")}
+                  />
+                  <span className="inline-flex items-center gap-2">
+                    <CreditCard className="h-4 w-4" />
+                    FedaPay
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-2 text-sm text-white/80">
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value="wallet"
+                    checked={paymentMethod === "wallet"}
+                    onChange={() => setPaymentMethod("wallet")}
+                    disabled={walletLoading || walletBalance < 400}
+                  />
+                  <span className="inline-flex items-center gap-2">
+                    Wallet {walletLoading ? "(chargement...)" : `(solde: ${Math.floor(walletBalance)} FCFA)`}
+                  </span>
+                  {walletBalance < 400 && !walletLoading ? (
+                    <span className="text-xs text-white/50">(min 400 FCFA)</span>
+                  ) : null}
+                </label>
+              </div>
+
+              <GlowButton
+                className="w-full justify-center"
+                onClick={handlePay}
+                disabled={loading || !cartItems.length || (paymentMethod === "wallet" && (walletLoading || walletBalance < 400))}
+              >
                 <CreditCard className="h-4 w-4" />
                 {loading ? "Paiement..." : "Payer maintenant"}
               </GlowButton>
-              {status && <p className="text-xs text-amber-200">{status}</p>}
+
+              {status ? <p className="text-xs text-amber-200">{status}</p> : null}
             </div>
           </div>
         </div>
