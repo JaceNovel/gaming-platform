@@ -189,8 +189,9 @@ class FedaPayWebhookSignature
         $v1 = [];
 
         // Support:
-        // - "t=...,v1=..."
+        // - "t=...,v1=..." (Stripe-like)
         // - "t=..., v1=..., v1=..."
+        // - "t=...,s=..." (some FedaPay variants)
         // Fallback raw: if not parseable, treat header as a single signature candidate.
         $parts = array_map('trim', explode(',', $header));
         foreach ($parts as $part) {
@@ -207,13 +208,13 @@ class FedaPayWebhookSignature
                 continue;
             }
 
-            if ($k === 'v1' && $v !== '') {
+            if (($k === 'v1' || $k === 's') && $v !== '') {
                 $v1[] = $v;
                 continue;
             }
         }
 
-        $hasCompositeIndicators = str_contains($header, 't=') || str_contains($header, 'v1=');
+        $hasCompositeIndicators = str_contains($header, 't=') || str_contains($header, 'v1=') || str_contains($header, 's=');
 
         if ($timestamp !== null || count($v1) > 0 || $hasCompositeIndicators) {
             return [

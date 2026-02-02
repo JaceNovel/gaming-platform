@@ -34,6 +34,16 @@ class FedaPayWebhookSignatureUnitTest extends TestCase
     }
 
     #[Test]
+    public function parse_header_supports_s_signature_key(): void
+    {
+        $parsed = FedaPayWebhookSignature::parseFedaPaySignatureHeader('t=1769900000,s=abc');
+
+        $this->assertSame('t_v1', $parsed['format']);
+        $this->assertSame('1769900000', $parsed['timestamp']);
+        $this->assertSame(['abc'], $parsed['v1']);
+    }
+
+    #[Test]
     public function parse_header_falls_back_to_raw_format(): void
     {
         $parsed = FedaPayWebhookSignature::parseFedaPaySignatureHeader('rawsig');
@@ -52,6 +62,19 @@ class FedaPayWebhookSignatureUnitTest extends TestCase
 
         $sig = hash_hmac('sha256', $timestamp . '.' . $raw, $secret);
         $header = 't=' . $timestamp . ',v1=' . $sig;
+
+        $this->assertTrue(FedaPayWebhookSignature::verifyFedapayWebhookSignature($raw, $header, $secret, 0));
+    }
+
+    #[Test]
+    public function verify_accepts_timestamp_dot_raw_hex_signature_with_s_key(): void
+    {
+        $secret = 'whsec_test_secret_1234567890';
+        $raw = '{"id":"evt_s","name":"transaction.approved","entity":{"id":"TX-FEDA-S","status":"approved"}}';
+        $timestamp = '1769900000';
+
+        $sig = hash_hmac('sha256', $timestamp . '.' . $raw, $secret);
+        $header = 't=' . $timestamp . ',s=' . $sig;
 
         $this->assertTrue(FedaPayWebhookSignature::verifyFedapayWebhookSignature($raw, $header, $secret, 0));
     }
