@@ -108,4 +108,44 @@ class FedaPayWebhookSignatureTest extends TestCase
         $resp->assertStatus(401);
         $resp->assertJson(['received' => false]);
     }
+
+    #[Test]
+    public function millisecond_timestamp_is_accepted_for_tolerance_check(): void
+    {
+        $secret = 'whsec_test_secret_1234567890';
+        $this->setWebhookSecret($secret);
+
+        $_ENV['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        $_SERVER['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        putenv('FEDAPAY_WEBHOOK_TOLERANCE=300');
+
+        $payload = [
+            'name' => 'transaction.refunded',
+            'object' => 'transaction',
+            'entity' => [
+                'id' => 123,
+                'status' => 'refunded',
+                'custom_metadata' => [
+                    'type' => 'order_payment',
+                    'order_id' => 1,
+                ],
+            ],
+        ];
+
+        $raw = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        $this->assertNotFalse($raw);
+
+        $timestampSeconds = 1769900002;
+        $timestampMs = (string) ($timestampSeconds * 1000);
+        $this->travelTo(Carbon::createFromTimestamp($timestampSeconds));
+
+        $sig = hash_hmac('sha256', $timestampMs . '.' . $raw, $secret);
+
+        $resp = $this->postRawWebhook($raw, 't=' . $timestampMs . ',v1=' . $sig);
+        $resp->assertOk();
+        $resp->assertJson([
+            'received' => true,
+            'ignored' => true,
+        ]);
+    }
 }

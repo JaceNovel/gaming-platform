@@ -57,12 +57,20 @@ class FedaPayWebhookSignature
         }
 
         $timestamp = (int) $timestampRaw;
+        // Some providers send webhook timestamps in milliseconds.
+        // The HMAC must always use the original timestamp string, but the tolerance check should
+        // compare in seconds.
+        $timestampSeconds = $timestamp;
+        if (strlen($timestampRaw) >= 13 || $timestamp > 20000000000) {
+            $timestampSeconds = (int) floor($timestamp / 1000);
+        }
         $tolerance = max(0, (int) $tolerance);
         if ($tolerance > 0) {
-            $delta = abs(now()->getTimestamp() - $timestamp);
+            $delta = abs(now()->getTimestamp() - $timestampSeconds);
             if ($delta > $tolerance) {
                 Log::warning('fedapay:signature-timestamp-out-of-tolerance', [
-                    'timestamp' => $timestamp,
+                    'timestamp_raw' => $timestampRaw,
+                    'timestamp_seconds' => $timestampSeconds,
                     'delta_seconds' => $delta,
                     'tolerance_seconds' => $tolerance,
                     'raw_sha256' => hash('sha256', $rawBody),
