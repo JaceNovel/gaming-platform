@@ -8,6 +8,11 @@ use Tests\TestCase;
 
 class FedaPayWebhookSignatureUnitTest extends TestCase
 {
+    private function base64UrlEncode(string $binary): string
+    {
+        return rtrim(strtr(base64_encode($binary), '+/', '-_'), '=');
+    }
+
     #[Test]
     public function parse_header_extracts_timestamp_and_v1(): void
     {
@@ -48,6 +53,34 @@ class FedaPayWebhookSignatureUnitTest extends TestCase
         $sig = hash_hmac('sha256', $timestamp . '.' . $raw, $secret);
         $header = 't=' . $timestamp . ',v1=' . $sig;
 
+        $this->assertTrue(FedaPayWebhookSignature::verifyFedapayWebhookSignature($raw, $header, $secret, 0));
+    }
+
+    #[Test]
+    public function verify_accepts_timestamp_dot_raw_base64url_signature(): void
+    {
+        $secret = 'whsec_test_secret_1234567890';
+        $raw = '{"id":"evt_b64url","name":"transaction.approved","entity":{"id":"TX-FEDA-B64URL","status":"approved"}}';
+        $timestamp = '1769900000';
+
+        $bin = hash_hmac('sha256', $timestamp . '.' . $raw, $secret, true);
+        $sig = $this->base64UrlEncode($bin);
+
+        $header = 't=' . $timestamp . ',v1=' . $sig;
+        $this->assertTrue(FedaPayWebhookSignature::verifyFedapayWebhookSignature($raw, $header, $secret, 0));
+    }
+
+    #[Test]
+    public function verify_accepts_timestamp_dot_raw_base64_without_padding(): void
+    {
+        $secret = 'whsec_test_secret_1234567890';
+        $raw = '{"id":"evt_b64nopad","name":"transaction.approved","entity":{"id":"TX-FEDA-B64NOPAD","status":"approved"}}';
+        $timestamp = '1769900000';
+
+        $bin = hash_hmac('sha256', $timestamp . '.' . $raw, $secret, true);
+        $sig = rtrim(base64_encode($bin), '=');
+
+        $header = 't=' . $timestamp . ',v1=' . $sig;
         $this->assertTrue(FedaPayWebhookSignature::verifyFedapayWebhookSignature($raw, $header, $secret, 0));
     }
 

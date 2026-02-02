@@ -6,6 +6,11 @@ use Illuminate\Support\Facades\Log;
 
 class FedaPayWebhookSignature
 {
+    private static function base64UrlEncode(string $binary): string
+    {
+        return rtrim(strtr(base64_encode($binary), '+/', '-_'), '=');
+    }
+
     /**
      * Verify FedaPay webhook signature.
      *
@@ -92,15 +97,23 @@ class FedaPayWebhookSignature
         // Compatibility candidates:
         // A) HMAC(rawBody) as hex and base64
         $expRawHex = hash_hmac('sha256', $rawBody, $secret);
-        $expRawB64 = base64_encode(hash_hmac('sha256', $rawBody, $secret, true));
+        $expRawBin = hash_hmac('sha256', $rawBody, $secret, true);
+        $expRawB64 = base64_encode($expRawBin);
+        $expRawB64NoPad = rtrim($expRawB64, '=');
+        $expRawB64Url = self::base64UrlEncode($expRawBin);
 
         // B) HMAC("{timestamp}.{raw}") as hex and base64
         $expTsHex = null;
         $expTsB64 = null;
+        $expTsB64NoPad = null;
+        $expTsB64Url = null;
         if ($timestampRaw !== null && $timestampRaw !== '') {
             $signedPayload = $timestampRaw . '.' . $rawBody;
             $expTsHex = hash_hmac('sha256', $signedPayload, $secret);
-            $expTsB64 = base64_encode(hash_hmac('sha256', $signedPayload, $secret, true));
+            $expTsBin = hash_hmac('sha256', $signedPayload, $secret, true);
+            $expTsB64 = base64_encode($expTsBin);
+            $expTsB64NoPad = rtrim($expTsB64, '=');
+            $expTsB64Url = self::base64UrlEncode($expTsBin);
         }
 
         $isValid = false;
@@ -126,8 +139,12 @@ class FedaPayWebhookSignature
             $isValid = $isValid
                 || ($expTsHexLower !== null && $sigHex !== null && hash_equals($expTsHexLower, $sigHex))
                 || ($expTsB64 !== null && hash_equals($expTsB64, $sigClean))
+                || ($expTsB64NoPad !== null && hash_equals($expTsB64NoPad, $sigClean))
+                || ($expTsB64Url !== null && hash_equals($expTsB64Url, $sigClean))
                 || ($sigHex !== null && hash_equals($expRawHexLower, $sigHex))
-                || hash_equals($expRawB64, $sigClean);
+                || hash_equals($expRawB64, $sigClean)
+                || hash_equals($expRawB64NoPad, $sigClean)
+                || hash_equals($expRawB64Url, $sigClean);
 
             if ($isValid) {
                 return true;
@@ -138,6 +155,8 @@ class FedaPayWebhookSignature
             'raw_len' => strlen($rawBody),
             'raw_sha256' => hash('sha256', $rawBody),
             'header_prefix' => substr($header, 0, 20),
+            'format' => (string) ($parsed['format'] ?? ''),
+            'secret_len' => strlen($secret),
             'timestamp_present' => !empty($timestampRaw),
             'v1_count' => count($v1List),
             'exp_ts_hex_prefix' => $expTsHex !== null ? substr(strtolower($expTsHex), 0, 8) : null,
