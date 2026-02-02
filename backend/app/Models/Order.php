@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\RedeemDenomination;
 
 class Order extends Model
 {
@@ -97,10 +98,29 @@ class Order extends Model
                     return false;
                 }
 
+                $hasProductDenominations = RedeemDenomination::query()
+                    ->where('active', true)
+                    ->where('product_id', $product->id)
+                    ->exists();
+
+                $rawRedeemSku = trim((string) ($product->redeem_sku ?? ''));
+                $rawSku = trim((string) ($product->sku ?? ''));
+                $hasSkuDenomination = false;
+
+                if ($rawRedeemSku === '' && $rawSku !== '') {
+                    $hasSkuDenomination = RedeemDenomination::query()
+                        ->where('active', true)
+                        ->where('code', $rawSku)
+                        ->exists();
+                }
+
                 return (
                     (string) ($product->stock_mode ?? '') === 'redeem_pool'
                     || (bool) ($product->redeem_code_delivery ?? false)
                     || strtolower((string) ($product->type ?? '')) === 'redeem'
+                    || !empty($product->redeem_sku)
+                    || $hasSkuDenomination
+                    || $hasProductDenominations
                 );
             });
         }
@@ -111,6 +131,14 @@ class Order extends Model
                 $query->where('stock_mode', 'redeem_pool')
                     ->orWhere('redeem_code_delivery', true)
                     ->orWhere('type', 'redeem');
+
+                $query->orWhere(function ($q) {
+                    $q->whereNotNull('redeem_sku')->where('redeem_sku', '!=', '');
+                });
+
+                $query->orWhereHas('redeemDenominations', function ($q) {
+                    $q->where('active', true);
+                });
             })
             ->exists();
     }

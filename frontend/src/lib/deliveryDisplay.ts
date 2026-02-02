@@ -15,6 +15,8 @@ type DeliveryInput = {
   type?: string | null;
   displaySection?: string | null;
   display_section?: string | null;
+  deliveryEtaDays?: number | null;
+  delivery_eta_days?: number | null;
   estimatedDeliveryLabel?: string | null;
   estimated_delivery_label?: string | null;
   deliveryEstimateLabel?: string | null;
@@ -47,52 +49,65 @@ const isAccessory = (type: string, displaySection: string) => {
   return displaySection !== "emote_skin";
 };
 
+const formatEtaDays = (days: number) => {
+  if (!Number.isFinite(days) || days <= 0) return "";
+  if (days <= 1) return "~24h";
+  return `~${Math.round(days)}j`;
+};
+
 export const getDeliveryBadgeDisplay = (product: DeliveryInput | null | undefined): DeliveryBadgeDisplay | null => {
   if (!product) return null;
 
   const type = norm(product.type).toLowerCase();
   const displaySection = norm(product.displaySection ?? product.display_section).toLowerCase();
-  const adminLabel = norm(product.deliveryEstimateLabel ?? product.delivery_estimate_label);
+  const adminLabel =
+    norm(product.deliveryEstimateLabel ?? product.delivery_estimate_label) ||
+    norm(product.estimatedDeliveryLabel ?? product.estimated_delivery_label);
+  const etaRaw = product.deliveryEtaDays ?? product.delivery_eta_days;
+  const etaDays = etaRaw === null || etaRaw === undefined ? null : Number(etaRaw);
+  const etaLabel = etaDays !== null && Number.isFinite(etaDays) ? formatEtaDays(etaDays) : "";
 
   // Règles normalisées.
   if (isRecharge(type, displaySection)) {
     return {
       tone: "bolt",
-      desktopLabel: "⚡ Livraison instantanée",
-      mobileLabel: "⚡ Instantané",
+      desktopLabel: "⚡ Livraison : instantanée",
+      mobileLabel: "⚡ Livraison : instantanée",
     };
   }
 
   if (isSubscription(type)) {
     return {
       tone: "clock",
-      desktopLabel: "⏱️ Livraison estimée : ~2h",
-      mobileLabel: "⏱️ ~2h",
+      desktopLabel: "⏱️ Livraison : ~2h",
+      mobileLabel: "⏱️ Livraison : ~2h",
     };
   }
 
   if (isSkin(type, displaySection)) {
     return {
       tone: "clock",
-      desktopLabel: "⏱️ Livraison estimée : ~2h",
-      mobileLabel: "⏱️ ~2h",
+      desktopLabel: "⏱️ Livraison : ~2h",
+      mobileLabel: "⏱️ Livraison : ~2h",
     };
   }
 
   if (isAccount(type)) {
+    const label = etaLabel || "~24h";
     return {
       tone: "clock",
-      desktopLabel: "⏱️ Livraison estimée : ~24h",
-      mobileLabel: "⏱️ ~24h",
+      desktopLabel: `🕒 Livraison : ${label}`,
+      mobileLabel: `🕒 Livraison : ${label}`,
     };
   }
 
   if (isAccessory(type, displaySection)) {
-    if (!adminLabel) return null;
+    const resolved = adminLabel || etaLabel;
+    if (!resolved) return null;
     return {
       tone: "clock",
-      desktopLabel: `⏱️ Livraison estimée : ${adminLabel}`,
-      mobileLabel: `⏱️ ${adminLabel}`,
+      desktopLabel: `🕒 Livraison : ${resolved}`,
+      mobileLabel: `🕒 Livraison : ${resolved}`,
     };
   }
 

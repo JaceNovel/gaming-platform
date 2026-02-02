@@ -20,6 +20,7 @@ import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
+import ProductCardMobile, { ProductCardMobileSkeleton } from "@/components/shop/ProductCardMobile";
 
 type ShopProduct = {
   id: number;
@@ -367,6 +368,39 @@ function StripCard({
   );
 }
 
+function MobileSectionHeader({
+  title,
+  subtitle,
+  onViewAll,
+}: {
+  title: string;
+  subtitle?: string;
+  onViewAll?: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[18px] font-black tracking-tight text-white">{title}</h2>
+          {subtitle ? <p className="mt-1 text-[13px] text-white/55">{subtitle}</p> : null}
+        </div>
+        {onViewAll ? (
+          <button
+            type="button"
+            onClick={onViewAll}
+            className="mt-0.5 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/75 transition hover:bg-white/10 active:scale-[0.98]"
+          >
+            Voir tout
+            <span aria-hidden>→</span>
+          </button>
+        ) : null}
+      </div>
+
+      <div className="h-px w-full bg-gradient-to-r from-cyan-400/25 via-fuchsia-400/15 to-transparent" />
+    </div>
+  );
+}
+
 function ShopHero() {
   return (
     <div className={`${orbitron.className} flex flex-col items-center text-center`}>
@@ -707,6 +741,67 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
   );
 }
 
+function ResultsGridMobile({
+  products,
+  loading,
+  onAddToCart,
+  onView,
+  onLike,
+  onReset,
+}: {
+  products: ShopProduct[];
+  loading: boolean;
+  onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
+  onView: (product: ShopProduct) => void;
+  onLike: (product: ShopProduct) => void;
+  onReset: () => void;
+}) {
+  const countLabel = `${products.length} article${products.length > 1 ? "s" : ""}`;
+
+  return (
+    <div className="space-y-4 rounded-[28px] border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-bold text-white">Résultats</h3>
+          <p className="mt-1 text-xs text-white/60">{countLabel}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onReset}
+          className="rounded-full border border-white/15 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80"
+        >
+          Reset
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <ProductCardMobileSkeleton key={idx} />
+          ))}
+        </div>
+      ) : !products.length ? (
+        <div className="rounded-3xl border border-white/10 bg-black/30 p-8 text-center text-sm text-white/70">
+          Aucun produit ne correspond à vos filtres.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {products.map((product) => (
+            <ProductCardMobile
+              key={product.id}
+              product={product}
+              onAddToCart={onAddToCart}
+              onView={onView}
+              onLike={onLike}
+              fallbackImageUrl={FALLBACK_PRODUCT_IMAGE}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ShopPage() {
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
@@ -725,6 +820,8 @@ export default function ShopPage() {
   });
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cartSummary, setCartSummary] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
+  const [mobileViewMode, setMobileViewMode] = useState<"sections" | "results">("sections");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -790,6 +887,27 @@ export default function ShopPage() {
       }
     };
   }, [router, query, categoryFilter, priceFilter, promoOnly, sortOrder]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const readCartSummary = () => {
+      try {
+        const stored = localStorage.getItem("bbshop_cart");
+        const parsed = stored ? JSON.parse(stored) : [];
+        const items = Array.isArray(parsed) ? parsed : [];
+        const count = items.reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0);
+        const total = items.reduce((sum, item) => sum + Number(item?.price ?? 0) * Number(item?.quantity ?? 0), 0);
+        setCartSummary({ count, total });
+      } catch {
+        setCartSummary({ count: 0, total: 0 });
+      }
+    };
+
+    readCartSummary();
+    window.addEventListener("storage", readCartSummary);
+    return () => window.removeEventListener("storage", readCartSummary);
+  }, []);
   useEffect(() => {
     let active = true;
     const loadProducts = async () => {
@@ -954,6 +1072,9 @@ export default function ShopPage() {
     }
 
     localStorage.setItem("bbshop_cart", JSON.stringify(nextCart));
+    const nextCount = nextCart.reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0);
+    const nextTotal = nextCart.reduce((sum, item) => sum + Number(item?.price ?? 0) * Number(item?.quantity ?? 0), 0);
+    setCartSummary({ count: nextCount, total: nextTotal });
     triggerFlight(origin ?? null);
     setStatusMessage(`${product.name} ajouté au panier`);
     if (statusTimeoutRef.current) {
@@ -1104,6 +1225,7 @@ export default function ShopPage() {
     setPromoOnly(false);
     setSortOrder("popular");
     setPendingFilters({ category: "all", price: "all", promo: false, sort: "popular" });
+    setMobileViewMode("sections");
   };
 
   const popularProducts = useMemo(() => filtered.filter((p) => p.displaySection === "popular").slice(0, 4), [filtered]);
@@ -1307,16 +1429,17 @@ export default function ShopPage() {
         type="button"
         onClick={openFilterSheet}
         className="fixed right-4 z-50 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/10 shadow-[0_18px_45px_rgba(0,0,0,0.55)] backdrop-blur-md transition hover:border-cyan-300/40 hover:bg-white/15 active:scale-[0.98] lg:hidden"
-        style={{ bottom: "calc(92px + env(safe-area-inset-bottom))" }}
+        style={{ bottom: `calc(var(--bottom-nav-height, 64px) + ${cartSummary.count > 0 ? 96 : 18}px)` }}
         aria-label="Filtrer"
       >
         <Settings2 className="h-5 w-5 text-white/90" />
       </button>
 
       <section className="mobile-shell space-y-4 py-4">
-        {hasActiveFilters && (
-          <ResultsGrid
+        {(hasActiveFilters || mobileViewMode === "results") && (
+          <ResultsGridMobile
             products={filtered}
+            loading={loading}
             onAddToCart={handleAddToCart}
             onView={handleViewProduct}
             onLike={handleToggleLike}
@@ -1324,11 +1447,17 @@ export default function ShopPage() {
           />
         )}
 
-        {!hasActiveFilters && (
+        {!(hasActiveFilters || mobileViewMode === "results") && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Produits populaires</h2>
-          </div>
+          <MobileSectionHeader
+            title="Produits populaires"
+            subtitle="Les plus likés par la communauté."
+            onViewAll={() => {
+              setSortOrder("popular");
+              setPromoOnly(false);
+              setMobileViewMode("results");
+            }}
+          />
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
             {loading
               ? Array.from({ length: 4 }).map((_, idx) => (
@@ -1348,11 +1477,16 @@ export default function ShopPage() {
 
         )}
 
-        {!hasActiveFilters && gamingAccountProducts.length > 0 && (
+        {!(hasActiveFilters || mobileViewMode === "results") && gamingAccountProducts.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold">Compte Gaming</h2>
-            </div>
+            <MobileSectionHeader
+              title="Compte Gaming"
+              subtitle="Comptes mis en avant (livraison ~24h)."
+              onViewAll={() => {
+                setCategoryFilter("all");
+                setMobileViewMode("results");
+              }}
+            />
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
               {loading
                 ? Array.from({ length: 4 }).map((_, idx) => (
@@ -1371,11 +1505,16 @@ export default function ShopPage() {
           </div>
         )}
 
-        {!hasActiveFilters && (
+        {!(hasActiveFilters || mobileViewMode === "results") && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Produit cosmique</h2>
-          </div>
+          <MobileSectionHeader
+            title="Promotions cosmiques"
+            subtitle="Réductions limitées sur les meilleures offres."
+            onViewAll={() => {
+              setPromoOnly(true);
+              setMobileViewMode("results");
+            }}
+          />
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
             {loading
               ? Array.from({ length: 4 }).map((_, idx) => (
@@ -1398,11 +1537,15 @@ export default function ShopPage() {
         </div>
         )}
 
-        {!hasActiveFilters && emoteSkinProducts.length > 0 && (
+        {!(hasActiveFilters || mobileViewMode === "results") && emoteSkinProducts.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold">Emote && Skin</h2>
-            </div>
+            <MobileSectionHeader
+              title="Emote && Skin"
+              subtitle="Emotes et skins à collectionner (~2h)."
+              onViewAll={() => {
+                setMobileViewMode("results");
+              }}
+            />
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
               {loading
                 ? Array.from({ length: 4 }).map((_, idx) => (
@@ -1426,47 +1569,29 @@ export default function ShopPage() {
         )}
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Derniers ajouts</h2>
-          </div>
+          <MobileSectionHeader
+            title="Derniers ajouts"
+            subtitle="Nouveautés, offres et recharges récentes."
+            onViewAll={() => {
+              setSortOrder("recent");
+              setMobileViewMode("results");
+            }}
+          />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {loading
               ? Array.from({ length: 6 }).map((_, idx) => (
-                  <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="h-24 rounded-xl bg-white/10" />
-                    <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
-                  </div>
+                  <ProductCardMobileSkeleton key={idx} />
                 ))
               : latestProducts.map((product) => (
-                  <Link
+                  <ProductCardMobile
                     key={product.id}
-                    href={`/produits/${product.id}`}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-cyan-300/40 hover:bg-white/10"
-                  >
-                    <div className="h-24 overflow-hidden rounded-xl bg-white/10">
-                      <img
-                        src={toDisplayImageSrc(product.bannerUrl ?? product.imageUrl ?? FALLBACK_PRODUCT_IMAGE) ?? (product.bannerUrl ?? product.imageUrl ?? FALLBACK_PRODUCT_IMAGE)}
-                        alt={product.name}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div className="mt-3 text-sm font-semibold text-white line-clamp-2">{product.name}</div>
-                    <div className="mt-1 text-xs text-white/60 line-clamp-2">{product.description}</div>
-                    <div className="mt-3 flex items-center justify-between text-sm">
-                      <div>
-                        <div className="text-sm font-bold text-cyan-200">{product.priceLabel}</div>
-                        {product.oldPrice && (
-                          <div className="text-[10px] text-white/40 line-through">
-                            {formatNumber(product.oldPrice)}
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-[11px] uppercase tracking-[0.3em] text-white/50">
-                        Voir
-                      </span>
-                    </div>
-                  </Link>
+                    product={product}
+                    onAddToCart={handleAddToCart}
+                    onView={handleViewProduct}
+                    onLike={handleToggleLike}
+                    fallbackImageUrl={FALLBACK_PRODUCT_IMAGE}
+                    index={product.id % 10}
+                  />
                 ))}
           </div>
         </div>
@@ -1483,6 +1608,38 @@ export default function ShopPage() {
         onApply={applyFilterSheet}
         onClose={() => setFilterSheetOpen(false)}
       />
+
+      {cartSummary.count > 0 ? (
+        <div
+          className="fixed inset-x-0 z-40 border-t border-white/10 bg-black/70 backdrop-blur-xl lg:hidden"
+          style={{ bottom: "var(--bottom-nav-height, 64px)" }}
+        >
+          <div className="mobile-shell py-3">
+            <Link
+              href="/cart"
+              className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-[0_18px_55px_rgba(0,0,0,0.6)]"
+              aria-label="Ouvrir le panier"
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400/30 via-fuchsia-400/20 to-orange-400/10">
+                  <ShoppingCart className="h-5 w-5 text-white" />
+                  <span className="absolute -right-2 -top-2 rounded-full bg-cyan-400 px-2 py-0.5 text-[11px] font-black text-black">
+                    {cartSummary.count}
+                  </span>
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white">Panier prêt</div>
+                  <div className="text-xs text-white/60">Total: {formatNumber(cartSummary.total)} FCFA</div>
+                </div>
+              </div>
+
+              <span className="rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-black">
+                Commander
+              </span>
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
     </main>
   );
