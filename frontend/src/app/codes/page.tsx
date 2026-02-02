@@ -138,13 +138,7 @@ function CodesClient() {
   const [banner, setBanner] = useState<string | null>(null);
   const loadSeq = useRef(0);
 
-  const topupBanner = useMemo(() => {
-    const status = (searchParams.get("topup_status") ?? "").toLowerCase();
-    if (!status) return null;
-    if (["success", "completed", "paid"].includes(status)) return "Recharge wallet réussie.";
-    if (["failed", "cancelled", "canceled"].includes(status)) return "Recharge wallet échouée ou annulée.";
-    return "Recharge wallet en attente de confirmation.";
-  }, [searchParams]);
+  // Wallet topups have been removed.
 
   const redeemOrders = useMemo(() => orders.filter(isRedeemOrder), [orders]);
 
@@ -263,16 +257,7 @@ function CodesClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (topupBanner) {
-      setBanner(topupBanner);
-      const timer = window.setTimeout(() => {
-        setBanner(null);
-        router.replace("/codes");
-      }, 4500);
-      return () => window.clearTimeout(timer);
-    }
-  }, [router, topupBanner]);
+  // Wallet topups have been removed.
 
   return (
     <div className="min-h-screen text-white">

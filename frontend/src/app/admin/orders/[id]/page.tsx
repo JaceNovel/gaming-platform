@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
@@ -20,6 +20,9 @@ type Order = {
   reference?: string | null;
   status?: string | null;
   total_price?: number | null;
+  refunded_amount?: number | null;
+  status_refund?: string | null;
+  refunded_at?: string | null;
   created_at?: string | null;
   payment?: { status?: string | null } | null;
   shipping_status?: string | null;
@@ -34,6 +37,16 @@ type Order = {
   user?: { name?: string | null; email?: string | null; country_code?: string | null } | null;
   order_items?: OrderItem[];
   orderItems?: OrderItem[];
+  refunds?: RefundRow[];
+};
+
+type RefundRow = {
+  id: number;
+  amount?: number | null;
+  reference?: string | null;
+  reason?: string | null;
+  status?: string | null;
+  created_at?: string | null;
 };
 
 const getAuthHeaders = (): Record<string, string> => {
@@ -58,7 +71,6 @@ const toOutcomeLabel = (raw?: string | null) => {
 
 export default function AdminOrderDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const orderId = Number(params?.id);
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
@@ -68,6 +80,14 @@ export default function AdminOrderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [docLoading, setDocLoading] = useState(false);
+
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [refundType, setRefundType] = useState<"full" | "partial">("full");
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [refundConfirm, setRefundConfirm] = useState(false);
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [refundMessage, setRefundMessage] = useState<string | null>(null);
 
   const loadOrder = useCallback(async () => {
     if (!Number.isFinite(orderId)) return;
@@ -203,6 +223,65 @@ export default function AdminOrderDetailPage() {
     }
   };
 
+  const paidAmount = useMemo(() => Number(order?.total_price ?? 0), [order?.total_price]);
+  const refundedAmount = useMemo(() => Number(order?.refunded_amount ?? 0), [order?.refunded_amount]);
+  const remainingRefundable = useMemo(() => {
+    const remaining = paidAmount - refundedAmount;
+    return remaining > 0 ? remaining : 0;
+  }, [paidAmount, refundedAmount]);
+
+  const refunds = useMemo(() => order?.refunds ?? [], [order?.refunds]);
+
+  const canRefund = useMemo(() => {
+    const status = String(order?.status ?? "").toLowerCase();
+    const isPaid = status.includes("success") || status.includes("paid") || status.includes("completed");
+    return Boolean(order && isPaid && remainingRefundable > 0);
+  }, [order, remainingRefundable]);
+
+  const openRefundModal = () => {
+    setRefundType("full");
+    setRefundAmount("");
+    setRefundReason("");
+    setRefundConfirm(false);
+    setRefundMessage(null);
+    setRefundModalOpen(true);
+  };
+
+  const submitRefund = async () => {
+    if (!order) return;
+    setRefundSubmitting(true);
+    setRefundMessage(null);
+    try {
+      const amountValue = refundType === "partial" ? Number(refundAmount) : undefined;
+      const res = await fetch(`${API_BASE}/admin/orders/${order.id}/refund`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          type: refundType,
+          amount: amountValue,
+          reason: refundReason || null,
+          confirm: refundConfirm,
+        }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = payload?.message ?? payload?.errors?.order?.[0] ?? payload?.errors?.amount?.[0] ?? "Remboursement impossible";
+        throw new Error(msg);
+      }
+
+      setRefundMessage("Remboursement effectué.");
+      setRefundModalOpen(false);
+      await loadOrder();
+    } catch (e: any) {
+      setRefundMessage(e?.message ?? "Remboursement impossible");
+    } finally {
+      setRefundSubmitting(false);
+    }
+  };
+
   return (
     <AdminShell title="Détail commande" subtitle={`Commande #${orderId}`}>
       {error && (
@@ -253,6 +332,61 @@ export default function AdminOrderDetailPage() {
           >
             {paymentSaving ? "Enregistrement..." : "Marquer échec"}
           </button>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-sm font-semibold text-slate-700">Remboursement</div>
+          <button
+            type="button"
+            onClick={openRefundModal}
+            disabled={!canRefund}
+            className="rounded-xl bg-slate-900 px-3 py-2 text-xs text-white disabled:opacity-50"
+          >
+            Rembourser
+          </button>
+        </div>
+
+        <div className="grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+          <div>
+            <div className="text-slate-400">Payé</div>
+            <div className="font-semibold">{formatAmount(paidAmount)}</div>
+          </div>
+          <div>
+            <div className="text-slate-400">Déjà remboursé</div>
+            <div className="font-semibold">{formatAmount(refundedAmount)}</div>
+          </div>
+          <div>
+            <div className="text-slate-400">Reste remboursable</div>
+            <div className="font-semibold">{formatAmount(remainingRefundable)}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 text-xs text-slate-500">
+          Statut: {order?.status_refund ?? "none"}{order?.refunded_at ? ` • Full le ${order.refunded_at}` : ""}
+        </div>
+
+        <div className="mt-5">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Historique</div>
+          {refunds.length === 0 ? (
+            <div className="text-sm text-slate-500">Aucun remboursement.</div>
+          ) : (
+            <div className="space-y-2">
+              {refunds.map((r) => (
+                <div key={r.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-semibold">{formatAmount(Number(r.amount ?? 0))}</div>
+                    <div className="text-xs text-slate-500">{r.created_at ?? "—"}</div>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-600">
+                    <span className="text-slate-400">Ref:</span> {r.reference ?? "—"} • <span className="text-slate-400">Statut:</span> {r.status ?? "—"}
+                  </div>
+                  {r.reason ? <div className="mt-1 text-xs text-slate-600">{r.reason}</div> : null}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -311,7 +445,7 @@ export default function AdminOrderDetailPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => router.back()}
+                  onClick={() => window.history.back()}
                   className="rounded-xl border border-slate-200 px-3 py-2 text-xs"
                 >
                   Retour
@@ -321,6 +455,95 @@ export default function AdminOrderDetailPage() {
           </div>
         )}
       </div>
+
+      {refundModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setRefundModalOpen(false)} />
+          <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Remboursement</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900">Créditer le wallet</div>
+                <div className="mt-1 text-sm text-slate-600">
+                  Aucun remboursement FedaPay/CinetPay: crédit interne uniquement.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-700"
+                onClick={() => setRefundModalOpen(false)}
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm text-slate-700">
+                Type
+                <select
+                  value={refundType}
+                  onChange={(e) => setRefundType(e.target.value as "full" | "partial")}
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                >
+                  <option value="full">Total (reste: {formatAmount(remainingRefundable)})</option>
+                  <option value="partial">Partiel</option>
+                </select>
+              </label>
+
+              {refundType === "partial" && (
+                <label className="block text-sm text-slate-700">
+                  Montant (FCFA)
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={refundAmount}
+                    onChange={(e) => setRefundAmount(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                    placeholder="1000"
+                  />
+                  <div className="mt-1 text-xs text-slate-500">Max: {formatAmount(remainingRefundable)}</div>
+                </label>
+              )}
+
+              <label className="block text-sm text-slate-700">
+                Raison (optionnel)
+                <input
+                  type="text"
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                  placeholder="Ex: commande annulée"
+                />
+              </label>
+
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={refundConfirm}
+                  onChange={(e) => setRefundConfirm(e.target.checked)}
+                />
+                Je confirme le crédit wallet
+              </label>
+
+              {refundMessage ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  {refundMessage}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                disabled={refundSubmitting || !refundConfirm}
+                onClick={() => void submitRefund()}
+                className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {refundSubmitting ? "Traitement..." : "Confirmer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 text-sm font-semibold text-slate-700">Articles physiques</div>

@@ -236,22 +236,16 @@ function AccountClient() {
   const disableCountryForm = !HAS_API_ENV;
   const [vipModalOpen, setVipModalOpen] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
-  const [rechargeModalOpen, setRechargeModalOpen] = useState(false);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>(DEFAULT_WALLET_TRANSACTIONS);
   const [walletHistoryLoading, setWalletHistoryLoading] = useState(HAS_API_ENV);
   const [walletBalanceState, setWalletBalanceState] = useState(me?.walletBalanceFcfa ?? 0);
   const [referralToast, setReferralToast] = useState<string | null>(null);
-  const [rechargeAmount, setRechargeAmount] = useState("");
-  const [rechargeProcessing, setRechargeProcessing] = useState(false);
-  const [rechargeStatus, setRechargeStatus] = useState<"idle" | "success" | "error">("idle");
-  const [rechargeMessage, setRechargeMessage] = useState("");
   const [ordersModalOpen, setOrdersModalOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [countryFormCode, setCountryFormCode] = useState(me?.countryCode ?? "CI");
   const [countrySubmitting, setCountrySubmitting] = useState(false);
   const [countryStatus, setCountryStatus] = useState<"idle" | "success" | "error">("idle");
   const [countryMessage, setCountryMessage] = useState("");
-  const [topupBanner, setTopupBanner] = useState<string | null>(null);
   const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
 
   const referralInviteUrl = useMemo(() => {
@@ -261,23 +255,7 @@ function AccountClient() {
     return `${window.location.origin}/auth/register?ref=${encodeURIComponent(code)}`;
   }, [me?.referralCode]);
 
-  useEffect(() => {
-    const status = (searchParams.get('topup_status') ?? '').toLowerCase();
-    if (!status) return;
-
-    if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
-      setTopupBanner('Recharge wallet échouée ou annulée.');
-    } else {
-      setTopupBanner('Recharge wallet en attente de confirmation.');
-    }
-
-    const timer = setTimeout(() => {
-      setTopupBanner(null);
-      router.replace('/account');
-    }, 4500);
-
-    return () => clearTimeout(timer);
-  }, [router, searchParams]);
+  // Wallet topups have been removed.
 
   useEffect(() => {
     const status = (searchParams.get('payment_status') ?? '').toLowerCase();
@@ -669,83 +647,6 @@ function AccountClient() {
     setWalletModalOpen(false);
   };
 
-  const handleAddFundsClick = () => {
-    setRechargeModalOpen(true);
-    setRechargeAmount("");
-    setRechargeStatus("idle");
-    setRechargeMessage("");
-  };
-
-  const closeRechargeModal = () => {
-    setRechargeModalOpen(false);
-    setRechargeStatus("idle");
-    setRechargeMessage("");
-    setRechargeAmount("");
-  };
-
-  const handleRechargeSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const amountValue = Number(rechargeAmount);
-    if (!Number.isFinite(amountValue) || amountValue <= 0) {
-      setRechargeStatus("error");
-      setRechargeMessage("Montant invalide.");
-      return;
-    }
-    setRechargeProcessing(true);
-    setRechargeStatus("idle");
-    setRechargeMessage("Connexion au paiement...");
-    try {
-      if (!HAS_API_ENV) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        setRechargeStatus("success");
-        setRechargeMessage(
-          `Paiement activé pour ${formatCurrency(amountValue, me?.countryCode)} (mode démo).`,
-        );
-        setWalletBalanceState((prev) => prev + amountValue);
-        setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: prev.walletBalanceFcfa + amountValue } : prev));
-        return;
-      }
-      const res = await authFetch(`${API_BASE}/wallet/topup/init`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: amountValue,
-          return_url: `${window.location.origin}/wallet/topup/return`,
-        }),
-      });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
-        const msg = payload?.message ?? "Impossible de lancer le paiement";
-        throw new Error(msg);
-      }
-      const paymentUrl = typeof payload?.payment_url === "string" ? payload.payment_url : "";
-      if (!paymentUrl) {
-        throw new Error("Lien de paiement indisponible");
-      }
-
-      try {
-        const hint = {
-          provider: "fedapay",
-          transaction_id: payload?.transaction_id ? String(payload.transaction_id) : undefined,
-          order_id: payload?.order_id ? String(payload.order_id) : undefined,
-          reference: payload?.reference ? String(payload.reference) : undefined,
-          created_at: new Date().toISOString(),
-        };
-        localStorage.setItem("bbshop_last_topup", JSON.stringify(hint));
-      } catch {
-        // best effort
-      }
-
-      setRechargeStatus("success");
-      setRechargeMessage("Redirection vers FedaPay...");
-      window.location.href = paymentUrl;
-    } catch (error: any) {
-      setRechargeStatus("error");
-      setRechargeMessage(error?.message ?? "Erreur inattendue");
-    } finally {
-      setRechargeProcessing(false);
-    }
-  };
 
   if (!me || authLoading || loadingProfile) {
     return <ProfileLoading />;
@@ -789,11 +690,7 @@ function AccountClient() {
                 {paymentBanner}
               </div>
             )}
-            {topupBanner && (
-              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-sm text-cyan-100">
-                {topupBanner}
-              </div>
-            )}
+            {null}
             {missingCountry && (
               <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
                 Pays manquant. Merci de compléter ton pays dans le profil pour afficher le drapeau.
@@ -858,7 +755,6 @@ function AccountClient() {
                 walletDisplay={walletDisplay}
                 walletCurrencyLabel={walletCurrencyLabel}
                 onChangeAvatar={() => setPickerOpen(true)}
-                onAddFunds={handleAddFundsClick}
                 onUseFunds={handleUseFunds}
               />
             </div>
@@ -1124,16 +1020,6 @@ function AccountClient() {
                       type="button"
                       onClick={() => {
                         closeWalletModal();
-                        handleAddFundsClick();
-                      }}
-                      className="rounded-2xl border border-yellow-300/30 bg-yellow-500/20 px-4 py-2.5 text-sm font-semibold hover:bg-yellow-500/30"
-                    >
-                      Recharger via FedaPay
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeWalletModal();
                         handleUseFunds();
                       }}
                       className="rounded-2xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20"
@@ -1229,21 +1115,11 @@ function AccountClient() {
                       type="button"
                       onClick={() => {
                         closeWalletModal();
-                        handleAddFundsClick();
-                      }}
-                      className="rounded-2xl border border-yellow-300/30 bg-yellow-500/20 px-4 py-2 text-sm font-semibold"
-                    >
-                      Recharger
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeWalletModal();
                         handleUseFunds();
                       }}
                       className="rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold"
                     >
-                      Utiliser
+                      Aller à la boutique
                     </button>
                   </div>
                   <button
@@ -1409,63 +1285,7 @@ function AccountClient() {
           </div>
         )
       )}
-
-
-      {rechargeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeRechargeModal} />
-          <div className="relative z-10 w-full max-w-md rounded-[28px] border border-white/20 bg-black/90 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.85)]">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Recharge wallet</p>
-                <h2 className="mt-2 text-2xl font-semibold">Choisir un montant</h2>
-                <p className="mt-1 text-sm text-white/70">Une fois validé, le paiement s'active automatiquement.</p>
-              </div>
-              <button
-                className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
-                onClick={closeRechargeModal}
-              >
-                Fermer
-              </button>
-            </div>
-            <form onSubmit={handleRechargeSubmit} className="mt-6 space-y-4">
-              <label className="text-sm text-white/80">
-                Montant ({walletCurrencyLabel})
-                <input
-                  type="number"
-                  min="100"
-                  step="100"
-                  value={rechargeAmount}
-                  onChange={(event) => setRechargeAmount(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-base focus:border-cyan-300 focus:outline-none"
-                  placeholder="1000"
-                  required
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={rechargeProcessing}
-                className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
-              >
-                {rechargeProcessing ? "Connexion..." : "Lancer FedaPay"}
-              </button>
-            </form>
-            {rechargeMessage && (
-              <p
-                className={`mt-4 text-sm ${
-                  rechargeStatus === "success"
-                    ? "text-emerald-300"
-                    : rechargeStatus === "error"
-                      ? "text-rose-300"
-                      : "text-white/70"
-                }`}
-              >
-                {rechargeMessage}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+      {null}
 
       {vipModalOpen && !isDesktop && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">

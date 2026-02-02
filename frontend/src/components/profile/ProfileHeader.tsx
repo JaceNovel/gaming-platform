@@ -13,7 +13,6 @@ type ProfileHeaderProps = {
   walletDisplay: string;
   walletCurrencyLabel: string;
   onChangeAvatar: () => void;
-  onAddFunds: () => void;
   onUseFunds: () => void;
 };
 
@@ -25,7 +24,6 @@ export default function ProfileHeader({
   walletDisplay,
   walletCurrencyLabel,
   onChangeAvatar,
-  onAddFunds,
   onUseFunds,
 }: ProfileHeaderProps) {
   const safeCode = (countryCode ?? "FR").toUpperCase();
@@ -78,12 +76,6 @@ export default function ProfileHeader({
                 <p className="mt-2 text-xs text-white/70">Affiché en {walletCurrencyLabel}.</p>
               </div>
               <div className="flex justify-center gap-3">
-                <button
-                  onClick={onAddFunds}
-                  className="px-4 py-2 rounded-2xl bg-yellow-500/20 border border-yellow-300/20 hover:bg-yellow-500/25 transition text-sm"
-                >
-                  Ajouter des fonds
-                </button>
                 <button
                   onClick={onUseFunds}
                   className="px-4 py-2 rounded-2xl bg-white/10 border border-white/15 hover:bg-white/15 transition text-sm"

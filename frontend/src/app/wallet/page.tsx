@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
@@ -92,10 +92,6 @@ function WalletClient() {
   const [limit, setLimit] = useState<10 | 25 | 50>(25);
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
 
-  const [topupAmount, setTopupAmount] = useState("1000");
-  const [topupProcessing, setTopupProcessing] = useState(false);
-  const [topupMessage, setTopupMessage] = useState<string | null>(null);
-
   const refreshSeq = useRef(0);
 
   const hasPendingTx = useMemo(
@@ -162,23 +158,7 @@ function WalletClient() {
     }
   };
 
-  useEffect(() => {
-    const status = (searchParams.get("topup_status") ?? "").toLowerCase();
-    if (!status) return;
-
-    if (status === "failed" || status === "cancelled" || status === "canceled") {
-      setBanner("Recharge wallet échouée ou annulée.");
-    } else {
-      setBanner("Recharge wallet en attente de confirmation.");
-    }
-
-    const timer = window.setTimeout(() => {
-      setBanner(null);
-      router.replace("/wallet");
-    }, 4500);
-
-    return () => window.clearTimeout(timer);
-  }, [router, searchParams]);
+  // Wallet topups have been removed.
 
   useEffect(() => {
     void loadWallet();
@@ -226,84 +206,6 @@ function WalletClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasPendingTx, limit]);
 
-  const handleTopup = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const amountValue = Number(topupAmount);
-
-    if (!Number.isFinite(amountValue) || amountValue <= 0) {
-      setTopupMessage("Montant invalide.");
-      return;
-    }
-
-    setTopupProcessing(true);
-    setTopupMessage("Connexion au paiement...");
-
-    try {
-      const res = await authFetch(`${API_BASE}/wallet/topup/init`, {
-        method: "POST",
-        body: JSON.stringify({
-          amount: amountValue,
-          return_url: `${window.location.origin}/wallet/topup/return`,
-        }),
-      });
-
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(payload?.message ?? "Impossible de lancer le paiement");
-      }
-
-      const paymentUrl = typeof payload?.payment_url === "string" ? payload.payment_url : "";
-      if (!paymentUrl) {
-        throw new Error("Lien de paiement indisponible");
-      }
-
-      try {
-        const hint = {
-          provider: "fedapay",
-          transaction_id: payload?.transaction_id ? String(payload.transaction_id) : undefined,
-          order_id: payload?.order_id ? String(payload.order_id) : undefined,
-          reference: payload?.reference ? String(payload.reference) : undefined,
-          created_at: new Date().toISOString(),
-        };
-        localStorage.setItem("bbshop_last_topup", JSON.stringify(hint));
-      } catch {
-        // best effort
-      }
-
-      setTopupMessage("Redirection vers FedaPay...");
-      window.location.href = paymentUrl;
-    } catch (error: any) {
-      setTopupMessage(error?.message ?? "Erreur inattendue");
-      setTopupProcessing(false);
-    }
-  };
-
-  const verifyTopup = async (tx: WalletTx) => {
-    if (!HAS_API_ENV) return;
-    if (tx.status !== "pending") return;
-
-    const hasOrderId = typeof tx.order_id === "number" && Number.isFinite(tx.order_id) && (tx.order_id ?? 0) > 0;
-    const hasTransactionId = Boolean(tx.transaction_id);
-    if (!hasOrderId && !hasTransactionId) {
-      setBanner("Impossible de vérifier: identifiant manquant.");
-      window.setTimeout(() => setBanner(null), 2500);
-      return;
-    }
-
-    setBanner("Vérification du paiement...");
-    try {
-      const qs = hasOrderId
-        ? `order_id=${encodeURIComponent(String(tx.order_id))}`
-        : `transaction_id=${encodeURIComponent(String(tx.transaction_id))}`;
-      await authFetch(`${API_BASE}/payments/fedapay/status?${qs}`);
-      await loadWallet();
-      setBanner("Actualisation terminée.");
-    } catch {
-      setBanner("Vérification impossible. Réessaie plus tard.");
-    } finally {
-      window.setTimeout(() => setBanner(null), 2500);
-    }
-  };
 
   const supportMessage = useMemo(() => {
     return "Bonjour, j’ai besoin d’aide concernant mon wallet.";
@@ -370,36 +272,7 @@ function WalletClient() {
                 </GlowButton>
               </div>
 
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/45">Recharger</p>
-                <p className="mt-1 text-sm text-white/60">Paiement via FedaPay. Aucun plafond journalier.</p>
-
-                <form onSubmit={handleTopup} className="mt-4 space-y-3">
-                  <label className="block text-sm text-white/80">
-                    Montant ({currencyLabel})
-                    <input
-                      type="number"
-                      min="100"
-                      step="100"
-                      value={topupAmount}
-                      onChange={(e) => setTopupAmount(e.target.value)}
-                      className="mt-2 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-base focus:border-cyan-300 focus:outline-none"
-                      placeholder="1000"
-                      required
-                    />
-                  </label>
-
-                  <button
-                    type="submit"
-                    disabled={topupProcessing}
-                    className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
-                  >
-                    {topupProcessing ? "Connexion..." : "Lancer FedaPay"}
-                  </button>
-
-                  {topupMessage ? <p className="text-sm text-white/70">{topupMessage}</p> : null}
-                </form>
-              </div>
+              {/* Recharge wallet supprimée */}
             </div>
 
             <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
@@ -465,15 +338,7 @@ function WalletClient() {
                               </button>
                             ) : null}
 
-                            {tx.status === "pending" ? (
-                              <button
-                                type="button"
-                                onClick={() => void verifyTopup(tx)}
-                                className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100"
-                              >
-                                Vérifier
-                              </button>
-                            ) : null}
+                            {null}
                           </div>
 
                           {tx.status === "pending" && (tx.order_status || tx.payment_status) ? (
@@ -499,10 +364,8 @@ function WalletClient() {
               )}
 
               <div className="mt-6 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-                <p>Après une recharge, l’historique se met à jour automatiquement.</p>
-                <p className="mt-2 text-xs text-white/70">
-                  Si ça tarde, clique sur “Actualiser” ou ouvre le support.
-                </p>
+                <p>Ton wallet se met à jour automatiquement.</p>
+                <p className="mt-2 text-xs text-white/70">En cas de souci, clique sur “Actualiser” ou ouvre le support.</p>
               </div>
 
               <div className="mt-4 text-xs text-white/50">
