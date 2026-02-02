@@ -35,20 +35,28 @@ class FedaPayWebhookSignature
             return false;
         }
 
-        $parsed = self::parseSignatureHeader($header);
-        $timestampRaw = (string) ($parsed['timestamp'] ?? '');
-        $v1List = (array) ($parsed['v1'] ?? []);
+        $parsed = self::parseFedaPaySignatureHeader($header);
+        $timestampRaw = $parsed['timestamp'];
+        $v1List = $parsed['v1'];
 
-        if ($timestampRaw === '' || count($v1List) === 0) {
-            Log::warning('fedapay:signature-invalid-format', [
-                'header_prefix' => substr($header, 0, 40),
-                'timestamp_present' => $timestampRaw !== '',
-                'v1_count' => count($v1List),
-            ]);
-            return false;
+        // IMPORTANT: if it looks like composite format but no v1 found => reject.
+        if ($parsed['format'] === 't_v1') {
+            if (empty($timestampRaw) || count($v1List) === 0) {
+                Log::warning('fedapay:invalid-signature', [
+                    'raw_len' => strlen($rawBody),
+                    'raw_sha256' => hash('sha256', $rawBody),
+                    'header_prefix' => substr($header, 0, 20),
+                    'timestamp_present' => !empty($timestampRaw),
+                    'v1_count' => count($v1List),
+                    'exp_ts_hex_prefix' => null,
+                    'exp_raw_hex_prefix' => substr(hash_hmac('sha256', $rawBody, $secret), 0, 8),
+                    'first_sig_prefix' => substr((string) ($v1List[0] ?? ''), 0, 8),
+                ]);
+                return false;
+            }
         }
 
-        if (!ctype_digit($timestampRaw)) {
+        if ($timestampRaw !== null && $timestampRaw !== '' && !ctype_digit($timestampRaw)) {
             Log::warning('fedapay:signature-invalid-timestamp', [
                 'timestamp' => $timestampRaw,
                 'header_prefix' => substr($header, 0, 40),
@@ -56,16 +64,18 @@ class FedaPayWebhookSignature
             return false;
         }
 
-        $timestamp = (int) $timestampRaw;
+        $timestamp = $timestampRaw !== null && $timestampRaw !== '' ? (int) $timestampRaw : null;
         // Some providers send webhook timestamps in milliseconds.
         // The HMAC must always use the original timestamp string, but the tolerance check should
         // compare in seconds.
         $timestampSeconds = $timestamp;
-        if (strlen($timestampRaw) >= 13 || $timestamp > 20000000000) {
-            $timestampSeconds = (int) floor($timestamp / 1000);
+        if ($timestamp !== null && $timestampRaw !== null) {
+            if (strlen($timestampRaw) >= 13 || $timestamp > 20000000000) {
+                $timestampSeconds = (int) floor($timestamp / 1000);
+            }
         }
         $tolerance = max(0, (int) $tolerance);
-        if ($tolerance > 0) {
+        if ($tolerance > 0 && $timestampSeconds !== null) {
             $delta = abs(now()->getTimestamp() - $timestampSeconds);
             if ($delta > $tolerance) {
                 Log::warning('fedapay:signature-timestamp-out-of-tolerance', [
@@ -79,12 +89,47 @@ class FedaPayWebhookSignature
             }
         }
 
-        $expected = hash_hmac('sha256', $timestampRaw . '.' . $rawBody, $secret);
-        $expectedLower = strtolower($expected);
+        // Compatibility candidates:
+        // A) HMAC(rawBody) as hex and base64
+        $expRawHex = hash_hmac('sha256', $rawBody, $secret);
+        $expRawB64 = base64_encode(hash_hmac('sha256', $rawBody, $secret, true));
 
+        // B) HMAC("{timestamp}.{raw}") as hex and base64
+        $expTsHex = null;
+        $expTsB64 = null;
+        if ($timestampRaw !== null && $timestampRaw !== '') {
+            $signedPayload = $timestampRaw . '.' . $rawBody;
+            $expTsHex = hash_hmac('sha256', $signedPayload, $secret);
+            $expTsB64 = base64_encode(hash_hmac('sha256', $signedPayload, $secret, true));
+        }
+
+        $isValid = false;
         foreach ($v1List as $sig) {
-            $sig = strtolower(self::cleanValue((string) $sig));
-            if ($sig !== '' && hash_equals($expectedLower, $sig)) {
+            $sig = trim((string) $sig);
+            if ($sig === '') {
+                continue;
+            }
+
+            // Remove any accidental "v1=" prefix.
+            if (str_starts_with(strtolower($sig), 'v1=')) {
+                $sig = substr($sig, 3);
+                $sig = trim($sig);
+            }
+
+            $sigClean = self::cleanValue($sig);
+
+            // Hex signatures are case-insensitive.
+            $sigHex = ctype_xdigit($sigClean) ? strtolower($sigClean) : null;
+            $expRawHexLower = strtolower($expRawHex);
+            $expTsHexLower = $expTsHex !== null ? strtolower($expTsHex) : null;
+
+            $isValid = $isValid
+                || ($expTsHexLower !== null && $sigHex !== null && hash_equals($expTsHexLower, $sigHex))
+                || ($expTsB64 !== null && hash_equals($expTsB64, $sigClean))
+                || ($sigHex !== null && hash_equals($expRawHexLower, $sigHex))
+                || hash_equals($expRawB64, $sigClean);
+
+            if ($isValid) {
                 return true;
             }
         }
@@ -92,11 +137,12 @@ class FedaPayWebhookSignature
         Log::warning('fedapay:invalid-signature', [
             'raw_len' => strlen($rawBody),
             'raw_sha256' => hash('sha256', $rawBody),
-            'header_prefix' => substr($header, 0, 40),
-            'timestamp' => $timestampRaw,
+            'header_prefix' => substr($header, 0, 20),
+            'timestamp_present' => !empty($timestampRaw),
             'v1_count' => count($v1List),
-            'expected_prefix' => substr($expectedLower, 0, 8),
-            'first_sig_prefix' => isset($v1List[0]) ? substr(strtolower(self::cleanValue((string) $v1List[0])), 0, 8) : null,
+            'exp_ts_hex_prefix' => $expTsHex !== null ? substr(strtolower($expTsHex), 0, 8) : null,
+            'exp_raw_hex_prefix' => substr(strtolower($expRawHex), 0, 8),
+            'first_sig_prefix' => substr((string) ($v1List[0] ?? ''), 0, 8),
         ]);
 
         return false;
@@ -115,14 +161,18 @@ class FedaPayWebhookSignature
     }
 
     /**
-     * @return array{timestamp:?string,v1:array<string>}
+     * @return array{timestamp:?string,v1:array<string>,format:string}
      */
-    public static function parseSignatureHeader(string $header): array
+    public static function parseFedaPaySignatureHeader(string $h): array
     {
+        $header = trim($h);
         $timestamp = null;
         $v1 = [];
 
-        // Split on commas (e.g. t=...,v1=...,v1=...)
+        // Support:
+        // - "t=...,v1=..."
+        // - "t=..., v1=..., v1=..."
+        // Fallback raw: if not parseable, treat header as a single signature candidate.
         $parts = array_map('trim', explode(',', $header));
         foreach ($parts as $part) {
             if ($part === '' || !str_contains($part, '=')) {
@@ -144,7 +194,33 @@ class FedaPayWebhookSignature
             }
         }
 
-        return ['timestamp' => $timestamp, 'v1' => $v1];
+        $hasCompositeIndicators = str_contains($header, 't=') || str_contains($header, 'v1=');
+
+        if ($timestamp !== null || count($v1) > 0 || $hasCompositeIndicators) {
+            return [
+                'timestamp' => $timestamp,
+                'v1' => $v1,
+                'format' => 't_v1',
+            ];
+        }
+
+        $rawSig = self::cleanValue($header);
+        return [
+            'timestamp' => null,
+            'v1' => $rawSig !== '' ? [$rawSig] : [],
+            'format' => 'raw',
+        ];
+    }
+
+    /**
+     * Back-compat alias.
+     *
+     * @return array{timestamp:?string,v1:array<string>}
+     */
+    public static function parseSignatureHeader(string $header): array
+    {
+        $parsed = self::parseFedaPaySignatureHeader($header);
+        return ['timestamp' => $parsed['timestamp'], 'v1' => $parsed['v1']];
     }
 
     private static function cleanValue(string $value): string

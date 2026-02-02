@@ -14,22 +14,15 @@ class FedaPayWebhookController extends Controller
 {
     public function handle(Request $request)
     {
-        // 1) Read raw body EXACT (never re-encode JSON)
+        // 1) RAW BODY exact
         $raw = (string) $request->getContent();
 
-        // 2) Header + signature verification (NEVER use FEDAPAY_SECRET_KEY here)
+        // 2) Header
         $signatureHeader = (string) $request->header('x-fedapay-signature', '');
+
+        // 3) Verify signature (401 JSON on invalid)
         $webhookSecret = (string) env('FEDAPAY_WEBHOOK_SECRET', '');
         $tolerance = (int) env('FEDAPAY_WEBHOOK_TOLERANCE', 300);
-
-        $sigParsed = FedaPayWebhookSignature::parseSignatureHeader($signatureHeader);
-        $t = (string) ($sigParsed['timestamp'] ?? '');
-        $v1Prefix = null;
-        if (!empty($sigParsed['v1']) && is_array($sigParsed['v1'])) {
-            $first = (string) ($sigParsed['v1'][0] ?? '');
-            $v1Prefix = $first !== '' ? substr($first, 0, 8) : null;
-        }
-
         if (!FedaPayWebhookSignature::verifyFedapayWebhookSignature($raw, $signatureHeader, $webhookSecret, $tolerance)) {
             return response()->json(['received' => false], Response::HTTP_UNAUTHORIZED);
         }
@@ -46,6 +39,13 @@ class FedaPayWebhookController extends Controller
         }
 
         $eventName = strtolower((string) Arr::get($payload, 'name', ''));
+        $sigParsed = FedaPayWebhookSignature::parseFedaPaySignatureHeader($signatureHeader);
+        $t = (string) ($sigParsed['timestamp'] ?? '');
+        $v1Prefix = null;
+        if (!empty($sigParsed['v1']) && is_array($sigParsed['v1'])) {
+            $first = (string) ($sigParsed['v1'][0] ?? '');
+            $v1Prefix = $first !== '' ? substr($first, 0, 8) : null;
+        }
         Log::debug('fedapay:webhook', [
             'event' => $eventName,
             't' => $t !== '' ? $t : null,
@@ -74,8 +74,8 @@ class FedaPayWebhookController extends Controller
                 return response()->json(['received' => true, 'ignored' => true]);
             }
 
-            // Only process supported transaction events.
-            if (in_array($eventName, ['transaction.approved', 'transaction.declined', 'transaction.canceled', 'transaction.cancelled'], true)) {
+            // Process all transaction.* events (job decides if status is final or pending).
+            if (str_starts_with($eventName, 'transaction.')) {
                 ProcessFedaPayWebhook::dispatch($payload)->afterResponse();
                 return response()->json(['received' => true]);
             }

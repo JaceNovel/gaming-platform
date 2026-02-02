@@ -110,6 +110,27 @@ class FedaPayWebhookSignatureTest extends TestCase
     }
 
     #[Test]
+    public function legacy_raw_signature_header_is_accepted(): void
+    {
+        $secret = 'whsec_test_secret_1234567890';
+        $this->setWebhookSecret($secret);
+
+        $_ENV['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        $_SERVER['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        putenv('FEDAPAY_WEBHOOK_TOLERANCE=300');
+
+        Queue::fake();
+
+        $raw = '{"id":"evt_raw","name":"transaction.approved","entity":{"id":"TX-FEDA-RAW","status":"approved","amount":5000,"custom_metadata":{"type":"order_payment","order_id":123}}}';
+        $sig = hash_hmac('sha256', $raw, $secret);
+
+        $resp = $this->postRawWebhook($raw, $sig);
+        $resp->assertOk();
+
+        Queue::assertPushed(ProcessFedaPayWebhook::class);
+    }
+
+    #[Test]
     public function millisecond_timestamp_is_accepted_for_tolerance_check(): void
     {
         $secret = 'whsec_test_secret_1234567890';
@@ -132,6 +153,8 @@ class FedaPayWebhookSignatureTest extends TestCase
             ],
         ];
 
+        Queue::fake();
+
         $raw = json_encode($payload, JSON_UNESCAPED_SLASHES);
         $this->assertNotFalse($raw);
 
@@ -143,9 +166,8 @@ class FedaPayWebhookSignatureTest extends TestCase
 
         $resp = $this->postRawWebhook($raw, 't=' . $timestampMs . ',v1=' . $sig);
         $resp->assertOk();
-        $resp->assertJson([
-            'received' => true,
-            'ignored' => true,
-        ]);
+
+        $resp->assertJson(['received' => true]);
+        Queue::assertPushed(ProcessFedaPayWebhook::class);
     }
 }
