@@ -94,16 +94,13 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        $includeTopups = filter_var((string) $request->query('include_wallet_topups', '0'), FILTER_VALIDATE_BOOLEAN);
-
         $query = $request->user()
             ->orders()
             ->with(['orderItems.product', 'payment'])
             ->latest();
 
-        if (!$includeTopups) {
-            $query->where('type', '!=', 'wallet_topup');
-        }
+        // Wallet topups are no longer supported; keep legacy topup orders hidden from the user list.
+        $query->where('type', '!=', 'wallet_topup');
 
         $orders = $query->paginate(20);
 

@@ -8,9 +8,11 @@ use App\Models\Order;
 use App\Models\RedeemCode;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\Refund;
 use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
 use App\Services\AdminAuditLogger;
+use App\Services\WalletService;
 use App\Services\ShippingService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -18,6 +20,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class AdminOrderController extends Controller
 {
@@ -95,7 +99,10 @@ class AdminOrderController extends Controller
 
     public function show(Order $order)
     {
-        return response()->json($order->load(['user', 'payment', 'orderItems.product', 'orderItems.redeemDenomination', 'orderItems.redeemCode']));
+        $order->load(['user', 'payment', 'orderItems.product', 'orderItems.redeemDenomination', 'orderItems.redeemCode']);
+        $order->setRelation('refunds', $order->refunds()->latest('id')->get());
+
+        return response()->json($order);
     }
 
     public function updateStatus(Request $request, Order $order)
@@ -108,6 +115,136 @@ class AdminOrderController extends Controller
         $order->save();
 
         return response()->json(['order' => $order]);
+    }
+
+    public function refund(Request $request, Order $order, WalletService $walletService, AdminAuditLogger $auditLogger)
+    {
+        $admin = $request->user();
+
+        $data = $request->validate([
+            'type' => ['required', 'string', 'in:full,partial'],
+            'amount' => ['nullable', 'numeric', 'min:1'],
+            'reason' => ['nullable', 'string', 'max:255'],
+            'reference' => ['nullable', 'string', 'max:80'],
+            'confirm' => ['accepted'],
+        ]);
+
+        $refundType = strtolower((string) $data['type']);
+        $reason = array_key_exists('reason', $data) ? $data['reason'] : null;
+        $reference = trim((string) ($data['reference'] ?? ''));
+        if ($reference === '') {
+            $reference = null;
+        }
+
+        $result = DB::transaction(function () use ($order, $refundType, $data, $reason, $reference, $walletService, $admin) {
+            /** @var Order $lockedOrder */
+            $lockedOrder = Order::with(['user'])->where('id', $order->id)->lockForUpdate()->firstOrFail();
+
+            if (!$lockedOrder->user) {
+                throw ValidationException::withMessages(['order' => 'Order user not found']);
+            }
+
+            if (!$lockedOrder->isPaymentSuccess()) {
+                throw ValidationException::withMessages(['order' => 'Refund allowed only for paid orders']);
+            }
+
+            $paidAmount = (float) ($lockedOrder->total_price ?? 0);
+            if (!is_finite($paidAmount) || $paidAmount <= 0) {
+                throw ValidationException::withMessages(['order' => 'Invalid paid amount']);
+            }
+
+            $refundedAmount = (float) ($lockedOrder->refunded_amount ?? 0);
+            if (!is_finite($refundedAmount) || $refundedAmount < 0) {
+                $refundedAmount = 0;
+            }
+
+            $remaining = max(0.0, $paidAmount - $refundedAmount);
+            if ($remaining <= 0.0001) {
+                throw ValidationException::withMessages(['order' => 'Order already fully refunded']);
+            }
+
+            if ($refundType === 'full') {
+                $amount = $remaining;
+            } else {
+                $amount = (float) ($data['amount'] ?? 0);
+                if (!is_finite($amount) || $amount <= 0) {
+                    throw ValidationException::withMessages(['amount' => 'Invalid amount']);
+                }
+                if ($amount + 0.0001 > $remaining) {
+                    throw ValidationException::withMessages(['amount' => 'Amount exceeds refundable remaining']);
+                }
+                if ($amount + 0.0001 >= $remaining) {
+                    throw ValidationException::withMessages(['amount' => 'Use full refund for the remaining amount']);
+                }
+            }
+
+            $refundReference = $reference ?? ('RFD-' . $lockedOrder->id . '-' . now()->format('YmdHis') . '-' . Str::upper(Str::random(6)));
+
+            $refund = Refund::where('reference', $refundReference)->first();
+            if (!$refund) {
+                $refund = Refund::create([
+                    'order_id' => $lockedOrder->id,
+                    'user_id' => $lockedOrder->user->id,
+                    'amount' => $amount,
+                    'reference' => $refundReference,
+                    'reason' => $reason,
+                    'status' => 'success',
+                ]);
+            }
+
+            $walletReference = 'REFUND-' . $refundReference;
+            $walletTx = $walletService->credit($lockedOrder->user, $walletReference, $amount, [
+                'reason' => 'refund',
+                'type' => 'order_refund',
+                'order_id' => $lockedOrder->id,
+                'refund_id' => $refund->id,
+                'refund_reference' => $refundReference,
+                'admin_id' => $admin?->id,
+            ]);
+
+            $newRefundedAmount = $refundedAmount + $amount;
+            if ($newRefundedAmount + 0.0001 >= $paidAmount) {
+                $lockedOrder->refunded_amount = $paidAmount;
+                $lockedOrder->status_refund = 'full';
+                $lockedOrder->refunded_at = $lockedOrder->refunded_at ?? now();
+            } else {
+                $lockedOrder->refunded_amount = $newRefundedAmount;
+                $lockedOrder->status_refund = $newRefundedAmount > 0 ? 'partial' : 'none';
+                $lockedOrder->refunded_at = null;
+            }
+            $lockedOrder->save();
+
+            return [
+                'order' => $lockedOrder->fresh(['user', 'payment', 'orderItems.product', 'orderItems.redeemDenomination', 'orderItems.redeemCode']),
+                'refund' => $refund,
+                'wallet_transaction' => $walletTx,
+                'refunds' => Refund::where('order_id', $lockedOrder->id)->latest('id')->get(),
+            ];
+        });
+
+        if ($admin) {
+            $auditLogger->log(
+                $admin,
+                'order_refund',
+                [
+                    'order_id' => $result['order']->id,
+                    'user_id' => $result['order']->user_id,
+                    'refund_id' => $result['refund']->id,
+                    'refund_reference' => $result['refund']->reference,
+                    'amount' => (float) $result['refund']->amount,
+                    'reason' => $result['refund']->reason,
+                ],
+                'refund',
+                $request
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'order' => $result['order'],
+            'refund' => $result['refund'],
+            'refunds' => $result['refunds'],
+        ]);
     }
 
     public function updatePaymentStatus(Request $request, Order $order, AdminAuditLogger $auditLogger)

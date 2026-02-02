@@ -124,8 +124,6 @@ Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'han
 Route::match(['get', 'post'], '/payments/cinetpay/return', [PaymentWebhookController::class, 'redirect'])->name('api.payments.cinetpay.return');
 Route::match(['get', 'post'], '/payments/fedapay/return', [PaymentController::class, 'redirectFedapayReturn'])->name('api.payments.fedapay.return');
 Route::post('/payments/fedapay/webhook', [FedaPayWebhookController::class, 'handle'])->name('api.payments.fedapay.webhook');
-Route::post('/wallet/topup/webhook', [WalletController::class, 'webhookTopup'])->name('api.wallet.topup.webhook');
-Route::match(['get', 'post'], '/wallet/topup/return', [WalletController::class, 'redirectTopupReturn'])->name('api.wallet.topup.return');
 
 Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFreeFire']);
 
@@ -177,8 +175,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Wallet
     Route::get('/wallet', [WalletController::class, 'show']);
     Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
-    Route::post('/wallet/topup/init', [WalletController::class, 'initTopup']);
-    Route::post('/wallet/topup/reconcile', [WalletController::class, 'reconcileTopup']);
 
     // Referrals
     Route::get('/referrals/me', [ReferralController::class, 'me']);
@@ -226,6 +222,7 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
     Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->middleware('permission:orders.manage');
     Route::patch('/orders/{order}/payment/status', [AdminOrderController::class, 'updatePaymentStatus'])->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/refund', [AdminOrderController::class, 'refund'])->middleware('permission:orders.manage');
     Route::post('/orders/{order}/delivery-note-pdf', [AdminOrderController::class, 'deliveryNotePdf']);
     Route::post('/orders/{order}/resend-code', [AdminOrderController::class, 'resendCode']);
     Route::post('/orders/{order}/shipping/generate-document', [AdminOrderController::class, 'generateShippingDocument'])

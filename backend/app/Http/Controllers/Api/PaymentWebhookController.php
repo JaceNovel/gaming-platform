@@ -260,11 +260,7 @@ class PaymentWebhookController extends Controller
 
         $resolvedOrderId = $orderId ?: ($payment?->order_id);
 
-        $defaultStatusUrl = config('cinetpay.frontend_status_url');
-        $walletTopupUrl = config('cinetpay.frontend_wallet_topup_url');
-
-        $isWalletTopup = (string) ($payment?->order?->type ?? '') === 'wallet_topup';
-        $statusUrl = ($isWalletTopup && $walletTopupUrl) ? $walletTopupUrl : $defaultStatusUrl;
+        $statusUrl = config('cinetpay.frontend_status_url');
 
         if ($statusUrl) {
             $query = Arr::query(array_filter([

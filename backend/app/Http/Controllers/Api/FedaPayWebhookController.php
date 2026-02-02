@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\HandleFedapayWebhookWallet;
 use App\Jobs\ProcessFedaPayWebhook;
 use App\Support\FedaPayWebhookSignature;
 use Illuminate\Http\Request;
@@ -21,7 +20,17 @@ class FedaPayWebhookController extends Controller
         // 2) Header + signature verification (NEVER use FEDAPAY_SECRET_KEY here)
         $signatureHeader = (string) $request->header('x-fedapay-signature', '');
         $webhookSecret = (string) env('FEDAPAY_WEBHOOK_SECRET', '');
-        if (!FedaPayWebhookSignature::verify($signatureHeader, $raw, $webhookSecret)) {
+        $tolerance = (int) env('FEDAPAY_WEBHOOK_TOLERANCE', 300);
+
+        $sigParsed = FedaPayWebhookSignature::parseSignatureHeader($signatureHeader);
+        $t = (string) ($sigParsed['timestamp'] ?? '');
+        $v1Prefix = null;
+        if (!empty($sigParsed['v1']) && is_array($sigParsed['v1'])) {
+            $first = (string) ($sigParsed['v1'][0] ?? '');
+            $v1Prefix = $first !== '' ? substr($first, 0, 8) : null;
+        }
+
+        if (!FedaPayWebhookSignature::verifyFedapayWebhookSignature($raw, $signatureHeader, $webhookSecret, $tolerance)) {
             return response()->json(['received' => false], Response::HTTP_UNAUTHORIZED);
         }
 
@@ -33,8 +42,16 @@ class FedaPayWebhookController extends Controller
             ]);
 
             // ACK anyway (do not trigger retries / do not ever 500)
-            return response()->json(['received' => true]);
+            return response()->json(['received' => true, 'ignored' => true]);
         }
+
+        $eventName = strtolower((string) Arr::get($payload, 'name', ''));
+        Log::debug('fedapay:webhook', [
+            'event' => $eventName,
+            't' => $t !== '' ? $t : null,
+            'v1_prefix' => $v1Prefix,
+            'raw_sha256' => hash('sha256', $raw),
+        ]);
 
         // Attach a stable hash of the raw payload for idempotency.
         $payload['_meta'] = is_array($payload['_meta'] ?? null) ? $payload['_meta'] : [];
@@ -46,11 +63,24 @@ class FedaPayWebhookController extends Controller
                 ?? Arr::get($payload, 'entity.custom_metadata.type')
                 ?? '');
 
-            if (strtolower($metaType) === 'wallet_topup') {
-                HandleFedapayWebhookWallet::dispatch($payload)->afterResponse();
-            } else {
-                ProcessFedaPayWebhook::dispatch($payload)->afterResponse();
+            // Refund events are not supported yet, but must be ACKed.
+            if ($eventName === 'refund.sent' || str_starts_with($eventName, 'refund.')) {
+                return response()->json(['received' => true, 'ignored' => true]);
             }
+
+            // Wallet topups are no longer supported.
+            // ACK the webhook but ignore wallet_topup events completely.
+            if (strtolower($metaType) === 'wallet_topup') {
+                return response()->json(['received' => true, 'ignored' => true]);
+            }
+
+            // Only process supported transaction events.
+            if (in_array($eventName, ['transaction.approved', 'transaction.declined', 'transaction.canceled', 'transaction.cancelled'], true)) {
+                ProcessFedaPayWebhook::dispatch($payload)->afterResponse();
+                return response()->json(['received' => true]);
+            }
+
+            return response()->json(['received' => true, 'ignored' => true]);
         } catch (\Throwable $e) {
             Log::error('fedapay:webhook-dispatch-error', [
                 'stage' => 'dispatch',
@@ -58,6 +88,7 @@ class FedaPayWebhookController extends Controller
             ]);
         }
 
-        return response()->json(['received' => true]);
+        // Always ACK when signature is valid.
+        return response()->json(['received' => true, 'ignored' => true]);
     }
 }

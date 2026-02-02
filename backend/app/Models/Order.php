@@ -30,6 +30,9 @@ class Order extends Model
         'shipping_country_code',
         'shipping_phone',
         'total_price',
+        'refunded_amount',
+        'status_refund',
+        'refunded_at',
         'payment_id',
         'items',
         'meta',
@@ -38,10 +41,12 @@ class Order extends Model
 
     protected $casts = [
         'total_price' => 'decimal:2',
+        'refunded_amount' => 'decimal:2',
         'items' => 'array',
         'meta' => 'array',
         'shipping_estimated_date' => 'datetime',
         'delivered_at' => 'datetime',
+        'refunded_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -72,6 +77,11 @@ class Order extends Model
     public function redeemCodeDeliveries(): HasMany
     {
         return $this->hasMany(RedeemCodeDelivery::class);
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class);
     }
 
     public function requiresRedeemFulfillment(): bool

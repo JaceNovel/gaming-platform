@@ -53,7 +53,6 @@ Si usage de cookies/Sanctum:
 - `GET /api/orders`
 - `POST /api/orders`
 - `GET /api/wallet`
-- `POST /api/wallet/topup/init`
 
 ## Health check
 

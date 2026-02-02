@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\HandleFedapayWebhookWallet;
 use App\Jobs\ProcessFedaPayWebhook;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\Test;
@@ -42,19 +42,24 @@ class FedaPayWebhookSignatureTest extends TestCase
         $secret = 'whsec_test_secret_1234567890';
         $this->setWebhookSecret($secret);
 
+        $_ENV['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        $_SERVER['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        putenv('FEDAPAY_WEBHOOK_TOLERANCE=300');
+
         Queue::fake();
 
-        $raw = '{"id":"evt_1","name":"transaction.approved","entity":{"id":"TX-FEDA-1","status":"approved","amount":5000,"custom_metadata":{"type":"wallet_topup","wallet_transaction_id":"11111111-1111-1111-1111-111111111111","user_id":1}}}';
+        $raw = '{"id":"evt_1","name":"transaction.approved","entity":{"id":"TX-FEDA-1","status":"approved","amount":5000,"custom_metadata":{"type":"order_payment","order_id":123}}}';
         $timestamp = '1769900000';
+
+        $this->travelTo(Carbon::createFromTimestamp((int) $timestamp));
+
         $signedPayload = $timestamp . '.' . $raw;
         $sig = hash_hmac('sha256', $signedPayload, $secret);
 
         $resp = $this->postRawWebhook($raw, 't=' . $timestamp . ',v1=' . $sig);
         $resp->assertOk();
 
-        Queue::assertPushed(HandleFedapayWebhookWallet::class);
-
-        Queue::assertNotPushed(ProcessFedaPayWebhook::class);
+        Queue::assertPushed(ProcessFedaPayWebhook::class);
     }
 
     #[Test]
@@ -63,17 +68,25 @@ class FedaPayWebhookSignatureTest extends TestCase
         $secret = 'whsec_test_secret_1234567890';
         $this->setWebhookSecret($secret);
 
+        $_ENV['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        $_SERVER['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        putenv('FEDAPAY_WEBHOOK_TOLERANCE=300');
+
         Queue::fake();
 
         $raw = '{"id":"evt_2","name":"transaction.approved","entity":{"id":"TX-FEDA-2","status":"approved","amount":5000,"custom_metadata":{"type":"wallet_topup","wallet_transaction_id":"22222222-2222-2222-2222-222222222222","user_id":2}}}';
         $timestamp = '1769900001';
+
+        $this->travelTo(Carbon::createFromTimestamp((int) $timestamp));
+
         $sig = hash_hmac('sha256', $timestamp . '.' . $raw, $secret);
 
         $header = 't=' . $timestamp . ',v1=deadbeef,v1=' . $sig;
         $resp = $this->postRawWebhook($raw, $header);
         $resp->assertOk();
 
-        Queue::assertPushed(HandleFedapayWebhookWallet::class);
+        // wallet_topup events are acknowledged but ignored.
+        Queue::assertNotPushed(ProcessFedaPayWebhook::class);
     }
 
     #[Test]
@@ -82,8 +95,14 @@ class FedaPayWebhookSignatureTest extends TestCase
         $secret = 'whsec_test_secret_1234567890';
         $this->setWebhookSecret($secret);
 
+        $_ENV['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        $_SERVER['FEDAPAY_WEBHOOK_TOLERANCE'] = '300';
+        putenv('FEDAPAY_WEBHOOK_TOLERANCE=300');
+
         $raw = '{"id":"evt_bad","name":"transaction.approved","entity":{"id":"TX-FEDA-X","status":"approved"}}';
         $timestamp = '1769900002';
+
+        $this->travelTo(Carbon::createFromTimestamp((int) $timestamp));
 
         $resp = $this->postRawWebhook($raw, 't=' . $timestamp . ',v1=deadbeef');
         $resp->assertStatus(401);
