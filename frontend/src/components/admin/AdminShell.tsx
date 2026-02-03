@@ -30,7 +30,7 @@ const MENU_ITEMS = [
   {
     label: "DBWallet",
     icon: CreditCard,
-    href: "/admin/dbwallet",
+    href: "/admin/dbwallet/transactions",
     children: [
       { label: "Historique", href: "/admin/dbwallet/transactions" },
       { label: "Recharger", href: "/admin/dbwallet/recharge" },
