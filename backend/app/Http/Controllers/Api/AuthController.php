@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Referral;
 use App\Models\User;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -71,6 +72,13 @@ class AuthController extends Controller
                     'commission_earned' => 0,
                 ]);
             }
+        }
+
+        // DBWallet is created automatically at signup; wallet_id is required for support/admin operations.
+        try {
+            app(WalletService::class)->getOrCreateWallet($user);
+        } catch (\Throwable $e) {
+            // Best-effort: do not block registration.
         }
 
         $user->refresh();

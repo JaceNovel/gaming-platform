@@ -50,6 +50,8 @@ function CartScreen() {
   const [loading, setLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletBonusBalance, setWalletBonusBalance] = useState<number>(0);
+  const [walletBonusExpiresAt, setWalletBonusExpiresAt] = useState<string | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
 
@@ -76,6 +78,10 @@ function CartScreen() {
         if (res.ok) {
           const balanceValue = typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
           setWalletBalance(Number.isFinite(balanceValue) ? balanceValue : 0);
+
+          const bonusValue = typeof data?.bonus_balance === "number" ? data.bonus_balance : Number(data?.bonus_balance ?? 0);
+          setWalletBonusBalance(Number.isFinite(bonusValue) ? bonusValue : 0);
+          setWalletBonusExpiresAt(typeof data?.bonus_expires_at === "string" ? data.bonus_expires_at : null);
         }
       } catch {
         // ignore
@@ -119,6 +125,26 @@ function CartScreen() {
     });
   };
 
+  const cartIsRechargeOnly = useMemo(() => {
+    if (!cartItems.length) return false;
+    return cartItems.every((item) => {
+      const t = String(item.type ?? "").toLowerCase();
+      return t === "recharge" || t === "topup" || t === "pass";
+    });
+  }, [cartItems]);
+
+  const walletBonusIsActive = useMemo(() => {
+    if (!cartIsRechargeOnly) return false;
+    if (!(walletBonusBalance > 0)) return false;
+    if (!walletBonusExpiresAt) return false;
+    const expires = new Date(walletBonusExpiresAt);
+    return Number.isFinite(expires.getTime()) && expires.getTime() > Date.now();
+  }, [cartIsRechargeOnly, walletBonusBalance, walletBonusExpiresAt]);
+
+  const walletAvailable = useMemo(() => {
+    return walletBalance + (walletBonusIsActive ? walletBonusBalance : 0);
+  }, [walletBalance, walletBonusBalance, walletBonusIsActive]);
+
   const clearCart = () => {
     setStatus(null);
     if (!cartItems.length) return;
@@ -138,6 +164,12 @@ function CartScreen() {
   );
   const fees = Math.round(subtotal * 0.02);
   const total = subtotal + fees;
+
+  useEffect(() => {
+    if (paymentMethod === "wallet" && (walletLoading || walletAvailable + 0.0001 < total)) {
+      setPaymentMethod("fedapay");
+    }
+  }, [paymentMethod, walletAvailable, walletLoading, total]);
 
   const handlePay = async () => {
     setStatus(null);
@@ -417,13 +449,13 @@ function CartScreen() {
                     value="wallet"
                     checked={paymentMethod === "wallet"}
                     onChange={() => setPaymentMethod("wallet")}
-                    disabled={walletLoading || walletBalance < 400}
+                    disabled={walletLoading || walletAvailable + 0.0001 < total}
                   />
                   <span className="inline-flex items-center gap-2">
-                    Wallet {walletLoading ? "(chargement...)" : `(solde: ${Math.floor(walletBalance)} FCFA)`}
+                    Wallet {walletLoading ? "(chargement...)" : `(dispo: ${Math.floor(walletAvailable)} FCFA)`}
                   </span>
-                  {walletBalance < 400 && !walletLoading ? (
-                    <span className="text-xs text-white/50">(min 400 FCFA)</span>
+                  {!walletLoading && walletAvailable + 0.0001 < total ? (
+                    <span className="text-xs text-white/50">(solde insuffisant)</span>
                   ) : null}
                 </label>
               </div>
@@ -431,7 +463,11 @@ function CartScreen() {
               <GlowButton
                 className="w-full justify-center"
                 onClick={handlePay}
-                disabled={loading || !cartItems.length || (paymentMethod === "wallet" && (walletLoading || walletBalance < 400))}
+                disabled={
+                  loading ||
+                  !cartItems.length ||
+                  (paymentMethod === "wallet" && (walletLoading || walletAvailable + 0.0001 < total))
+                }
               >
                 <CreditCard className="h-4 w-4" />
                 {loading ? "Paiement..." : "Payer maintenant"}

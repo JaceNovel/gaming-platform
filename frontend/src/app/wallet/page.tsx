@@ -79,7 +79,7 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
 function WalletClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { authFetch } = useAuth();
+  const { authFetch, user } = useAuth();
 
   const [loading, setLoading] = useState(HAS_API_ENV);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,6 +88,8 @@ function WalletClient() {
   const [balance, setBalance] = useState<number>(0);
   const [currency, setCurrency] = useState<string>("FCFA");
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
+  const [walletId, setWalletId] = useState<string>("");
+  const [walletIdToast, setWalletIdToast] = useState<string | null>(null);
 
   const [limit, setLimit] = useState<10 | 25 | 50>(25);
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
@@ -119,6 +121,7 @@ function WalletClient() {
       setBalance(Number.isFinite(nextBalance) ? nextBalance : 0);
       setCurrency(String(summary?.currency ?? "FCFA"));
       setWalletStatus(summary?.status ?? null);
+      setWalletId(String(summary?.wallet_id ?? "").trim());
 
       const txRes = await authFetch(`${API_BASE}/wallet/transactions?limit=${limit}`);
       if (!txRes.ok) return;
@@ -211,6 +214,12 @@ function WalletClient() {
     return "Bonjour, j’ai besoin d’aide concernant mon wallet.";
   }, []);
 
+  const rechargeMessage = useMemo(() => {
+    const email = String(user?.email ?? "").trim();
+    const id = String(walletId ?? "").trim();
+    return `Bonjour, j’aimerais recharger mon DBWallet.\nWallet ID : ${id || "(inconnu)"}\nEmail : ${email || "(inconnu)"}`;
+  }, [user?.email, walletId]);
+
   const displayBalance = useMemo(() => formatMoney(balance, currency), [balance, currency]);
   const { label: currencyLabel } = useMemo(() => normalizeCurrency(currency), [currency]);
 
@@ -270,6 +279,43 @@ function WalletClient() {
                 <GlowButton variant="ghost" onClick={() => router.push("/account")}>
                   Aller au profil
                 </GlowButton>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-[0.35em] text-white/45">Wallet ID</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-white/90">{walletId || "—"}</p>
+                    <p className="mt-1 text-xs text-white/50">À communiquer à l’admin pour un crédit manuel.</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="rounded-2xl border border-white/15 bg-black/30 px-4 py-2 text-sm font-semibold text-white/85 disabled:opacity-50"
+                    disabled={!walletId}
+                    onClick={async () => {
+                      if (!walletId) return;
+                      const ok = await copyToClipboard(walletId);
+                      setWalletIdToast(ok ? "Wallet ID copié" : "Impossible de copier");
+                      window.setTimeout(() => setWalletIdToast(null), 1800);
+                    }}
+                  >
+                    Copier
+                  </button>
+                </div>
+
+                {walletIdToast ? <p className="mt-3 text-xs text-white/60">{walletIdToast}</p> : null}
+
+                <button
+                  type="button"
+                  onClick={() => void openTidioChat({ message: rechargeMessage })}
+                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-black text-black active:scale-[0.99]"
+                >
+                  Recharger mon DBWallet
+                </button>
+                <p className="mt-2 text-xs text-white/50">
+                  Ce bouton n’effectue aucun paiement automatique : il ouvre simplement le chat.
+                </p>
               </div>
 
               {/* Recharge wallet supprimée */}

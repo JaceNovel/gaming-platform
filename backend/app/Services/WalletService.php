@@ -14,12 +14,31 @@ use Throwable;
 
 class WalletService
 {
+    public function generateWalletId(): string
+    {
+        return 'DBW-' . (string) Str::ulid();
+    }
+
     public function getOrCreateWallet(User $user): WalletAccount
     {
-        return WalletAccount::firstOrCreate(
+        $wallet = WalletAccount::firstOrCreate(
             ['user_id' => $user->id],
-            ['currency' => 'FCFA', 'balance' => 0, 'status' => 'active']
+            [
+                'wallet_id' => $this->generateWalletId(),
+                'currency' => 'FCFA',
+                'balance' => 0,
+                'bonus_balance' => 0,
+                'bonus_expires_at' => null,
+                'status' => 'active',
+            ]
         );
+
+        if (empty($wallet->wallet_id)) {
+            $wallet->wallet_id = $this->generateWalletId();
+            $wallet->save();
+        }
+
+        return $wallet;
     }
 
     public function getBalance(User $user): WalletAccount
@@ -36,10 +55,20 @@ class WalletService
             if (!$wallet) {
                 $wallet = WalletAccount::create([
                     'user_id' => $user->id,
+                    'wallet_id' => $this->generateWalletId(),
                     'currency' => 'FCFA',
                     'balance' => 0,
+                    'bonus_balance' => 0,
+                    'bonus_expires_at' => null,
                     'status' => 'active',
                 ]);
+                $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->first();
+            }
+
+            // Ensure legacy wallets get a wallet_id.
+            if (empty($wallet->wallet_id)) {
+                $wallet->wallet_id = $this->generateWalletId();
+                $wallet->save();
                 $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->first();
             }
             $tx = WalletTransaction::where('reference', $reference)->first();
@@ -118,10 +147,18 @@ class WalletService
             if (!$wallet) {
                 $wallet = WalletAccount::create([
                     'user_id' => $user->id,
+                    'wallet_id' => $this->generateWalletId(),
                     'currency' => 'FCFA',
                     'balance' => 0,
+                    'bonus_balance' => 0,
+                    'bonus_expires_at' => null,
                     'status' => 'active',
                 ]);
+                $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->first();
+            }
+            if (empty($wallet->wallet_id)) {
+                $wallet->wallet_id = $this->generateWalletId();
+                $wallet->save();
                 $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->first();
             }
             if ($wallet->status === 'locked') {
@@ -170,6 +207,12 @@ class WalletService
         return DB::transaction(function () use ($user, $reference, $amount, $meta) {
             $wallet = WalletAccount::where('user_id', $user->id)->lockForUpdate()->firstOrFail();
 
+            if (empty($wallet->wallet_id)) {
+                $wallet->wallet_id = $this->generateWalletId();
+                $wallet->save();
+                $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->firstOrFail();
+            }
+
             $tx = WalletTransaction::create([
                 'wallet_account_id' => $wallet->id,
                 'type' => 'credit',
@@ -184,6 +227,14 @@ class WalletService
 
             return $tx;
         });
+    }
+
+    public function bonusIsActive(WalletAccount $wallet): bool
+    {
+        $balance = (float) ($wallet->bonus_balance ?? 0);
+        if ($balance <= 0) return false;
+        if (!$wallet->bonus_expires_at) return false;
+        return $wallet->bonus_expires_at->isFuture();
     }
 
     public function generateReference(string $prefix = 'WTX'): string

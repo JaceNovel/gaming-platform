@@ -9,14 +9,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class WalletAccount extends Model
 {
     protected $fillable = [
+        'wallet_id',
         'user_id',
         'currency',
         'balance',
+        'bonus_balance',
+        'bonus_expires_at',
         'status',
+        'recharge_blocked_at',
+        'recharge_blocked_reason',
     ];
 
     protected $casts = [
         'balance' => 'decimal:2',
+        'bonus_balance' => 'decimal:2',
+        'bonus_expires_at' => 'datetime',
+        'recharge_blocked_at' => 'datetime',
     ];
 
     public function user(): BelongsTo

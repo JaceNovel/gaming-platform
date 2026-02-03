@@ -331,21 +331,49 @@ class PaymentController extends Controller
         if (!is_finite($amount) || $amount <= 0) {
             return response()->json(['message' => 'Invalid order amount'], 422);
         }
-
-        $minWalletBalance = 400.0;
         $reference = 'WPAY-' . ($order->reference ?? $order->id);
 
+        $isRechargeProduct = function (?Product $product): bool {
+            if (!$product) return false;
+            $type = strtolower((string) ($product->type ?? ''));
+            $category = strtolower((string) ($product->category ?? ''));
+            return in_array($type, ['recharge', 'topup', 'pass'], true)
+                || str_contains($category, 'recharge');
+        };
+
+        $isRechargeOnlyOrder = (function () use ($order, $isRechargeProduct): bool {
+            $items = $order->orderItems ?? [];
+            if (count($items) === 0) return false;
+            foreach ($items as $item) {
+                $product = $item?->product;
+                if (!$isRechargeProduct($product)) {
+                    return false;
+                }
+            }
+            return true;
+        })();
+
         try {
-            $result = DB::transaction(function () use ($user, $order, $amount, $minWalletBalance, $reference) {
+            $result = DB::transaction(function () use ($user, $order, $amount, $reference, $isRechargeOnlyOrder) {
                 /** @var WalletAccount $wallet */
                 $wallet = WalletAccount::where('user_id', $user->id)->lockForUpdate()->first();
                 if (!$wallet) {
                     $wallet = WalletAccount::create([
                         'user_id' => $user->id,
+                        'wallet_id' => 'DBW-' . (string) \Illuminate\Support\Str::ulid(),
                         'currency' => 'FCFA',
                         'balance' => 0,
+                        'bonus_balance' => 0,
+                        'bonus_expires_at' => null,
                         'status' => 'active',
                     ]);
+                    $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->first();
+                }
+
+                // Ensure legacy wallets get a wallet_id.
+                if (empty($wallet->wallet_id)) {
+                    $wallet->wallet_id = 'DBW-' . (string) \Illuminate\Support\Str::ulid();
+                    $wallet->save();
                     $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->first();
                 }
 
@@ -353,11 +381,35 @@ class PaymentController extends Controller
                     return ['ok' => false, 'message' => 'Wallet locked', 'status' => 423];
                 }
 
-                $balance = (float) ($wallet->balance ?? 0);
-                if ($balance < $minWalletBalance) {
-                    return ['ok' => false, 'message' => 'Solde wallet insuffisant (min 400 FCFA).', 'status' => 422];
+                // Expired bonus is not usable.
+                if (!empty($wallet->bonus_expires_at) && $wallet->bonus_expires_at->isPast() && (float) ($wallet->bonus_balance ?? 0) > 0) {
+                    $wallet->bonus_balance = 0;
+                    $wallet->save();
+                    $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->first();
                 }
-                if ($balance + 0.0001 < $amount) {
+
+                $balance = (float) ($wallet->balance ?? 0);
+
+                $bonusBalance = (float) ($wallet->bonus_balance ?? 0);
+                $bonusIsActive = $isRechargeOnlyOrder
+                    && $bonusBalance > 0
+                    && !empty($wallet->bonus_expires_at)
+                    && $wallet->bonus_expires_at->isFuture();
+
+                $available = $balance + ($bonusIsActive ? $bonusBalance : 0);
+                if ($available + 0.0001 < $amount) {
+                    return ['ok' => false, 'message' => 'Solde wallet insuffisant pour payer cette commande.', 'status' => 422];
+                }
+
+                $bonusUsed = 0.0;
+                $balanceUsed = $amount;
+                if ($bonusIsActive) {
+                    $bonusUsed = min($bonusBalance, $amount);
+                    $balanceUsed = max(0.0, $amount - $bonusUsed);
+                }
+
+                if ($balance + 0.0001 < $balanceUsed) {
+                    // Should not happen if $available check passed, but keep it safe.
                     return ['ok' => false, 'message' => 'Solde wallet insuffisant pour payer cette commande.', 'status' => 422];
                 }
 
@@ -374,12 +426,18 @@ class PaymentController extends Controller
                             'meta' => [
                                 'type' => 'order_wallet_payment',
                                 'order_id' => $order->id,
+                                'wallet_balance_used' => $balanceUsed,
+                                'bonus_balance_used' => $bonusUsed,
                             ],
                             'status' => 'pending',
                         ]);
                     }
 
-                    $wallet->balance = (float) $wallet->balance - $amount;
+                    if ($bonusUsed > 0) {
+                        $wallet->bonus_balance = max(0.0, (float) $wallet->bonus_balance - $bonusUsed);
+                    }
+
+                    $wallet->balance = (float) $wallet->balance - $balanceUsed;
                     $wallet->save();
 
                     $existingTx->status = 'success';
@@ -438,6 +496,7 @@ class PaymentController extends Controller
                     'payment_id' => $payment->id,
                     'order_id' => $order->id,
                     'wallet_balance' => (float) $wallet->refresh()->balance,
+                    'bonus_balance' => (float) $wallet->refresh()->bonus_balance,
                 ];
             });
 

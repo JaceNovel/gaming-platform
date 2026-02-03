@@ -19,7 +19,10 @@ class WalletController extends Controller
         $transactions = $wallet->transactions()->latest()->limit(10)->get();
 
         return response()->json([
+            'wallet_id' => $wallet->wallet_id,
             'balance' => $wallet->balance,
+            'bonus_balance' => $wallet->bonus_balance,
+            'bonus_expires_at' => optional($wallet->bonus_expires_at)->toIso8601String(),
             'currency' => $wallet->currency,
             'status' => $wallet->status,
             'transactions' => $transactions,

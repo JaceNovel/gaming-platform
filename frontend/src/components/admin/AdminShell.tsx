@@ -28,6 +28,17 @@ const MENU_ITEMS = [
   { label: "Tableau de bord", icon: LayoutDashboard, href: "/admin/dashboard" },
   { label: "Utilisateurs", icon: Users, href: "/admin/users" },
   {
+    label: "DBWallet",
+    icon: CreditCard,
+    href: "/admin/dbwallet",
+    children: [
+      { label: "Historique", href: "/admin/dbwallet/transactions" },
+      { label: "Recharger", href: "/admin/dbwallet/recharge" },
+      { label: "Fraude / Blocage", href: "/admin/dbwallet/fraud" },
+      { label: "Welcome Bonus", href: "/admin/dbwallet/welcome-bonus" },
+    ],
+  },
+  {
     label: "Produits",
     icon: Package,
     href: "/admin/products",

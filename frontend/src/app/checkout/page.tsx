@@ -15,10 +15,13 @@ function CheckoutScreen() {
   const productId = Number(searchParams.get("product"));
   const [quantity, setQuantity] = useState(1);
   const [productType, setProductType] = useState<string | null>(null);
+  const [productPrice, setProductPrice] = useState<number>(0);
   const [gameId, setGameId] = useState<string>("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletBonusBalance, setWalletBonusBalance] = useState<number>(0);
+  const [walletBonusExpiresAt, setWalletBonusExpiresAt] = useState<string | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
 
@@ -33,6 +36,12 @@ function CheckoutScreen() {
       const data = await res.json();
       if (!active) return;
       setProductType(data?.type ?? null);
+
+      const discountPrice = typeof data?.discount_price === "number" ? data.discount_price : Number(data?.discount_price ?? NaN);
+      const basePrice = typeof data?.price === "number" ? data.price : Number(data?.price ?? NaN);
+      const priceFcfa = typeof data?.price_fcfa === "number" ? data.price_fcfa : Number(data?.price_fcfa ?? NaN);
+      const resolved = Number.isFinite(discountPrice) && discountPrice > 0 ? discountPrice : Number.isFinite(basePrice) && basePrice > 0 ? basePrice : Number.isFinite(priceFcfa) && priceFcfa > 0 ? priceFcfa : 0;
+      setProductPrice(resolved);
     })();
     return () => {
       active = false;
@@ -54,6 +63,10 @@ function CheckoutScreen() {
         if (res.ok) {
           const balanceValue = typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
           setWalletBalance(Number.isFinite(balanceValue) ? balanceValue : 0);
+
+          const bonusValue = typeof data?.bonus_balance === "number" ? data.bonus_balance : Number(data?.bonus_balance ?? 0);
+          setWalletBonusBalance(Number.isFinite(bonusValue) ? bonusValue : 0);
+          setWalletBonusExpiresAt(typeof data?.bonus_expires_at === "string" ? data.bonus_expires_at : null);
         }
       } catch {
         // ignore
@@ -209,6 +222,42 @@ function CheckoutScreen() {
     }
   };
 
+  const estimatedTotal = useMemo(() => {
+    const q = Math.max(1, Number(quantity || 1));
+    const p = Number(productPrice || 0);
+    if (!Number.isFinite(p) || p <= 0) return 0;
+    return Math.max(0, q * p);
+  }, [productPrice, quantity]);
+
+  const isRechargeProduct = useMemo(() => {
+    const t = String(productType ?? "").toLowerCase();
+    return t === "recharge" || t === "topup" || t === "pass";
+  }, [productType]);
+
+  const walletBonusIsActive = useMemo(() => {
+    if (!isRechargeProduct) return false;
+    if (!(walletBonusBalance > 0)) return false;
+    if (!walletBonusExpiresAt) return false;
+    const expires = new Date(walletBonusExpiresAt);
+    return Number.isFinite(expires.getTime()) && expires.getTime() > Date.now();
+  }, [isRechargeProduct, walletBonusBalance, walletBonusExpiresAt]);
+
+  const walletAvailable = useMemo(() => {
+    return walletBalance + (walletBonusIsActive ? walletBonusBalance : 0);
+  }, [walletBalance, walletBonusBalance, walletBonusIsActive]);
+
+  const walletPayable = useMemo(() => {
+    if (walletLoading) return false;
+    if (!Number.isFinite(estimatedTotal) || estimatedTotal <= 0) return false;
+    return walletAvailable + 0.0001 >= estimatedTotal;
+  }, [estimatedTotal, walletAvailable, walletLoading]);
+
+  useEffect(() => {
+    if (paymentMethod === "wallet" && !walletPayable) {
+      setPaymentMethod("fedapay");
+    }
+  }, [paymentMethod, walletPayable]);
+
   return (
     <div className="min-h-screen pb-24">
       <div className="mobile-shell py-6 space-y-6">
@@ -236,11 +285,11 @@ function CheckoutScreen() {
                 value="wallet"
                 checked={paymentMethod === "wallet"}
                 onChange={() => setPaymentMethod("wallet")}
-                disabled={walletLoading || walletBalance < 400}
+                disabled={!walletPayable}
               />
-              Wallet {walletLoading ? "(chargement...)" : `(solde: ${Math.floor(walletBalance)} FCFA)`}
-              {walletBalance < 400 && !walletLoading ? (
-                <span className="text-xs text-white/50">(min 400 FCFA)</span>
+              Wallet {walletLoading ? "(chargement...)" : `(dispo: ${Math.floor(walletAvailable)} FCFA)`}
+              {!walletPayable && !walletLoading ? (
+                <span className="text-xs text-white/50">(solde insuffisant)</span>
               ) : null}
             </label>
           </div>

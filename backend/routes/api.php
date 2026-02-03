@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\AdminRedeemCodeController;
 use App\Http\Controllers\Api\AdminRedeemLotController;
 use App\Http\Controllers\Api\AdminMeController;
 use App\Http\Controllers\Api\AdminAuditLogController;
+use App\Http\Controllers\Api\AdminDbWalletController;
+use App\Http\Controllers\Api\AdminDbWalletWelcomeBonusController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\GameController;
@@ -355,6 +357,25 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         ->middleware('permission:users.view');
     Route::get('/users/{user}', [\App\Http\Controllers\Api\AdminUsersController::class, 'show'])
         ->middleware('permission:users.view');
+
+    // DBWallet (admin-only manual operations)
+    Route::get('/dbwallet/transactions', [AdminDbWalletController::class, 'transactions'])
+        ->middleware('permission:wallet.manage');
+    Route::post('/dbwallet/credit', [AdminDbWalletController::class, 'credit'])
+        ->middleware('permission:wallet.manage');
+    Route::get('/dbwallet/blocked', [AdminDbWalletController::class, 'blocked'])
+        ->middleware('permission:wallet.manage');
+    Route::post('/dbwallet/block', [AdminDbWalletController::class, 'block'])
+        ->middleware('permission:wallet.manage');
+    Route::post('/dbwallet/unblock', [AdminDbWalletController::class, 'unblock'])
+        ->middleware('permission:wallet.manage');
+
+    // Marketing welcome bonus (first 20 users, 24h validity)
+    Route::get('/dbwallet/welcome-bonus', [AdminDbWalletWelcomeBonusController::class, 'index'])
+        ->middleware('permission:wallet.manage');
+    Route::post('/dbwallet/welcome-bonus/grant', [AdminDbWalletWelcomeBonusController::class, 'grant'])
+        ->middleware('permission:wallet.manage');
+
     Route::post('/users/{user}/wallet/credit', [\App\Http\Controllers\Api\AdminUsersController::class, 'creditWallet'])
         ->middleware('permission:wallet.manage');
     Route::patch('/users/{user}', [\App\Http\Controllers\Api\AdminUsersController::class, 'update'])
