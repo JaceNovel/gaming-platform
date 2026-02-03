@@ -86,6 +86,8 @@ function WalletClient() {
   const [banner, setBanner] = useState<string | null>(null);
 
   const [balance, setBalance] = useState<number>(0);
+  const [bonusBalance, setBonusBalance] = useState<number>(0);
+  const [bonusExpiresAt, setBonusExpiresAt] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string>("FCFA");
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
   const [walletId, setWalletId] = useState<string>("");
@@ -119,6 +121,11 @@ function WalletClient() {
 
       const nextBalance = Number(summary?.balance ?? 0);
       setBalance(Number.isFinite(nextBalance) ? nextBalance : 0);
+
+      const nextBonus = Number(summary?.bonus_balance ?? 0);
+      setBonusBalance(Number.isFinite(nextBonus) ? nextBonus : 0);
+      setBonusExpiresAt(typeof summary?.bonus_expires_at === "string" ? summary.bonus_expires_at : null);
+
       setCurrency(String(summary?.currency ?? "FCFA"));
       setWalletStatus(summary?.status ?? null);
       setWalletId(String(summary?.wallet_id ?? "").trim());
@@ -221,7 +228,22 @@ function WalletClient() {
   }, [user?.email, walletId]);
 
   const displayBalance = useMemo(() => formatMoney(balance, currency), [balance, currency]);
+  const displayBonus = useMemo(() => formatMoney(bonusBalance, currency), [bonusBalance, currency]);
   const { label: currencyLabel } = useMemo(() => normalizeCurrency(currency), [currency]);
+
+  const bonusIsActive = useMemo(() => {
+    if (!(bonusBalance > 0)) return false;
+    if (!bonusExpiresAt) return false;
+    const expires = new Date(bonusExpiresAt);
+    return Number.isFinite(expires.getTime()) && expires.getTime() > Date.now();
+  }, [bonusBalance, bonusExpiresAt]);
+
+  const displayBonusExpiresAt = useMemo(() => {
+    if (!bonusExpiresAt) return "—";
+    const d = new Date(bonusExpiresAt);
+    if (!Number.isFinite(d.getTime())) return "—";
+    return d.toLocaleString("fr-FR");
+  }, [bonusExpiresAt]);
 
   return (
     <div className="min-h-screen text-white">
@@ -252,6 +274,17 @@ function WalletClient() {
                   {walletStatus ? (
                     <p className="mt-1 text-xs text-white/60">Statut: {walletStatus}</p>
                   ) : null}
+
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-xs uppercase tracking-[0.35em] text-white/45">Bonus (recharges uniquement)</p>
+                    <p className="mt-1 text-sm font-semibold text-white/90">{displayBonus}</p>
+                    <p className="mt-1 text-xs text-white/55">Expire: {displayBonusExpiresAt}</p>
+                    {bonusIsActive ? (
+                      <p className="mt-1 text-xs text-emerald-200/80">Actif</p>
+                    ) : bonusBalance > 0 ? (
+                      <p className="mt-1 text-xs text-amber-200/80">Inactif (expiré)</p>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button

@@ -43,6 +43,8 @@ class WalletController extends Controller
             $label = match (true) {
                 $typeHint === 'order_refund' => 'Remboursement commande',
                 $typeHint === 'admin_wallet_credit' => 'Crédit wallet (admin)',
+                $typeHint === 'admin_dbwallet_credit' => 'Crédit DBWallet (admin)',
+                $typeHint === 'welcome_bonus' => 'Welcome bonus (DBWallet)',
                 default => 'Transaction wallet',
             };
 
