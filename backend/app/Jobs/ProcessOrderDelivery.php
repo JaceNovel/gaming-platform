@@ -13,6 +13,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use App\Jobs\ProcessMarketplaceOrder;
 
 class ProcessOrderDelivery implements ShouldQueue
 {
@@ -34,6 +35,11 @@ class ProcessOrderDelivery implements ShouldQueue
     public function handle(DeliveryService $deliveryService, WalletService $walletService): void
     {
         try {
+            if ((string) ($this->order->type ?? '') === 'marketplace_gaming_account') {
+                ProcessMarketplaceOrder::dispatchSync($this->order);
+                return;
+            }
+
             $this->order->loadMissing(['user', 'orderItems.product', 'orderItems.product.game']);
 
             // Process each order item

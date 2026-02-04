@@ -24,6 +24,8 @@ class SellerListing extends Model
         'status',
         'status_reason',
         'order_id',
+        'reserved_order_id',
+        'reserved_until',
         'sold_at',
     ];
 
@@ -31,6 +33,7 @@ class SellerListing extends Model
         'price' => 'decimal:2',
         'has_email_access' => 'boolean',
         'delivery_window_hours' => 'integer',
+        'reserved_until' => 'datetime',
         'sold_at' => 'datetime',
     ];
 

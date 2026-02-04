@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Dispute extends Model
 {
     protected $fillable = [
+        'marketplace_order_id',
         'seller_listing_id',
         'seller_id',
         'buyer_id',
@@ -30,6 +31,11 @@ class Dispute extends Model
     public function listing(): BelongsTo
     {
         return $this->belongsTo(SellerListing::class, 'seller_listing_id');
+    }
+
+    public function marketplaceOrder(): BelongsTo
+    {
+        return $this->belongsTo(MarketplaceOrder::class);
     }
 
     public function seller(): BelongsTo

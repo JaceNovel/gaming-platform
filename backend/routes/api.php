@@ -39,7 +39,13 @@ use App\Http\Controllers\Api\MeRedeemController;
 use App\Http\Controllers\Api\SellerKycController;
 use App\Http\Controllers\Api\PartnerWalletController;
 use App\Http\Controllers\Api\AdminMarketplaceWithdrawController;
+use App\Http\Controllers\Api\AdminMarketplaceOrderController;
 use App\Http\Controllers\Api\MarketplaceListingController;
+use App\Http\Controllers\Api\MarketplaceCheckoutController;
+use App\Http\Controllers\Api\MarketplaceOrderController;
+use App\Http\Controllers\Api\SellerMarketplaceOrderController;
+use App\Http\Controllers\Api\AdminMarketplaceDisputeController;
+use App\Http\Controllers\Api\AdminMarketplaceCommissionController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -228,6 +234,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/listings', [MarketplaceListingController::class, 'store']);
         Route::patch('/listings/{sellerListing}', [MarketplaceListingController::class, 'update']);
         Route::patch('/listings/{sellerListing}/status', [MarketplaceListingController::class, 'setStatus']);
+
+        // Buyer checkout + post-payment WhatsApp reveal
+        Route::post('/listings/{sellerListing}/checkout', [MarketplaceCheckoutController::class, 'checkout']);
+        Route::get('/orders/{order}/whatsapp', [MarketplaceOrderController::class, 'whatsapp']);
+
+        // Disputes
+        Route::post('/orders/{order}/dispute', [MarketplaceOrderController::class, 'openDispute']);
+
+        // Seller delivery proof
+        Route::get('/seller/orders', [SellerMarketplaceOrderController::class, 'index']);
+        Route::post('/seller/orders/{marketplaceOrder}/delivered', [SellerMarketplaceOrderController::class, 'markDelivered']);
     });
 
 });
@@ -274,6 +291,10 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         ->middleware('permission:marketplace.sellers.manage');
     Route::post('/marketplace/sellers/{seller}/ban', [AdminMarketplaceSellerController::class, 'ban'])
         ->middleware('permission:marketplace.sellers.manage');
+    Route::post('/marketplace/sellers/{seller}/freeze-wallet', [AdminMarketplaceSellerController::class, 'freezeWallet'])
+        ->middleware('permission:marketplace.sellers.manage');
+    Route::post('/marketplace/sellers/{seller}/unfreeze-wallet', [AdminMarketplaceSellerController::class, 'unfreezeWallet'])
+        ->middleware('permission:marketplace.sellers.manage');
 
     // Gaming Account Marketplace (Withdraw requests)
     Route::get('/marketplace/withdraw-requests', [AdminMarketplaceWithdrawController::class, 'index'])
@@ -282,6 +303,24 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         ->middleware('permission:marketplace.withdraws.manage');
     Route::post('/marketplace/withdraw-requests/{partnerWithdrawRequest}/reject', [AdminMarketplaceWithdrawController::class, 'reject'])
         ->middleware('permission:marketplace.withdraws.manage');
+
+    // Gaming Account Marketplace (Disputes)
+    Route::get('/marketplace/disputes', [AdminMarketplaceDisputeController::class, 'index'])
+        ->middleware('permission:marketplace.disputes.manage');
+    Route::post('/marketplace/disputes/{dispute}/resolve', [AdminMarketplaceDisputeController::class, 'resolve'])
+        ->middleware('permission:marketplace.disputes.manage');
+
+    // Gaming Account Marketplace (Manual release)
+    Route::get('/marketplace/orders', [AdminMarketplaceOrderController::class, 'index'])
+        ->middleware('permission:marketplace.orders.manage');
+    Route::post('/marketplace/orders/{marketplaceOrder}/release', [AdminMarketplaceOrderController::class, 'release'])
+        ->middleware('permission:marketplace.orders.manage');
+
+    // Gaming Account Marketplace (Commission rules)
+    Route::get('/marketplace/commission-rules', [AdminMarketplaceCommissionController::class, 'index'])
+        ->middleware('permission:marketplace.settings.manage');
+    Route::post('/marketplace/commission-rules', [AdminMarketplaceCommissionController::class, 'upsert'])
+        ->middleware('permission:marketplace.settings.manage');
 
     // Redeem inventory
     Route::get('/redeem-lots', [AdminRedeemLotController::class, 'index'])->middleware('permission:redeems.view');

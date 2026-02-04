@@ -35,6 +35,8 @@ return [
         'marketplace.withdraws.manage',
         'marketplace.disputes.manage',
         'marketplace.listings.manage',
+        'marketplace.orders.manage',
+        'marketplace.settings.manage',
     ],
     'roles' => [
         'admin_super' => ['*'],
@@ -61,6 +63,8 @@ return [
             'marketplace.withdraws.manage',
             'marketplace.disputes.manage',
             'marketplace.listings.manage',
+            'marketplace.orders.manage',
+            'marketplace.settings.manage',
         ],
         'admin_support' => [
             'dashboard.view',

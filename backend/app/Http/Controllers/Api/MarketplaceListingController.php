@@ -10,11 +10,43 @@ use Illuminate\Validation\ValidationException;
 
 class MarketplaceListingController extends Controller
 {
+    private function trustForListing(SellerListing $listing): array
+    {
+        $seller = $listing->seller;
+        $stats = $seller?->stats;
+
+        $totalSales = (int) ($stats?->total_sales ?? 0);
+        $successfulSales = (int) ($stats?->successful_sales ?? 0);
+        $disputedSales = (int) ($stats?->disputed_sales ?? 0);
+
+        $successRate = $totalSales > 0 ? round($successfulSales / $totalSales, 4) : 0.0;
+
+        $badges = [];
+        if ($seller && $seller->status === 'approved') {
+            $badges[] = 'verified';
+        }
+        if ($totalSales === 0) {
+            $badges[] = 'new';
+        }
+        if (($seller && $seller->partner_wallet_frozen) || $disputedSales > 0) {
+            $badges[] = 'under_surveillance';
+        }
+
+        return [
+            'totalSales' => $totalSales,
+            'successRate' => $successRate,
+            'badges' => $badges,
+        ];
+    }
+
     public function index(Request $request)
     {
         $q = SellerListing::query()
             ->with(['game', 'category', 'seller.stats'])
             ->where('status', 'active')
+            ->where(function ($sub) {
+                $sub->whereNull('reserved_until')->orWhere('reserved_until', '<', now());
+            })
             ->whereHas('seller', function ($sq) {
                 $sq->where('status', 'approved')->where('partner_wallet_frozen', false);
             });
@@ -29,6 +61,11 @@ class MarketplaceListingController extends Controller
 
         $listings = $q->orderByDesc('created_at')->paginate(20);
 
+        $listings->getCollection()->transform(function (SellerListing $listing) {
+            $listing->setAttribute('seller_trust', $this->trustForListing($listing));
+            return $listing;
+        });
+
         return response()->json(['data' => $listings]);
     }
 
@@ -39,6 +76,8 @@ class MarketplaceListingController extends Controller
         if ($sellerListing->status !== 'active' || $sellerListing->seller?->status !== 'approved' || $sellerListing->seller?->partner_wallet_frozen) {
             return response()->json(['message' => 'Listing not available.'], 404);
         }
+
+        $sellerListing->setAttribute('seller_trust', $this->trustForListing($sellerListing));
 
         return response()->json(['data' => $sellerListing]);
     }

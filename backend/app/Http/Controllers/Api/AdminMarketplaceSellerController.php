@@ -231,4 +231,77 @@ class AdminMarketplaceSellerController extends Controller
 
         return response()->json(['ok' => true]);
     }
+
+    public function freezeWallet(Request $request, Seller $seller)
+    {
+        $admin = $request->user();
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($seller, $data) {
+            $sellerRow = Seller::query()->lockForUpdate()->findOrFail($seller->id);
+
+            $sellerRow->partner_wallet_frozen = true;
+            $sellerRow->partner_wallet_frozen_at = now();
+            $sellerRow->save();
+
+            PartnerWallet::query()->where('seller_id', $sellerRow->id)->update([
+                'status' => 'frozen',
+                'status_reason' => $data['reason'] ?? 'Wallet frozen by admin',
+                'frozen_at' => now(),
+            ]);
+
+            SellerListing::query()
+                ->where('seller_id', $sellerRow->id)
+                ->where('status', 'active')
+                ->update([
+                    'status' => 'disabled',
+                    'status_reason' => $data['reason'] ?? 'Wallet frozen by admin',
+                ]);
+        });
+
+        try {
+            /** @var AdminAuditLogger $audit */
+            $audit = app(AdminAuditLogger::class);
+            $audit->log($admin, 'marketplace.seller.wallet.freeze', [
+                'seller_id' => $seller->id,
+                'reason' => $data['reason'] ?? null,
+            ], 'marketplace', $request);
+        } catch (\Throwable $e) {
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function unfreezeWallet(Request $request, Seller $seller)
+    {
+        $admin = $request->user();
+
+        DB::transaction(function () use ($seller) {
+            $sellerRow = Seller::query()->lockForUpdate()->findOrFail($seller->id);
+
+            $sellerRow->partner_wallet_frozen = false;
+            $sellerRow->partner_wallet_frozen_at = null;
+            $sellerRow->save();
+
+            PartnerWallet::query()->where('seller_id', $sellerRow->id)->update([
+                'status' => 'active',
+                'status_reason' => null,
+                'frozen_at' => null,
+            ]);
+        });
+
+        try {
+            /** @var AdminAuditLogger $audit */
+            $audit = app(AdminAuditLogger::class);
+            $audit->log($admin, 'marketplace.seller.wallet.unfreeze', [
+                'seller_id' => $seller->id,
+            ], 'marketplace', $request);
+        } catch (\Throwable $e) {
+        }
+
+        return response()->json(['ok' => true]);
+    }
 }
