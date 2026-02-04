@@ -28,6 +28,13 @@ return [
         'notifications.manage',
         'audit.view',
         'wallet.manage',
+
+        // Gaming Account Marketplace
+        'marketplace.sellers.view',
+        'marketplace.sellers.manage',
+        'marketplace.withdraws.manage',
+        'marketplace.disputes.manage',
+        'marketplace.listings.manage',
     ],
     'roles' => [
         'admin_super' => ['*'],
@@ -48,6 +55,12 @@ return [
             'email.view',
             'notifications.manage',
             'wallet.manage',
+
+            'marketplace.sellers.view',
+            'marketplace.sellers.manage',
+            'marketplace.withdraws.manage',
+            'marketplace.disputes.manage',
+            'marketplace.listings.manage',
         ],
         'admin_support' => [
             'dashboard.view',
@@ -58,6 +71,8 @@ return [
             'email.view',
             'reviews.view',
             'wallet.manage',
+
+            'marketplace.sellers.view',
         ],
         'admin_marketing' => [
             'dashboard.view',
@@ -79,12 +94,16 @@ return [
             'users.view',
             'email.view',
             'wallet.manage',
+
+            'marketplace.sellers.view',
         ],
         'staff' => [
             'dashboard.view',
             'orders.view',
             'payments.view',
             'products.view',
+
+            'marketplace.sellers.view',
         ],
         'viewer' => [
             'dashboard.view',
@@ -92,6 +111,8 @@ return [
             'orders.view',
             'payments.view',
             'products.view',
+
+            'marketplace.sellers.view',
         ],
     ],
 ];

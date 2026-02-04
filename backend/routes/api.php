@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\AdminMeController;
 use App\Http\Controllers\Api\AdminAuditLogController;
 use App\Http\Controllers\Api\AdminDbWalletController;
 use App\Http\Controllers\Api\AdminDbWalletWelcomeBonusController;
+use App\Http\Controllers\Api\AdminMarketplaceSellerController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\GameController;
@@ -35,6 +36,10 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\ImageProxyController;
 use App\Http\Controllers\Api\MeRedeemController;
+use App\Http\Controllers\Api\SellerKycController;
+use App\Http\Controllers\Api\PartnerWalletController;
+use App\Http\Controllers\Api\AdminMarketplaceWithdrawController;
+use App\Http\Controllers\Api\MarketplaceListingController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -118,6 +123,8 @@ Route::get('products/{product}', [ProductController::class, 'show']);
 Route::get('products', [ProductController::class, 'index']);
 Route::get('categories', [CategoryController::class, 'index']);
 Route::get('categories/{category}', [CategoryController::class, 'show']);
+Route::get('gaming-accounts/listings', [MarketplaceListingController::class, 'index']);
+Route::get('gaming-accounts/listings/{sellerListing}', [MarketplaceListingController::class, 'showPublic']);
 Route::get('/stats/overview', [PublicStatsController::class, 'overview']);
 Route::get('/likes/stats', [LikeController::class, 'stats']);
 
@@ -205,6 +212,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/support/tickets/{ticket}', [SupportTicketController::class, 'show']);
     Route::post('/support/tickets/{ticket}/messages', [SupportTicketController::class, 'reply']);
 
+    // Gaming Account Marketplace (Seller KYC)
+    Route::prefix('gaming-accounts')->group(function () {
+        Route::get('/seller/me', [SellerKycController::class, 'me']);
+        Route::post('/seller/apply', [SellerKycController::class, 'apply']);
+        Route::post('/seller/kyc/id-front', [SellerKycController::class, 'uploadIdFront']);
+        Route::post('/seller/kyc/selfie', [SellerKycController::class, 'captureSelfie']);
+
+        // DB Partner wallet
+        Route::get('/partner-wallet', [PartnerWalletController::class, 'show']);
+        Route::post('/partner-wallet/withdraw', [PartnerWalletController::class, 'requestWithdraw']);
+
+        // Seller listings
+        Route::get('/listings/mine', [MarketplaceListingController::class, 'mine']);
+        Route::post('/listings', [MarketplaceListingController::class, 'store']);
+        Route::patch('/listings/{sellerListing}', [MarketplaceListingController::class, 'update']);
+        Route::patch('/listings/{sellerListing}/status', [MarketplaceListingController::class, 'setStatus']);
+    });
+
 });
 
 // Admin routes
@@ -233,6 +258,30 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         ->middleware('permission:orders.view');
     Route::patch('/orders/{order}/shipping/status', [AdminOrderController::class, 'updateShippingStatus'])
         ->middleware('permission:orders.manage');
+
+    // Gaming Account Marketplace (DM Partner / Sellers)
+    Route::get('/marketplace/sellers', [AdminMarketplaceSellerController::class, 'index'])
+        ->middleware('permission:marketplace.sellers.view');
+    Route::get('/marketplace/sellers/{seller}', [AdminMarketplaceSellerController::class, 'show'])
+        ->middleware('permission:marketplace.sellers.view');
+    Route::get('/marketplace/sellers/{seller}/kyc/{type}', [AdminMarketplaceSellerController::class, 'downloadKycFile'])
+        ->middleware('permission:marketplace.sellers.view');
+    Route::post('/marketplace/sellers/{seller}/approve', [AdminMarketplaceSellerController::class, 'approve'])
+        ->middleware('permission:marketplace.sellers.manage');
+    Route::post('/marketplace/sellers/{seller}/refuse', [AdminMarketplaceSellerController::class, 'refuse'])
+        ->middleware('permission:marketplace.sellers.manage');
+    Route::post('/marketplace/sellers/{seller}/suspend', [AdminMarketplaceSellerController::class, 'suspend'])
+        ->middleware('permission:marketplace.sellers.manage');
+    Route::post('/marketplace/sellers/{seller}/ban', [AdminMarketplaceSellerController::class, 'ban'])
+        ->middleware('permission:marketplace.sellers.manage');
+
+    // Gaming Account Marketplace (Withdraw requests)
+    Route::get('/marketplace/withdraw-requests', [AdminMarketplaceWithdrawController::class, 'index'])
+        ->middleware('permission:marketplace.withdraws.manage');
+    Route::post('/marketplace/withdraw-requests/{partnerWithdrawRequest}/mark-paid', [AdminMarketplaceWithdrawController::class, 'markPaid'])
+        ->middleware('permission:marketplace.withdraws.manage');
+    Route::post('/marketplace/withdraw-requests/{partnerWithdrawRequest}/reject', [AdminMarketplaceWithdrawController::class, 'reject'])
+        ->middleware('permission:marketplace.withdraws.manage');
 
     // Redeem inventory
     Route::get('/redeem-lots', [AdminRedeemLotController::class, 'index'])->middleware('permission:redeems.view');
