@@ -20,6 +20,8 @@ import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
+import BonusPromoCard from "@/components/ui/BonusPromoCard";
+import useBonusPromo from "@/hooks/useBonusPromo";
 
 type ShopProduct = {
   id: number;
@@ -55,7 +57,7 @@ const HERO_BACKDROP =
 const HERO_TROPHY =
   "https://img.freepik.com/premium-photo/virtual-shopping-cart-filled-with-gaming-merchandise_1247965-24719.jpg";
 const COSMIC_OVERLAY =
-  "bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.4),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(14,165,233,0.35),transparent_40%)]";
+  "bg-[radial-gradient(circle_at_20%_20%,rgba(110,231,255,0.24),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(110,231,255,0.18),transparent_40%)]";
 const FALLBACK_PRODUCT_IMAGE =
   "https://images.unsplash.com/photo-1605902711622-cfb43c4437b5?auto=format&fit=crop&w=600&q=80";
 
@@ -244,7 +246,7 @@ function MobileFiltersSheet({
                         onClick={() => onPendingChange({ ...pending, price: band.value })}
                         className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
                           active
-                            ? "border-fuchsia-300/60 bg-fuchsia-500/20 text-white"
+                            ? "border-cyan-300/60 bg-cyan-500/20 text-white"
                             : "border-white/10 bg-white/5 text-white/60"
                         }`}
                       >
@@ -278,14 +280,14 @@ function MobileFiltersSheet({
                     onClick={() => onPendingChange({ ...pending, promo: !pending.promo })}
                     className={`mt-2 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
                       pending.promo
-                        ? "border-emerald-300/60 bg-emerald-400/20 text-white"
+                        ? "border-cyan-300/60 bg-cyan-400/15 text-white"
                         : "border-white/10 bg-white/5 text-white/70"
                     }`}
                   >
                     <span>En promo</span>
                     <span
                       className={`relative inline-flex h-5 w-10 items-center rounded-full transition ${
-                        pending.promo ? "bg-emerald-400/80" : "bg-white/20"
+                        pending.promo ? "bg-cyan-400/70" : "bg-white/20"
                       }`}
                     >
                       <span
@@ -335,22 +337,27 @@ function StripCard({
     <div className="relative flex min-w-[180px] flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
       <div className="flex items-start justify-between text-xs font-medium text-white/70">
         <span className="flex items-center gap-1">
-          <Icon className="h-3.5 w-3.5 text-amber-300" />
+          <Icon className="h-3.5 w-3.5 text-cyan-200" />
           {label}
         </span>
         {product.discountPercent && (
-          <span className="rounded-full bg-amber-400/20 px-2 py-1 text-[10px] text-amber-200">
+          <span className="rounded-full bg-cyan-400/15 px-2 py-1 text-[10px] text-cyan-100">
             -{product.discountPercent}%
           </span>
         )}
       </div>
-      <div className="h-24 w-full overflow-hidden rounded-xl bg-white/10">
+      <div className="relative h-24 w-full overflow-hidden rounded-xl bg-white/10">
         <img
           src={toDisplayImageSrc(cardImage) ?? cardImage}
           alt={product.name}
           className="h-full w-full object-cover"
           loading="lazy"
         />
+        {delivery ? (
+          <div className="absolute bottom-2 right-2">
+            <DeliveryBadge delivery={delivery} />
+          </div>
+        ) : null}
       </div>
       <div className="text-sm font-semibold text-white line-clamp-2">{product.name}</div>
       <div className="text-xs text-white/60 line-clamp-2">{product.description}</div>
@@ -358,11 +365,6 @@ function StripCard({
       {product.oldPrice && (
         <div className="text-[11px] text-white/40 line-through">{formatNumber(product.oldPrice)} FCFA</div>
       )}
-      {delivery ? (
-        <div className="mt-2 flex justify-end">
-          <DeliveryBadge delivery={delivery} />
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -370,7 +372,7 @@ function StripCard({
 function ShopHero() {
   return (
     <div className={`${orbitron.className} flex flex-col items-center text-center`}>
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-white/10 text-cyan-200 shadow-[0_12px_40px_rgba(99,102,241,0.4)]">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-white/10 text-cyan-200 shadow-[0_12px_40px_rgba(110,231,255,0.28)]">
         <Crown className="h-7 w-7" />
       </div>
       <p className="mt-6 text-xs uppercase tracking-[0.45em] text-cyan-200/80">BADBOYSHOP</p>
@@ -378,8 +380,12 @@ function ShopHero() {
       <p className="mt-3 max-w-2xl text-base text-white/80">
         Recharge, abonnements et articles gaming au meilleur prix.
       </p>
-      <div className="mt-8 h-px w-32 bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400" />
+      <div className="mt-8 h-px w-32 bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
       <p className="mt-4 text-sm uppercase tracking-[0.4em] text-white/60">Sélection premium</p>
+
+      <div className="mt-7 w-full max-w-md">
+        <BonusPromoCard variant="compact" />
+      </div>
     </div>
   );
 }
@@ -463,13 +469,13 @@ function ShopFilters({
         <button
           onClick={onPromoToggle}
           className={`flex items-center gap-3 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-            promoOnly ? "border-emerald-300/60 bg-emerald-400/20 text-white" : "border-white/10 bg-white/5 text-white/70"
+            promoOnly ? "border-cyan-300/60 bg-cyan-400/15 text-white" : "border-white/10 bg-white/5 text-white/70"
           }`}
         >
           <span>En promo</span>
           <span
             className={`relative inline-flex h-5 w-10 items-center rounded-full transition ${
-              promoOnly ? "bg-emerald-400/80" : "bg-white/20"
+              promoOnly ? "bg-cyan-400/70" : "bg-white/20"
             }`}
           >
             <span
@@ -496,7 +502,7 @@ function ShopFilters({
                 key={band.value}
                 onClick={() => onPriceChange(band.value)}
                 className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
-                  active ? "border-fuchsia-300/60 bg-fuchsia-500/20 text-white" : "border-white/10 bg-white/5 text-white/60"
+                  active ? "border-cyan-300/60 bg-cyan-500/20 text-white" : "border-white/10 bg-white/5 text-white/60"
                 }`}
               >
                 {band.label}
@@ -516,11 +522,12 @@ type ProductGridProps = {
   onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
   onView: (product: ShopProduct) => void;
   onLike: (product: ShopProduct) => void;
+  promoActive?: boolean;
 };
 
-function ProductGrid({ title, subtitle, products, onAddToCart, onView, onLike }: ProductGridProps) {
+function ProductGrid({ title, subtitle, products, onAddToCart, onView, onLike, promoActive = false }: ProductGridProps) {
   return (
-    <div className="space-y-4 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.1),_rgba(10,3,28,0.95))] p-6 shadow-[0_25px_80px_rgba(4,6,35,0.6)]">
+    <div className="space-y-4 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.1),_rgba(4,2,12,0.95))] p-6 shadow-[0_25px_80px_rgba(4,6,35,0.6)]">
       <div className="flex flex-col gap-1">
         <h3 className="text-2xl font-bold text-white">{title}</h3>
         {subtitle && <p className="text-sm text-white/70">{subtitle}</p>}
@@ -528,7 +535,7 @@ function ProductGrid({ title, subtitle, products, onAddToCart, onView, onLike }:
       <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-soft">
         {products.map((product) => (
           <div key={product.id} className="min-w-[320px] max-w-[320px] shrink-0">
-            <ProductCard product={product} onAddToCart={onAddToCart} onView={onView} onLike={onLike} />
+            <ProductCard product={product} onAddToCart={onAddToCart} onView={onView} onLike={onLike} promoActive={promoActive} />
           </div>
         ))}
         {!products.length && (
@@ -547,12 +554,14 @@ function ResultsGrid({
   onView,
   onLike,
   onReset,
+  promoActive = false,
 }: {
   products: ShopProduct[];
   onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
   onView: (product: ShopProduct) => void;
   onLike: (product: ShopProduct) => void;
   onReset: () => void;
+  promoActive?: boolean;
 }) {
   const countLabel = `${products.length} article${products.length > 1 ? "s" : ""}`;
   return (
@@ -584,6 +593,7 @@ function ResultsGrid({
               onAddToCart={onAddToCart}
               onView={onView}
               onLike={onLike}
+              promoActive={promoActive}
             />
           ))}
         </div>
@@ -597,13 +607,27 @@ type ProductCardProps = {
   onAddToCart: (product: ShopProduct, origin?: HTMLElement | null) => void;
   onView: (product: ShopProduct) => void;
   onLike: (product: ShopProduct) => void;
+  promoActive?: boolean;
 };
 
-function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps) {
+function ProductCard({ product, onAddToCart, onView, onLike, promoActive = false }: ProductCardProps) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [likePulse, setLikePulse] = useState(false);
   const isRechargeDirect = (product.displaySection ?? "").toLowerCase() === "recharge_direct";
+  const isRecharge = useMemo(() => {
+    const type = String(product.type ?? "").toLowerCase();
+    const section = String(product.displaySection ?? "").toLowerCase();
+    const category = String(product.category ?? "").toLowerCase();
+    return (
+      section === "recharge_direct" ||
+      type.includes("recharge") ||
+      type.includes("topup") ||
+      type.includes("pass") ||
+      category.includes("recharge") ||
+      category.includes("topup")
+    );
+  }, [product.category, product.displaySection, product.type]);
   const badgeLabel = product.discountPercent
     ? `-${product.discountPercent}%`
     : product.likes > 30
@@ -647,6 +671,18 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
         <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
           {badgeLabel}
         </span>
+
+        {promoActive && isRecharge ? (
+          <span className="absolute right-4 top-4 rounded-full border border-cyan-200/25 bg-cyan-400/12 px-3 py-1 text-[11px] font-bold text-cyan-100">
+            🎁 Bonus actif
+          </span>
+        ) : null}
+
+        {delivery ? (
+          <div className="absolute bottom-3 right-3">
+            <DeliveryBadge delivery={delivery} />
+          </div>
+        ) : null}
       </div>
       <div className="mt-4 space-y-2">
         <p className="text-xs font-medium text-white/60">{product.category}</p>
@@ -663,26 +699,20 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
         <button
           type="button"
           onClick={handleLike}
-          className="relative flex items-center gap-1 text-xs text-white/60 hover:text-rose-200"
+          className="relative flex items-center gap-1 text-xs text-white/60 hover:text-cyan-100"
         >
           <span
-            className={`absolute -inset-2 rounded-full bg-rose-400/20 transition ${likePulse ? "opacity-100" : "opacity-0"}`}
+            className={`absolute -inset-2 rounded-full bg-cyan-400/15 transition ${likePulse ? "opacity-100" : "opacity-0"}`}
           />
-          <Heart className={`h-4 w-4 text-rose-300 transition ${likePulse ? "scale-110" : "scale-100"}`} />
+          <Heart className={`h-4 w-4 text-cyan-200 transition ${likePulse ? "scale-110" : "scale-100"}`} />
           {product.likes}
         </button>
       </div>
 
-      {delivery ? (
-        <div className="mt-2 flex justify-end">
-          <DeliveryBadge delivery={delivery} />
-        </div>
-      ) : null}
-
       <div className="mt-5 flex flex-col gap-2">
         <button
           onClick={handleAdd}
-          className={`relative w-full overflow-hidden rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(14,165,233,0.4)] transition hover:brightness-110 active:scale-[0.98] ${
+          className={`relative w-full overflow-hidden rounded-full bg-gradient-to-r from-cyan-300 to-cyan-400 px-5 py-3 text-sm font-semibold text-black shadow-[0_20px_60px_rgba(110,231,255,0.25)] transition hover:brightness-110 active:scale-[0.98] ${
             adding ? "brightness-110" : ""
           }`}
         >
@@ -710,6 +740,7 @@ function ProductCard({ product, onAddToCart, onView, onLike }: ProductCardProps)
 export default function ShopPage() {
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
+  const promo = useBonusPromo();
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState<PriceFilterKey>("all");
@@ -1129,7 +1160,7 @@ export default function ShopPage() {
   };
 
   return (
-    <main className="min-h-[100dvh] bg-[#04020c] text-white bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]">
+    <main className="min-h-[100dvh] bg-[#04020c] text-white bg-[radial-gradient(circle_at_top,_rgba(110,231,255,0.14),_#04020c_70%)]">
       {overlay}
       {statusMessage && (
         <div className="fixed right-4 top-[86px] z-50 mt-2 flex items-center gap-2 rounded-2xl border border-white/10 bg-black/80 px-4 py-2 text-sm font-semibold text-white shadow-[0_15px_40px_rgba(0,0,0,0.55)] backdrop-blur sm:top-[94px]">
@@ -1157,7 +1188,7 @@ export default function ShopPage() {
                 <div className="relative grid items-center gap-12 px-12 py-16 lg:grid-cols-[minmax(0,1fr)_400px]">
                   <ShopHero />
                   <div className="relative h-[360px]">
-                    <div className="absolute inset-0 rounded-[38px] bg-gradient-to-br from-cyan-400/20 via-fuchsia-400/15 to-transparent blur-3xl" />
+                    <div className="absolute inset-0 rounded-[38px] bg-gradient-to-br from-cyan-400/22 via-cyan-300/10 to-transparent blur-3xl" />
                     <div className="relative h-full overflow-hidden rounded-[34px] border border-white/10 bg-black/30">
                       <Image src={HERO_TROPHY} alt="Trophée" fill className="object-cover" sizes="400px" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent" />
@@ -1191,6 +1222,7 @@ export default function ShopPage() {
                   onView={handleViewProduct}
                   onLike={handleToggleLike}
                   onReset={resetAllFilters}
+                  promoActive={promo.isActive}
                 />
               ) : (
                 <>
@@ -1202,6 +1234,7 @@ export default function ShopPage() {
                       onAddToCart={handleAddToCart}
                       onView={handleViewProduct}
                       onLike={handleToggleLike}
+                      promoActive={promo.isActive}
                     />
                   )}
                   <ProductGrid
@@ -1211,6 +1244,7 @@ export default function ShopPage() {
                     onAddToCart={handleAddToCart}
                     onView={handleViewProduct}
                     onLike={handleToggleLike}
+                    promoActive={promo.isActive}
                   />
                   {gamingAccountProducts.length > 0 && (
                     <ProductGrid
@@ -1220,6 +1254,7 @@ export default function ShopPage() {
                       onAddToCart={handleAddToCart}
                       onView={handleViewProduct}
                       onLike={handleToggleLike}
+                      promoActive={promo.isActive}
                     />
                   )}
                   <ProductGrid
@@ -1229,6 +1264,7 @@ export default function ShopPage() {
                     onAddToCart={handleAddToCart}
                     onView={handleViewProduct}
                     onLike={handleToggleLike}
+                    promoActive={promo.isActive}
                   />
                   {emoteSkinProducts.length > 0 && (
                     <ProductGrid
@@ -1238,6 +1274,7 @@ export default function ShopPage() {
                       onAddToCart={handleAddToCart}
                       onView={handleViewProduct}
                       onLike={handleToggleLike}
+                      promoActive={promo.isActive}
                     />
                   )}
                   <ProductGrid
@@ -1247,6 +1284,7 @@ export default function ShopPage() {
                     onAddToCart={handleAddToCart}
                     onView={handleViewProduct}
                     onLike={handleToggleLike}
+                    promoActive={promo.isActive}
                   />
                 </>
               )}
@@ -1296,7 +1334,7 @@ export default function ShopPage() {
           </div>
           {imagePreview && (
             <div className="mt-2 flex items-center gap-2 text-xs text-white/60">
-              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+              <Sparkles className="h-3.5 w-3.5 text-cyan-200" />
               Recherche par image bientôt dispo.
             </div>
           )}
@@ -1321,6 +1359,7 @@ export default function ShopPage() {
             onView={handleViewProduct}
             onLike={handleToggleLike}
             onReset={resetAllFilters}
+            promoActive={promo.isActive}
           />
         )}
 

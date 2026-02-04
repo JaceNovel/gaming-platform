@@ -4,7 +4,7 @@ import type { MouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { BadgePercent, ChevronLeft, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
+import { BadgePercent, ChevronLeft, MessageCircle, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -100,6 +100,12 @@ export default function ProductPage() {
   const ratingCount = product?.ratingCount ?? 0;
 
   const isRechargeDirect = product?.display_section === "recharge_direct";
+
+  const isAccountProduct = useMemo(() => {
+    const type = String(product?.type ?? "").toLowerCase();
+    const section = String(product?.display_section ?? "").toLowerCase();
+    return type.includes("account") || type.includes("compte") || section === "gaming_accounts";
+  }, [product?.display_section, product?.type]);
 
   const openRechargeDirectChat = () => {
     if (!product) return;
@@ -235,7 +241,7 @@ export default function ProductPage() {
   return (
     <main className="relative min-h-[100dvh] bg-[#04010d] pb-[140px] text-white">
       {overlay}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(99,102,241,0.25),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(14,165,233,0.2),transparent_50%),linear-gradient(180deg,#03000a,#050111)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(110,231,255,0.18),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(110,231,255,0.12),transparent_50%),linear-gradient(180deg,#03000a,#050111)]" />
       {statusMessage && (
         <div className="fixed right-4 top-[86px] z-50 flex items-center gap-2 rounded-2xl border border-white/10 bg-black/85 px-4 py-2 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(0,0,0,0.55)] backdrop-blur">
           <ShoppingCart className="h-4 w-4 text-cyan-300" />
@@ -348,7 +354,7 @@ export default function ProductPage() {
                     <span className="text-base text-white/40 line-through">{formatNumber(oldPrice)} FCFA</span>
                   )}
                   {discountPercent > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-white/15 px-3 py-1 text-xs text-amber-100">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-cyan-200/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100">
                       <BadgePercent className="h-3.5 w-3.5" /> Promo active
                     </span>
                   )}
@@ -395,6 +401,43 @@ export default function ProductPage() {
                 ))}
               </div>
             </div>
+
+            {isAccountProduct ? (
+              <div className="rounded-[30px] border border-white/10 bg-white/5 p-6 text-sm text-white/70">
+                <p className="text-xs uppercase tracking-[0.35em] text-white/40">Marketplace</p>
+                <p className="mt-2">
+                  BADBOYSHOP sert d’intermédiaire : paiement confirmé → transfert sécurisé → livraison accompagnée.
+                </p>
+                <div className="mt-4 grid gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-white">
+                        <ShieldCheck className="h-4 w-4 text-cyan-300" />
+                        <p className="text-sm font-semibold">Vendeur vérifié</p>
+                      </div>
+                      <span className="rounded-full border border-cyan-200/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold text-cyan-100">
+                        Protection active
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-2 text-xs text-white/70">
+                      <p className="flex items-start gap-2">
+                        <ShieldCheck className="mt-0.5 h-4 w-4 text-cyan-200" />
+                        Compte vérifié avant remise (anti-fraude).
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <Truck className="mt-0.5 h-4 w-4 text-cyan-200" />
+                        Livraison estimée selon badge (souvent ~24h).
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <MessageCircle className="mt-0.5 h-4 w-4 text-cyan-200" />
+                        Contact WhatsApp/Support uniquement après paiement confirmé.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="rounded-[30px] border border-white/10 bg-white/5 p-6 text-sm text-white/70">
               <p className="text-xs uppercase tracking-[0.35em] text-white/40">Assistance</p>

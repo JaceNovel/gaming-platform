@@ -9,17 +9,17 @@ type Props = {
 
 const map: Record<Level, { bg: string; text: string; ring: string }> = {
   Bronze: {
-    bg: "from-amber-600/70 via-amber-500/40 to-yellow-400/20",
-    text: "text-amber-200",
-    ring: "shadow-[0_0_20px_rgba(251,191,36,0.35)]",
+    bg: "from-cyan-500/55 via-cyan-400/25 to-white/5",
+    text: "text-cyan-100",
+    ring: "shadow-[0_0_18px_rgba(110,231,255,0.22)]",
   },
   Or: {
-    bg: "from-yellow-400 via-amber-300 to-orange-200",
-    text: "text-amber-900",
-    ring: "shadow-[0_0_25px_rgba(251,191,36,0.45)]",
+    bg: "from-cyan-300 via-cyan-200 to-white/10",
+    text: "text-slate-900",
+    ring: "shadow-[0_0_22px_rgba(110,231,255,0.3)]",
   },
   Platine: {
-    bg: "from-cyan-300 via-sky-200 to-blue-200",
+    bg: "from-cyan-200 via-cyan-100 to-white/20",
     text: "text-slate-900",
     ring: "shadow-[0_0_25px_rgba(56,189,248,0.4)]",
   },

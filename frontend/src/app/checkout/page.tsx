@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import RequireAuth from "@/components/auth/RequireAuth";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
+import TrustLabels from "@/components/ui/TrustLabels";
 import { API_BASE } from "@/lib/config";
 
 function CheckoutScreen() {
@@ -262,6 +263,7 @@ function CheckoutScreen() {
     <div className="min-h-screen pb-24">
       <div className="mobile-shell py-6 space-y-6">
         <SectionTitle eyebrow="Checkout" label="Finaliser l'achat" />
+        <TrustLabels />
 
         <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-3">
           <p className="text-sm text-white/70">Produit sélectionné: #{isValidProduct ? productId : "-"}</p>

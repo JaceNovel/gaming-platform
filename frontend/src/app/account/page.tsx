@@ -170,9 +170,9 @@ const normalizeMe = (payload: any, baseline: Me | null): Me => {
 };
 
 const statusBadgeClass = (status: Order["status"]) => {
-  if (status === "COMPLÉTÉ") return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
-  if (status === "ÉCHOUÉ") return "bg-rose-500/20 border-rose-400/30 text-rose-100";
-  return "bg-amber-400/20 border-amber-300/30 text-amber-100";
+  if (status === "COMPLÉTÉ") return "bg-cyan-400/15 border-cyan-300/30 text-cyan-100";
+  if (status === "ÉCHOUÉ") return "bg-white/5 border-white/15 text-white/70";
+  return "bg-cyan-400/10 border-cyan-300/20 text-white/80";
 };
 
 function AccountClient() {
@@ -669,7 +669,7 @@ function AccountClient() {
         <div className="absolute inset-0 bg-black" />
         <div className="absolute inset-0 bg-[url('/backgrounds/profile.jpg')] bg-cover bg-center" />
         <div className="absolute inset-0 bg-black/55" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(180,70,255,0.35),transparent_45%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.25),transparent_50%),radial-gradient(circle_at_50%_90%,rgba(255,160,0,0.2),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(0,255,255,0.20),transparent_50%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.12),transparent_55%),radial-gradient(circle_at_50%_90%,rgba(0,255,255,0.08),transparent_60%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.15),rgba(0,0,0,0.9))]" />
         <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.9)]" />
       </div>
@@ -686,13 +686,13 @@ function AccountClient() {
 
           <section className="space-y-8">
             {paymentBanner && (
-              <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-sm text-white/85">
                 {paymentBanner}
               </div>
             )}
             {null}
             {missingCountry && (
-              <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+              <div className="rounded-2xl border border-white/15 bg-white/5 p-4 text-sm text-white/80">
                 Pays manquant. Merci de compléter ton pays dans le profil pour afficher le drapeau.
               </div>
             )}
@@ -736,7 +736,7 @@ function AccountClient() {
                             window.setTimeout(() => setReferralToast(null), 1800);
                           }
                         }}
-                        className="rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-sm font-semibold text-black"
+                        className="rounded-2xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black hover:bg-cyan-300"
                       >
                         Copier lien
                       </button>
@@ -802,14 +802,14 @@ function AccountClient() {
                       ))}
                     </select>
                     {countryMessage && (
-                      <p className={`mt-2 text-xs ${countryStatus === "success" ? "text-emerald-300" : "text-rose-300"}`}>
+                      <p className={`mt-2 text-xs ${countryStatus === "success" ? "text-cyan-200" : "text-white/70"}`}>
                         {countryMessage}
                       </p>
                     )}
                     <button
                       type="submit"
                       disabled={disableCountryForm || countrySubmitting}
-                      className="mt-3 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                      className="mt-3 w-full rounded-2xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black hover:bg-cyan-300 disabled:opacity-50"
                     >
                       {countrySubmitting ? "Mise à jour..." : "Valider"}
                     </button>
@@ -852,14 +852,14 @@ function AccountClient() {
                       />
                     </div>
                     {passwordMessage && (
-                      <p className={`mt-3 text-xs ${passwordStatus === "success" ? "text-emerald-300" : "text-rose-300"}`}>
+                      <p className={`mt-3 text-xs ${passwordStatus === "success" ? "text-cyan-200" : "text-white/70"}`}>
                         {passwordMessage}
                       </p>
                     )}
                     <button
                       type="submit"
                       disabled={disablePasswordForm || passwordSubmitting}
-                      className="mt-3 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                      className="mt-3 w-full rounded-2xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black hover:bg-cyan-300 disabled:opacity-50"
                     >
                       {passwordSubmitting ? "Mise à jour..." : "Valider"}
                     </button>
@@ -898,17 +898,17 @@ function AccountClient() {
                       </select>
                     </label>
                     {countryMessage && (
-                      <p className={`mt-3 text-sm ${countryStatus === "success" ? "text-emerald-300" : "text-rose-300"}`}>
+                      <p className={`mt-3 text-sm ${countryStatus === "success" ? "text-cyan-200" : "text-white/70"}`}>
                         {countryMessage}
                       </p>
                     )}
                     {disableCountryForm && (
-                      <p className="mt-2 text-xs text-amber-200">API non configurée, modification désactivée en local.</p>
+                      <p className="mt-2 text-xs text-white/60">API non configurée, modification désactivée en local.</p>
                     )}
                     <button
                       type="submit"
                       disabled={disableCountryForm || countrySubmitting}
-                      className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                      className="mt-4 w-full rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-black hover:bg-cyan-300 disabled:opacity-50"
                     >
                       {countrySubmitting ? "Mise à jour..." : "Mettre à jour"}
                     </button>
@@ -957,24 +957,24 @@ function AccountClient() {
                       />
                     </div>
                     {passwordMessage && (
-                      <p className={`mt-3 text-sm ${passwordStatus === "success" ? "text-emerald-300" : "text-rose-300"}`}>
+                      <p className={`mt-3 text-sm ${passwordStatus === "success" ? "text-cyan-200" : "text-white/70"}`}>
                         {passwordMessage}
                       </p>
                     )}
                     {disablePasswordForm && (
-                      <p className="mt-2 text-xs text-amber-200">API non configurée, modification désactivée en local.</p>
+                      <p className="mt-2 text-xs text-white/60">API non configurée, modification désactivée en local.</p>
                     )}
                     <button
                       type="submit"
                       disabled={disablePasswordForm || passwordSubmitting}
-                      className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                      className="mt-4 w-full rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-black hover:bg-cyan-300 disabled:opacity-50"
                     >
                       {passwordSubmitting ? "Mise à jour..." : "Mettre à jour"}
                     </button>
                   </form>
                 </div>
 
-                <div className="mt-6 hidden rounded-2xl border border-white/10 bg-gradient-to-r from-rose-500/20 to-orange-500/10 p-5 md:block">
+                <div className="mt-6 hidden rounded-2xl border border-white/10 bg-cyan-400/5 p-5 md:block">
                   <p className="text-xs uppercase tracking-[0.3em] text-white/60">Session</p>
                   <p className="mt-2 text-sm text-white/70">Déconnexion immédiate sur tous les appareils.</p>
                   <button
@@ -1057,7 +1057,7 @@ function AccountClient() {
                         </div>
                         <p
                           className={`text-base font-semibold ${
-                            lastWalletTransaction.type === "credit" ? "text-emerald-300" : "text-rose-300"
+                            lastWalletTransaction.type === "credit" ? "text-cyan-200" : "text-white/70"
                           }`}
                         >
                           {lastWalletTransaction.type === "credit" ? "+" : "-"}
@@ -1074,7 +1074,7 @@ function AccountClient() {
                   )}
                 </div>
 
-                <div className="rounded-3xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                <div className="rounded-3xl border border-white/15 bg-white/5 p-4 text-sm text-white/80">
                   <p>Utilise ton solde pour des comptes, recharges et drops exclusifs.</p>
                   <p className="mt-2 text-xs">
                     Les accessoires physiques restent livrés uniquement au TOGO.
@@ -1091,7 +1091,7 @@ function AccountClient() {
         ) : (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeWalletModal} />
-            <div className="relative z-10 w-full max-w-lg max-h-[80vh] rounded-[28px] border border-white/10 bg-[#05030d] p-5 text-white shadow-[0_30px_120px_rgba(0,0,0,0.85)]">
+            <div className="relative z-10 w-full max-w-lg max-h-[80vh] rounded-[28px] border border-white/10 bg-black/90 p-5 text-white shadow-[0_30px_120px_rgba(0,0,0,0.85)]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.4em] text-white/40">Wallet BD</p>
@@ -1184,7 +1184,7 @@ function AccountClient() {
                         >
                           {order.status}
                         </span>
-                        <p className="mt-2 text-lg font-semibold text-amber-200">
+                        <p className="mt-2 text-lg font-semibold text-cyan-100">
                           {formatCurrency(order.priceFcfa, me.countryCode)}
                         </p>
                         {order.hasPhysicalItems && (
@@ -1220,7 +1220,7 @@ function AccountClient() {
         ) : (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur" onClick={closeOrdersModal} />
-            <div className="relative z-10 w-full max-w-lg max-h-[80vh] rounded-[32px] border border-white/10 bg-[#05030d] p-5 text-white shadow-[0_30px_120px_rgba(0,0,0,0.85)]">
+            <div className="relative z-10 w-full max-w-lg max-h-[80vh] rounded-[32px] border border-white/10 bg-black/90 p-5 text-white shadow-[0_30px_120px_rgba(0,0,0,0.85)]">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.4em] text-white/40">Mes commandes</p>
@@ -1252,7 +1252,7 @@ function AccountClient() {
                         >
                           {order.status}
                         </span>
-                        <p className="mt-1 text-sm font-semibold text-amber-200">{formatCurrency(order.priceFcfa, me.countryCode)}</p>
+                        <p className="mt-1 text-sm font-semibold text-cyan-100">{formatCurrency(order.priceFcfa, me.countryCode)}</p>
                         {order.hasPhysicalItems && (
                           <p className="mt-1 text-[11px] text-white/60">
                             Livraison estimée: {order.shippingEtaDays ? `${order.shippingEtaDays} jours` : "—"}
@@ -1293,7 +1293,7 @@ function AccountClient() {
           <div className="relative z-10 w-full max-w-md rounded-[28px] border border-white/15 bg-black/90 p-6 text-white shadow-[0_30px_120px_rgba(0,0,0,0.8)]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.5em] text-fuchsia-200/80">BADBOY VIP</p>
+                <p className="text-xs uppercase tracking-[0.5em] text-cyan-200/80">BADBOY VIP</p>
                 <h2 className="mt-2 text-2xl font-semibold">Section réservée desktop</h2>
               </div>
               <button

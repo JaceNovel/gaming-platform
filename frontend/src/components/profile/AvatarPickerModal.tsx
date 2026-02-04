@@ -77,7 +77,7 @@ export default function AvatarPickerModal({
             <button
               disabled={saving}
               onClick={onSave}
-              className="px-4 py-2 rounded-2xl bg-yellow-500/20 border border-yellow-300/20 hover:bg-yellow-500/25 transition text-sm disabled:opacity-60"
+              className="px-4 py-2 rounded-2xl bg-cyan-400 text-black hover:bg-cyan-300 transition text-sm font-semibold disabled:opacity-60"
             >
               {saving ? "Validation..." : "Valider ce personnage"}
             </button>

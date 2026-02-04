@@ -8,7 +8,7 @@ export default function DeliveryBadge({ delivery }: { delivery: DeliveryBadgeDis
       className={
         "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold " +
         (delivery.tone === "bolt"
-          ? "border-amber-200/20 bg-amber-400/8 text-amber-100"
+          ? "border-cyan-200/25 bg-cyan-400/10 text-cyan-100"
           : "border-white/10 bg-white/5 text-white/75")
       }
     >
