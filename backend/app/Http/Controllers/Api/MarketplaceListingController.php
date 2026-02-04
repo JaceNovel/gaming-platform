@@ -129,7 +129,7 @@ class MarketplaceListingController extends Controller
             'account_region' => $data['accountRegion'] ?? null,
             'has_email_access' => (bool) ($data['hasEmailAccess'] ?? false),
             'delivery_window_hours' => $data['deliveryWindowHours'] ?? 24,
-            'status' => 'disabled',
+            'status' => 'active',
         ]);
 
         return response()->json(['data' => $listing], 201);

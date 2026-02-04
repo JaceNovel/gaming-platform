@@ -593,6 +593,10 @@ function AccountClient() {
       router.push("/referral");
       return;
     }
+    if (menu === "Vendeur") {
+      router.push("/account/seller");
+      return;
+    }
     if (menu === "MesCommandes") {
       setOrdersModalOpen(true);
       return;

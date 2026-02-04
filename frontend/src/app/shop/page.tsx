@@ -41,6 +41,51 @@ type ShopProduct = {
   deliveryEstimateLabel?: string | null;
 };
 
+type MarketplaceListing = {
+  id: number;
+  title: string;
+  description?: string | null;
+  price: number | string;
+  currency?: string | null;
+  account_level?: string | null;
+  account_rank?: string | null;
+  account_region?: string | null;
+  has_email_access?: boolean | null;
+  delivery_window_hours?: number | null;
+  created_at?: string | null;
+  game?: {
+    id: number;
+    name: string;
+    slug?: string | null;
+    image?: string | null;
+  } | null;
+  category?: {
+    id: number;
+    name: string;
+    slug?: string | null;
+    icon?: string | null;
+  } | null;
+  seller_trust?: {
+    totalSales?: number;
+    successRate?: number;
+    badges?: string[];
+  } | null;
+};
+
+type MarketplaceListingCard = {
+  id: number;
+  title: string;
+  description: string;
+  priceLabel: string;
+  gameLabel: string;
+  categoryLabel: string;
+  imageUrl: string;
+  badges: string[];
+  successRate: number | null;
+  totalSales: number | null;
+  deliveryWindowHours: number | null;
+};
+
 type CategoryOption = {
   id: number;
   name: string;
@@ -367,6 +412,41 @@ function StripCard({
   );
 }
 
+function MarketplaceStripCard({
+  listing,
+  label,
+  icon: Icon = Crown,
+}: {
+  listing: MarketplaceListingCard;
+  label: string;
+  icon?: typeof Tag;
+}) {
+  return (
+    <div className="relative flex min-w-[180px] flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="flex items-start justify-between text-xs font-medium text-white/70">
+        <span className="flex items-center gap-1">
+          <Icon className="h-3.5 w-3.5 text-amber-300" />
+          {label}
+        </span>
+        {listing.badges.includes("verified") && (
+          <span className="rounded-full bg-cyan-400/15 px-2 py-1 text-[10px] text-cyan-200">Vérifié</span>
+        )}
+      </div>
+      <div className="h-24 w-full overflow-hidden rounded-xl bg-white/10">
+        <img
+          src={toDisplayImageSrc(listing.imageUrl) ?? listing.imageUrl}
+          alt={listing.title}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
+      </div>
+      <div className="text-sm font-semibold text-white line-clamp-2">{listing.title}</div>
+      <div className="text-xs text-white/60 line-clamp-2">{listing.gameLabel}</div>
+      <div className="mt-auto text-sm font-bold text-cyan-200">{listing.priceLabel}</div>
+    </div>
+  );
+}
+
 function ShopHero() {
   return (
     <div className={`${orbitron.className} flex flex-col items-center text-center`}>
@@ -534,6 +614,94 @@ function ProductGrid({ title, subtitle, products, onAddToCart, onView, onLike }:
         {!products.length && (
           <div className="min-w-full rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
             Aucun produit pour le moment.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MarketplaceListingGrid({
+  title,
+  subtitle,
+  listings,
+  onView,
+}: {
+  title: string;
+  subtitle?: string;
+  listings: MarketplaceListingCard[];
+  onView: (listing: MarketplaceListingCard) => void;
+}) {
+  return (
+    <div className="space-y-4 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(168,85,247,0.10),_rgba(10,3,28,0.95))] p-6 shadow-[0_25px_80px_rgba(4,6,35,0.6)]">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-2xl font-bold text-white">{title}</h3>
+        {subtitle && <p className="text-sm text-white/70">{subtitle}</p>}
+      </div>
+      <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-soft">
+        {listings.map((listing) => (
+          <button
+            key={listing.id}
+            type="button"
+            onClick={() => onView(listing)}
+            className="min-w-[320px] max-w-[320px] shrink-0 text-left"
+          >
+            <div className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-black/40 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-fuchsia-300/40 hover:shadow-[0_35px_90px_rgba(168,85,247,0.28)]">
+              <div className="relative h-40 w-full overflow-hidden rounded-2xl">
+                <img
+                  src={toDisplayImageSrc(listing.imageUrl) ?? listing.imageUrl}
+                  alt={listing.title}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
+                <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                  {listing.categoryLabel && (
+                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+                      {listing.categoryLabel}
+                    </span>
+                  )}
+                  {listing.badges.includes("verified") && (
+                    <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+                      Vendeur vérifié
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <p className="text-xs font-medium text-white/60">{listing.gameLabel}</p>
+                <h4 className="text-lg font-semibold leading-tight text-white line-clamp-2">{listing.title}</h4>
+                <p className="text-sm text-white/70 line-clamp-2">{listing.description}</p>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xl font-black text-fuchsia-200">{listing.priceLabel}</p>
+                  {listing.deliveryWindowHours ? (
+                    <p className="text-xs text-white/50">Livraison sous {listing.deliveryWindowHours}h</p>
+                  ) : null}
+                </div>
+                {typeof listing.successRate === "number" && typeof listing.totalSales === "number" ? (
+                  <div className="text-right text-xs text-white/60">
+                    <div className="font-semibold text-white/80">{Math.round(listing.successRate * 100)}% succès</div>
+                    <div>{listing.totalSales} vente{listing.totalSales > 1 ? "s" : ""}</div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-5">
+                <span className="inline-flex w-full items-center justify-center rounded-full border border-white/20 bg-white/5 px-5 py-2 text-sm font-medium text-white/80 transition group-hover:border-fuchsia-300/40 group-hover:bg-white/10">
+                  Voir l'annonce
+                </span>
+              </div>
+            </div>
+          </button>
+        ))}
+
+        {!listings.length && (
+          <div className="min-w-full rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-white/60">
+            Aucune annonce pour le moment.
           </div>
         )}
       </div>
@@ -724,7 +892,9 @@ export default function ShopPage() {
     sort: "popular",
   });
   const [products, setProducts] = useState<ShopProduct[]>([]);
+  const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListingCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [marketplaceLoading, setMarketplaceLoading] = useState(true);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -867,6 +1037,70 @@ export default function ShopPage() {
 
   useEffect(() => {
     let active = true;
+    const loadMarketplace = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/gaming-accounts/listings`, { cache: "no-store" });
+        const payload = await res.json().catch(() => null);
+        const page = payload?.data;
+        const items: MarketplaceListing[] = Array.isArray(page?.data)
+          ? page.data
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
+
+        if (!active) return;
+
+        const mapped: MarketplaceListingCard[] = items
+          .map((row: any) => {
+            const priceValue = Number(row?.price ?? 0);
+            const gameName = String(row?.game?.name ?? "").trim();
+            const categoryName = String(row?.category?.name ?? "").trim();
+            const title = String(row?.title ?? "Annonce").trim() || "Annonce";
+            const description = String(row?.description ?? "Compte disponible en marketplace.").trim() || "Compte disponible en marketplace.";
+            const badges = Array.isArray(row?.seller_trust?.badges) ? row.seller_trust.badges.filter(Boolean) : [];
+            const successRateRaw = row?.seller_trust?.successRate;
+            const successRate = typeof successRateRaw === "number" ? successRateRaw : Number(successRateRaw ?? NaN);
+            const totalSalesRaw = row?.seller_trust?.totalSales;
+            const totalSales = typeof totalSalesRaw === "number" ? totalSalesRaw : Number(totalSalesRaw ?? NaN);
+            const deliveryWindowHoursRaw = row?.delivery_window_hours;
+            const deliveryWindowHours = typeof deliveryWindowHoursRaw === "number" ? deliveryWindowHoursRaw : Number(deliveryWindowHoursRaw ?? NaN);
+
+            const image = String(row?.game?.image ?? "").trim();
+            const imageUrl = image ? image : FALLBACK_PRODUCT_IMAGE;
+
+            return {
+              id: Number(row?.id ?? 0),
+              title,
+              description,
+              priceLabel: `${formatNumber(Number.isFinite(priceValue) ? priceValue : 0)} FCFA`,
+              gameLabel: gameName || "Compte Gaming",
+              categoryLabel: categoryName || "Comptes",
+              imageUrl,
+              badges,
+              successRate: Number.isFinite(successRate) ? successRate : null,
+              totalSales: Number.isFinite(totalSales) ? totalSales : null,
+              deliveryWindowHours: Number.isFinite(deliveryWindowHours) ? deliveryWindowHours : null,
+            };
+          })
+          .filter((it) => Number.isFinite(it.id) && it.id > 0);
+
+        setMarketplaceListings(mapped.slice(0, 10));
+      } catch {
+        if (!active) return;
+        setMarketplaceListings([]);
+      } finally {
+        if (active) setMarketplaceLoading(false);
+      }
+    };
+
+    loadMarketplace();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     const loadCategories = async () => {
       try {
         const res = await fetch(`${API_BASE}/categories`);
@@ -964,6 +1198,10 @@ export default function ShopPage() {
 
   const handleViewProduct = (product: ShopProduct) => {
     router.push(`/produits/${product.id}`);
+  };
+
+  const handleViewMarketplaceListing = (listing: MarketplaceListingCard) => {
+    router.push(`/comptes-gaming/${listing.id}`);
   };
 
   const handleToggleLike = async (product: ShopProduct) => {
@@ -1222,6 +1460,14 @@ export default function ShopPage() {
                       onLike={handleToggleLike}
                     />
                   )}
+                  {!marketplaceLoading && marketplaceListings.length > 0 && (
+                    <MarketplaceListingGrid
+                      title="Comptes Gaming"
+                      subtitle="Annonces de vendeurs vérifiés (Marketplace)."
+                      listings={marketplaceListings}
+                      onView={handleViewMarketplaceListing}
+                    />
+                  )}
                   <ProductGrid
                     title="Promotions cosmiques"
                     subtitle="Réductions limitées sur les meilleures offres du moment."
@@ -1365,6 +1611,29 @@ export default function ShopPage() {
                 : gamingAccountProducts.map((product) => (
                     <Link key={product.id} href={`/produits/${product.id}`} className="min-w-[180px] snap-start">
                       <StripCard product={product} label="Compte" icon={Crown} />
+                    </Link>
+                  ))}
+            </div>
+          </div>
+        )}
+
+        {!hasActiveFilters && (marketplaceLoading || marketplaceListings.length > 0) && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold">Comptes Gaming (Marketplace)</h2>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-soft snap-x snap-mandatory">
+              {marketplaceLoading
+                ? Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="min-w-[180px] rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="h-4 w-24 rounded-full bg-white/10" />
+                      <div className="mt-3 h-24 rounded-xl bg-white/10" />
+                      <div className="mt-3 h-3 w-3/4 rounded-full bg-white/10" />
+                    </div>
+                  ))
+                : marketplaceListings.slice(0, 8).map((listing) => (
+                    <Link key={listing.id} href={`/comptes-gaming/${listing.id}`} className="min-w-[180px] snap-start">
+                      <MarketplaceStripCard listing={listing} label="Annonce" icon={Crown} />
                     </Link>
                   ))}
             </div>
