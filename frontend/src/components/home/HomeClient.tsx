@@ -9,7 +9,6 @@ import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "../../lib/imageProxy";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
-import BonusPromoCard from "@/components/ui/BonusPromoCard";
 
 type Stat = {
   to: number;
@@ -33,7 +32,7 @@ type ProductCard = {
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
 const heroPills = [
-  { icon: ShieldCheck, label: "Paiement sécurisé" },
+  { icon: ShieldCheck, label: "Sécurité sécurisée" },
   { icon: Zap, label: "Livraison instantanée" },
   { icon: Bot, label: "Anti-fraude actif" },
 ];
@@ -47,8 +46,8 @@ function GlowPill({
 }) {
   const toneCls =
     tone === "gold"
-      ? "from-cyan-400/55 via-cyan-200/25 to-transparent"
-      : "from-cyan-400/55 via-cyan-200/25 to-transparent";
+      ? "from-amber-400/60 via-yellow-200/30 to-fuchsia-400/20"
+      : "from-cyan-400/60 via-blue-300/30 to-fuchsia-400/20";
 
   return (
     <span className="relative inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-white/90">
@@ -76,7 +75,7 @@ function GlassButton({
       className={`group relative inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold text-white transition active:scale-[0.98] ${className}`}
     >
       <span
-        className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-cyan-300/70 via-cyan-400/30 to-transparent opacity-80 blur-[14px]"
+        className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-cyan-400/70 via-blue-400/30 to-fuchsia-400/20 opacity-80 blur-[14px]"
       />
       <span className="absolute inset-0 -z-10 rounded-xl bg-white/8 ring-1 ring-white/20 backdrop-blur-md" />
       <span className="absolute inset-[1px] -z-10 rounded-[11px] bg-black/35" />
@@ -168,7 +167,7 @@ function StatBar({ stats }: { stats: Stat[] }) {
   return (
     <div className="mx-auto mt-4 w-full max-w-6xl px-4">
       <div className="relative overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/15 backdrop-blur-md">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/12 via-cyan-300/6 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/10 via-fuchsia-400/10 to-amber-300/10" />
         <div className="relative flex gap-3 overflow-x-auto p-4 sm:grid sm:grid-cols-4">
           {stats.map((s) => (
             <div
@@ -228,7 +227,7 @@ function ProductCardUI({
             {p.badge}
           </span>
           <div className="flex items-center gap-1 text-xs text-white/80">
-            <Heart className="h-4 w-4 text-cyan-200" />
+            <Heart className="h-4 w-4 text-pink-400" />
             {p.likes}
           </div>
         </div>
@@ -261,7 +260,7 @@ function ProductCardUI({
             className="relative inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-[0.98]"
           >
             Acheter
-            <span className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-cyan-400/18 via-cyan-300/8 to-transparent" />
+            <span className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-cyan-400/15 via-fuchsia-400/10 to-amber-300/10" />
           </button>
 
           {showAddToCart ? (
@@ -502,12 +501,12 @@ export default function HomeClient() {
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
       {overlay}
-      <div className="absolute inset-0 -z-20 hidden sm:block bg-[radial-gradient(circle_at_top,rgba(110,231,255,0.16),transparent_55%),radial-gradient(circle_at_30%_10%,rgba(110,231,255,0.12),transparent_45%),linear-gradient(180deg,#0d0f1f_0%,#0b0b14_100%)]" />
+      <div className="absolute inset-0 -z-20 hidden sm:block bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.18),transparent_55%),radial-gradient(circle_at_30%_10%,rgba(14,165,233,0.16),transparent_45%),linear-gradient(180deg,#0d0f1f_0%,#0b0b14_100%)]" />
 
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute left-1/2 top-[-120px] h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-500/12 blur-[80px]" />
+        <div className="absolute left-1/2 top-[-120px] h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-fuchsia-500/20 blur-[80px]" />
         <div className="absolute left-[10%] top-[10%] h-[420px] w-[420px] rounded-full bg-cyan-500/20 blur-[90px]" />
-        <div className="absolute right-[8%] top-[18%] h-[380px] w-[380px] rounded-full bg-cyan-400/10 blur-[90px]" />
+        <div className="absolute right-[8%] top-[18%] h-[380px] w-[380px] rounded-full bg-amber-400/10 blur-[90px]" />
       </div>
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
@@ -613,10 +612,6 @@ export default function HomeClient() {
                 </OutlineButton>
               </div>
 
-              <div className="mx-auto mt-4 w-full max-w-[420px] sm:max-w-xl">
-                <BonusPromoCard variant="compact" />
-              </div>
-
               {!authLoading && user ? (
                 <div className="mx-auto mt-4 w-full max-w-[420px] sm:max-w-xl">
                   <div ref={quickActionsRef} className="flex gap-2 overflow-x-auto pb-1 sm:justify-center">
@@ -639,7 +634,7 @@ export default function HomeClient() {
                       className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/7 px-3 py-2 text-xs font-semibold text-white/90 ring-1 ring-white/15"
                     >
                       {user.is_premium ? (
-                        <Crown className="h-4 w-4 text-cyan-200" />
+                        <Crown className="h-4 w-4 text-amber-200" />
                       ) : (
                         <KeyRound className="h-4 w-4 text-cyan-200" />
                       )}

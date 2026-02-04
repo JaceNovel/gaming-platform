@@ -12,7 +12,7 @@ export default function GlowButton({
 }: GlowButtonProps) {
   const variants: Record<NonNullable<GlowButtonProps["variant"]>, string> = {
     primary:
-      "bg-gradient-to-r from-cyan-300 to-cyan-400 text-black shadow-[0_0_30px_rgba(110,231,255,0.35)]",
+      "bg-gradient-to-r from-cyan-400 to-purple-500 text-black shadow-[0_0_30px_rgba(110,231,255,0.35)]",
     secondary:
       "bg-white/10 text-white border border-white/15 backdrop-blur hover:border-white/25",
     ghost: "bg-transparent text-white border border-white/10 hover:border-white/25",

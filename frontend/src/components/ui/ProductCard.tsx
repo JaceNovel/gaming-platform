@@ -65,7 +65,7 @@ export default function ProductCard({
       <div className="mt-4 h-32 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 via-transparent to-cyan-400/10 overflow-hidden relative">
         {typeof likes === "number" && (
           <div className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-black/60 border border-white/20 px-2 py-1 text-[11px] text-white/80 backdrop-blur">
-            <Heart className="h-3 w-3 text-cyan-200" />
+            <Heart className="h-3 w-3 text-rose-300" />
             <span>{likeLabel} likes</span>
           </div>
         )}
@@ -99,14 +99,14 @@ export default function ProductCard({
         <div className="flex items-center gap-3">
           <button
             onClick={onLike}
-            className="flex items-center gap-1 text-cyan-200 hover:text-cyan-100 transition"
+            className="flex items-center gap-1 text-rose-300 hover:text-rose-200 transition"
           >
             <Heart className="h-4 w-4" />
             <span className="text-sm">{likeLabel}</span>
           </button>
           <button
             onClick={onAction}
-            className="rounded-xl bg-gradient-to-r from-cyan-300 to-cyan-400 text-black px-3 py-2 font-semibold shadow-[0_0_20px_rgba(110,231,255,0.35)]"
+            className="rounded-xl bg-gradient-to-r from-cyan-400 to-purple-500 text-black px-3 py-2 font-semibold shadow-[0_0_20px_rgba(110,231,255,0.35)]"
           >
             <ShoppingCart className="h-4 w-4" />
           </button>

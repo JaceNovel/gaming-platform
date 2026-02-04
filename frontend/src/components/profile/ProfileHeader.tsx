@@ -30,8 +30,8 @@ export default function ProfileHeader({
   const countryTag = safeCode.length === 2 ? safeCode : "FR";
 
   return (
-    <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-black/35 backdrop-blur-xl shadow-[0_30px_120px_rgba(34,211,238,0.20)]">
-      <div className="absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_20%_15%,rgba(0,255,255,0.22),transparent_45%),radial-gradient(circle_at_75%_35%,rgba(0,255,255,0.16),transparent_50%),radial-gradient(circle_at_55%_85%,rgba(0,255,255,0.10),transparent_55%)]" />
+    <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-black/35 backdrop-blur-xl shadow-[0_30px_120px_rgba(95,45,255,0.35)]">
+      <div className="absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_20%_15%,rgba(180,70,255,0.35),transparent_40%),radial-gradient(circle_at_75%_35%,rgba(0,255,255,0.25),transparent_45%),radial-gradient(circle_at_55%_85%,rgba(255,160,0,0.18),transparent_45%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.2),rgba(0,0,0,0.8))]" />
 
       <div className="relative p-6 md:p-10">
@@ -62,7 +62,7 @@ export default function ProfileHeader({
                 {countryTag}
               </span>
             </div>
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-400/10 px-5 py-2">
+            <div className="mt-4 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-yellow-500/15 border border-yellow-300/25">
               <span>🏆</span>
               <span className="text-sm font-semibold">BADBOY {tierLabel}</span>
             </div>
@@ -70,7 +70,7 @@ export default function ProfileHeader({
             <div className="mt-7 rounded-3xl bg-white/8 border border-white/10 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold opacity-90 flex items-center justify-center gap-2">
-                  <Wallet className="h-4 w-4 text-cyan-200" /> BADBOY Wallet BD
+                  <Wallet className="h-4 w-4 text-emerald-200" /> BADBOY Wallet BD
                 </div>
                 <div className="mt-2 text-3xl md:text-4xl font-black">{walletDisplay}</div>
                 <p className="mt-2 text-xs text-white/70">Affiché en {walletCurrencyLabel}.</p>

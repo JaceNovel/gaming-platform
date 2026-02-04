@@ -7,7 +7,6 @@ import SectionTitle from "@/components/ui/SectionTitle";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import DeliveryBadge from "@/components/ui/DeliveryBadge";
-import TrustLabels from "@/components/ui/TrustLabels";
 import { API_BASE } from "@/lib/config";
 import type { DeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
@@ -307,7 +306,7 @@ function CartScreen() {
               </GlowButton>
               <GlowButton
                 variant="secondary"
-                className="w-full sm:w-auto border-cyan-200/20 text-cyan-100 hover:border-cyan-200/35"
+                className="w-full sm:w-auto border-rose-200/25 text-rose-100 hover:border-rose-200/40"
                 onClick={clearCart}
                 disabled={loading || !cartItems.length}
                 aria-label="Vider le panier"
@@ -322,7 +321,6 @@ function CartScreen() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr,0.8fr]">
             <div className="glass-card rounded-2xl p-6 border border-white/10 space-y-5">
               <SectionTitle eyebrow="Articles" label="Dans ton panier" />
-              <TrustLabels />
               <div className="space-y-4">
                 {cartItems.length ? cartItems.map((item) => (
                   <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
