@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
@@ -22,6 +23,19 @@ type CategoriesResponse = {
 type GamesResponse = {
   data: Game[];
 } | Game[];
+
+const isLikelyImageUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/^https?:\/\//i.test(trimmed)) return true;
+  return /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(trimmed);
+};
+
+const CARD = "rounded-2xl border border-slate-200 bg-white p-6 shadow-sm";
+const INPUT = "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm";
+const TEXTAREA = "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm";
+const SELECT = "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm";
+const HELP = "mt-2 text-xs text-slate-500";
 
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
@@ -61,12 +75,6 @@ export default function AdminProductsAddPage() {
   const [accountImageFiles, setAccountImageFiles] = useState<File[]>([]);
   const [imagePreviewError, setImagePreviewError] = useState(false);
   const [bannerPreviewError, setBannerPreviewError] = useState(false);
-  const isLikelyImageUrl = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return false;
-    if (/^https?:\/\//i.test(trimmed)) return true;
-    return /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(trimmed);
-  };
   const [categories, setCategories] = useState<Category[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [status, setStatus] = useState("");
@@ -74,6 +82,16 @@ export default function AdminProductsAddPage() {
 
   const [redeemEnabled, setRedeemEnabled] = useState(false);
   const [redeemCodesText, setRedeemCodesText] = useState("");
+
+  const statusKind = useMemo<"success" | "error" | "info" | null>(() => {
+    const value = status.trim().toLowerCase();
+    if (!value) return null;
+    if (value.includes("impossible") || value.includes("échoué") || value.includes("echec") || value.includes("http")) {
+      return "error";
+    }
+    if (value.includes("ajout") || value.includes("cré") || value.includes("import")) return "success";
+    return "info";
+  }, [status]);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -290,11 +308,36 @@ export default function AdminProductsAddPage() {
     }
   };
 
+  const actions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Link
+        href="/admin/products/list"
+        className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700"
+      >
+        Retour à la liste
+      </Link>
+    </div>
+  );
+
   return (
-    <AdminShell title="Créer un produit" subtitle="Ajouter un nouvel article à la boutique">
+    <AdminShell title="Produits" subtitle="Ajouter un produit" actions={actions}>
       <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.4fr,0.9fr]">
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          {status && statusKind ? (
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm ${
+                statusKind === "error"
+                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                  : statusKind === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-slate-200 bg-slate-50 text-slate-700"
+              }`}
+            >
+              {status}
+            </div>
+          ) : null}
+
+          <div className={CARD}>
             <h3 className="text-base font-semibold">Informations de base</h3>
             <div className="mt-6 space-y-4">
               <div>
@@ -303,7 +346,7 @@ export default function AdminProductsAddPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={INPUT}
                   placeholder="Entrez le nom du produit"
                 />
               </div>
@@ -314,7 +357,7 @@ export default function AdminProductsAddPage() {
                   onChange={(e) => setDescription(e.target.value)}
                   required
                   rows={6}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={TEXTAREA}
                   placeholder="Écrivez votre contenu en Markdown ici..."
                 />
               </div>
@@ -324,10 +367,10 @@ export default function AdminProductsAddPage() {
                 <input
                   value={serverTags}
                   onChange={(e) => setServerTags(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={INPUT}
                   placeholder="ex: garantie, full-access, instant"
                 />
-                <p className="mt-2 text-xs text-slate-500">
+                <p className={HELP}>
                   Astuce: ces tags sont gérés côté serveur (utiles pour les produits type account).
                 </p>
               </div>
@@ -360,7 +403,7 @@ export default function AdminProductsAddPage() {
                         const files = Array.from(e.target.files ?? []);
                         setAccountImageFiles(files.slice(0, 10));
                       }}
-                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm"
+                      className={INPUT}
                     />
                     <p className="mt-1 text-xs text-slate-500">
                       Les images seront uploadées après création du produit.
@@ -391,7 +434,7 @@ export default function AdminProductsAddPage() {
                               onChange={(e) =>
                                 setAccountImages((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))
                               }
-                              className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                              className={INPUT}
                               placeholder="https://..."
                             />
                           </div>
@@ -412,7 +455,7 @@ export default function AdminProductsAddPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className={CARD}>
             <h3 className="text-base font-semibold">Tarification</h3>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div>
@@ -423,7 +466,7 @@ export default function AdminProductsAddPage() {
                   type="number"
                   min="0"
                   required
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={INPUT}
                   placeholder="0.00"
                 />
               </div>
@@ -434,7 +477,7 @@ export default function AdminProductsAddPage() {
                   onChange={(e) => setDiscountPrice(e.target.value)}
                   type="number"
                   min="0"
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={INPUT}
                   placeholder="0.00"
                 />
               </div>
@@ -447,10 +490,10 @@ export default function AdminProductsAddPage() {
                   min="0"
                   required
                   disabled={redeemEnabled}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={INPUT}
                 />
                 {redeemEnabled && (
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className={HELP}>
                     Stock géré automatiquement par les Redeem Codes (pool). Laissez à 0.
                   </p>
                 )}
@@ -458,7 +501,7 @@ export default function AdminProductsAddPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className={CARD}>
             <h3 className="text-base font-semibold">Redeem Codes</h3>
             <div className="mt-6 space-y-4">
               <label className="flex items-start gap-3">
@@ -484,10 +527,10 @@ export default function AdminProductsAddPage() {
                     onChange={(e) => setRedeemCodesText(e.target.value)}
                     required
                     rows={8}
-                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-mono"
+                    className={`${TEXTAREA} font-mono`}
                     placeholder={`ABC-123\nDEF-456\nGHI-789`}
                   />
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className={HELP}>
                     Les doublons (déjà présents dans la base) seront ignorés automatiquement.
                   </p>
                 </div>
@@ -497,7 +540,7 @@ export default function AdminProductsAddPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className={CARD}>
             <h3 className="text-base font-semibold">Visuels du produit</h3>
             <div className="mt-6 space-y-4">
               <div>
@@ -509,10 +552,10 @@ export default function AdminProductsAddPage() {
                     setImagePreviewError(false);
                   }}
                   type="url"
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={INPUT}
                   placeholder="https://..."
                 />
-                <p className="mt-2 text-xs text-slate-500">Astuce: utiliser un lien HTTPS direct vers une image (jpg/png).</p>
+                <p className={HELP}>Astuce: utiliser un lien HTTPS direct vers une image (jpg/png).</p>
               </div>
               <div>
                 <label className="text-sm font-medium">Bannière (URL)</label>
@@ -523,7 +566,7 @@ export default function AdminProductsAddPage() {
                     setBannerPreviewError(false);
                   }}
                   type="url"
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={INPUT}
                   placeholder="https://..."
                 />
               </div>
@@ -570,15 +613,15 @@ export default function AdminProductsAddPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-base font-semibold">Attribut</h3>
+          <div className={CARD}>
+            <h3 className="text-base font-semibold">Attributs</h3>
             <div className="mt-6 space-y-4">
               <div>
                 <label className="text-sm font-medium">Catégorie *</label>
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={SELECT}
                   required
                 >
                   <option value="">Sélectionner une catégorie</option>
@@ -594,7 +637,7 @@ export default function AdminProductsAddPage() {
                 <select
                   value={gameId}
                   onChange={(e) => setGameId(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={SELECT}
                 >
                   <option value="">Aucun jeu</option>
                   {games.map((game) => (
@@ -609,7 +652,7 @@ export default function AdminProductsAddPage() {
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={SELECT}
                 >
                   <option value="account">account</option>
                   <option value="recharge">recharge</option>
@@ -622,7 +665,7 @@ export default function AdminProductsAddPage() {
                 <select
                   value={displaySection}
                   onChange={(e) => setDisplaySection(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  className={SELECT}
                 >
                   <option value="none">Aucune</option>
                   <option value="recharge_direct">Recharge Direct</option>
@@ -640,7 +683,7 @@ export default function AdminProductsAddPage() {
                   <input
                     value={deliveryEstimateLabel}
                     onChange={(e) => setDeliveryEstimateLabel(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                    className={INPUT}
                     placeholder="ex: 7–10 jours, 3–5 jours"
                   />
                   <p className="mt-1 text-xs text-slate-500">
@@ -664,7 +707,7 @@ export default function AdminProductsAddPage() {
                     <select
                       value={deliveryType}
                       onChange={(e) => setDeliveryType(e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                      className={SELECT}
                     >
                       <option value="in_stock">in_stock</option>
                       <option value="preorder">preorder</option>
@@ -678,7 +721,7 @@ export default function AdminProductsAddPage() {
                     onChange={(e) => setDeliveryEtaDays(e.target.value)}
                     type="number"
                     min="1"
-                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                    className={INPUT}
                   />
                   <p className="mt-1 text-xs text-slate-500">Laissez vide pour utiliser la valeur par défaut.</p>
                 </div>
@@ -695,7 +738,7 @@ export default function AdminProductsAddPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className={CARD}>
             <button
               type="submit"
               disabled={loading}
@@ -703,7 +746,7 @@ export default function AdminProductsAddPage() {
             >
               {loading ? "Ajout..." : "Ajouter le produit"}
             </button>
-            {status && <p className="mt-3 text-center text-sm text-slate-500">{status}</p>}
+            {!statusKind && status && <p className="mt-3 text-center text-sm text-slate-500">{status}</p>}
           </div>
         </div>
       </form>
