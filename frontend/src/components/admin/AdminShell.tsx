@@ -91,6 +91,18 @@ const MENU_ITEMS = [
       { label: "Low Stock", href: "/admin/redeem-codes/low-stock" },
     ],
   },
+    {
+      label: "Gestion vendeur",
+      icon: Boxes,
+      href: "/admin/marketplace/sellers",
+      children: [
+        { label: "Vendeurs", href: "/admin/marketplace/sellers" },
+        { label: "Annonces", href: "/admin/marketplace/listings" },
+        { label: "Commandes", href: "/admin/marketplace/orders" },
+        { label: "Litiges", href: "/admin/marketplace/disputes" },
+        { label: "Retraits", href: "/admin/marketplace/withdraws" },
+      ],
+    },
   { label: "Commandes", icon: ShoppingCart, href: "/admin/orders" },
   { label: "Paiements", icon: CreditCard, href: "/admin/payments" },
   { label: "Stock / Inventaire", icon: Boxes, href: "/admin/stock" },

@@ -14,6 +14,7 @@ class Dispute extends Model
         'buyer_id',
         'status',
         'reason',
+        'evidence',
         'opened_at',
         'resolved_by_admin_id',
         'resolution',
@@ -26,6 +27,7 @@ class Dispute extends Model
         'opened_at' => 'datetime',
         'resolved_at' => 'datetime',
         'freeze_applied_at' => 'datetime',
+        'evidence' => 'array',
     ];
 
     public function listing(): BelongsTo

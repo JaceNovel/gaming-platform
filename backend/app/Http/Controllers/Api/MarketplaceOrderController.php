@@ -11,6 +11,7 @@ use App\Models\Dispute;
 use App\Models\SellerStat;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -110,6 +111,8 @@ class MarketplaceOrderController extends Controller
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:2000'],
+            'photos' => ['nullable', 'array', 'max:6'],
+            'photos.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
 
         $marketplaceOrder = MarketplaceOrder::query()->where('order_id', $orderModel->id)->with(['listing', 'seller'])->first();
@@ -123,9 +126,20 @@ class MarketplaceOrderController extends Controller
             ]);
         }
 
-        $dispute = DB::transaction(function () use ($marketplaceOrder, $orderModel, $data) {
+        $dispute = DB::transaction(function () use ($marketplaceOrder, $orderModel, $data, $request) {
             $existing = Dispute::query()->where('marketplace_order_id', $marketplaceOrder->id)->lockForUpdate()->first();
             if ($existing) {
+                if (!$existing->reason && !empty($data['reason'])) {
+                    $existing->reason = $data['reason'];
+                }
+                if ($request->hasFile('photos')) {
+                    $paths = is_array($existing->evidence) ? $existing->evidence : [];
+                    foreach ($request->file('photos', []) as $file) {
+                        $paths[] = $file->store('disputes/' . $existing->id, 'public');
+                    }
+                    $existing->evidence = array_values(array_unique(array_filter($paths)));
+                }
+                $existing->save();
                 return $existing;
             }
 
@@ -136,9 +150,19 @@ class MarketplaceOrderController extends Controller
                 'buyer_id' => $marketplaceOrder->buyer_id,
                 'status' => 'open',
                 'reason' => $data['reason'],
+                'evidence' => [],
                 'opened_at' => now(),
                 'freeze_applied_at' => now(),
             ]);
+
+            if ($request->hasFile('photos')) {
+                $paths = [];
+                foreach ($request->file('photos', []) as $file) {
+                    $paths[] = $file->store('disputes/' . $dispute->id, 'public');
+                }
+                $dispute->evidence = array_values(array_unique(array_filter($paths)));
+                $dispute->save();
+            }
 
             $marketplaceOrder->status = 'disputed';
             $marketplaceOrder->dispute_id = $dispute->id;
@@ -170,6 +194,22 @@ class MarketplaceOrderController extends Controller
             return $dispute;
         });
 
-        return response()->json(['ok' => true, 'dispute' => $dispute], 201);
+        $evidence = is_array($dispute->evidence) ? $dispute->evidence : [];
+        $evidenceUrls = array_values(array_filter(array_map(function ($path) {
+            if (!is_string($path) || !$path) {
+                return null;
+            }
+            try {
+                return Storage::disk('public')->url($path);
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }, $evidence)));
+
+        return response()->json([
+            'ok' => true,
+            'dispute' => $dispute,
+            'evidence_urls' => $evidenceUrls,
+        ], 201);
     }
 }

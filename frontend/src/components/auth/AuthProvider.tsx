@@ -31,6 +31,7 @@ type AuthContextValue = {
     referralCode?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<AuthUser | null>;
   authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 };
 
@@ -100,6 +101,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   }, []);
+
+  const refreshUser = async (): Promise<AuthUser | null> => {
+    if (!HAS_API_ENV) {
+      setUser(null);
+      setToken(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      return null;
+    }
+    if (!token) {
+      setUser(null);
+      return null;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        const nextUser = pickUser(data);
+        if (nextUser) {
+          setUser(nextUser);
+          return nextUser;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return user;
+  };
 
   const authFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
     if (!HAS_API_ENV) {
@@ -222,7 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = useMemo(
-    () => ({ user, token, loading, login, register, logout, authFetch }),
+    () => ({ user, token, loading, login, register, logout, refreshUser, authFetch }),
     [user, token, loading],
   );
 

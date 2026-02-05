@@ -964,10 +964,44 @@ export default function ShopPage() {
     let active = true;
     const loadProducts = async () => {
       try {
-        const res = await fetch(`${API_BASE}/products?active=1`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        const fetchProductsPage = async (page: number) => {
+          const res = await fetch(`${API_BASE}/products?active=1&per_page=100&page=${page}`);
+          if (!res.ok) {
+            return { items: [] as any[], lastPage: 1 };
+          }
+          const payload = await res.json().catch(() => null);
+          const boxed = payload?.data ?? payload;
+          if (boxed && typeof boxed === "object" && Array.isArray((boxed as any).data)) {
+            return {
+              items: (boxed as any).data as any[],
+              lastPage: Number((boxed as any).last_page ?? 1) || 1,
+            };
+          }
+          if (boxed && typeof boxed === "object" && boxed.data && typeof boxed.data === "object" && Array.isArray((boxed.data as any).data)) {
+            return {
+              items: (boxed.data as any).data as any[],
+              lastPage: Number((boxed.data as any).last_page ?? 1) || 1,
+            };
+          }
+          if (Array.isArray(payload?.data)) {
+            return { items: payload.data as any[], lastPage: 1 };
+          }
+          if (Array.isArray(payload)) {
+            return { items: payload as any[], lastPage: 1 };
+          }
+          return { items: [] as any[], lastPage: 1 };
+        };
+
+        const first = await fetchProductsPage(1);
+        let items = first.items;
+        const lastPage = Math.max(1, first.lastPage);
+
+        // Load remaining pages (if any) so all products show.
+        for (let page = 2; page <= lastPage; page += 1) {
+          const next = await fetchProductsPage(page);
+          items = [...items, ...next.items];
+        }
+
         if (!active) return;
           const mapped = items.map((item: any) => {
           const priceValue = Number(item?.discount_price ?? item?.price ?? 0);

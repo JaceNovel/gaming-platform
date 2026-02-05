@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\AdminMarketplaceOrderController;
 use App\Http\Controllers\Api\MarketplaceListingController;
 use App\Http\Controllers\Api\MarketplaceCheckoutController;
 use App\Http\Controllers\Api\MarketplaceOrderController;
+use App\Http\Controllers\Api\MarketplaceDisputeController;
 use App\Http\Controllers\Api\SellerMarketplaceOrderController;
 use App\Http\Controllers\Api\AdminMarketplaceDisputeController;
 use App\Http\Controllers\Api\AdminMarketplaceCommissionController;
@@ -174,6 +175,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);
     Route::post('/premium/init', [PremiumController::class, 'init']);
+    Route::post('/premium/init-wallet', [PremiumController::class, 'initWallet']);
     Route::post('/premium/subscribe', [PremiumController::class, 'subscribe']);
     Route::post('/premium/cancel', [PremiumController::class, 'cancel']);
 
@@ -242,6 +244,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Disputes
         Route::post('/orders/{order}/dispute', [MarketplaceOrderController::class, 'openDispute']);
+        Route::get('/disputes/mine', [MarketplaceDisputeController::class, 'mine']);
 
         // Seller delivery proof
         Route::get('/seller/orders', [SellerMarketplaceOrderController::class, 'index']);

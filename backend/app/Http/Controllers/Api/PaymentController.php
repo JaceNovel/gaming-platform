@@ -466,6 +466,43 @@ class PaymentController extends Controller
                     $orderMeta = [];
                 }
 
+                if ((string) ($order->type ?? '') === 'premium_subscription' && empty($orderMeta['premium_activated_at'])) {
+                    $level = (string) ($orderMeta['premium_level'] ?? 'bronze');
+                    $gameId = (int) ($orderMeta['game_id'] ?? 0);
+                    $gameUsername = (string) ($orderMeta['game_username'] ?? '');
+
+                    if ($gameId > 0 && $gameUsername !== '') {
+                        $levels = [
+                            'bronze' => ['duration' => 30],
+                            'platine' => ['duration' => 30],
+                        ];
+                        $duration = $levels[$level]['duration'] ?? 30;
+
+                        $membership = PremiumMembership::updateOrCreate(
+                            [
+                                'user_id' => $order->user_id,
+                                'game_id' => $gameId,
+                            ],
+                            [
+                                'level' => $level,
+                                'game_username' => $gameUsername,
+                                'expiration_date' => Carbon::now()->addDays($duration),
+                                'is_active' => true,
+                                'renewal_count' => DB::raw('renewal_count + 1'),
+                            ]
+                        );
+
+                        $order->loadMissing('user');
+                        $order->user?->update([
+                            'is_premium' => true,
+                            'premium_level' => $level,
+                            'premium_expiration' => $membership->expiration_date,
+                        ]);
+
+                        $orderMeta['premium_activated_at'] = now()->toIso8601String();
+                    }
+                }
+
                 if (empty($orderMeta['sales_recorded_at'])) {
                     foreach ($order->orderItems as $item) {
                         if (!$item?->product_id) {
@@ -479,12 +516,14 @@ class PaymentController extends Controller
                 }
 
                 if (empty($orderMeta['fulfillment_dispatched_at'])) {
-                    if ($order->requiresRedeemFulfillment()) {
-                        ProcessRedeemFulfillment::dispatchSync($order->id);
-                    } else {
-                        ProcessOrderDelivery::dispatchSync($order);
+                    if ((string) ($order->type ?? '') !== 'premium_subscription') {
+                        if ($order->requiresRedeemFulfillment()) {
+                            ProcessRedeemFulfillment::dispatchSync($order->id);
+                        } else {
+                            ProcessOrderDelivery::dispatchSync($order);
+                        }
+                        $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
                     }
-                    $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
                 }
 
                 $orderMeta['wallet_paid_at'] = $orderMeta['wallet_paid_at'] ?? now()->toIso8601String();

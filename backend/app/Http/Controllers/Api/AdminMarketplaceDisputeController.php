@@ -13,6 +13,7 @@ use App\Services\AdminAuditLogger;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class AdminMarketplaceDisputeController extends Controller
@@ -26,6 +27,19 @@ class AdminMarketplaceDisputeController extends Controller
         }
 
         $disputes = $q->orderByDesc('created_at')->paginate(30);
+
+        $disputes->getCollection()->transform(function (Dispute $d) {
+            $evidence = is_array($d->evidence) ? $d->evidence : [];
+            $d->setAttribute('evidence_urls', array_values(array_filter(array_map(function ($path) {
+                if (!is_string($path) || !$path) return null;
+                try {
+                    return Storage::disk('public')->url($path);
+                } catch (\Throwable $e) {
+                    return null;
+                }
+            }, $evidence))));
+            return $d;
+        });
 
         return response()->json(['data' => $disputes]);
     }

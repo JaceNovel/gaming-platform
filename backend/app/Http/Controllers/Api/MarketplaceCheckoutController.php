@@ -17,6 +17,19 @@ class MarketplaceCheckoutController extends Controller
     {
         $user = $request->user();
 
+        $data = $request->validate([
+            'buyer_phone' => ['required', 'string', 'max:32'],
+        ]);
+
+        $buyerPhoneRaw = trim((string) ($data['buyer_phone'] ?? ''));
+        $digits = preg_replace('/\D+/', '', $buyerPhoneRaw) ?? '';
+        $allZeros = $digits !== '' && preg_match('/^0+$/', $digits);
+        if ($digits === '' || $allZeros || strlen($digits) < 6) {
+            throw ValidationException::withMessages([
+                'buyer_phone' => ['Numéro de téléphone invalide.'],
+            ]);
+        }
+
         if ($sellerListing->status !== 'approved' || $sellerListing->sold_at || $sellerListing->order_id) {
             return response()->json(['message' => 'Listing not available.'], 404);
         }
@@ -26,7 +39,7 @@ class MarketplaceCheckoutController extends Controller
         /** @var MarketplaceCommissionService $commissionService */
         $commissionService = app(MarketplaceCommissionService::class);
 
-        $order = DB::transaction(function () use ($sellerListing, $user, $now, $commissionService) {
+        $order = DB::transaction(function () use ($sellerListing, $user, $now, $commissionService, $buyerPhoneRaw, $digits) {
             $listing = SellerListing::query()->lockForUpdate()->findOrFail($sellerListing->id);
             $listing->loadMissing('seller');
 
@@ -60,6 +73,8 @@ class MarketplaceCheckoutController extends Controller
                 'reference' => 'MP-' . strtoupper(Str::random(10)),
                 'items' => [],
                 'meta' => [
+                    'buyer_phone' => $buyerPhoneRaw,
+                    'buyer_phone_digits' => $digits,
                     'seller_listing_id' => $listing->id,
                     'commission_amount' => $commission,
                     'marketplace' => [

@@ -24,6 +24,7 @@ function PremiumSubscribeScreen() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [walletSubmitting, setWalletSubmitting] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
   const [gameId, setGameId] = useState<string>("");
@@ -108,6 +109,69 @@ function PremiumSubscribeScreen() {
     }
   }, [gameId, gameUsername, level]);
 
+  const startWalletPayment = useCallback(async () => {
+    setStatus(null);
+    if (!gameId) {
+      setStatus("Choisissez un jeu.");
+      return;
+    }
+    if (!gameUsername.trim()) {
+      setStatus("Entrez votre pseudo de jeu.");
+      return;
+    }
+
+    setWalletSubmitting(true);
+    try {
+      const initRes = await fetch(`${API_BASE}/premium/init-wallet`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          level: String(level ?? "bronze").toLowerCase(),
+          game_id: Number(gameId),
+          game_username: gameUsername.trim(),
+        }),
+      });
+
+      const initPayload = await initRes.json().catch(() => ({}));
+      if (!initRes.ok) {
+        setStatus(initPayload?.message ?? "Impossible de démarrer le paiement wallet.");
+        return;
+      }
+
+      const orderId = Number(initPayload?.order_id ?? 0);
+      if (!Number.isFinite(orderId) || orderId <= 0) {
+        setStatus("Commande wallet invalide.");
+        return;
+      }
+
+      const payRes = await fetch(`${API_BASE}/payments/wallet/pay`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+
+      const payPayload = await payRes.json().catch(() => ({}));
+      if (!payRes.ok) {
+        setStatus(payPayload?.message ?? "Paiement wallet impossible.");
+        return;
+      }
+
+      setStatus("VIP activé via Wallet.");
+      router.replace("/account");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Paiement wallet impossible.";
+      setStatus(message || "Paiement wallet impossible.");
+    } finally {
+      setWalletSubmitting(false);
+    }
+  }, [gameId, gameUsername, level, router]);
+
   return (
     <div className="mobile-shell min-h-screen space-y-6 py-6 pb-24">
       <SectionTitle eyebrow="Premium" label="Souscription" />
@@ -147,12 +211,20 @@ function PremiumSubscribeScreen() {
             variant="secondary"
             className="flex-1 justify-center"
             onClick={() => router.push("/premium")}
-            disabled={submitting}
+            disabled={submitting || walletSubmitting}
           >
             Retour
           </GlowButton>
-          <GlowButton className="flex-1 justify-center" onClick={startPayment} disabled={submitting || loadingGames}>
-            {submitting ? "Paiement..." : "Payer et activer"}
+          <GlowButton
+            variant="secondary"
+            className="flex-1 justify-center"
+            onClick={startWalletPayment}
+            disabled={walletSubmitting || submitting || loadingGames}
+          >
+            {walletSubmitting ? "Wallet..." : "Payer Wallet"}
+          </GlowButton>
+          <GlowButton className="flex-1 justify-center" onClick={startPayment} disabled={submitting || walletSubmitting || loadingGames}>
+            {submitting ? "Paiement..." : "Payer FedaPay"}
           </GlowButton>
         </div>
       </div>

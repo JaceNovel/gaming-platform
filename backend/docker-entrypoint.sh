@@ -10,6 +10,10 @@ php artisan storage:link || true
 
 ROLE=${CONTAINER_ROLE:-web}
 
+if [ "${RUN_MIGRATIONS:-0}" = "1" ] && [ "$ROLE" = "web" ]; then
+	php artisan migrate --force
+fi
+
 if [ "$ROLE" = "worker" ]; then
 	exec php artisan queue:work --queue=redeem-fulfillment,default --sleep=3 --tries=3 --timeout=120
 fi

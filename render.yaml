@@ -18,9 +18,15 @@ services:
     runtime: docker
     rootDir: backend
     dockerfilePath: Dockerfile
+    disk:
+      name: badboyshop-backend-storage
+      mountPath: /app/storage
+      sizeGB: 1
     envVars:
       - key: CONTAINER_ROLE
         value: web
+      - key: RUN_MIGRATIONS
+        value: "1"
       - key: APP_ENV
         value: production
       - key: APP_DEBUG
@@ -61,6 +67,8 @@ services:
     envVars:
       - key: CONTAINER_ROLE
         value: worker
+      - key: RUN_MIGRATIONS
+        value: "0"
       - key: APP_ENV
         value: production
       - key: APP_DEBUG

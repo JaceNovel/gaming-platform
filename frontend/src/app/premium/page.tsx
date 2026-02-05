@@ -98,13 +98,6 @@ export default function Premium() {
             </p>
             <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
               <GlowButton className="px-6" onClick={() => requestSubscribe("bronze")}>Mettre à jour maintenant</GlowButton>
-              <button
-                type="button"
-                onClick={() => router.push("/premium/subscribe?level=Platine")}
-                className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/85 hover:bg-white/10"
-              >
-                Voir Platine
-              </button>
             </div>
           </motion.div>
 
@@ -171,7 +164,7 @@ export default function Premium() {
                         <p className="mt-1 text-3xl font-black text-white">{plan.price}</p>
                       </div>
                       <button
-                        onClick={() => requestSubscribe(plan.name)}
+                        onClick={() => requestSubscribe(plan.id)}
                         className={`inline-flex items-center justify-center rounded-xl bg-gradient-to-r ${plan.theme.button} px-5 py-3 text-sm font-semibold text-black shadow-[0_14px_40px_rgba(0,0,0,0.45)] hover:opacity-95`}
                       >
                         Mettre à jour

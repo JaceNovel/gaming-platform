@@ -39,6 +39,15 @@ function MarketplaceListingClient({ id }: { id: number }) {
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
+  const [buyerPhone, setBuyerPhone] = useState<string>("");
+
+  const isValidBuyerPhone = useMemo(() => {
+    const raw = buyerPhone.trim();
+    const digits = raw.replace(/\D+/g, "");
+    if (!digits) return false;
+    if (/^0+$/.test(digits)) return false;
+    return digits.length >= 6;
+  }, [buyerPhone]);
 
   useEffect(() => {
     let active = true;
@@ -100,7 +109,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
     const lastName = String(rawUser?.last_name ?? parts.slice(1).join(" ") ?? "").trim();
 
     const email = String(rawUser?.email ?? "").trim();
-    const phone = String(rawUser?.phone ?? rawUser?.phone_number ?? "").trim() || "000000000";
+    const phone = buyerPhone.trim() || String(rawUser?.phone ?? rawUser?.phone_number ?? "").trim() || "";
 
     return {
       customer_name: `${firstName}${lastName ? ` ${lastName}` : ""}`.trim(),
@@ -119,10 +128,15 @@ function MarketplaceListingClient({ id }: { id: number }) {
     }
 
     setStatus(null);
+    if (!isValidBuyerPhone) {
+      setStatus("Veuillez entrer un numéro de téléphone valide.");
+      return;
+    }
     setSubmitting(true);
     try {
       const checkoutRes = await authFetch(`${API_BASE}/gaming-accounts/listings/${id}/checkout`, {
         method: "POST",
+        body: JSON.stringify({ buyer_phone: buyerPhone.trim() }),
       });
       const checkoutPayload = await checkoutRes.json().catch(() => null);
       if (!checkoutRes.ok) {
@@ -333,6 +347,20 @@ function MarketplaceListingClient({ id }: { id: number }) {
                   </p>
                 </div>
               ) : null}
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
+                <p className="text-xs text-white/60">Téléphone (obligatoire)</p>
+                <input
+                  value={buyerPhone}
+                  onChange={(e) => setBuyerPhone(e.target.value)}
+                  disabled={submitting}
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white/90 placeholder:text-white/35"
+                  placeholder="Votre numéro WhatsApp / téléphone"
+                />
+                {!isValidBuyerPhone && buyerPhone.trim() ? (
+                  <p className="mt-2 text-xs text-amber-200">Numéro invalide.</p>
+                ) : null}
+              </div>
 
               <div className="mt-5 space-y-3">
                 <div className="flex gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Globe, LogOut } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
@@ -82,7 +82,18 @@ const AVATARS: Avatar[] = [
   },
 ];
 
-const VIP_PLANS: VipPlan[] = [];
+const VIP_PLANS: VipPlan[] = [
+  { level: "bronze", label: "Bronze" },
+  { level: "platine", label: "Platine" },
+];
+
+type PremiumStatus = {
+  is_premium: boolean;
+  level: string | null;
+  expiration: string | null;
+  renewal_count: number;
+  membership?: any;
+};
 
 const getCurrencyInfo = (code?: string | null) => {
   const normalized = (code ?? "CI").toUpperCase();
@@ -149,8 +160,18 @@ const normalizeMe = (payload: any, baseline: Me | null): Me => {
       countryName: "Côte d'Ivoire",
       avatarId: "nova_ghost",
       walletBalanceFcfa: 0,
-      premiumTier: "Bronze",
+      premiumTier: "Basic",
     } satisfies Me);
+
+  const isPremium = Boolean(payload?.is_premium);
+  const rawLevel = String(payload?.premium_level ?? payload?.premiumTier ?? payload?.premium_tier ?? "")
+    .trim()
+    .toLowerCase();
+  const premiumTier = isPremium
+    ? rawLevel === "platine" || rawLevel === "platinum"
+      ? "Platine"
+      : "Bronze"
+    : "Basic";
 
   return {
     username: payload?.username ?? payload?.name ?? fallback.username,
@@ -164,7 +185,7 @@ const normalizeMe = (payload: any, baseline: Me | null): Me => {
           payload?.wallet_balance ??
           fallback.walletBalanceFcfa,
       ) || 0,
-    premiumTier: payload?.premiumTier ?? payload?.premium_tier ?? payload?.premium_level ?? fallback.premiumTier,
+    premiumTier,
     referralCode: payload?.referralCode ?? payload?.referral_code ?? fallback.referralCode ?? null,
   } satisfies Me;
 };
@@ -176,7 +197,7 @@ const statusBadgeClass = (status: Order["status"]) => {
 };
 
 function AccountClient() {
-  const { authFetch, user, loading: authLoading, logout } = useAuth();
+  const { authFetch, user, loading: authLoading, logout, refreshUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const fallbackProfile = useMemo<Me | null>(() => {
@@ -235,6 +256,10 @@ function AccountClient() {
   const disablePasswordForm = !HAS_API_ENV;
   const disableCountryForm = !HAS_API_ENV;
   const [vipModalOpen, setVipModalOpen] = useState(false);
+  const [vipStatus, setVipStatus] = useState<PremiumStatus | null>(null);
+  const [vipStatusLoading, setVipStatusLoading] = useState(false);
+  const [vipActionLoading, setVipActionLoading] = useState(false);
+  const [vipActionMessage, setVipActionMessage] = useState<string | null>(null);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>(DEFAULT_WALLET_TRANSACTIONS);
   const [walletHistoryLoading, setWalletHistoryLoading] = useState(HAS_API_ENV);
@@ -281,11 +306,18 @@ function AccountClient() {
     const id = me?.avatarId || "nova_ghost";
     return AVATARS.find((a) => a.id === id) || AVATARS[0];
   }, [me?.avatarId]);
-  const currentTier = (me?.premiumTier ?? "").toLowerCase();
-  const vipActive = Boolean(currentTier && currentTier !== "aucun" && currentTier !== "none");
-  const currentPlan = VIP_PLANS.find(
-    (plan) => plan.level === currentTier || plan.label.toLowerCase() === currentTier,
-  );
+
+  const currentTier = useMemo(() => {
+    const raw = String((user as any)?.premium_level ?? me?.premiumTier ?? "")
+      .trim()
+      .toLowerCase();
+    if (raw === "platinum") return "platine";
+    if (raw === "basic" || raw === "none" || raw === "aucun" || raw === "") return "";
+    return raw;
+  }, [me?.premiumTier, user]);
+
+  const vipActive = Boolean(user?.is_premium) || currentTier === "bronze" || currentTier === "platine";
+  const currentPlan = VIP_PLANS.find((plan) => plan.level === currentTier);
 
   useEffect(() => {
     if (fallbackProfile && !me) {
@@ -564,17 +596,72 @@ function AccountClient() {
     router.push("/auth/login");
   };
 
-  const handleVipEntry = () => {
-    if (isDesktop) {
-      router.push("/premium");
+  const loadVipStatus = useCallback(async () => {
+    if (!HAS_API_ENV) {
+      setVipStatus(null);
       return;
     }
-    setVipModalOpen(true);
+    setVipStatusLoading(true);
+    try {
+      const res = await authFetch(`${API_BASE}/premium/status`);
+      const payload = (await res.json().catch(() => null)) as PremiumStatus | null;
+      if (!res.ok || !payload) return;
+      setVipStatus(payload);
+    } catch {
+      // ignore
+    } finally {
+      setVipStatusLoading(false);
+    }
+  }, [authFetch]);
+
+  useEffect(() => {
+    if (!vipModalOpen) return;
+    setVipActionMessage(null);
+    void loadVipStatus();
+  }, [loadVipStatus, vipModalOpen]);
+
+  const handleCancelVip = async () => {
+    if (vipActionLoading) return;
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(
+        "Confirmer la résiliation VIP ? Aucun remboursement ne sera effectué.",
+      );
+      if (!ok) return;
+    }
+
+    setVipActionLoading(true);
+    setVipActionMessage(null);
+    try {
+      const res = await authFetch(`${API_BASE}/premium/cancel`, { method: "POST" });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        setVipActionMessage(payload?.message ?? "Impossible de résilier l’abonnement VIP.");
+        return;
+      }
+
+      setVipActionMessage(payload?.message ?? "Abonnement résilié.");
+      await refreshUser();
+      try {
+        const meRes = await authFetch(`${API_BASE}/me`);
+        if (meRes.ok) {
+          const mePayload = await meRes.json().catch(() => null);
+          if (mePayload?.me || mePayload) {
+            setMe(normalizeMe(mePayload?.me ?? mePayload, fallbackProfile));
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      await loadVipStatus();
+    } finally {
+      setVipActionLoading(false);
+    }
   };
 
   const handleMenuChange = (menu: MenuKey) => {
     if (menu === "VIP") {
-      handleVipEntry();
+      setVipModalOpen(true);
       return;
     }
     if (menu === "MesCodes") {
@@ -595,6 +682,10 @@ function AccountClient() {
     }
     if (menu === "Vendeur") {
       router.push("/account/seller");
+      return;
+    }
+    if (menu === "Litige") {
+      router.push("/account/litige");
       return;
     }
     if (menu === "MesCommandes") {
@@ -1291,33 +1382,110 @@ function AccountClient() {
       )}
       {null}
 
-      {vipModalOpen && !isDesktop && (
+      {vipModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeVipModal} />
-          <div className="relative z-10 w-full max-w-md rounded-[28px] border border-white/15 bg-black/90 p-6 text-white shadow-[0_30px_120px_rgba(0,0,0,0.8)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.5em] text-fuchsia-200/80">BADBOY VIP</p>
-                <h2 className="mt-2 text-2xl font-semibold">Section réservée desktop</h2>
+          <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-[32px] border border-white/15 bg-black/90 p-6 text-white shadow-[0_30px_120px_rgba(0,0,0,0.85)]">
+            <div className="pointer-events-none absolute inset-0 opacity-70" style={{ background: "radial-gradient(circle at 20% 20%, rgba(34,211,238,0.18), transparent 45%), radial-gradient(circle at 70% 50%, rgba(217,70,239,0.16), transparent 52%), radial-gradient(circle at 50% 100%, rgba(255,160,0,0.10), transparent 55%)" }} />
+
+            <div className="relative">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.5em] text-fuchsia-200/80">BADBOY VIP</p>
+                  <h2 className="mt-2 text-2xl font-semibold">Profil VIP</h2>
+                  <p className="mt-1 text-sm text-white/60">Gère ton plan et ton statut.</p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
+                  onClick={closeVipModal}
+                >
+                  Fermer
+                </button>
               </div>
-              <button
-                className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
-                onClick={closeVipModal}
-              >
-                Fermer
-              </button>
-            </div>
-            <div className="mt-5 space-y-4 text-sm text-white/70">
-              <p className="text-base text-white">
-                Cette section est disponible sur ordinateur. Merci d’utiliser un PC.
+
+              <div className="mt-5 rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur">
+                {vipStatusLoading ? (
+                  <div className="space-y-3">
+                    <div className="h-5 w-40 animate-pulse rounded-xl bg-white/10" />
+                    <div className="h-4 w-64 animate-pulse rounded-xl bg-white/10" />
+                    <div className="h-4 w-52 animate-pulse rounded-xl bg-white/10" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Statut</p>
+                        <p className="mt-1 text-lg font-semibold text-white">
+                          {vipStatus?.is_premium || vipActive
+                            ? String(vipStatus?.level ?? me.premiumTier ?? "VIP").toLowerCase() === "platine"
+                              ? "VIP Platine 💎"
+                              : "VIP Bronze 🥉"
+                            : "Basic"}
+                        </p>
+                      </div>
+                      <span
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                          vipStatus?.is_premium || vipActive
+                            ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+                            : "border-white/15 bg-white/5 text-white/70"
+                        }`}
+                      >
+                        {vipStatus?.is_premium || vipActive ? "Actif" : "Inactif"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Expiration</p>
+                        <p className="mt-1 text-sm font-semibold text-white/85">
+                          {vipStatus?.expiration
+                            ? new Date(vipStatus.expiration).toLocaleString("fr-FR")
+                            : "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                        <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Renouvellements</p>
+                        <p className="mt-1 text-sm font-semibold text-white/85">
+                          {typeof vipStatus?.renewal_count === "number" ? vipStatus.renewal_count : "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {vipActionMessage ? (
+                      <p className="mt-4 text-sm text-amber-200">{vipActionMessage}</p>
+                    ) : null}
+                  </>
+                )}
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  className="rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-60"
+                  onClick={() => {
+                    closeVipModal();
+                    router.push("/premium");
+                  }}
+                  disabled={vipActionLoading}
+                >
+                  {vipStatus?.is_premium || vipActive ? "Update Plan" : "Devenir VIP"}
+                </button>
+
+                <button
+                  type="button"
+                  className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 disabled:opacity-60"
+                  onClick={handleCancelVip}
+                  disabled={vipActionLoading || !(vipStatus?.is_premium || vipActive)}
+                >
+                  {vipActionLoading ? "Résiliation..." : "Résilier"}
+                </button>
+              </div>
+
+              <p className="mt-4 text-center text-xs text-white/50">
+                L’activation Premium est traitée après paiement (webhook).
               </p>
             </div>
-            <button
-              className="mt-6 w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/20"
-              onClick={closeVipModal}
-            >
-              Compris
-            </button>
           </div>
         </div>
       )}

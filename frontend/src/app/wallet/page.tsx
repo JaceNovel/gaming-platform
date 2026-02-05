@@ -81,6 +81,8 @@ function WalletClient() {
   const searchParams = useSearchParams();
   const { authFetch, user } = useAuth();
 
+  const TX_LIMIT = 5;
+
   const [loading, setLoading] = useState(HAS_API_ENV);
   const [refreshing, setRefreshing] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
@@ -93,7 +95,6 @@ function WalletClient() {
   const [walletId, setWalletId] = useState<string>("");
   const [walletIdToast, setWalletIdToast] = useState<string | null>(null);
 
-  const [limit, setLimit] = useState<10 | 25 | 50>(25);
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
 
   const refreshSeq = useRef(0);
@@ -130,7 +131,7 @@ function WalletClient() {
       setWalletStatus(summary?.status ?? null);
       setWalletId(String(summary?.wallet_id ?? "").trim());
 
-      const txRes = await authFetch(`${API_BASE}/wallet/transactions?limit=${limit}`);
+      const txRes = await authFetch(`${API_BASE}/wallet/transactions?limit=${TX_LIMIT}`);
       if (!txRes.ok) return;
       const txPayload = await txRes.json().catch(() => null);
       if (refreshSeq.current !== seq) return;
@@ -173,7 +174,7 @@ function WalletClient() {
   useEffect(() => {
     void loadWallet();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [limit]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -193,7 +194,7 @@ function WalletClient() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [limit]);
+  }, []);
 
   useEffect(() => {
     if (!hasPendingTx) return;
@@ -214,7 +215,7 @@ function WalletClient() {
       window.clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPendingTx, limit]);
+  }, [hasPendingTx]);
 
 
   const supportMessage = useMemo(() => {
@@ -227,16 +228,17 @@ function WalletClient() {
     return `Bonjour, j’aimerais recharger mon DBWallet.\nWallet ID : ${id || "(inconnu)"}\nEmail : ${email || "(inconnu)"}`;
   }, [user?.email, walletId]);
 
-  const displayBalance = useMemo(() => formatMoney(balance, currency), [balance, currency]);
-  const displayBonus = useMemo(() => formatMoney(bonusBalance, currency), [bonusBalance, currency]);
-  const { label: currencyLabel } = useMemo(() => normalizeCurrency(currency), [currency]);
-
   const bonusIsActive = useMemo(() => {
     if (!(bonusBalance > 0)) return false;
     if (!bonusExpiresAt) return false;
     const expires = new Date(bonusExpiresAt);
     return Number.isFinite(expires.getTime()) && expires.getTime() > Date.now();
   }, [bonusBalance, bonusExpiresAt]);
+
+  const displayBalance = useMemo(() => formatMoney(balance, currency), [balance, currency]);
+  const effectiveBonusBalance = useMemo(() => (bonusIsActive ? bonusBalance : 0), [bonusIsActive, bonusBalance]);
+  const displayBonus = useMemo(() => formatMoney(effectiveBonusBalance, currency), [effectiveBonusBalance, currency]);
+  const { label: currencyLabel } = useMemo(() => normalizeCurrency(currency), [currency]);
 
   const displayBonusExpiresAt = useMemo(() => {
     if (!bonusExpiresAt) return "—";
@@ -278,11 +280,11 @@ function WalletClient() {
                   <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3">
                     <p className="text-xs uppercase tracking-[0.35em] text-white/45">Bonus (recharges uniquement)</p>
                     <p className="mt-1 text-sm font-semibold text-white/90">{displayBonus}</p>
-                    <p className="mt-1 text-xs text-white/55">Expire: {displayBonusExpiresAt}</p>
                     {bonusIsActive ? (
-                      <p className="mt-1 text-xs text-emerald-200/80">Actif</p>
-                    ) : bonusBalance > 0 ? (
-                      <p className="mt-1 text-xs text-amber-200/80">Inactif (expiré)</p>
+                      <>
+                        <p className="mt-1 text-xs text-white/55">Expire: {displayBonusExpiresAt}</p>
+                        <p className="mt-1 text-xs text-emerald-200/80">Actif</p>
+                      </>
                     ) : null}
                   </div>
                 </div>
@@ -358,21 +360,7 @@ function WalletClient() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.35em] text-white/45">Historique</p>
-                  <p className="mt-1 text-sm text-white/60">Dernières transactions (limit {limit}).</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-white/60">
-                    Limite
-                    <select
-                      value={limit}
-                      onChange={(e) => setLimit(Number(e.target.value) as 10 | 25 | 50)}
-                      className="ml-2 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
-                    >
-                      <option value={10}>10</option>
-                      <option value={25}>25</option>
-                      <option value={50}>50</option>
-                    </select>
-                  </label>
+                  <p className="mt-1 text-sm text-white/60">5 dernières transactions.</p>
                 </div>
               </div>
 

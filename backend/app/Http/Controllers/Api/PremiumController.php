@@ -150,6 +150,51 @@ class PremiumController extends Controller
         ]);
     }
 
+    /**
+     * Create a Premium (VIP) subscription order intended to be paid with DBWallet.
+     * Frontend should then call POST /payments/wallet/pay with the returned order_id.
+     */
+    public function initWallet(Request $request)
+    {
+        $validated = $request->validate([
+            'level' => 'required|in:bronze,platine',
+            'game_id' => 'required|exists:games,id',
+            'game_username' => 'required|string|max:255',
+        ]);
+
+        $user = $request->user();
+
+        $levels = [
+            'bronze' => ['price' => 10000, 'duration' => 30],
+            'platine' => ['price' => 13000, 'duration' => 30],
+        ];
+
+        $price = (float) $levels[$validated['level']]['price'];
+
+        $order = DB::transaction(function () use ($user, $validated, $price) {
+            return Order::create([
+                'user_id' => $user->id,
+                'type' => 'premium_subscription',
+                'status' => Order::STATUS_PAYMENT_PROCESSING,
+                'total_price' => $price,
+                'items' => null,
+                'meta' => [
+                    'premium_level' => $validated['level'],
+                    'game_id' => (int) $validated['game_id'],
+                    'game_username' => $validated['game_username'],
+                    'payment_intent' => 'wallet',
+                ],
+                'reference' => 'VIPW-' . strtoupper(uniqid()),
+            ]);
+        });
+
+        return response()->json([
+            'order_id' => $order->id,
+            'amount' => $price,
+            'currency' => 'XOF',
+        ]);
+    }
+
     public function subscribe(Request $request)
     {
         // STRICT: premium activation is webhook-driven. This endpoint is a safe DB-only check.

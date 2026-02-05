@@ -36,7 +36,7 @@ const parseGamesPayload = (payload: any): MenuGame[] => {
 
 export default function AppHeader() {
   const pathname = usePathname();
-  const { authFetch, token } = useAuth();
+  const { authFetch, token, user } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [walletCurrency, setWalletCurrency] = useState<string | null>(null);
@@ -306,6 +306,14 @@ export default function AppHeader() {
     walletBalance === null ? "—" : walletBalance.toLocaleString("fr-FR");
   const walletCurrencyLabel = walletCurrency ?? "FCFA";
 
+  const vipLabel = useMemo(() => {
+    const isPremium = Boolean(user?.is_premium);
+    const rawLevel = String(user?.premium_level ?? "").trim().toLowerCase();
+    if (!isPremium) return "Update Plan";
+    if (rawLevel === "platine" || rawLevel === "platinum") return "VIP Platine 💎";
+    return "VIP Bronze 🥉";
+  }, [user?.is_premium, user?.premium_level]);
+
   return (
     <>
       <header
@@ -346,7 +354,7 @@ export default function AppHeader() {
                   key === "recharge" ? "/recharges" : key === "subscription" ? "/abonnements" : "/gaming-accounts";
 
                 return (
-                  <div key={key} className="relative">
+                  <div key={key} className={`relative ${isOpen ? "z-[70]" : "z-0"}`}>
                     <button
                       ref={(el) => {
                         menuButtonRefs.current[key] = el;
@@ -383,7 +391,7 @@ export default function AppHeader() {
 
                     {isOpen ? (
                       <div
-                        className="absolute left-0 mt-2 w-72 overflow-hidden rounded-2xl border border-white/10 bg-black/90 p-2 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] ring-1 ring-white/10 backdrop-blur"
+                        className="absolute left-0 z-[80] mt-2 w-72 overflow-hidden rounded-2xl border border-white/10 bg-black/90 p-2 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] ring-1 ring-white/10 backdrop-blur"
                         role="menu"
                         aria-label={label}
                       >
@@ -488,7 +496,7 @@ export default function AppHeader() {
                 <span className="pointer-events-none absolute inset-0 -z-10 opacity-70" style={{ background: "radial-gradient(circle at 30% 20%, rgba(34,211,238,0.18), transparent 45%), radial-gradient(circle at 70% 60%, rgba(217,70,239,0.16), transparent 50%)" }} />
                 <span aria-hidden="true" className="text-base leading-none">⚡</span>
                 <span className="bg-gradient-to-r from-cyan-200 via-fuchsia-200 to-violet-200 bg-clip-text text-transparent">
-                  Update Plan
+                  {vipLabel}
                 </span>
               </Link>
             </div>

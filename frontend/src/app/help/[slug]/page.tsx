@@ -16,10 +16,16 @@ export default function HelpTopicPage() {
 
   if (!topic) {
     return (
-      <main className="min-h-[100dvh] bg-[#04020c] text-white">
+      <main className="min-h-[100dvh] bg-[#04020c] text-white bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]">
+        <div className="fixed inset-0 -z-10">
+          <div className="absolute inset-0 bg-black" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(180,70,255,0.26),transparent_45%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.14),transparent_50%),radial-gradient(circle_at_50%_90%,rgba(255,160,0,0.10),transparent_55%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.10),rgba(0,0,0,0.92))]" />
+          <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.9)]" />
+        </div>
         <div className="help-shell space-y-6 py-6 pb-24">
           <SectionTitle eyebrow="Centre d’aide" label="Sujet introuvable" />
-          <div className="glass-card rounded-2xl border border-white/10 p-5">
+          <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.55)] backdrop-blur">
             <p className="text-sm text-white/70">Ce sujet n’existe pas.</p>
             <div className="mt-4 flex flex-wrap gap-3">
               <GlowButton className="flex-1 justify-center" onClick={() => router.back()}>
@@ -40,11 +46,17 @@ export default function HelpTopicPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[#04020c] text-white">
+    <main className="min-h-[100dvh] bg-[#04020c] text-white bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]">
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-black" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(180,70,255,0.26),transparent_45%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.14),transparent_50%),radial-gradient(circle_at_50%_90%,rgba(255,160,0,0.10),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.10),rgba(0,0,0,0.92))]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.9)]" />
+      </div>
       <div className="help-shell space-y-6 py-6 pb-24">
         <SectionTitle eyebrow="Centre d’aide" label={topic.title} />
 
-        <div className="glass-card rounded-2xl border border-white/10 p-5">
+        <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.55)] backdrop-blur">
           <p className="text-sm text-white/70">{topic.summary}</p>
           <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-white/80">
             {topic.bullets.map((b, idx) => (
@@ -61,7 +73,7 @@ export default function HelpTopicPage() {
                 });
               }}
             >
-              Ouvrir le support
+              🎧 Ouvrir le support VIP
             </GlowButton>
             <GlowButton
               variant="secondary"
@@ -73,7 +85,7 @@ export default function HelpTopicPage() {
           </div>
         </div>
 
-        <div className="glass-card rounded-2xl border border-white/10 p-5">
+        <div className="rounded-[28px] border border-white/10 bg-black/40 p-5 shadow-[0_18px_60px_rgba(4,6,35,0.45)] backdrop-blur">
           <div className="text-sm font-semibold text-white">Sujets populaires</div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {HELP_TOPICS.filter((t) => t.slug !== topic.slug)
@@ -82,7 +94,7 @@ export default function HelpTopicPage() {
                 <Link
                   key={t.slug}
                   href={`/help/${t.slug}`}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 hover:border-white/20"
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 transition hover:border-fuchsia-300/30 hover:bg-white/7"
                 >
                   {t.title}
                 </Link>
