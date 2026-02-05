@@ -132,7 +132,7 @@ Route::get('products', [ProductController::class, 'index']);
 Route::get('categories', [CategoryController::class, 'index']);
 Route::get('categories/{category}', [CategoryController::class, 'show']);
 Route::get('gaming-accounts/listings', [MarketplaceListingController::class, 'index']);
-Route::get('gaming-accounts/listings/{sellerListing}', [MarketplaceListingController::class, 'showPublic']);
+Route::get('gaming-accounts/listings/{sellerListing}', [MarketplaceListingController::class, 'showPublic'])->whereNumber('sellerListing');
 Route::get('/stats/overview', [PublicStatsController::class, 'overview']);
 Route::get('/likes/stats', [LikeController::class, 'stats']);
 
