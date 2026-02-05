@@ -762,7 +762,6 @@ function AccountClient() {
     <div className="min-h-screen text-white">
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-black" />
-        <div className="absolute inset-0 bg-[url('/backgrounds/profile.jpg')] bg-cover bg-center" />
         <div className="absolute inset-0 bg-black/55" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(180,70,255,0.35),transparent_45%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.25),transparent_50%),radial-gradient(circle_at_50%_90%,rgba(255,160,0,0.2),transparent_55%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.15),rgba(0,0,0,0.9))]" />
