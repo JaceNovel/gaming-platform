@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\AdminAuditLogController;
 use App\Http\Controllers\Api\AdminDbWalletController;
 use App\Http\Controllers\Api\AdminDbWalletWelcomeBonusController;
 use App\Http\Controllers\Api\AdminMarketplaceSellerController;
+use App\Http\Controllers\Api\AdminMarketplaceListingController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\GameController;
@@ -295,6 +296,18 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         ->middleware('permission:marketplace.sellers.manage');
     Route::post('/marketplace/sellers/{seller}/unfreeze-wallet', [AdminMarketplaceSellerController::class, 'unfreezeWallet'])
         ->middleware('permission:marketplace.sellers.manage');
+
+    // Gaming Account Marketplace (Listings moderation)
+    Route::get('/marketplace/listings', [AdminMarketplaceListingController::class, 'index'])
+        ->middleware('permission:marketplace.listings.manage');
+    Route::get('/marketplace/listings/{sellerListing}', [AdminMarketplaceListingController::class, 'show'])
+        ->middleware('permission:marketplace.listings.manage');
+    Route::post('/marketplace/listings/{sellerListing}/approve', [AdminMarketplaceListingController::class, 'approve'])
+        ->middleware('permission:marketplace.listings.manage');
+    Route::post('/marketplace/listings/{sellerListing}/reject', [AdminMarketplaceListingController::class, 'reject'])
+        ->middleware('permission:marketplace.listings.manage');
+    Route::post('/marketplace/listings/{sellerListing}/suspend', [AdminMarketplaceListingController::class, 'suspend'])
+        ->middleware('permission:marketplace.listings.manage');
 
     // Gaming Account Marketplace (Withdraw requests)
     Route::get('/marketplace/withdraw-requests', [AdminMarketplaceWithdrawController::class, 'index'])

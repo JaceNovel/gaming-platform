@@ -49,8 +49,8 @@ class ProcessMarketplaceOrder implements ShouldQueue
 
             $seller = $listing->seller;
             if (!$seller || $seller->status !== 'approved' || $seller->partner_wallet_frozen) {
-                // Seller no longer eligible: keep listing disabled.
-                $listing->status = 'disabled';
+                    // Seller no longer eligible: keep listing off the marketplace.
+                    $listing->status = 'suspended';
                 $listing->status_reason = 'Seller not eligible.';
                 $listing->reserved_order_id = null;
                 $listing->reserved_until = null;
@@ -135,7 +135,8 @@ class ProcessMarketplaceOrder implements ShouldQueue
             }
 
             // Finalize listing sale (after wallet credit)
-            $listing->status = 'sold';
+                // Keep status as approved for audit/history; sold_at/order_id removes it from public.
+                $listing->status = 'approved';
             $listing->order_id = $this->order->id;
             $listing->reserved_order_id = null;
             $listing->reserved_until = null;

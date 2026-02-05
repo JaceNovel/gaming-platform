@@ -3,8 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { Bell, Coins, Crown, Mail, ShoppingCart, User } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bell, ChevronDown, Coins, Crown, Headphones, Mail, ShoppingCart, User } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
 
@@ -16,11 +16,23 @@ type NotificationItem = {
   type?: string | null;
 };
 
-const navItems = [
-  { label: "Boutique", href: "/shop" },
-  { label: "Premium", href: "/premium" },
-  { label: "Aide", href: "/help" },
-];
+type MenuGame = {
+  id: number;
+  name: string;
+  slug: string;
+  icon?: string | null;
+  image?: string | null;
+};
+
+type MenuKey = "recharge" | "subscription" | "marketplace";
+
+const parseGamesPayload = (payload: any): MenuGame[] => {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload as MenuGame[];
+  if (Array.isArray(payload?.data)) return payload.data as MenuGame[];
+  if (Array.isArray(payload?.data?.data)) return payload.data.data as MenuGame[];
+  return [];
+};
 
 export default function AppHeader() {
   const pathname = usePathname();
@@ -36,6 +48,25 @@ export default function AppHeader() {
   >([]);
   const [inboxUnread, setInboxUnread] = useState(0);
   const [showInbox, setShowInbox] = useState(false);
+
+  const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
+  const menuButtonRefs = useRef<Record<MenuKey, HTMLButtonElement | null>>({
+    recharge: null,
+    subscription: null,
+    marketplace: null,
+  });
+  const menuItemRefs = useRef<Record<MenuKey, Array<HTMLAnchorElement | null>>>({
+    recharge: [],
+    subscription: [],
+    marketplace: [],
+  });
+
+  const [menuGames, setMenuGames] = useState<Record<MenuKey, MenuGame[]>>({
+    recharge: [],
+    subscription: [],
+    marketplace: [],
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -78,6 +109,100 @@ export default function AppHeader() {
       active = false;
     };
   }, [authFetch, token]);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchGames = async (context: MenuKey) => {
+      const url = `${API_BASE}/games?active=1&context=${context}&per_page=200`;
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) return [];
+      const payload = await res.json().catch(() => null);
+      return parseGamesPayload(payload);
+    };
+
+    const loadMenus = async () => {
+      try {
+        const [recharges, subscriptions, marketplace] = await Promise.all([
+          fetchGames("recharge"),
+          fetchGames("subscription"),
+          fetchGames("marketplace"),
+        ]);
+        if (!active) return;
+        setMenuGames({
+          recharge: recharges,
+          subscription: subscriptions,
+          marketplace,
+        });
+      } catch {
+        if (!active) return;
+        setMenuGames({ recharge: [], subscription: [], marketplace: [] });
+      }
+    };
+
+    loadMenus();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setOpenMenu(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!openMenu) return;
+
+    const onMouseDown = (event: MouseEvent) => {
+      const root = headerRef.current;
+      if (!root) return;
+      if (!root.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!openMenu) return;
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpenMenu(null);
+        menuButtonRefs.current[openMenu]?.focus();
+        return;
+      }
+
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
+
+      const refs = menuItemRefs.current[openMenu] ?? [];
+      const items = refs.filter(Boolean) as HTMLAnchorElement[];
+      if (items.length === 0) return;
+
+      const activeEl = document.activeElement as HTMLElement | null;
+      const currentIndex = activeEl ? items.findIndex((el) => el === activeEl) : -1;
+
+      event.preventDefault();
+
+      if (event.key === "Home") {
+        items[0]?.focus();
+        return;
+      }
+      if (event.key === "End") {
+        items[items.length - 1]?.focus();
+        return;
+      }
+
+      const delta = event.key === "ArrowDown" ? 1 : -1;
+      const nextIndex = currentIndex < 0 ? 0 : (currentIndex + delta + items.length) % items.length;
+      items[nextIndex]?.focus();
+    };
+
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [openMenu]);
 
   useEffect(() => {
     let active = true;
@@ -153,6 +278,7 @@ export default function AppHeader() {
   const mobileInboxItems = useMemo(() => inboxItems.slice(0, 4), [inboxItems]);
 
   const handleToggleNotifications = async () => {
+    setOpenMenu(null);
     const next = !showNotifications;
     setShowNotifications(next);
     if (next && unreadCount > 0) {
@@ -166,6 +292,7 @@ export default function AppHeader() {
   };
 
   const handleToggleInbox = async () => {
+    setOpenMenu(null);
     const next = !showInbox;
     setShowInbox(next);
     if (next && inboxUnread > 0) {
@@ -200,7 +327,12 @@ export default function AppHeader() {
 
   return (
     <>
-      <header className="fixed top-0 z-50 hidden w-full border-b border-white/10 bg-black/40 backdrop-blur lg:block">
+      <header
+        ref={(el) => {
+          headerRef.current = el;
+        }}
+        className="fixed top-0 z-50 hidden w-full border-b border-white/10 bg-black/40 backdrop-blur lg:block"
+      >
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-3">
             <div className="relative h-11 w-11 overflow-hidden rounded-2xl ring-1 ring-white/20 bg-black/30">
@@ -223,26 +355,126 @@ export default function AppHeader() {
               <Crown className="h-3.5 w-3.5 text-amber-300" />
               {vipLabel}
             </span>
-            <nav className="flex items-center gap-5 text-xs font-medium text-white/80">
-              {navItems.map((item) => {
-                const isActive = pathname === item.href;
+
+            <nav className="flex items-center gap-2 text-xs font-semibold text-white/80">
+              {(
+                [
+                  { key: "recharge" as const, label: "Recharges" },
+                  { key: "subscription" as const, label: "Abonnements" },
+                  { key: "marketplace" as const, label: "Comptes Gaming" },
+                ]
+              ).map(({ key, label }) => {
+                const isOpen = openMenu === key;
+                const items = menuGames[key] ?? [];
+                const baseHref = key === "recharge" ? "/recharges" : key === "subscription" ? "/abonnements" : "/gaming-accounts";
+
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`transition ${
-                      isActive ? "text-white" : "hover:text-white"
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
+                  <div key={key} className="relative">
+                    <button
+                      ref={(el) => {
+                        menuButtonRefs.current[key] = el;
+                      }}
+                      type="button"
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 transition ${
+                        isOpen ? "bg-white/10 text-white" : "hover:bg-white/10 hover:text-white"
+                      }`}
+                      aria-haspopup="menu"
+                      aria-expanded={isOpen}
+                      onClick={() => {
+                        setShowNotifications(false);
+                        setShowInbox(false);
+                        setOpenMenu((prev) => (prev === key ? null : key));
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") {
+                          event.preventDefault();
+                          setShowNotifications(false);
+                          setShowInbox(false);
+                          setOpenMenu(key);
+                          window.setTimeout(() => {
+                            const first = menuItemRefs.current[key]?.find(Boolean);
+                            first?.focus();
+                          }, 0);
+                        }
+                      }}
+                    >
+                      {label}
+                      <ChevronDown className={`h-3.5 w-3.5 transition ${isOpen ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {isOpen ? (
+                      <div
+                        className="absolute left-0 mt-2 w-72 overflow-hidden rounded-2xl border border-white/10 bg-black/95 p-2 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur"
+                        role="menu"
+                        aria-label={label}
+                      >
+                        {items.length === 0 ? (
+                          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
+                            Aucun jeu pour le moment.
+                          </div>
+                        ) : (
+                          <div className="max-h-[360px] overflow-auto">
+                            {items.map((g, idx) => (
+                              <Link
+                                key={g.id ?? g.slug ?? `${key}-${idx}`}
+                                href={`${baseHref}/${encodeURIComponent(String(g.slug ?? ""))}`}
+                                ref={(el) => {
+                                  menuItemRefs.current[key][idx] = el;
+                                }}
+                                role="menuitem"
+                                tabIndex={-1}
+                                className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-white/80 outline-none hover:bg-white/8 hover:text-white focus:bg-white/10 focus:text-white"
+                                onClick={() => setOpenMenu(null)}
+                              >
+                                <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
+                                  {g.icon || g.image ? (
+                                    <Image
+                                      src={(g.icon || g.image) as string}
+                                      alt={String(g.name ?? "")}
+                                      width={36}
+                                      height={36}
+                                      className="h-7 w-7 object-contain"
+                                    />
+                                  ) : (
+                                    <span className="text-base">🎮</span>
+                                  )}
+                                </span>
+                                <span className="truncate font-semibold">{String(g.name ?? "")}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
+
+              <Link
+                href="/accessoires"
+                className={`inline-flex items-center rounded-full px-3 py-2 transition ${
+                  pathname === "/accessoires" ? "bg-white/10 text-white" : "hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                Accessoires
+              </Link>
             </nav>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur-md">
+            <Link
+              href="/help"
+              className="hidden xl:inline-flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 ring-1 ring-white/10 hover:bg-white/10 hover:text-white"
+            >
+              <Headphones className="h-4 w-4" />
+              Support 24/7
+            </Link>
+
+            <Link
+              href="/wallet"
+              className="relative inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur-md hover:bg-white/5"
+              aria-label="DB Wallet"
+            >
               <span className="absolute inset-0 -z-10 rounded-full bg-gradient-to-r from-amber-400/30 via-fuchsia-400/20 to-purple-500/30" />
               <span className="absolute inset-0 -z-20 rounded-full bg-amber-300/20 blur-[12px]" />
               <span className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 text-black shadow-[0_6px_18px_rgba(251,191,36,0.45)]">
@@ -250,14 +482,15 @@ export default function AppHeader() {
               </span>
               <span className="tracking-wide">{walletLabel}</span>
               <span className="text-xs text-white/70">{walletCurrencyLabel}</span>
-            </div>
+            </Link>
 
             <Link
               href="/account"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
-              aria-label="Profil"
+              className="inline-flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-xs font-semibold text-white/80 ring-1 ring-white/15 hover:bg-white/10 hover:text-white"
+              aria-label="Mon Profil"
             >
-              <User className="h-4 w-4 text-white/80" />
+              <User className="h-4 w-4" />
+              <span className="hidden xl:inline">Mon Profil</span>
             </Link>
             <div className="relative">
               <button

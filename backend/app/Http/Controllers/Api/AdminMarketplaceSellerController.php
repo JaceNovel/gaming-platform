@@ -172,8 +172,8 @@ class AdminMarketplaceSellerController extends Controller
                 'frozen_at' => now(),
             ]);
 
-            SellerListing::query()->where('seller_id', $seller->id)->where('status', '!=', 'sold')->update([
-                'status' => 'disabled',
+            SellerListing::query()->where('seller_id', $seller->id)->whereNull('order_id')->whereNull('sold_at')->update([
+                'status' => 'suspended',
                 'status_reason' => $data['reason'],
             ]);
         });
@@ -213,8 +213,8 @@ class AdminMarketplaceSellerController extends Controller
                 'frozen_at' => now(),
             ]);
 
-            SellerListing::query()->where('seller_id', $seller->id)->where('status', '!=', 'sold')->update([
-                'status' => 'disabled',
+            SellerListing::query()->where('seller_id', $seller->id)->whereNull('order_id')->whereNull('sold_at')->update([
+                'status' => 'suspended',
                 'status_reason' => $data['reason'],
             ]);
         });
@@ -255,9 +255,9 @@ class AdminMarketplaceSellerController extends Controller
 
             SellerListing::query()
                 ->where('seller_id', $sellerRow->id)
-                ->where('status', 'active')
+                ->whereIn('status', ['approved', 'pending_review', 'pending_review_update'])
                 ->update([
-                    'status' => 'disabled',
+                    'status' => 'suspended',
                     'status_reason' => $data['reason'] ?? 'Wallet frozen by admin',
                 ]);
         });

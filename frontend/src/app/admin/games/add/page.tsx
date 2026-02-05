@@ -18,6 +18,11 @@ export default function AdminGamesAddPage() {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState("");
+  const [icon, setIcon] = useState("");
+  const [sortOrder, setSortOrder] = useState<number>(0);
+  const [enabledRecharge, setEnabledRecharge] = useState(true);
+  const [enabledSubscription, setEnabledSubscription] = useState(true);
+  const [enabledMarketplace, setEnabledMarketplace] = useState(true);
   const [isActive, setIsActive] = useState(true);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,6 +39,11 @@ export default function AdminGamesAddPage() {
         category: category.trim(),
         description: description.trim() || undefined,
         image: image.trim() || undefined,
+        icon: icon.trim() || undefined,
+        sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
+        enabled_for_recharge: enabledRecharge,
+        enabled_for_subscription: enabledSubscription,
+        enabled_for_marketplace: enabledMarketplace,
         is_active: isActive,
       };
 
@@ -57,6 +67,11 @@ export default function AdminGamesAddPage() {
       setCategory("");
       setDescription("");
       setImage("");
+      setIcon("");
+      setSortOrder(0);
+      setEnabledRecharge(true);
+      setEnabledSubscription(true);
+      setEnabledMarketplace(true);
       setIsActive(true);
       setStatus("Jeu ajouté.");
     } catch {
@@ -115,6 +130,58 @@ export default function AdminGamesAddPage() {
               className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
               placeholder="https://..."
             />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Icône (URL)</label>
+            <input
+              value={icon}
+              onChange={(e) => setIcon(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+              placeholder="https://..."
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Ordre (menu)</label>
+            <input
+              value={String(sortOrder)}
+              onChange={(e) => setSortOrder(Math.max(0, Math.round(Number(e.target.value) || 0)))}
+              className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+              inputMode="numeric"
+            />
+            <p className="mt-1 text-xs text-slate-500">Plus petit = plus haut dans les menus.</p>
+          </div>
+
+          <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Affichage par menu</p>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={enabledRecharge}
+                onChange={(e) => setEnabledRecharge(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Recharges
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={enabledSubscription}
+                onChange={(e) => setEnabledSubscription(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Abonnements
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={enabledMarketplace}
+                onChange={(e) => setEnabledMarketplace(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Comptes Gaming (Marketplace)
+            </label>
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-600">
             <input

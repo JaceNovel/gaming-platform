@@ -23,6 +23,12 @@ class SellerListing extends Model
         'delivery_window_hours',
         'status',
         'status_reason',
+        'submitted_at',
+        'reviewed_at',
+        'reviewed_by',
+        'approved_at',
+        'rejected_at',
+        'suspended_at',
         'order_id',
         'reserved_order_id',
         'reserved_until',
@@ -35,6 +41,11 @@ class SellerListing extends Model
         'delivery_window_hours' => 'integer',
         'reserved_until' => 'datetime',
         'sold_at' => 'datetime',
+        'submitted_at' => 'datetime',
+        'reviewed_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
+        'suspended_at' => 'datetime',
     ];
 
     public function seller(): BelongsTo
@@ -62,8 +73,13 @@ class SellerListing extends Model
         return $this->hasMany(Dispute::class, 'seller_listing_id');
     }
 
-    public function isActive(): bool
+    public function isApproved(): bool
     {
-        return $this->status === 'active';
+        return $this->status === 'approved';
+    }
+
+    public function isPubliclyVisible(): bool
+    {
+        return $this->isApproved() && !$this->order_id && !$this->sold_at;
     }
 }

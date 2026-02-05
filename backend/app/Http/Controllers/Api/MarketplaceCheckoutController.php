@@ -17,7 +17,7 @@ class MarketplaceCheckoutController extends Controller
     {
         $user = $request->user();
 
-        if ($sellerListing->status !== 'active' || $sellerListing->sold_at || $sellerListing->order_id) {
+        if ($sellerListing->status !== 'approved' || $sellerListing->sold_at || $sellerListing->order_id) {
             return response()->json(['message' => 'Listing not available.'], 404);
         }
 
@@ -30,7 +30,7 @@ class MarketplaceCheckoutController extends Controller
             $listing = SellerListing::query()->lockForUpdate()->findOrFail($sellerListing->id);
             $listing->loadMissing('seller');
 
-            if ($listing->status !== 'active' || $listing->sold_at || $listing->order_id) {
+            if ($listing->status !== 'approved' || $listing->sold_at || $listing->order_id) {
                 throw ValidationException::withMessages([
                     'listing' => ['Listing not available.'],
                 ]);

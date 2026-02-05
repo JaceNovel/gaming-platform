@@ -43,7 +43,9 @@ class MarketplaceListingController extends Controller
     {
         $q = SellerListing::query()
             ->with(['game', 'category', 'seller.stats'])
-            ->where('status', 'active')
+            ->where('status', 'approved')
+            ->whereNull('order_id')
+            ->whereNull('sold_at')
             ->where(function ($sub) {
                 $sub->whereNull('reserved_until')->orWhere('reserved_until', '<', now());
             })
@@ -73,7 +75,7 @@ class MarketplaceListingController extends Controller
     {
         $sellerListing->load(['game', 'category', 'seller.stats']);
 
-        if ($sellerListing->status !== 'active' || $sellerListing->seller?->status !== 'approved' || $sellerListing->seller?->partner_wallet_frozen) {
+        if (!$sellerListing->isPubliclyVisible() || $sellerListing->seller?->status !== 'approved' || $sellerListing->seller?->partner_wallet_frozen) {
             return response()->json(['message' => 'Listing not available.'], 404);
         }
 
@@ -129,7 +131,8 @@ class MarketplaceListingController extends Controller
             'account_region' => $data['accountRegion'] ?? null,
             'has_email_access' => (bool) ($data['hasEmailAccess'] ?? false),
             'delivery_window_hours' => $data['deliveryWindowHours'] ?? 24,
-            'status' => 'active',
+            'status' => 'pending_review',
+            'submitted_at' => now(),
         ]);
 
         return response()->json(['data' => $listing], 201);
@@ -176,6 +179,19 @@ class MarketplaceListingController extends Controller
 
         $sellerListing->update($map);
 
+        // If a previously approved listing is edited, it must go back through review.
+        if (in_array($sellerListing->status, ['approved', 'rejected', 'draft'], true)) {
+            $sellerListing->status = $sellerListing->status === 'approved' ? 'pending_review_update' : 'pending_review';
+            $sellerListing->status_reason = null;
+            $sellerListing->submitted_at = now();
+            $sellerListing->reviewed_at = null;
+            $sellerListing->reviewed_by = null;
+            $sellerListing->approved_at = null;
+            $sellerListing->rejected_at = null;
+            $sellerListing->suspended_at = null;
+            $sellerListing->save();
+        }
+
         return response()->json(['data' => $sellerListing]);
     }
 
@@ -194,16 +210,23 @@ class MarketplaceListingController extends Controller
         }
 
         $data = $request->validate([
+            // Backward compatible: "active" means "submit for review".
             'status' => ['required', 'in:active,disabled'],
             'reason' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        if ($data['status'] === 'active' && !$seller->canSell()) {
-            return response()->json(['message' => 'Seller is not allowed to activate listings.'], 403);
+        if ($data['status'] === 'active') {
+            if (!$seller->canSell()) {
+                return response()->json(['message' => 'Seller is not allowed to submit listings.'], 403);
+            }
+            $sellerListing->status = 'pending_review';
+            $sellerListing->status_reason = null;
+            $sellerListing->submitted_at = now();
+        } else {
+            // "disabled" becomes a seller draft.
+            $sellerListing->status = 'draft';
+            $sellerListing->status_reason = $data['reason'] ?? null;
         }
-
-        $sellerListing->status = $data['status'];
-        $sellerListing->status_reason = $data['status'] === 'disabled' ? ($data['reason'] ?? null) : null;
         $sellerListing->save();
 
         return response()->json(['ok' => true, 'data' => $sellerListing]);

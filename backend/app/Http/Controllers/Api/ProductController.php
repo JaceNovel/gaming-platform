@@ -23,6 +23,28 @@ class ProductController extends Controller
             $query->where('game_id', $gameId);
         }
 
+        if ($gameSlug = $request->input('game_slug')) {
+            $query->whereHas('game', function ($gq) use ($gameSlug) {
+                $gq->where('slug', $gameSlug);
+            });
+        }
+
+        // Friendly filtering used by the new navbar/pages.
+        if ($shopType = $request->input('shop_type')) {
+            $shopType = strtolower((string) $shopType);
+            if ($shopType === 'recharge') {
+                $query->where('type', 'recharge');
+            } elseif ($shopType === 'subscription') {
+                $query->where('type', 'subscription');
+            } elseif ($shopType === 'accessory') {
+                // Accessories are stored as type=item.
+                $query->where('type', 'item');
+            } elseif ($shopType === 'gaming_account') {
+                // Gaming accounts catalog products are stored as type=account.
+                $query->where('type', 'account');
+            }
+        }
+
         if ($type = $request->input('type')) {
             $query->where('type', $type);
         }

@@ -154,9 +154,10 @@ class MarketplaceOrderController extends Controller
 
             SellerListing::query()
                 ->where('seller_id', $marketplaceOrder->seller_id)
-                ->where('status', '!=', 'sold')
+                ->whereNull('order_id')
+                ->whereNull('sold_at')
                 ->update([
-                    'status' => 'disabled',
+                    'status' => 'suspended',
                     'status_reason' => 'Dispute opened',
                 ]);
 

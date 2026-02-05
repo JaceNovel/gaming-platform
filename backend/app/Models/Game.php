@@ -13,7 +13,12 @@ class Game extends Model
         'slug',
         'description',
         'image',
+        'icon',
         'category',
         'is_active',
+        'sort_order',
+        'enabled_for_recharge',
+        'enabled_for_subscription',
+        'enabled_for_marketplace',
     ];
 }

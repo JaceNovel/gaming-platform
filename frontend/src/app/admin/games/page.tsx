@@ -14,7 +14,12 @@ type Game = {
   category?: string | null;
   description?: string | null;
   image?: string | null;
+  icon?: string | null;
   is_active?: boolean | null;
+  sort_order?: number | null;
+  enabled_for_recharge?: boolean | null;
+  enabled_for_subscription?: boolean | null;
+  enabled_for_marketplace?: boolean | null;
 };
 
 type GamesResponse = {
@@ -124,6 +129,8 @@ export default function AdminGamesPage() {
               <th className="px-4 py-3">Image</th>
               <th className="px-4 py-3">Nom</th>
               <th className="px-4 py-3">Slug</th>
+              <th className="px-4 py-3">Ordre</th>
+              <th className="px-4 py-3">Menus</th>
               <th className="px-4 py-3">Catégorie</th>
               <th className="px-4 py-3">Actif</th>
               <th className="px-4 py-3 text-right">Actions</th>
@@ -149,6 +156,14 @@ export default function AdminGamesPage() {
                 </td>
                 <td className="px-4 py-3 font-medium text-slate-800">{game.name}</td>
                 <td className="px-4 py-3 text-slate-600">{game.slug}</td>
+                <td className="px-4 py-3 text-slate-600">{Number(game.sort_order ?? 0)}</td>
+                <td className="px-4 py-3 text-slate-600">
+                  <span className="inline-flex flex-wrap gap-1">
+                    {game.enabled_for_recharge ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px]">R</span> : null}
+                    {game.enabled_for_subscription ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px]">A</span> : null}
+                    {game.enabled_for_marketplace ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px]">M</span> : null}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-slate-500">{game.category ?? "—"}</td>
                 <td className="px-4 py-3 text-slate-500">{game.is_active ? "Oui" : "Non"}</td>
                 <td className="px-4 py-3 text-right">
@@ -165,7 +180,7 @@ export default function AdminGamesPage() {
             ))}
             {!filtered.length && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">
+                <td colSpan={8} className="px-4 py-8 text-center text-sm text-slate-400">
                   {loading ? "Chargement..." : "Aucun jeu"}
                 </td>
               </tr>

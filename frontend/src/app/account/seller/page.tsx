@@ -315,11 +315,13 @@ function SellerPageClient() {
   const canSell = Boolean(seller && seller.status === "approved" && !seller.partnerWalletFrozen);
 
   const listingsStats = useMemo(() => {
-    const counts = { active: 0, disabled: 0, sold: 0 };
+    const counts = { approved: 0, inReview: 0, draft: 0, sold: 0 };
     for (const l of listings) {
-      if (l.status === "active") counts.active++;
-      else if (l.status === "sold") counts.sold++;
-      else counts.disabled++;
+      const s = String(l.status ?? "");
+      if (s === "approved") counts.approved++;
+      else if (s === "pending_review" || s === "pending_review_update") counts.inReview++;
+      else if (s === "sold") counts.sold++;
+      else counts.draft++;
     }
     return counts;
   }, [listings]);
@@ -411,10 +413,10 @@ function SellerPageClient() {
       const body = JSON.stringify(payload.values);
       if (payload.mode === "create") {
         await fetchJson("/gaming-accounts/listings", { method: "POST", body });
-        pushToast("Annonce créée (désactivée par défaut).", "success");
+        pushToast("Annonce créée et soumise à validation.", "success");
       } else {
         await fetchJson(`/gaming-accounts/listings/${payload.id}`, { method: "PATCH", body });
-        pushToast("Annonce mise à jour.", "success");
+        pushToast("Annonce mise à jour (revalidation si nécessaire).", "success");
       }
       setListingModal(null);
       await loadListings();
@@ -429,7 +431,7 @@ function SellerPageClient() {
         method: "PATCH",
         body: JSON.stringify({ status: next, reason: reason?.trim() || null }),
       });
-      pushToast(next === "active" ? "Annonce activée." : "Annonce désactivée.", "success");
+      pushToast(next === "active" ? "Annonce soumise à validation." : "Annonce retirée (brouillon).", "success");
       await loadListings();
     } catch (e: any) {
       pushToast(e?.message ?? "Action impossible", "error");
@@ -523,11 +525,11 @@ function SellerPageClient() {
   };
 
   const ListingModal = () => {
-    if (!listingModal) return null;
-    const isEdit = listingModal.mode === "edit";
-    const base = listingModal.listing;
+    const isOpen = Boolean(listingModal);
+    const isEdit = listingModal?.mode === "edit";
+    const base = listingModal?.listing;
 
-    const [values, setValues] = useState({
+    const [values, setValues] = useState(() => ({
       gameId: base?.game?.id ?? null,
       categoryId: base?.category?.id ?? null,
       title: String(base?.title ?? ""),
@@ -538,7 +540,26 @@ function SellerPageClient() {
       accountRegion: String(base?.account_region ?? ""),
       hasEmailAccess: Boolean(base?.has_email_access ?? false),
       deliveryWindowHours: Number(base?.delivery_window_hours ?? 24) || 24,
-    });
+    }));
+
+    useEffect(() => {
+      if (!isOpen) return;
+      setValues({
+        gameId: base?.game?.id ?? null,
+        categoryId: base?.category?.id ?? null,
+        title: String(base?.title ?? ""),
+        description: String(base?.description ?? ""),
+        price: Number(base?.price ?? 0) || 0,
+        accountLevel: String(base?.account_level ?? ""),
+        accountRank: String(base?.account_rank ?? ""),
+        accountRegion: String(base?.account_region ?? ""),
+        hasEmailAccess: Boolean(base?.has_email_access ?? false),
+        deliveryWindowHours: Number(base?.delivery_window_hours ?? 24) || 24,
+      });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, base?.id, listingModal?.mode]);
+
+    if (!listingModal) return null;
 
     const disable = !canSell;
 
@@ -559,7 +580,7 @@ function SellerPageClient() {
               <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Annonces</p>
               <h3 className="mt-1 text-xl font-semibold text-white">{isEdit ? "Modifier l'annonce" : "Créer une annonce"}</h3>
               <p className="mt-1 text-sm text-white/60">
-                Par défaut, l'annonce est <span className="text-white/80">désactivée</span>. Active-la quand tu es prêt.
+                L'annonce est <span className="text-white/80">soumise</span> à validation. Après approbation, elle devient visible sur le marketplace.
               </p>
             </div>
             <button
@@ -744,11 +765,19 @@ function SellerPageClient() {
 
   const DeliveryModal = () => {
     const dm = deliveryModal;
-    if (!dm) return null;
 
     const [note, setNote] = useState("");
     const [file, setFile] = useState<File | null>(null);
     const [busy, setBusy] = useState(false);
+
+    useEffect(() => {
+      if (!dm) return;
+      setNote("");
+      setFile(null);
+      setBusy(false);
+    }, [dm?.order?.id]);
+
+    if (!dm) return null;
 
     const title = String(dm.order?.listing?.title ?? "Commande marketplace");
     const ref = String(dm.order?.order?.reference ?? "");
@@ -912,9 +941,11 @@ function SellerPageClient() {
 
                     <div className="mt-6 grid gap-3 sm:grid-cols-3">
                       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-xs text-white/50">Annonces actives</p>
-                        <p className="mt-2 text-2xl font-semibold">{listingsStats.active}</p>
-                        <p className="mt-1 text-xs text-white/55">Désactivées: {listingsStats.disabled}</p>
+                        <p className="text-xs text-white/50">Annonces approuvées</p>
+                        <p className="mt-2 text-2xl font-semibold">{listingsStats.approved}</p>
+                        <p className="mt-1 text-xs text-white/55">
+                          En validation: {listingsStats.inReview} · Brouillons: {listingsStats.draft}
+                        </p>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                         <p className="text-xs text-white/50">Ventes (payées)</p>
@@ -1206,13 +1237,24 @@ function SellerPageClient() {
                     <div className="rounded-[28px] border border-white/10 bg-white/5 p-10 text-center">
                       <ClipboardList className="mx-auto h-8 w-8 text-white/60" />
                       <p className="mt-3 text-sm text-white/70">Aucune annonce pour le moment.</p>
-                      <p className="mt-1 text-xs text-white/50">Crée ta première annonce, puis active-la.</p>
+                      <p className="mt-1 text-xs text-white/50">Crée ta première annonce, puis soumets-la pour validation.</p>
                     </div>
                   ) : null}
 
                   {listings.map((l) => {
                     const status = String(l.status ?? "disabled");
-                    const tone = status === "active" ? "green" : status === "sold" ? "slate" : "amber";
+
+                    const statusUi = (() => {
+                      if (status === "approved") return { label: "Approuvée", tone: "green" as const };
+                      if (status === "pending_review") return { label: "En validation", tone: "amber" as const };
+                      if (status === "pending_review_update") return { label: "Maj en validation", tone: "amber" as const };
+                      if (status === "rejected") return { label: "Refusée", tone: "amber" as const };
+                      if (status === "suspended") return { label: "Suspendue", tone: "slate" as const };
+                      if (status === "sold") return { label: "Vendue", tone: "slate" as const };
+                      return { label: "Brouillon", tone: "amber" as const };
+                    })();
+
+                    const tone = statusUi.tone;
                     return (
                       <div key={l.id} className="rounded-[28px] border border-white/10 bg-black/40 p-5">
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1220,8 +1262,14 @@ function SellerPageClient() {
                             <div className="flex flex-wrap items-center gap-2">
                               <h4 className="truncate text-lg font-semibold text-white">{String(l.title ?? "Annonce")}</h4>
                               <Badge tone={tone as any}>
-                                {status === "active" ? <BadgeCheck className="h-3.5 w-3.5" /> : status === "sold" ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Shield className="h-3.5 w-3.5" />}
-                                {status === "active" ? "Active" : status === "sold" ? "Vendue" : "Désactivée"}
+                                {status === "approved" ? (
+                                  <BadgeCheck className="h-3.5 w-3.5" />
+                                ) : status === "sold" ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Shield className="h-3.5 w-3.5" />
+                                )}
+                                {statusUi.label}
                               </Badge>
                             </div>
                             <p className="mt-2 text-sm text-white/60 line-clamp-2">{String(l.description ?? "").trim() || "—"}</p>
@@ -1260,22 +1308,22 @@ function SellerPageClient() {
                               Modifier
                             </button>
                             {status !== "sold" ? (
-                              status === "active" ? (
+                              status === "approved" ? (
                                 <button
                                   type="button"
                                   onClick={() => void setListingStatus(l.id, "disabled", "Désactivé par le vendeur")}
                                   className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
                                 >
-                                  Désactiver
+                                  Retirer
                                 </button>
                               ) : (
                                 <button
                                   type="button"
                                   onClick={() => void setListingStatus(l.id, "active")}
-                                  disabled={!canSell}
+                                  disabled={!canSell || status === "pending_review" || status === "pending_review_update"}
                                   className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
                                 >
-                                  Activer
+                                  Soumettre
                                 </button>
                               )
                             ) : null}
