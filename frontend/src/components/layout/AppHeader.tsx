@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, ChevronDown, Coins, Crown, Headphones, Mail, ShoppingCart, User } from "lucide-react";
+import { Bell, ChevronDown, Coins, Mail, ShoppingCart } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
 
@@ -36,7 +36,7 @@ const parseGamesPayload = (payload: any): MenuGame[] => {
 
 export default function AppHeader() {
   const pathname = usePathname();
-  const { authFetch, token, user } = useAuth();
+  const { authFetch, token } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [walletCurrency, setWalletCurrency] = useState<string | null>(null);
@@ -306,67 +306,44 @@ export default function AppHeader() {
     walletBalance === null ? "—" : walletBalance.toLocaleString("fr-FR");
   const walletCurrencyLabel = walletCurrency ?? "FCFA";
 
-  const vipLabel = useMemo(() => {
-    if (!user?.is_premium) return "VIP 0";
-    type PremiumLevelLike = {
-      premium_level?: number | string | null;
-      premium_tier?: number | string | null;
-      premiumTier?: number | string | null;
-    };
-
-    const u = user as unknown as PremiumLevelLike;
-    const levelRaw = u?.premium_level ?? u?.premium_tier ?? u?.premiumTier;
-    if (typeof levelRaw === "number") {
-      return levelRaw >= 2 ? "VIP 2" : "VIP 1";
-    }
-    const normalized = String(levelRaw ?? "").toLowerCase();
-    if (normalized.includes("platine")) return "VIP 2";
-    if (normalized.includes("basic") || normalized.includes("bronze")) return "VIP 1";
-    return "VIP 1";
-  }, [user]);
-
   return (
     <>
       <header
         ref={(el) => {
           headerRef.current = el;
         }}
-        className="fixed top-0 z-50 hidden w-full border-b border-white/10 bg-black/40 backdrop-blur lg:block"
+        className="fixed top-0 z-50 hidden w-full border-b border-white/10 bg-gradient-to-r from-[#0b0214]/85 via-[#22063d]/75 to-[#0b0214]/85 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur lg:block"
       >
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="relative h-11 w-11 overflow-hidden rounded-2xl ring-1 ring-white/20 bg-black/30">
-              <Image
-                src="/logo-v2.png"
-                alt="BADBOYSHOP"
-                width={44}
-                height={44}
-                className="h-full w-full object-contain"
-                priority
-              />
-            </div>
-            <div className="text-lg font-extrabold tracking-tight text-white">
-              BADBOY<span className="text-white/70">SHOP</span>
-            </div>
-          </Link>
+        <div className="mx-auto w-full max-w-7xl px-6">
+          <div className="flex h-[64px] w-full items-center justify-between gap-6 whitespace-nowrap">
+            <Link href="/" className="flex items-center gap-3">
+              <div className="relative h-10 w-10 overflow-hidden rounded-2xl ring-1 ring-white/15 bg-black/20">
+                <Image
+                  src="/logo-v2.png"
+                  alt="BADBOYSHOP"
+                  width={44}
+                  height={44}
+                  className="h-full w-full object-contain"
+                  priority
+                />
+              </div>
+              <div className="text-base font-extrabold tracking-tight text-white">
+                BADBOY<span className="text-fuchsia-400">SHOP</span>
+              </div>
+            </Link>
 
-          <div className="flex items-center gap-4 rounded-full bg-white/5 px-4 py-2 ring-1 ring-white/10 backdrop-blur-md">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/90 ring-1 ring-white/15">
-              <Crown className="h-3.5 w-3.5 text-amber-300" />
-              {vipLabel}
-            </span>
-
-            <nav className="flex items-center gap-2 text-xs font-semibold text-white/80">
+            <nav className="flex min-w-0 flex-1 flex-nowrap items-center justify-center gap-1 text-sm font-semibold text-white/85">
               {(
                 [
                   { key: "recharge" as const, label: "Recharges" },
                   { key: "subscription" as const, label: "Abonnements" },
-                  { key: "marketplace" as const, label: "Comptes Gaming" },
+                  { key: "marketplace" as const, label: "Gaming Accounts" },
                 ]
               ).map(({ key, label }) => {
                 const isOpen = openMenu === key;
                 const items = menuGames[key] ?? [];
-                const baseHref = key === "recharge" ? "/recharges" : key === "subscription" ? "/abonnements" : "/gaming-accounts";
+                const baseHref =
+                  key === "recharge" ? "/recharges" : key === "subscription" ? "/abonnements" : "/gaming-accounts";
 
                 return (
                   <div key={key} className="relative">
@@ -375,8 +352,10 @@ export default function AppHeader() {
                         menuButtonRefs.current[key] = el;
                       }}
                       type="button"
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 transition ${
-                        isOpen ? "bg-white/10 text-white" : "hover:bg-white/10 hover:text-white"
+                      className={`relative inline-flex items-center gap-1.5 rounded-xl px-3 py-2 transition ${
+                        isOpen ? "bg-white/10 text-white" : "hover:bg-white/8 hover:text-white"
+                      } after:absolute after:inset-x-3 after:bottom-1 after:h-px after:bg-gradient-to-r after:from-transparent after:via-cyan-200/60 after:to-transparent after:opacity-0 after:transition after:duration-200 hover:after:opacity-100 ${
+                        isOpen ? "after:opacity-100" : ""
                       }`}
                       aria-haspopup="menu"
                       aria-expanded={isOpen}
@@ -398,13 +377,13 @@ export default function AppHeader() {
                         }
                       }}
                     >
-                      {label}
+                      <span className="whitespace-nowrap">{label}</span>
                       <ChevronDown className={`h-3.5 w-3.5 transition ${isOpen ? "rotate-180" : ""}`} />
                     </button>
 
                     {isOpen ? (
                       <div
-                        className="absolute left-0 mt-2 w-72 overflow-hidden rounded-2xl border border-white/10 bg-black/95 p-2 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur"
+                        className="absolute left-0 mt-2 w-72 overflow-hidden rounded-2xl border border-white/10 bg-black/90 p-2 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] ring-1 ring-white/10 backdrop-blur"
                         role="menu"
                         aria-label={label}
                       >
@@ -452,160 +431,67 @@ export default function AppHeader() {
 
               <Link
                 href="/accessoires"
-                className={`inline-flex items-center rounded-full px-3 py-2 transition ${
-                  pathname === "/accessoires" ? "bg-white/10 text-white" : "hover:bg-white/10 hover:text-white"
+                className={`relative inline-flex items-center rounded-xl px-3 py-2 transition after:absolute after:inset-x-3 after:bottom-1 after:h-px after:bg-gradient-to-r after:from-transparent after:via-fuchsia-200/55 after:to-transparent after:opacity-0 after:transition after:duration-200 hover:after:opacity-100 ${
+                  pathname === "/accessoires" ? "bg-white/10 text-white" : "hover:bg-white/8 hover:text-white"
                 }`}
               >
-                Accessoires
+                <span className="whitespace-nowrap">Accessoires</span>
               </Link>
             </nav>
+
+            <div className="flex flex-nowrap items-center gap-2">
+              <Link
+                href="/help"
+                className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
+              >
+                <span aria-hidden="true" className="text-base leading-none">🎧</span>
+                <span className="whitespace-nowrap">Support 24/7</span>
+              </Link>
+              <Link
+                href="/wallet"
+                className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(217,70,239,0.10)]"
+              >
+                <span aria-hidden="true" className="text-base leading-none">💳</span>
+                <span className="whitespace-nowrap">DB Wallet</span>
+              </Link>
+              <Link
+                href="/account"
+                className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(139,92,246,0.10)]"
+              >
+                <span aria-hidden="true" className="text-base leading-none">👤</span>
+                <span className="whitespace-nowrap">Mon Profil</span>
+              </Link>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link
-              href="/help"
-              className="hidden xl:inline-flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 ring-1 ring-white/10 hover:bg-white/10 hover:text-white"
+          <div className="pb-3">
+            <div
+              className="mx-auto w-full max-w-3xl p-[1px]"
+              style={{
+                clipPath:
+                  "polygon(16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px), 0 16px)",
+                background:
+                  "linear-gradient(90deg, rgba(217,70,239,0.45), rgba(34,211,238,0.25), rgba(139,92,246,0.45))",
+              }}
             >
-              <Headphones className="h-4 w-4" />
-              Support 24/7
-            </Link>
-
-            <Link
-              href="/wallet"
-              className="relative inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur-md hover:bg-white/5"
-              aria-label="DB Wallet"
-            >
-              <span className="absolute inset-0 -z-10 rounded-full bg-gradient-to-r from-amber-400/30 via-fuchsia-400/20 to-purple-500/30" />
-              <span className="absolute inset-0 -z-20 rounded-full bg-amber-300/20 blur-[12px]" />
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 text-black shadow-[0_6px_18px_rgba(251,191,36,0.45)]">
-                <Coins className="h-3.5 w-3.5" />
-              </span>
-              <span className="tracking-wide">{walletLabel}</span>
-              <span className="text-xs text-white/70">{walletCurrencyLabel}</span>
-            </Link>
-
-            <Link
-              href="/account"
-              className="inline-flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-xs font-semibold text-white/80 ring-1 ring-white/15 hover:bg-white/10 hover:text-white"
-              aria-label="Mon Profil"
-            >
-              <User className="h-4 w-4" />
-              <span className="hidden xl:inline">Mon Profil</span>
-            </Link>
-            <div className="relative">
-              <button
-                type="button"
-                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 ${
-                  inboxBadge ? "notify-bounce" : ""
-                }`}
-                aria-label="Boîte de réception"
-                onClick={handleToggleInbox}
+              <Link
+                href="/premium"
+                className="relative inline-flex w-full items-center justify-center gap-2 px-5 py-2 text-sm font-extrabold tracking-wide text-white/90 hover:text-white"
+                style={{
+                  clipPath:
+                    "polygon(16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px), 0 16px)",
+                  background: "linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.15))",
+                  backdropFilter: "blur(10px)",
+                  whiteSpace: "nowrap",
+                }}
               >
-                <Mail className="h-4 w-4 text-white/80" />
-                {inboxBadge ? (
-                  <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white notify-dot">
-                    {inboxBadge}
-                  </span>
-                ) : null}
-              </button>
-
-              {showInbox && (
-                <div className="absolute right-0 mt-3 w-80 rounded-2xl border border-white/10 bg-black/90 p-3 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
-                  <div className="flex items-center justify-between pb-2">
-                    <span className="text-xs uppercase tracking-[0.25em] text-white/50">Boîte mail</span>
-                    <button
-                      type="button"
-                      className="text-xs text-white/60 hover:text-white"
-                      onClick={() => setShowInbox(false)}
-                    >
-                      Fermer
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {inboxItems.length === 0 ? (
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                        Aucun message pour le moment.
-                      </div>
-                    ) : (
-                      inboxItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 ${
-                            item.is_read ? "opacity-70" : ""
-                          }`}
-                        >
-                          <p className="whitespace-pre-wrap text-white/90">{item.message}</p>
-                          <p className="mt-1 text-[10px] text-white/40">
-                            {new Date(item.created_at).toLocaleString("fr-FR")}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
+                <span className="pointer-events-none absolute inset-0 -z-10 opacity-70" style={{ background: "radial-gradient(circle at 30% 20%, rgba(34,211,238,0.18), transparent 45%), radial-gradient(circle at 70% 60%, rgba(217,70,239,0.16), transparent 50%)" }} />
+                <span aria-hidden="true" className="text-base leading-none">⚡</span>
+                <span className="bg-gradient-to-r from-cyan-200 via-fuchsia-200 to-violet-200 bg-clip-text text-transparent">
+                  Update Plan
+                </span>
+              </Link>
             </div>
-            <div className="relative">
-              <button
-                type="button"
-                className={`relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 ${
-                  unreadBadge ? "notify-bounce" : ""
-                }`}
-                aria-label="Notifications"
-                onClick={handleToggleNotifications}
-              >
-                <Bell className="h-4 w-4 text-white/80" />
-                {unreadBadge ? (
-                  <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white notify-dot">
-                    {unreadBadge}
-                  </span>
-                ) : null}
-              </button>
-
-              {showNotifications && (
-                <div className="absolute right-0 mt-3 w-80 rounded-2xl border border-white/10 bg-black/90 p-3 text-sm text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
-                  <div className="flex items-center justify-between pb-2">
-                    <span className="text-xs uppercase tracking-[0.25em] text-white/50">Notifications</span>
-                    <button
-                      type="button"
-                      className="text-xs text-white/60 hover:text-white"
-                      onClick={() => setShowNotifications(false)}
-                    >
-                      Fermer
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {notifications.length === 0 ? (
-                      <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                        Aucune notification pour le moment.
-                      </div>
-                    ) : (
-                      notifications.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/70 ${
-                            item.is_read ? "opacity-70" : ""
-                          }`}
-                        >
-                          <p className="text-white/90">{item.message}</p>
-                          <p className="mt-1 text-[10px] text-white/40">
-                            {new Date(item.created_at).toLocaleString("fr-FR")}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <Link
-              href="/cart"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
-              aria-label="Panier"
-              data-cart-target="desktop"
-            >
-              <ShoppingCart className="h-4 w-4 text-white/80" />
-            </Link>
           </div>
         </div>
       </header>
@@ -770,7 +656,7 @@ export default function AppHeader() {
         </div>
       )}
 
-      <div className="h-[70px] lg:h-[96px]" aria-hidden="true" />
+      <div className="h-[70px] lg:h-[112px]" aria-hidden="true" />
     </>
   );
 }
