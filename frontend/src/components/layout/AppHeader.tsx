@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, ChevronDown, Coins, Mail, ShoppingCart } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type NotificationItem = {
   id: number;
@@ -414,9 +415,9 @@ export default function AppHeader() {
                                 onClick={() => setOpenMenu(null)}
                               >
                                 <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-xl bg-white/5 ring-1 ring-white/10">
-                                  {g.icon || g.image ? (
+                                  {toDisplayImageSrc((g.icon || g.image) as string) ? (
                                     <Image
-                                      src={(g.icon || g.image) as string}
+                                      src={toDisplayImageSrc((g.icon || g.image) as string) as string}
                                       alt={String(g.name ?? "")}
                                       width={36}
                                       height={36}
