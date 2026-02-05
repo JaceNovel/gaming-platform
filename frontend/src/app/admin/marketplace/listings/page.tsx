@@ -107,11 +107,12 @@ export default function AdminMarketplaceListingsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
             <option value="all">Tous statuts</option>
-            <option value="pending">pending</option>
+            <option value="draft">draft</option>
+            <option value="pending_review">pending_review</option>
+            <option value="pending_review_update">pending_review_update</option>
             <option value="approved">approved</option>
             <option value="rejected">rejected</option>
             <option value="suspended">suspended</option>
-            <option value="sold">sold</option>
           </select>
           <button onClick={() => void load()} className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white" disabled={loading}>
             {loading ? "Chargement..." : "Rafraîchir"}

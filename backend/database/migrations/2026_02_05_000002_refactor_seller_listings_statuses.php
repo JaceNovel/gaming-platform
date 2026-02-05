@@ -37,6 +37,8 @@ return new class extends Migration
             DB::statement("ALTER TABLE seller_listings MODIFY status VARCHAR(32) NOT NULL DEFAULT 'draft'");
         } elseif ($driver === 'pgsql') {
             // PostgreSQL: attempt to change type to varchar.
+            // Laravel's enum() creates a CHECK constraint; drop it to allow new workflow statuses.
+            DB::statement("ALTER TABLE seller_listings DROP CONSTRAINT IF EXISTS seller_listings_status_check");
             DB::statement("ALTER TABLE seller_listings ALTER COLUMN status TYPE VARCHAR(32)");
             DB::statement("ALTER TABLE seller_listings ALTER COLUMN status SET DEFAULT 'draft'");
         }
