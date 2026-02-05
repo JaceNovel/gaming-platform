@@ -9,6 +9,7 @@ import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "../../lib/imageProxy";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
+import AnimatedHomeBackground from "@/components/home/AnimatedHomeBackground";
 
 type Stat = {
   to: number;
@@ -497,9 +498,10 @@ export default function HomeClient() {
 
   return (
     <main
-      className="relative min-h-[100dvh] bg-[#0d0f1f] text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
+      className="relative min-h-[100dvh] bg-transparent text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
+      <AnimatedHomeBackground />
       {overlay}
       <div className="absolute inset-0 -z-20 hidden sm:block bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.18),transparent_55%),radial-gradient(circle_at_30%_10%,rgba(14,165,233,0.16),transparent_45%),linear-gradient(180deg,#0d0f1f_0%,#0b0b14_100%)]" />
 

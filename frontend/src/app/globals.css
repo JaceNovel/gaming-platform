@@ -161,6 +161,96 @@ body {
   }
 }
 
+/* Homepage animated background (CSS-only, subtle & GPU-friendly) */
+.bb-home-bg-aurora {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(192, 132, 252, 0.16), transparent 42%),
+    radial-gradient(circle at 78% 22%, rgba(110, 231, 255, 0.12), transparent 40%),
+    radial-gradient(circle at 60% 78%, rgba(217, 70, 239, 0.08), transparent 46%),
+    linear-gradient(180deg, rgba(5, 6, 12, 1) 0%, rgba(5, 6, 12, 0.96) 55%, rgba(5, 6, 12, 1) 100%);
+  filter: saturate(1.05);
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  animation: bbHomeAurora 18s ease-in-out infinite;
+}
+
+@keyframes bbHomeAurora {
+  0%,
+  100% {
+    transform: scale(1) translate3d(0, 0, 0);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.03) translate3d(0, -10px, 0);
+    opacity: 1;
+  }
+}
+
+.bb-home-bg-stars,
+.bb-home-bg-stars2 {
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.28) 1px, transparent 1px);
+  background-size: 120px 120px;
+  background-position: 0 0;
+  opacity: 0.28;
+  transform: translateZ(0);
+  will-change: background-position, opacity;
+  animation: bbStarsDrift 42s linear infinite;
+  mask-image: radial-gradient(circle at top, rgba(0, 0, 0, 0.95), transparent 70%);
+}
+
+.bb-home-bg-stars2 {
+  background-size: 220px 220px;
+  opacity: 0.18;
+  animation-duration: 65s;
+}
+
+@keyframes bbStarsDrift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 800px;
+  }
+}
+
+.bb-home-bg-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 26px 26px;
+  opacity: 0.12;
+  transform: translateZ(0);
+  will-change: background-position;
+  animation: bbGridDrift 28s linear infinite;
+  mask-image: radial-gradient(circle at top, rgba(0, 0, 0, 0.9), transparent 72%);
+}
+
+@keyframes bbGridDrift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 260px;
+  }
+}
+
+@media (max-width: 639px) {
+  .bb-home-bg-aurora {
+    animation-duration: 22s;
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-home-bg-aurora,
+  .bb-home-bg-stars,
+  .bb-home-bg-stars2,
+  .bb-home-bg-grid {
+    animation: none !important;
+  }
+}
+
 .soft-glow {
   box-shadow: 0 0 25px rgba(110, 231, 255, 0.2), 0 0 40px rgba(192, 132, 252, 0.18);
 }
