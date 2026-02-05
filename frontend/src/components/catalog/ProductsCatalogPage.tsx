@@ -56,19 +56,33 @@ const parseGamesPayload = (payload: any): MenuGame[] => {
 };
 
 const parsePaginator = <T,>(payload: any): { items: T[]; meta: Paginated<T> | null } => {
-  const boxed = payload?.data ?? payload;
-  if (boxed && typeof boxed === "object" && Array.isArray(boxed.data)) {
+  if (!payload) return { items: [], meta: null };
+
+  // Laravel paginator shape: { data: [...], current_page, last_page, ... }
+  if (typeof payload === "object" && Array.isArray(payload.data)) {
+    const maybePaged = payload as Paginated<T>;
+    const hasPaging = typeof maybePaged.current_page === "number" || typeof maybePaged.last_page === "number";
     return {
-      items: boxed.data as T[],
-      meta: boxed as Paginated<T>,
+      items: payload.data as T[],
+      meta: hasPaging ? (maybePaged as Paginated<T>) : null,
     };
   }
-  if (boxed && typeof boxed === "object" && boxed.data && typeof boxed.data === "object" && Array.isArray(boxed.data.data)) {
+
+  // Some endpoints wrap paginator as { data: { data: [...], current_page, ... } }
+  if (typeof payload === "object" && payload.data && typeof payload.data === "object" && Array.isArray(payload.data.data)) {
+    const inner = payload.data as Paginated<T>;
+    const hasPaging = typeof inner.current_page === "number" || typeof inner.last_page === "number";
     return {
-      items: boxed.data.data as T[],
-      meta: boxed.data as Paginated<T>,
+      items: payload.data.data as T[],
+      meta: hasPaging ? inner : null,
     };
   }
+
+  // Plain arrays
+  if (Array.isArray(payload)) {
+    return { items: payload as T[], meta: null };
+  }
+
   return { items: [], meta: null };
 };
 
