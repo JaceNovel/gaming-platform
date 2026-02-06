@@ -299,7 +299,7 @@ function CartScreen() {
               <GlowButton
                 variant="secondary"
                 className="w-full sm:w-auto"
-                onClick={() => (window.location.href = "/shop")}
+                onClick={() => (window.location.href = "/")}
               >
                 <ShoppingBag className="h-4 w-4" />
                 Continuer les achats

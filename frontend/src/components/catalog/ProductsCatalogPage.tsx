@@ -8,6 +8,7 @@ import { ArrowLeft, Search, SlidersHorizontal } from "lucide-react";
 import ProductCard from "@/components/ui/ProductCard";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
+import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 
 type MenuKey = "recharge" | "subscription";
 
@@ -28,6 +29,7 @@ type ProductRow = {
   discount_price?: number | string | null;
   type?: string | null;
   likes_count?: number | string | null;
+  delivery_estimate_label?: string | null;
   image_url?: string | null;
   banner_url?: string | null;
   cover?: string | null;
@@ -357,6 +359,11 @@ export default function ProductsCatalogPage({
                     null;
 
                   const imageSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
+                  const delivery = getDeliveryBadgeDisplay({
+                    type: p.type ?? null,
+                    display_section: p.display_section ?? null,
+                    delivery_estimate_label: p.delivery_estimate_label ?? null,
+                  });
 
                   return (
                     <div key={p.id} className="min-w-0">
@@ -365,6 +372,7 @@ export default function ProductsCatalogPage({
                         subtitle={displaySubtitle}
                         price={`${formatNumber(safePrice)} FCFA`}
                         likes={likes}
+                        delivery={delivery}
                         onAction={() => router.push(`/produits/${p.id}`)}
                         onDoubleClick={() => router.push(`/produits/${p.id}`)}
                         imageSlot={

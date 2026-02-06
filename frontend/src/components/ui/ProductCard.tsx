@@ -3,6 +3,8 @@
 import { motion } from "framer-motion";
 import { Heart, ShoppingCart } from "lucide-react";
 import PremiumBadge from "./PremiumBadge";
+import DeliveryBadge from "./DeliveryBadge";
+import type { DeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 
 export type ProductCardProps = {
   title: string;
@@ -12,6 +14,7 @@ export type ProductCardProps = {
   tag?: string;
   badgeLevel?: "Bronze" | "Or" | "Platine";
   imageSlot?: React.ReactNode;
+  delivery?: DeliveryBadgeDisplay | null;
   details?: string[];
   onLike?: () => void;
   onAction?: () => void;
@@ -26,6 +29,7 @@ export default function ProductCard({
   tag,
   badgeLevel,
   imageSlot,
+  delivery,
   details,
   onLike,
   onAction,
@@ -112,6 +116,12 @@ export default function ProductCard({
           </button>
         </div>
       </div>
+
+      {delivery ? (
+        <div className="mt-2 flex justify-end">
+          <DeliveryBadge delivery={delivery} />
+        </div>
+      ) : null}
     </motion.div>
   );
 }
