@@ -326,7 +326,7 @@ export default function HomeClient() {
       <ImmersiveBackground
         imageSrc="/badboyshop-home.png"
         overlayClassName="bg-black/55"
-        imageStyle={{ objectPosition: "center 44%" }}
+        imageStyle={{ objectPosition: "center 45%" }}
       />
       {overlay}
 
@@ -351,7 +351,7 @@ export default function HomeClient() {
             Le gaming sans attente, sans risque, sans stress.
           </p>
 
-          <div className="mx-auto mt-5 max-w-5xl">
+          <div className="mx-auto mt-5 w-full max-w-3xl">
             <div className="mx-auto h-px w-40 bg-white/12" />
 
             <div className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-md">
