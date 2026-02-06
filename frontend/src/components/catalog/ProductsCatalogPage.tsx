@@ -365,6 +365,12 @@ export default function ProductsCatalogPage({
                     delivery_estimate_label: p.delivery_estimate_label ?? null,
                   });
 
+                  const basePrice = Number(p.price ?? 0);
+                  const discountPrice = Number(p.discount_price ?? NaN);
+                  const isPromo = Number.isFinite(basePrice) && Number.isFinite(discountPrice) && discountPrice > 0 && discountPrice < basePrice;
+                  const isTop = String(p.display_section ?? "").toLowerCase() === "popular" || likes >= 1000;
+                  const isInstant = delivery?.tone === "bolt";
+
                   return (
                     <div key={p.id} className="min-w-0">
                       <ProductCard
@@ -377,14 +383,34 @@ export default function ProductsCatalogPage({
                         onDoubleClick={() => router.push(`/produits/${p.id}`)}
                         imageSlot={
                           imageSrc ? (
-                            <div className="relative h-full w-full">
-                              <Image
-                                src={imageSrc}
-                                alt={displayTitle}
-                                fill
-                                className="object-cover"
-                                sizes="(min-width: 1024px) 360px, 90vw"
-                              />
+                            <div className="relative h-full w-full overflow-hidden">
+                              <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
+                                {isInstant ? (
+                                  <span className="rounded-full border border-amber-200/20 bg-amber-400/10 px-2 py-1 text-[11px] font-semibold text-amber-100 backdrop-blur">
+                                    Instantané
+                                  </span>
+                                ) : null}
+                                {isPromo ? (
+                                  <span className="rounded-full border border-amber-200/20 bg-amber-400/10 px-2 py-1 text-[11px] font-semibold text-amber-100 backdrop-blur">
+                                    Promo
+                                  </span>
+                                ) : null}
+                                {isTop ? (
+                                  <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[11px] font-semibold text-emerald-100 backdrop-blur">
+                                    Top
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <div className="absolute inset-0 transition-transform duration-300 group-hover:scale-[1.04] motion-reduce:transform-none">
+                                <Image
+                                  src={imageSrc}
+                                  alt={displayTitle}
+                                  fill
+                                  className="object-cover"
+                                  sizes="(min-width: 1024px) 360px, 90vw"
+                                />
+                              </div>
                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent" />
                             </div>
                           ) : undefined

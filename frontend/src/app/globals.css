@@ -249,6 +249,14 @@ body {
   .bb-home-bg-grid {
     animation: none !important;
   }
+
+  .card-hover {
+    transition: none !important;
+  }
+
+  .card-hover:hover {
+    transform: none !important;
+  }
 }
 
 .soft-glow {
