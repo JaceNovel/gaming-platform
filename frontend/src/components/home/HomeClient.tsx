@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Bot, Crown, Gamepad2, Heart, KeyRound, ShieldCheck, ShoppingCart, Wallet, Zap } from "lucide-react";
+import { Heart, ShoppingCart } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "../../lib/imageProxy";
@@ -11,12 +11,6 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
 import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
 
-type Stat = {
-  to: number;
-  suffix?: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-};
 type ProductCard = {
   id: number;
   title: string;
@@ -31,166 +25,6 @@ type ProductCard = {
 };
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
-
-const heroPills = [
-  { icon: ShieldCheck, label: "Sécurité sécurisée" },
-  { icon: Zap, label: "Livraison instantanée" },
-  { icon: Bot, label: "Anti-fraude actif" },
-];
-
-function GlowPill({
-  children,
-  tone = "cyan",
-}: {
-  children: React.ReactNode;
-  tone?: "cyan" | "gold";
-}) {
-  const toneCls =
-    tone === "gold"
-      ? "from-amber-400/60 via-yellow-200/30 to-fuchsia-400/20"
-      : "from-cyan-400/60 via-blue-300/30 to-fuchsia-400/20";
-
-  return (
-    <span className="relative inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-white/90">
-      <span
-        className={`absolute inset-0 -z-10 rounded-full bg-gradient-to-r ${toneCls} blur-[10px] opacity-70`}
-      />
-      <span className="absolute inset-0 -z-10 rounded-full bg-white/5 ring-1 ring-white/15" />
-      {children}
-    </span>
-  );
-}
-
-function GlassButton({
-  children,
-  href,
-  className = "",
-}: {
-  children: React.ReactNode;
-  href: string;
-  className?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`group relative inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold text-white transition active:scale-[0.98] ${className}`}
-    >
-      <span
-        className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-cyan-400/70 via-blue-400/30 to-fuchsia-400/20 opacity-80 blur-[14px]"
-      />
-      <span className="absolute inset-0 -z-10 rounded-xl bg-white/8 ring-1 ring-white/20 backdrop-blur-md" />
-      <span className="absolute inset-[1px] -z-10 rounded-[11px] bg-black/35" />
-      <span className="relative">{children}</span>
-      <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/10 group-hover:ring-white/25" />
-    </Link>
-  );
-}
-
-function OutlineButton({
-  children,
-  href,
-  className = "",
-}: {
-  children: React.ReactNode;
-  href: string;
-  className?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`group relative inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold text-white/90 transition active:scale-[0.98] ${className}`}
-    >
-      <span className="absolute inset-0 -z-10 rounded-xl bg-white/6 ring-1 ring-white/18 backdrop-blur-md" />
-      <span className="absolute inset-[1px] -z-10 rounded-[11px] bg-black/35" />
-      <span className="relative">{children}</span>
-      <span className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-white/8 group-hover:ring-white/20" />
-    </Link>
-  );
-}
-
-function StaticNumber({ to, suffix = "" }: { to: number; suffix?: string }) {
-  return (
-    <>
-      {formatNumber(to)}
-      {suffix}
-    </>
-  );
-}
-
-function AnimatedCountUp({ to, suffix = "" }: { to: number; suffix?: string }) {
-  const [value, setValue] = useState(0);
-  const startedRef = useRef(false);
-
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-
-    const durationMs = 900;
-    const start = performance.now();
-    let raf = 0;
-
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / durationMs);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(Math.round(eased * to));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [to]);
-
-  return (
-    <>
-      {formatNumber(value)}
-      {suffix}
-    </>
-  );
-}
-
-function CountUp({ to, suffix = "" }: { to: number; suffix?: string }) {
-  const reduced = useMemo(
-    () =>
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    [],
-  );
-
-  if (reduced || to <= 0) {
-    return <StaticNumber to={to} suffix={suffix} />;
-  }
-
-  return <AnimatedCountUp to={to} suffix={suffix} />;
-}
-
-function StatBar({ stats }: { stats: Stat[] }) {
-  return (
-    <div className="mx-auto mt-4 w-full max-w-6xl px-4">
-      <div className="relative overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/15 backdrop-blur-md">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/10 via-fuchsia-400/10 to-amber-300/10" />
-        <div className="relative flex gap-3 overflow-x-auto p-4 sm:grid sm:grid-cols-4">
-          {stats.map((s) => (
-            <div
-              key={s.label}
-              className="flex min-h-[92px] min-w-[160px] flex-col justify-between rounded-xl bg-black/25 p-3 ring-1 ring-white/10 sm:min-w-0"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="text-lg font-extrabold tracking-tight text-white">
-                  <CountUp to={s.to} suffix={s.suffix} />
-                </div>
-                <s.icon className="h-5 w-5 shrink-0 text-cyan-200/90" />
-              </div>
-              <div className="mt-1 whitespace-pre-line text-xs leading-4 text-white/70">
-                {s.label}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ProductCardUI({
   p,
@@ -284,76 +118,9 @@ export default function HomeClient() {
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
   const { user, loading: authLoading } = useAuth();
-  const quickActionsRef = useRef<HTMLDivElement | null>(null);
-  const stats = useMemo<Stat[]>(
-    () => [
-      { to: 10, suffix: "+", label: "Comptes\nvendus", icon: Gamepad2 },
-      { to: 5, label: "Recharges\ninstantanées", icon: Zap },
-      { to: 3, label: "Membres\nPremium", icon: Crown },
-      { to: 200, suffix: "+", label: "Utilisateurs\nactifs", icon: Heart },
-    ],
-    [],
-  );
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [desktopStart, setDesktopStart] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
-
-  useEffect(() => {
-    const el = quickActionsRef.current;
-    if (!el) return;
-    if (typeof window === "undefined") return;
-
-    const isMobile = window.matchMedia("(max-width: 639px)").matches;
-    if (!isMobile) return;
-
-    let rafId: number | null = null;
-    let pausedUntil = 0;
-
-    const pause = () => {
-      pausedUntil = Date.now() + 2500;
-    };
-
-    const step = () => {
-      const now = Date.now();
-      if (now < pausedUntil) {
-        rafId = window.requestAnimationFrame(step);
-        return;
-      }
-
-      const max = el.scrollWidth - el.clientWidth;
-      if (max <= 0) {
-        rafId = window.requestAnimationFrame(step);
-        return;
-      }
-
-      const next = el.scrollLeft + 0.6;
-      if (next >= max - 1) {
-        el.scrollLeft = 0;
-        pausedUntil = Date.now() + 1200;
-      } else {
-        el.scrollLeft = next;
-      }
-
-      rafId = window.requestAnimationFrame(step);
-    };
-
-    el.addEventListener("touchstart", pause, { passive: true });
-    el.addEventListener("touchmove", pause, { passive: true });
-    el.addEventListener("wheel", pause, { passive: true });
-    el.addEventListener("pointerdown", pause, { passive: true });
-    el.addEventListener("pointermove", pause, { passive: true });
-
-    rafId = window.requestAnimationFrame(step);
-
-    return () => {
-      el.removeEventListener("touchstart", pause);
-      el.removeEventListener("touchmove", pause);
-      el.removeEventListener("wheel", pause);
-      el.removeEventListener("pointerdown", pause);
-      el.removeEventListener("pointermove", pause);
-      if (rafId) window.cancelAnimationFrame(rafId);
-    };
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -504,123 +271,12 @@ export default function HomeClient() {
       <ImmersiveBackground imageSrc="/images/WhatsApp%20Image%202026-02-06%20at%2003.44.47.jpeg" overlayClassName="bg-black/55" />
       {overlay}
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
-        <div className="relative overflow-hidden rounded-none border-0 bg-transparent px-4 pb-5 pt-6 shadow-none sm:rounded-[28px] sm:border sm:border-white/10 sm:bg-black/60 sm:shadow-[0_30px_120px_rgba(15,23,42,0.6)] sm:px-8 sm:pb-6 lg:px-10">
-          <div className="relative">
-            <div className="mx-auto w-full max-w-[420px] sm:hidden">
-              <div className="pill-marquee">
-                <div className="pill-marquee-track">
-                  {[0, 1].map((loop) => (
-                    <div key={loop} className="pill-marquee-group">
-                      {heroPills.map((pill) => (
-                        <GlowPill key={`${loop}-${pill.label}`}>
-                          <pill.icon className="h-4 w-4 text-cyan-300" />
-                          {pill.label}
-                        </GlowPill>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="mx-auto hidden max-w-xl flex-wrap items-center justify-center gap-2 text-center sm:flex">
-              {heroPills.map((pill) => (
-                <GlowPill key={pill.label}>
-                  <pill.icon className="h-4 w-4 text-cyan-300" />
-                  {pill.label}
-                </GlowPill>
-              ))}
-            </div>
-
-            <div className="mt-5 text-center">
-              <h1 className="bb-hero-title text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
-                <span className="neon-text">BADBOY</span>
-                <span className="text-white/70">SHOP</span>
-              </h1>
-
-              {!authLoading && user ? (
-                <p className="mx-auto mt-2 max-w-[520px] text-sm font-semibold text-white/85 sm:text-base">
-                  Bon retour <span className="text-cyan-200">{user.name}</span>
-                </p>
-              ) : null}
-
-              <p className="mx-auto mt-2 max-w-[420px] text-base font-semibold leading-6 text-white/85 sm:max-w-2xl sm:text-xl">
-                La plateforme gaming d’élite
-              </p>
-
-              <p className="mx-auto mt-2 max-w-[560px] text-sm font-semibold text-cyan-200/90 sm:text-base">
-                Le gaming sans attente, sans risque, sans stress.
-              </p>
-
-              <p className="mx-auto mt-2 max-w-[420px] text-xs leading-5 text-white/70 sm:hidden">
-                Recharges, comptes & services premium sécurisés
-              </p>
-              <p className="mx-auto mt-2 hidden max-w-2xl text-base leading-6 text-white/70 sm:block">
-                Recharges, comptes, coaching premium et services digitaux sécurisés
-              </p>
-
-              <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <GlassButton
-                  href="/shop"
-                  className="w-full max-w-[340px] shadow-[0_0_30px_rgba(110,231,255,0.35)] sm:w-auto sm:max-w-none"
-                >
-                  Explorer la boutique
-                </GlassButton>
-                <OutlineButton
-                  href="/premium"
-                  className="w-full max-w-[340px] sm:w-auto sm:max-w-none"
-                >
-                  Devenir Premium
-                </OutlineButton>
-              </div>
-
-              {!authLoading && user ? (
-                <div className="mx-auto mt-4 w-full max-w-[420px] sm:max-w-xl">
-                  <div ref={quickActionsRef} className="flex gap-2 overflow-x-auto pb-1 sm:justify-center">
-                    <Link
-                      href="/account"
-                      className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/7 px-3 py-2 text-xs font-semibold text-white/90 ring-1 ring-white/15"
-                    >
-                      <Wallet className="h-4 w-4 text-cyan-200" />
-                      Recharger le wallet
-                    </Link>
-                    <Link
-                      href="/cart"
-                      className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/7 px-3 py-2 text-xs font-semibold text-white/90 ring-1 ring-white/15"
-                    >
-                      <ArrowRight className="h-4 w-4 text-cyan-200" />
-                      Continuer une commande
-                    </Link>
-                    <Link
-                      href={user.is_premium ? "/account" : "/premium"}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white/7 px-3 py-2 text-xs font-semibold text-white/90 ring-1 ring-white/15"
-                    >
-                      {user.is_premium ? (
-                        <Crown className="h-4 w-4 text-amber-200" />
-                      ) : (
-                        <KeyRound className="h-4 w-4 text-cyan-200" />
-                      )}
-                      {user.is_premium ? "Accès Premium" : "Redeem / Premium"}
-                    </Link>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="hidden sm:block">
-              <StatBar stats={stats} />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-2">
+      <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-6 sm:pt-8">
         <div className="flex items-end justify-between">
           <h2 className="text-lg font-extrabold tracking-tight sm:text-xl">
             Produits <span className="text-white/70">les plus populaires</span>
           </h2>
-          <Link href="/shop" className="text-xs text-white/70 hover:text-white">
+          <Link href="/recharges" className="text-xs text-white/70 hover:text-white">
             Voir tout →
           </Link>
         </div>
