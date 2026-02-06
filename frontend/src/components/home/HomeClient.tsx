@@ -326,7 +326,7 @@ export default function HomeClient() {
       <ImmersiveBackground
         imageSrc="/badboyshop-home.png"
         overlayClassName="bg-black/55"
-        imageStyle={{ objectPosition: "center 22%" }}
+        imageStyle={{ objectPosition: "center 44%" }}
       />
       {overlay}
 
