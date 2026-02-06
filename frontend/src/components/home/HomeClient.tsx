@@ -268,7 +268,7 @@ export default function HomeClient() {
       className="relative min-h-[100dvh] bg-transparent text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
-      <ImmersiveBackground imageSrc="/images/WhatsApp%20Image%202026-02-06%20at%2003.44.47.jpeg" overlayClassName="bg-black/55" />
+      <ImmersiveBackground imageSrc="/images/WhatsApp%20Image%202026-02-06%20at%2006.25.24.jpeg" overlayClassName="bg-black/55" />
       {overlay}
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-6 sm:pt-8">
