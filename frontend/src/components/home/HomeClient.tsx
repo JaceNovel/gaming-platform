@@ -9,7 +9,7 @@ import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "../../lib/imageProxy";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
-import AnimatedHomeBackground from "@/components/home/AnimatedHomeBackground";
+import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
 
 type Stat = {
   to: number;
@@ -501,50 +501,11 @@ export default function HomeClient() {
       className="relative min-h-[100dvh] bg-transparent text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
-      <AnimatedHomeBackground />
+      <ImmersiveBackground imageSrc="/images/WhatsApp%20Image%202026-02-06%20at%2003.44.47.jpeg" overlayClassName="bg-black/55" />
       {overlay}
-      <div className="absolute inset-0 -z-20 hidden sm:block bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.18),transparent_55%),radial-gradient(circle_at_30%_10%,rgba(14,165,233,0.16),transparent_45%),linear-gradient(180deg,#0d0f1f_0%,#0b0b14_100%)]" />
-
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute left-1/2 top-[-120px] h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-fuchsia-500/20 blur-[80px]" />
-        <div className="absolute left-[10%] top-[10%] h-[420px] w-[420px] rounded-full bg-cyan-500/20 blur-[90px]" />
-        <div className="absolute right-[8%] top-[18%] h-[380px] w-[380px] rounded-full bg-amber-400/10 blur-[90px]" />
-      </div>
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-4 pt-5 sm:pt-6 lg:pt-10">
         <div className="relative overflow-hidden rounded-none border-0 bg-transparent px-4 pb-5 pt-6 shadow-none sm:rounded-[28px] sm:border sm:border-white/10 sm:bg-black/60 sm:shadow-[0_30px_120px_rgba(15,23,42,0.6)] sm:px-8 sm:pb-6 lg:px-10">
-          <div className="pointer-events-none absolute inset-0">
-            <div className="hero-slideshow">
-              <div
-                className="hero-slide"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(180deg, rgba(10,10,20,0.65) 0%, rgba(10,10,20,0.85) 100%), url('https://wallpapercave.com/wp/wp8975622.jpg')",
-                }}
-              />
-              <div
-                className="hero-slide"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(180deg, rgba(10,10,20,0.65) 0%, rgba(10,10,20,0.85) 100%), url('https://mcdn.wallpapersafari.com/medium/19/6/LfHsD5.jpeg')",
-                }}
-              />
-              <div
-                className="hero-slide"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(180deg, rgba(10,10,20,0.65) 0%, rgba(10,10,20,0.85) 100%), url('https://bagogames-com.s3.amazonaws.com/wp-content/uploads/2022/02/25095342/call-of-duty-still-the-king-of-FPS-BG.jpg')",
-                }}
-              />
-              <div
-                className="hero-slide"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(180deg, rgba(10,10,20,0.65) 0%, rgba(10,10,20,0.85) 100%), url('https://www.bluesecure.io/app/uploads/2024/05/Capture-decran-2024-04-29-150953-min.png')",
-                }}
-              />
-            </div>
-          </div>
           <div className="relative">
             <div className="mx-auto w-full max-w-[420px] sm:hidden">
               <div className="pill-marquee">

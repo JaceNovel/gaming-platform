@@ -9,6 +9,7 @@ import ProductCard from "@/components/ui/ProductCard";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
+import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
 
 type MenuKey = "recharge" | "subscription";
 
@@ -258,7 +259,8 @@ export default function ProductsCatalogPage({
   ));
 
   return (
-    <main className="min-h-[100dvh] bg-[#04020c] text-white bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]">
+    <main className="min-h-[100dvh] bg-transparent text-white">
+      <ImmersiveBackground imageSrc="/images/WhatsApp%20Image%202026-02-06%20at%2003.44.47.jpeg" overlayClassName="bg-black/55" />
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-1">
