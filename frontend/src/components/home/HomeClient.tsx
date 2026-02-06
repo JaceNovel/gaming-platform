@@ -327,7 +327,7 @@ export default function HomeClient() {
         imageSrc="/badboyshop-home.png"
         overlayClassName="bg-black/55"
         imageStyle={{ objectPosition: "center 45%" }}
-        imageContainerClassName="absolute inset-x-0 bottom-0 top-[90px] lg:top-[132px]"
+        imageContainerClassName="absolute inset-x-0 bottom-0 top-[70px] lg:top-[112px]"
       />
       {overlay}
 
