@@ -271,6 +271,33 @@ export default function HomeClient() {
       <ImmersiveBackground imageSrc="/images/WhatsApp%20Image%202026-02-06%20at%2006.25.24.jpeg" overlayClassName="bg-black/55" />
       {overlay}
 
+      <section className="mx-auto w-full max-w-6xl px-4 pt-6 sm:pt-10">
+        <div className="text-center">
+          <h1 className="bb-hero-title text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+            <span className="neon-text">BADBOY</span>
+            <span className="text-white/70">SHOP</span>
+          </h1>
+
+          {!authLoading && user ? (
+            <p className="mx-auto mt-2 max-w-[520px] text-sm font-semibold text-white/85 sm:text-base">
+              Bon retour <span className="text-cyan-200">{user.name}</span>
+            </p>
+          ) : null}
+
+          <p className="mx-auto mt-3 max-w-[420px] text-base font-semibold leading-6 text-white/85 sm:max-w-2xl sm:text-xl">
+            La plateforme gaming d’élite
+          </p>
+
+          <p className="mx-auto mt-2 max-w-[560px] text-sm font-semibold text-cyan-200/90 sm:text-base">
+            Le gaming sans attente, sans risque, sans stress.
+          </p>
+
+          <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-white/70">
+            Recharges, comptes, coaching premium et services digitaux sécurisés
+          </p>
+        </div>
+      </section>
+
       <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-6 sm:pt-8">
         <div className="flex items-end justify-between">
           <h2 className="text-lg font-extrabold tracking-tight sm:text-xl">
