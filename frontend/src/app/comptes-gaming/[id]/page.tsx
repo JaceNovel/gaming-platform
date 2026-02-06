@@ -13,6 +13,7 @@ type ListingDetail = {
   id: number;
   title: string;
   description?: string | null;
+  image_url?: string | null;
   price: number | string;
   currency?: string | null;
   account_level?: string | null;
@@ -80,9 +81,11 @@ function MarketplaceListingClient({ id }: { id: number }) {
   }, [listing?.price]);
 
   const imageUrl = useMemo(() => {
-    const raw = String(listing?.game?.image ?? "").trim();
-    return raw || FALLBACK_IMAGE;
-  }, [listing?.game?.image]);
+    const rawListing = String(listing?.image_url ?? "").trim();
+    if (rawListing) return toDisplayImageSrc(rawListing) ?? rawListing;
+    const rawGame = String(listing?.game?.image ?? "").trim();
+    return rawGame ? (toDisplayImageSrc(rawGame) ?? rawGame) : FALLBACK_IMAGE;
+  }, [listing?.game?.image, listing?.image_url]);
 
   const badges = useMemo(() => {
     const b = listing?.seller_trust?.badges;
@@ -205,7 +208,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
         setStatus("Paiement indisponible : URL manquante.");
         return;
       }
-      setStatus("Redirection vers FedaPay...");
+      setStatus("Redirection vers Mobile Money...");
       window.location.href = paymentUrl;
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Connexion au serveur impossible.");
@@ -267,7 +270,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
-            <div className="relative h-[340px] w-full overflow-hidden">
+            <div className="relative w-full overflow-hidden aspect-[1242/552]">
               <img
                 src={toDisplayImageSrc(imageUrl) ?? imageUrl}
                 alt={listing.title}
@@ -375,7 +378,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
                   >
                     <span className="inline-flex items-center justify-center gap-2">
                       <ShoppingCart className="h-4 w-4" />
-                      FedaPay
+                      Mobile Money
                     </span>
                   </button>
                   <button

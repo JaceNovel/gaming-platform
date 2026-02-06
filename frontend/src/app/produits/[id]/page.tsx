@@ -11,6 +11,7 @@ import { toDisplayImageSrc } from "@/lib/imageProxy";
 import DeliveryBadge from "@/components/ui/DeliveryBadge";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
+import { emitCartUpdated } from "@/lib/cartEvents";
 
 type ApiProduct = {
   id: number | string;
@@ -355,6 +356,7 @@ export default function ProductDetailsPage() {
       });
     }
     window.localStorage.setItem("bbshop_cart", JSON.stringify(cart));
+    emitCartUpdated({ action: "add" });
     setStatusMessage("Produit ajouté au panier");
     if (statusTimeoutRef.current) {
       clearTimeout(statusTimeoutRef.current);

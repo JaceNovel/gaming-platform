@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Heart, ShoppingCart } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
+import { emitCartUpdated } from "@/lib/cartEvents";
 import { toDisplayImageSrc } from "../../lib/imageProxy";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
@@ -310,12 +311,13 @@ export default function HomeClient() {
     }
 
     localStorage.setItem("bbshop_cart", JSON.stringify(nextCart));
+    emitCartUpdated({ action: "add" });
     triggerFlight(origin ?? null);
   };
 
   const handleBuy = (product: ProductCard, origin?: HTMLElement | null) => {
-    addToCart(product, origin ?? null);
-    router.push("/cart");
+    // Buy now (direct checkout)
+    router.push(`/checkout?product=${encodeURIComponent(String(product.id))}`);
   };
 
   return (

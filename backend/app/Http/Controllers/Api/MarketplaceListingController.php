@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Seller;
 use App\Models\SellerListing;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class MarketplaceListingController extends Controller
@@ -107,30 +108,37 @@ class MarketplaceListingController extends Controller
 
         $data = $request->validate([
             'gameId' => ['nullable', 'integer', 'exists:games,id'],
-            'categoryId' => ['nullable', 'integer', 'exists:categories,id'],
             'title' => ['required', 'string', 'max:140'],
             'description' => ['nullable', 'string', 'max:5000'],
+            'image' => ['nullable', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
             'price' => ['required', 'numeric', 'min:1'],
             'accountLevel' => ['nullable', 'string', 'max:64'],
             'accountRank' => ['nullable', 'string', 'max:64'],
             'accountRegion' => ['nullable', 'string', 'max:64'],
             'hasEmailAccess' => ['nullable', 'boolean'],
-            'deliveryWindowHours' => ['nullable', 'integer', 'min:1', 'max:168'],
         ]);
+
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $imagePath = Storage::disk('public')->putFile('seller-listings', $request->file('image'));
+        }
 
         $listing = SellerListing::create([
             'seller_id' => $seller->id,
             'game_id' => $data['gameId'] ?? null,
-            'category_id' => $data['categoryId'] ?? null,
+            // Marketplace listings are restricted to the "Compte Gaming" catalog.
+            'category_id' => null,
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
+            'image_path' => $imagePath,
             'price' => $data['price'],
             'currency' => 'FCFA',
             'account_level' => $data['accountLevel'] ?? null,
             'account_rank' => $data['accountRank'] ?? null,
             'account_region' => $data['accountRegion'] ?? null,
             'has_email_access' => (bool) ($data['hasEmailAccess'] ?? false),
-            'delivery_window_hours' => $data['deliveryWindowHours'] ?? 24,
+            // Always 24H.
+            'delivery_window_hours' => 24,
             'status' => 'pending_review',
             'submitted_at' => now(),
         ]);
@@ -154,20 +162,18 @@ class MarketplaceListingController extends Controller
 
         $data = $request->validate([
             'gameId' => ['nullable', 'integer', 'exists:games,id'],
-            'categoryId' => ['nullable', 'integer', 'exists:categories,id'],
             'title' => ['sometimes', 'required', 'string', 'max:140'],
             'description' => ['nullable', 'string', 'max:5000'],
+            'image' => ['nullable', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
             'price' => ['sometimes', 'required', 'numeric', 'min:1'],
             'accountLevel' => ['nullable', 'string', 'max:64'],
             'accountRank' => ['nullable', 'string', 'max:64'],
             'accountRegion' => ['nullable', 'string', 'max:64'],
             'hasEmailAccess' => ['nullable', 'boolean'],
-            'deliveryWindowHours' => ['nullable', 'integer', 'min:1', 'max:168'],
         ]);
 
         $map = [];
         if (array_key_exists('gameId', $data)) $map['game_id'] = $data['gameId'];
-        if (array_key_exists('categoryId', $data)) $map['category_id'] = $data['categoryId'];
         if (array_key_exists('title', $data)) $map['title'] = $data['title'];
         if (array_key_exists('description', $data)) $map['description'] = $data['description'];
         if (array_key_exists('price', $data)) $map['price'] = $data['price'];
@@ -175,7 +181,20 @@ class MarketplaceListingController extends Controller
         if (array_key_exists('accountRank', $data)) $map['account_rank'] = $data['accountRank'];
         if (array_key_exists('accountRegion', $data)) $map['account_region'] = $data['accountRegion'];
         if (array_key_exists('hasEmailAccess', $data)) $map['has_email_access'] = (bool) $data['hasEmailAccess'];
-        if (array_key_exists('deliveryWindowHours', $data)) $map['delivery_window_hours'] = $data['deliveryWindowHours'];
+
+        // Always 24H.
+        $map['delivery_window_hours'] = 24;
+
+        if ($request->hasFile('image')) {
+            $old = $sellerListing->image_path;
+            $map['image_path'] = Storage::disk('public')->putFile('seller-listings', $request->file('image'));
+            if ($old) {
+                try {
+                    Storage::disk('public')->delete($old);
+                } catch (\Throwable $e) {
+                }
+            }
+        }
 
         $sellerListing->update($map);
 

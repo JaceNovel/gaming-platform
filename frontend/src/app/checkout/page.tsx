@@ -206,7 +206,7 @@ function CheckoutScreen() {
       const paymentUrl = typeof payData?.data?.payment_url === "string" ? payData.data.payment_url : "";
 
       if (paymentUrl) {
-        setStatus("Redirection vers FedaPay...");
+        setStatus("Redirection vers Mobile Money...");
         window.location.href = paymentUrl;
         return;
       }
@@ -276,7 +276,7 @@ function CheckoutScreen() {
                 checked={paymentMethod === "fedapay"}
                 onChange={() => setPaymentMethod("fedapay")}
               />
-              FedaPay
+              Mobile Money
             </label>
             <label className="flex items-center gap-2 text-sm text-white/80">
               <input

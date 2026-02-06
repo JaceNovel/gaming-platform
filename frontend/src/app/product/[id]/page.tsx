@@ -9,6 +9,7 @@ import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useCartFlight } from "@/hooks/useCartFlight";
+import { emitCartUpdated } from "@/lib/cartEvents";
 import DeliveryBadge from "@/components/ui/DeliveryBadge";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
@@ -159,6 +160,7 @@ export default function ProductPage() {
       });
     }
     localStorage.setItem("bbshop_cart", JSON.stringify(cart));
+    emitCartUpdated({ action: "add" });
     triggerFlight(event.currentTarget);
     setStatusMessage("Ajouté au panier");
     if (statusTimeoutRef.current) {

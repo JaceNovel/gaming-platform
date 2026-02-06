@@ -22,6 +22,7 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type Seller = {
   id: number;
@@ -78,17 +79,16 @@ type Listing = {
   id: number;
   title?: string | null;
   description?: string | null;
+  image_url?: string | null;
   price?: number | string | null;
   currency?: string | null;
   status?: "active" | "disabled" | "sold" | string;
   status_reason?: string | null;
-  delivery_window_hours?: number | string | null;
   has_email_access?: boolean | null;
   account_level?: string | null;
   account_rank?: string | null;
   account_region?: string | null;
   game?: GameOption | null;
-  category?: CategoryOption | null;
   created_at?: string | null;
   sold_at?: string | null;
   order_id?: number | null;
@@ -396,9 +396,9 @@ function SellerPageClient() {
   const saveListing = async (payload: {
     mode: "create" | "edit";
     id?: number;
+    image?: File | null;
     values: {
       gameId?: number | null;
-      categoryId?: number | null;
       title: string;
       description?: string | null;
       price: number;
@@ -406,17 +406,36 @@ function SellerPageClient() {
       accountRank?: string | null;
       accountRegion?: string | null;
       hasEmailAccess?: boolean;
-      deliveryWindowHours?: number;
     };
   }) => {
     try {
-      const body = JSON.stringify(payload.values);
-      if (payload.mode === "create") {
-        await fetchJson("/gaming-accounts/listings", { method: "POST", body });
-        pushToast("Annonce créée et soumise à validation.", "success");
+      const hasImage = Boolean(payload.image);
+      if (hasImage) {
+        const fd = new FormData();
+        Object.entries(payload.values).forEach(([key, value]) => {
+          if (value === undefined) return;
+          if (value === null) return;
+          fd.append(key, String(value));
+        });
+        if (payload.image) fd.append("image", payload.image);
+
+        const endpoint = payload.mode === "create" ? "/gaming-accounts/listings" : `/gaming-accounts/listings/${payload.id}`;
+        const method = payload.mode === "create" ? "POST" : "PATCH";
+        const res = await authFetch(`${API_BASE}${endpoint}`, { method, body: fd });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(json?.message ?? `Erreur ${res.status}`);
+        }
+        pushToast(payload.mode === "create" ? "Annonce créée et soumise à validation." : "Annonce mise à jour (revalidation si nécessaire).", "success");
       } else {
-        await fetchJson(`/gaming-accounts/listings/${payload.id}`, { method: "PATCH", body });
-        pushToast("Annonce mise à jour (revalidation si nécessaire).", "success");
+        const body = JSON.stringify(payload.values);
+        if (payload.mode === "create") {
+          await fetchJson("/gaming-accounts/listings", { method: "POST", body });
+          pushToast("Annonce créée et soumise à validation.", "success");
+        } else {
+          await fetchJson(`/gaming-accounts/listings/${payload.id}`, { method: "PATCH", body });
+          pushToast("Annonce mise à jour (revalidation si nécessaire).", "success");
+        }
       }
       setListingModal(null);
       await loadListings();
@@ -531,7 +550,6 @@ function SellerPageClient() {
 
     const [values, setValues] = useState(() => ({
       gameId: base?.game?.id ?? null,
-      categoryId: base?.category?.id ?? null,
       title: String(base?.title ?? ""),
       description: String(base?.description ?? ""),
       price: Number(base?.price ?? 0) || 0,
@@ -539,14 +557,15 @@ function SellerPageClient() {
       accountRank: String(base?.account_rank ?? ""),
       accountRegion: String(base?.account_region ?? ""),
       hasEmailAccess: Boolean(base?.has_email_access ?? false),
-      deliveryWindowHours: Number(base?.delivery_window_hours ?? 24) || 24,
     }));
+
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
 
     useEffect(() => {
       if (!isOpen) return;
       setValues({
         gameId: base?.game?.id ?? null,
-        categoryId: base?.category?.id ?? null,
         title: String(base?.title ?? ""),
         description: String(base?.description ?? ""),
         price: Number(base?.price ?? 0) || 0,
@@ -554,10 +573,25 @@ function SellerPageClient() {
         accountRank: String(base?.account_rank ?? ""),
         accountRegion: String(base?.account_region ?? ""),
         hasEmailAccess: Boolean(base?.has_email_access ?? false),
-        deliveryWindowHours: Number(base?.delivery_window_hours ?? 24) || 24,
       });
+
+      setImageFile(null);
+      const existing = toDisplayImageSrc(String(base?.image_url ?? "")) ?? (base?.image_url ? String(base.image_url) : null);
+      setImagePreview(existing);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, base?.id, listingModal?.mode]);
+
+    useEffect(() => {
+      return () => {
+        if (imagePreview && imagePreview.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(imagePreview);
+          } catch {
+            // ignore
+          }
+        }
+      };
+    }, [imagePreview]);
 
     if (!listingModal) return null;
 
@@ -568,13 +602,11 @@ function SellerPageClient() {
       !values.title.trim() ||
       values.title.trim().length > 140 ||
       !Number.isFinite(Number(values.price)) ||
-      Number(values.price) < 1 ||
-      !Number.isFinite(Number(values.deliveryWindowHours)) ||
-      Number(values.deliveryWindowHours) < 1;
+      Number(values.price) < 1;
 
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-4 backdrop-blur sm:items-center">
-        <div className="w-full max-w-2xl overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl">
+        <div className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl max-h-[calc(100dvh-2rem)]">
           <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
             <div>
               <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Annonces</p>
@@ -592,7 +624,7 @@ function SellerPageClient() {
             </button>
           </div>
 
-          <div className="px-6 py-6">
+          <div className="px-6 py-6 overflow-y-auto">
             {!canSell ? (
               <div className="mb-5 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-100">
                 Ton compte vendeur doit être <span className="font-semibold">validé</span> (et wallet non gelé) pour créer/modifier/activer des annonces.
@@ -617,21 +649,44 @@ function SellerPageClient() {
                 </select>
               </label>
 
-              <label className="text-sm text-white/70">
-                Catégorie (optionnel)
-                <select
-                  value={values.categoryId ?? ""}
-                  onChange={(e) => setValues((p) => ({ ...p, categoryId: e.target.value ? Number(e.target.value) : null }))}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  disabled={disable}
-                >
-                  <option value="">—</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+                <p className="text-xs uppercase tracking-[0.25em] text-white/50">Catégorie</p>
+                <p className="mt-1 font-semibold text-white/80">Compte Gaming</p>
+              </div>
+
+              <label className="text-sm text-white/70 sm:col-span-2">
+                Image annonce (PNG/JPEG)
+                <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="h-20 w-28 overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                      {imagePreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={imagePreview} alt="Aperçu" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center text-white/35">
+                          <ImageIcon className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-white/80">Choisir une image</p>
+                      <p className="mt-1 text-xs text-white/55">Formats: JPG/PNG. Max 5MB.</p>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        disabled={disable}
+                        onChange={(e) => {
+                          const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                          setImageFile(file);
+                          if (!file) return;
+                          const url = URL.createObjectURL(file);
+                          setImagePreview(url);
+                        }}
+                        className="mt-3 block w-full text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white/85 hover:file:bg-white/15"
+                      />
+                    </div>
+                  </div>
+                </div>
               </label>
 
               <label className="text-sm text-white/70 sm:col-span-2">
@@ -669,19 +724,10 @@ function SellerPageClient() {
                 />
               </label>
 
-              <label className="text-sm text-white/70">
-                Délai livraison (heures)
-                <input
-                  type="number"
-                  value={values.deliveryWindowHours}
-                  onChange={(e) => setValues((p) => ({ ...p, deliveryWindowHours: Number(e.target.value) }))}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  min={1}
-                  max={168}
-                  disabled={disable}
-                />
-                <p className="mt-1 text-xs text-white/45">Max 168h (7 jours)</p>
-              </label>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+                <p className="text-xs uppercase tracking-[0.25em] text-white/50">Délai livraison</p>
+                <p className="mt-1 font-semibold text-white/80">24H</p>
+              </div>
 
               <label className="text-sm text-white/70">
                 Niveau (optionnel)
@@ -738,9 +784,9 @@ function SellerPageClient() {
                 void saveListing({
                   mode: listingModal.mode,
                   id: base?.id,
+                  image: imageFile,
                   values: {
                     gameId: values.gameId,
-                    categoryId: values.categoryId,
                     title: values.title.trim(),
                     description: values.description.trim() || null,
                     price: Math.round(Number(values.price)),
@@ -748,7 +794,6 @@ function SellerPageClient() {
                     accountRank: values.accountRank.trim() || null,
                     accountRegion: values.accountRegion.trim() || null,
                     hasEmailAccess: Boolean(values.hasEmailAccess),
-                    deliveryWindowHours: Math.max(1, Math.min(168, Math.round(Number(values.deliveryWindowHours) || 24))),
                   },
                 })
               }
@@ -1278,18 +1323,16 @@ function SellerPageClient() {
                                 Prix: <span className="text-white/80">{formatMoney(l.price)}</span>
                               </span>
                               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                Délai: <span className="text-white/80">{Number(l.delivery_window_hours ?? 24)}h</span>
+                                Délai: <span className="text-white/80">24h</span>
                               </span>
                               {l.game?.name ? (
                                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                                   Jeu: <span className="text-white/80">{l.game.name}</span>
                                 </span>
                               ) : null}
-                              {l.category?.name ? (
-                                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                  Catégorie: <span className="text-white/80">{l.category.name}</span>
-                                </span>
-                              ) : null}
+                              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                Catégorie: <span className="text-white/80">Compte Gaming</span>
+                              </span>
                             </div>
                             {l.status_reason ? (
                               <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">

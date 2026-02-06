@@ -224,7 +224,7 @@ function PremiumSubscribeScreen() {
             {walletSubmitting ? "Wallet..." : "Payer Wallet"}
           </GlowButton>
           <GlowButton className="flex-1 justify-center" onClick={startPayment} disabled={submitting || walletSubmitting || loadingGames}>
-            {submitting ? "Paiement..." : "Payer FedaPay"}
+            {submitting ? "Paiement..." : "Payer Mobile Money"}
           </GlowButton>
         </div>
       </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, ChevronDown, Coins, Mail, ShoppingCart } from "lucide-react";
+import { Bell, ChevronDown, Coins, Mail } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
@@ -565,14 +565,6 @@ export default function AppHeader() {
                 ) : null}
               </button>
             </div>
-            <Link
-              href="/cart"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15"
-              aria-label="Panier"
-              data-cart-target="mobile"
-            >
-              <ShoppingCart className="h-4 w-4 text-white/80" />
-            </Link>
           </div>
         </div>
       </header>

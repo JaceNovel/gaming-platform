@@ -65,6 +65,7 @@ export const viewport = {
 import BottomNavigation from "@/components/BottomNavigation";
 import AppHeader from "@/components/layout/AppHeader";
 import ChunkErrorReload from "@/components/system/ChunkErrorReload";
+import CartDrawer from "@/components/cart/CartDrawer";
 
 export default function RootLayout({
   children,
@@ -101,6 +102,7 @@ gtag('config', 'G-66BKKJ3F7B');`}
           <AppHeader />
           {children}
           <BottomNavigation />
+          <CartDrawer />
         </AuthProvider>
         <Script src="//code.tidio.co/txhqas6mr4cvgvb9rm4hbz7rdvye2cjw.js" strategy="afterInteractive" async />
       </body>

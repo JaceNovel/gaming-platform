@@ -16,6 +16,7 @@ type ListingRow = {
   description?: string | null;
   price?: number | string | null;
   delivery_window_hours?: number | string | null;
+  image_url?: string | null;
   game?: { id: number; name?: string | null; image?: string | null } | null;
   category?: { id: number; name?: string | null } | null;
   seller_trust?: { badges?: string[]; successRate?: number; totalSales?: number } | null;
@@ -223,7 +224,7 @@ export default function GamingAccountsByGamePage() {
                   const safePrice = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
                   const title = String(row?.title ?? "Annonce").trim() || "Annonce";
                   const desc = String(row?.description ?? "").trim();
-                  const imgRaw = String(row?.game?.image ?? game?.image ?? "").trim();
+                  const imgRaw = String(row?.image_url ?? "").trim() || String(row?.game?.image ?? game?.image ?? "").trim();
                   const img = imgRaw ? (toDisplayImageSrc(imgRaw) ?? imgRaw) : null;
                   const badges = Array.isArray(row?.seller_trust?.badges) ? row.seller_trust.badges : [];
 

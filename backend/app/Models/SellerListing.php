@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class SellerListing extends Model
 {
@@ -14,6 +15,7 @@ class SellerListing extends Model
         'category_id',
         'title',
         'description',
+        'image_path',
         'price',
         'currency',
         'account_level',
@@ -33,6 +35,10 @@ class SellerListing extends Model
         'reserved_order_id',
         'reserved_until',
         'sold_at',
+    ];
+
+    protected $appends = [
+        'image_url',
     ];
 
     protected $casts = [
@@ -81,5 +87,12 @@ class SellerListing extends Model
     public function isPubliclyVisible(): bool
     {
         return $this->isApproved() && !$this->order_id && !$this->sold_at;
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        $path = (string) ($this->image_path ?? '');
+        if (!$path) return null;
+        return Storage::disk('public')->url($path);
     }
 }

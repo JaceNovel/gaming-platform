@@ -519,7 +519,7 @@ export default function AdminOrderDetailPage() {
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Remboursement</div>
                 <div className="mt-1 text-lg font-semibold text-slate-900">Créditer le wallet</div>
                 <div className="mt-1 text-sm text-slate-600">
-                  Aucun remboursement FedaPay/CinetPay: crédit interne uniquement.
+                  Aucun remboursement Mobile Money/CinetPay: crédit interne uniquement.
                 </div>
               </div>
               <button

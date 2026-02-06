@@ -10,6 +10,7 @@ import DeliveryBadge from "@/components/ui/DeliveryBadge";
 import { API_BASE } from "@/lib/config";
 import type { DeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
+import { emitCartUpdated } from "@/lib/cartEvents";
 
 type CartItem = {
   id: number;
@@ -99,6 +100,7 @@ function CartScreen() {
       const next = prev.filter((item) => item.id !== id);
       if (typeof window !== "undefined") {
         localStorage.setItem("bbshop_cart", JSON.stringify(next));
+        emitCartUpdated({ action: "remove" });
       }
       return next;
     });
@@ -110,6 +112,7 @@ function CartScreen() {
       const next = prev.map((item) => (item.id === id ? { ...item, quantity: q } : item));
       if (typeof window !== "undefined") {
         localStorage.setItem("bbshop_cart", JSON.stringify(next));
+        emitCartUpdated({ action: "update" });
       }
       return next;
     });
@@ -120,6 +123,7 @@ function CartScreen() {
       const next = prev.map((item) => (item.id === id ? { ...item, gameId: nextGameId } : item));
       if (typeof window !== "undefined") {
         localStorage.setItem("bbshop_cart", JSON.stringify(next));
+        emitCartUpdated({ action: "update" });
       }
       return next;
     });
@@ -155,6 +159,7 @@ function CartScreen() {
     setCartItems([]);
     if (typeof window !== "undefined") {
       localStorage.removeItem("bbshop_cart");
+      emitCartUpdated({ action: "clear" });
     }
   };
 
@@ -438,7 +443,7 @@ function CartScreen() {
                   />
                   <span className="inline-flex items-center gap-2">
                     <CreditCard className="h-4 w-4" />
-                    FedaPay
+                    Mobile Money
                   </span>
                 </label>
 
