@@ -26,6 +26,13 @@ type ProductCard = {
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
+const homeHeadlineStats = [
+  { emoji: "🎮", value: "1,234", label: "Comptes vendus" },
+  { emoji: "⚡", value: "567", label: "Recharges effectuées" },
+  { emoji: "👑", value: "2,100", label: "Membres premium" },
+  { emoji: "📘", value: "185", label: "Guides actives" },
+];
+
 function ProductCardUI({
   p,
   onAddToCart,
@@ -292,9 +299,37 @@ export default function HomeClient() {
             Le gaming sans attente, sans risque, sans stress.
           </p>
 
-          <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-white/70">
-            Recharges, comptes, coaching premium et services digitaux sécurisés
-          </p>
+          <div className="mx-auto mt-5 max-w-5xl">
+            <div className="mx-auto h-px w-40 bg-white/12" />
+
+            <div className="relative mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-md">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-fuchsia-400/10 via-cyan-400/8 to-amber-300/10" />
+
+              <div className="relative grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-between sm:gap-0">
+                {homeHeadlineStats.map((s, idx) => (
+                  <div
+                    key={s.label}
+                    className={
+                      "flex items-center gap-3 rounded-xl bg-black/20 px-3 py-2 ring-1 ring-white/10 sm:flex-1 sm:rounded-none sm:bg-transparent sm:px-5 sm:py-1 sm:ring-0 " +
+                      (idx < homeHeadlineStats.length - 1 ? "sm:border-r sm:border-white/10" : "")
+                    }
+                  >
+                    <span className="text-lg leading-none text-white/90" aria-hidden="true">
+                      {s.emoji}
+                    </span>
+                    <div className="min-w-0 text-left">
+                      <div className="text-lg font-extrabold tracking-tight text-white sm:text-xl">
+                        {s.value}
+                      </div>
+                      <div className="truncate text-[11px] font-semibold text-white/70 sm:text-xs">
+                        {s.label}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
