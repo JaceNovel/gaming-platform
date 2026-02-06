@@ -448,9 +448,6 @@ export default function ProductDetailsPage() {
           >
             ← Retour boutique
           </button>
-          <Link href="/shop" className="text-sm text-rose-300 transition hover:text-rose-200">
-            Voir toutes les offres
-          </Link>
         </div>
 
         {loading && (
@@ -463,8 +460,8 @@ export default function ProductDetailsPage() {
           <div className="mt-20 rounded-3xl border border-rose-500/40 bg-rose-500/10 p-10 text-center text-rose-100">
             {error}
             <div className="mt-6">
-              <Link href="/shop" className="text-sm font-semibold text-rose-200 underline">
-                Retourner à la boutique
+              <Link href="/" className="text-sm font-semibold text-rose-200 underline">
+                Retourner à l'accueil
               </Link>
             </div>
           </div>

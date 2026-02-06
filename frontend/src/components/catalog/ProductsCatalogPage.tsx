@@ -28,6 +28,11 @@ type ProductRow = {
   discount_price?: number | string | null;
   type?: string | null;
   likes_count?: number | string | null;
+  image_url?: string | null;
+  banner_url?: string | null;
+  cover?: string | null;
+  banner?: string | null;
+  details?: { image?: string | null; banner?: string | null; cover?: string | null } | null;
   images?: Array<{ url?: string | null; path?: string | null }> | null;
   game?: { name?: string | null; image?: string | null; cover?: string | null } | null;
   category_entity?: { name?: string | null } | null;
@@ -338,8 +343,15 @@ export default function ProductsCatalogPage({
                     String(p.category_entity?.name ?? p.category ?? p.game?.name ?? "").trim() || undefined;
 
                   const img =
+                    p.image_url ??
                     p?.images?.[0]?.url ??
                     p?.images?.[0]?.path ??
+                    p?.details?.image ??
+                    p.cover ??
+                    p.banner ??
+                    p?.details?.cover ??
+                    p?.details?.banner ??
+                    p.banner_url ??
                     p?.game?.image ??
                     p?.game?.cover ??
                     null;
