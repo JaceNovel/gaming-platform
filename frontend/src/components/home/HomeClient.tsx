@@ -26,12 +26,19 @@ type ProductCard = {
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
-const homeHeadlineStats = [
-  { emoji: "🎮", value: "1,234", label: "Comptes vendus" },
-  { emoji: "⚡", value: "567", label: "Recharges effectuées" },
-  { emoji: "👑", value: "2,100", label: "Membres premium" },
-  { emoji: "📘", value: "185", label: "Guides actives" },
-];
+type HomeHeadlineStats = {
+  accountsSold: number;
+  rechargesDone: number;
+  premiumMembers: number;
+  guidesActive: number;
+};
+
+const DEFAULT_HOME_HEADLINE_STATS: HomeHeadlineStats = {
+  accountsSold: 67,
+  rechargesDone: 40,
+  premiumMembers: 6,
+  guidesActive: 25,
+};
 
 function ProductCardUI({
   p,
@@ -125,6 +132,7 @@ export default function HomeClient() {
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
   const { user, loading: authLoading } = useAuth();
+  const [headlineStats, setHeadlineStats] = useState<HomeHeadlineStats>(DEFAULT_HOME_HEADLINE_STATS);
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [desktopStart, setDesktopStart] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
@@ -207,6 +215,46 @@ export default function HomeClient() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadHeadlineStats = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/stats/home`, { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json()) as Partial<{
+          accounts_sold: number;
+          recharges_done: number;
+          premium_members: number;
+          guides_active: number;
+        }>;
+        if (!active) return;
+
+        setHeadlineStats({
+          accountsSold: Number.isFinite(json.accounts_sold as number)
+            ? Number(json.accounts_sold)
+            : DEFAULT_HOME_HEADLINE_STATS.accountsSold,
+          rechargesDone: Number.isFinite(json.recharges_done as number)
+            ? Number(json.recharges_done)
+            : DEFAULT_HOME_HEADLINE_STATS.rechargesDone,
+          premiumMembers: Number.isFinite(json.premium_members as number)
+            ? Number(json.premium_members)
+            : DEFAULT_HOME_HEADLINE_STATS.premiumMembers,
+          guidesActive: Number.isFinite(json.guides_active as number)
+            ? Number(json.guides_active)
+            : DEFAULT_HOME_HEADLINE_STATS.guidesActive,
+        });
+      } catch {
+        // Keep defaults
+      }
+    };
+
+    loadHeadlineStats();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const topProducts = useMemo(() => products, [products]);
 
   const mobilePopular = useMemo(() => {
@@ -275,7 +323,11 @@ export default function HomeClient() {
       className="relative min-h-[100dvh] bg-transparent text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
-      <ImmersiveBackground imageSrc="/badboyshop-home.png" overlayClassName="bg-black/55" />
+      <ImmersiveBackground
+        imageSrc="/badboyshop-home.png"
+        overlayClassName="bg-black/55"
+        imageStyle={{ objectPosition: "center 22%" }}
+      />
       {overlay}
 
       <section className="mx-auto w-full max-w-6xl px-4 pt-6 sm:pt-10">
@@ -306,12 +358,19 @@ export default function HomeClient() {
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-fuchsia-400/10 via-cyan-400/8 to-amber-300/10" />
 
               <div className="relative grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-between sm:gap-0">
-                {homeHeadlineStats.map((s, idx) => (
+                {(
+                  [
+                    { emoji: "🎮", value: formatNumber(headlineStats.accountsSold), label: "Comptes vendus" },
+                    { emoji: "⚡", value: formatNumber(headlineStats.rechargesDone), label: "Recharges effectuées" },
+                    { emoji: "👑", value: formatNumber(headlineStats.premiumMembers), label: "Membres premium" },
+                    { emoji: "📘", value: formatNumber(headlineStats.guidesActive), label: "Guides actives" },
+                  ] as const
+                ).map((s, idx, arr) => (
                   <div
                     key={s.label}
                     className={
                       "flex items-center gap-3 rounded-xl bg-black/20 px-3 py-2 ring-1 ring-white/10 sm:flex-1 sm:rounded-none sm:bg-transparent sm:px-5 sm:py-1 sm:ring-0 " +
-                      (idx < homeHeadlineStats.length - 1 ? "sm:border-r sm:border-white/10" : "")
+                      (idx < arr.length - 1 ? "sm:border-r sm:border-white/10" : "")
                     }
                   >
                     <span className="text-lg leading-none text-white/90" aria-hidden="true">
