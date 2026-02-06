@@ -329,10 +329,15 @@ export default function HomeClient() {
         imageStyle={{ objectPosition: "center 45%" }}
         imageContainerClassName="absolute inset-x-0 bottom-0 top-[70px] lg:top-[112px]"
       />
+      {/* Extra top scrim to keep the hero phrases readable on bright backgrounds */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[440px] bg-gradient-to-b from-black/75 via-black/40 to-transparent"
+        aria-hidden="true"
+      />
       {overlay}
 
       <section className="mx-auto w-full max-w-6xl px-4 pt-6 sm:pt-10">
-        <div className="text-center">
+        <div className="relative z-10 text-center drop-shadow-[0_2px_18px_rgba(0,0,0,0.65)]">
           <h1 className="bb-hero-title text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
             <span className="neon-text">BADBOY</span>
             <span className="text-white/70">SHOP</span>
@@ -398,8 +403,8 @@ export default function HomeClient() {
           <h2 className="text-lg font-extrabold tracking-tight sm:text-xl">
             Produits <span className="text-white/70">les plus populaires</span>
           </h2>
-          <Link href="/recharges" className="text-xs text-white/70 hover:text-white">
-            Voir tout →
+          <Link href="/accessoires" className="text-xs text-white/70 hover:text-white">
+            Voir plus →
           </Link>
         </div>
 
