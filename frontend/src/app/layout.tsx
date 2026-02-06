@@ -64,6 +64,7 @@ export const viewport = {
 
 import BottomNavigation from "@/components/BottomNavigation";
 import AppHeader from "@/components/layout/AppHeader";
+import ChunkErrorReload from "@/components/system/ChunkErrorReload";
 
 export default function RootLayout({
   children,
@@ -93,8 +94,9 @@ gtag('config', 'G-66BKKJ3F7B');`}
       </head>
       <body
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900 text-white min-h-[100dvh] overflow-x-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased text-white min-h-[100dvh] overflow-x-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]`}
       >
+        <ChunkErrorReload />
         <AuthProvider>
           <AppHeader />
           {children}
