@@ -174,7 +174,7 @@ export default function ProductsCatalogPage({
   const loadPage = async (pageToLoad: number) => {
     const qs = new URLSearchParams();
     qs.set("active", "1");
-    qs.set("per_page", "4");
+    qs.set("per_page", "24");
     qs.set("page", String(pageToLoad));
     qs.set("shop_type", shopType);
     if (mode === "game" && gameSlug) {
@@ -337,9 +337,9 @@ export default function ProductsCatalogPage({
           </div>
         ) : (
           <>
-            <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {loading ? (
-                Array.from({ length: 4 }).map((_, idx) => (
+                Array.from({ length: 9 }).map((_, idx) => (
                   <div key={idx} className="rounded-3xl border border-white/10 bg-white/5 p-5">
                     <div className="h-40 rounded-2xl bg-white/10" />
                     <div className="mt-4 h-4 w-2/3 rounded bg-white/10" />
