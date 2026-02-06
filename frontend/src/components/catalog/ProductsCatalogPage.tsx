@@ -122,13 +122,13 @@ export default function ProductsCatalogPage({
   const [game, setGame] = useState<MenuGame | null>(null);
   const [items, setItems] = useState<ProductRow[]>([]);
   const [meta, setMeta] = useState<Paginated<ProductRow> | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
 
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"recent" | "popular">("recent");
   const debounceRef = useRef<number | null>(null);
 
-  const canLoadMore = Boolean(meta && (meta.current_page ?? 1) < (meta.last_page ?? 1));
+  const lastPage = Math.max(1, Number(meta?.last_page ?? 1));
 
   useEffect(() => {
     return () => {
@@ -171,11 +171,11 @@ export default function ProductsCatalogPage({
     };
   }, [mode, gameContext, gameSlug]);
 
-  const loadPage = async (page: number, append: boolean) => {
+  const loadPage = async (pageToLoad: number) => {
     const qs = new URLSearchParams();
     qs.set("active", "1");
-    qs.set("per_page", "24");
-    qs.set("page", String(page));
+    qs.set("per_page", "4");
+    qs.set("page", String(pageToLoad));
     qs.set("shop_type", shopType);
     if (mode === "game" && gameSlug) {
       qs.set("game_slug", gameSlug);
@@ -194,14 +194,14 @@ export default function ProductsCatalogPage({
     }
     const parsed = parsePaginator<ProductRow>(payload);
     setMeta(parsed.meta);
-    setItems((prev) => (append ? [...prev, ...parsed.items] : parsed.items));
+    setItems(parsed.items);
   };
 
   const reload = async () => {
     setLoading(true);
     setError(null);
     try {
-      await loadPage(1, false);
+      await loadPage(page);
     } catch (e: any) {
       setError(e?.message ?? "Impossible de charger");
       setItems([]);
@@ -216,24 +216,38 @@ export default function ProductsCatalogPage({
       window.clearTimeout(debounceRef.current);
     }
     debounceRef.current = window.setTimeout(() => {
+      setPage(1);
       void reload();
     }, 250);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, gameSlug, shopType, sort, query]);
 
-  const loadMore = async () => {
-    if (!meta) return;
-    const nextPage = (meta.current_page ?? 1) + 1;
-    if (loadingMore) return;
-    setLoadingMore(true);
-    try {
-      await loadPage(nextPage, true);
-    } catch (e: any) {
-      setError(e?.message ?? "Impossible de charger la suite");
-    } finally {
-      setLoadingMore(false);
-    }
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  const setUrlPage = (nextPage: number) => {
+    const safe = Math.max(1, Math.min(lastPage, Math.floor(nextPage)));
+    setPage(safe);
   };
+
+  const pageNumbers = useMemo(() => {
+    if (!meta) return [] as Array<number | "…">;
+    if (lastPage <= 7) return Array.from({ length: lastPage }, (_, i) => i + 1);
+
+    const windowSize = 5;
+    const start = Math.max(2, page - 1);
+    const end = Math.min(lastPage - 1, start + windowSize - 1);
+    const adjustedStart = Math.max(2, end - windowSize + 1);
+
+    const out: Array<number | "…"> = [1];
+    if (adjustedStart > 2) out.push("…");
+    for (let p = adjustedStart; p <= end; p++) out.push(p);
+    if (end < lastPage - 1) out.push("…");
+    out.push(lastPage);
+    return out;
+  }, [meta, lastPage, page]);
 
   const breadcrumb = useMemo(() => {
     const root = [{ label: "Accueil", href: "/" }];
@@ -248,15 +262,6 @@ export default function ProductsCatalogPage({
   }, [mode, title, shopType, game?.name, gameSlug]);
 
   const headerTitle = mode === "game" ? `${title}${game?.name ? ` • ${game.name}` : gameSlug ? ` • ${gameSlug}` : ""}` : title;
-
-  const skeletonCards = Array.from({ length: 9 }).map((_, idx) => (
-    <div key={idx} className="rounded-3xl border border-white/10 bg-white/5 p-5">
-      <div className="h-40 rounded-2xl bg-white/10" />
-      <div className="mt-4 h-4 w-2/3 rounded bg-white/10" />
-      <div className="mt-2 h-3 w-5/6 rounded bg-white/10" />
-      <div className="mt-6 h-10 w-full rounded-xl bg-white/10" />
-    </div>
-  ));
 
   return (
     <main className="min-h-[100dvh] bg-transparent text-white">
@@ -332,9 +337,16 @@ export default function ProductsCatalogPage({
           </div>
         ) : (
           <>
-            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
               {loading ? (
-                skeletonCards
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                    <div className="h-40 rounded-2xl bg-white/10" />
+                    <div className="mt-4 h-4 w-2/3 rounded bg-white/10" />
+                    <div className="mt-2 h-3 w-5/6 rounded bg-white/10" />
+                    <div className="mt-6 h-10 w-full rounded-xl bg-white/10" />
+                  </div>
+                ))
               ) : items.length ? (
                 items.map((p) => {
                   const priceValue = Number(p.discount_price ?? p.price ?? 0);
@@ -428,15 +440,49 @@ export default function ProductsCatalogPage({
               )}
             </div>
 
-            {!loading && canLoadMore ? (
-              <div className="mt-10 flex justify-center">
+            {!loading && meta && lastPage > 1 ? (
+              <div className="mt-10 flex items-center justify-center gap-2 text-sm">
                 <button
                   type="button"
-                  onClick={() => void loadMore()}
-                  disabled={loadingMore}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 disabled:opacity-60"
+                  onClick={() => setUrlPage(page - 1)}
+                  disabled={page <= 1}
+                  className="rounded-lg px-2 py-1 text-cyan-200/80 hover:text-cyan-200 disabled:opacity-40"
+                  aria-label="Page précédente"
                 >
-                  {loadingMore ? "Chargement..." : "Charger plus"}
+                  &lt;
+                </button>
+
+                {pageNumbers.map((p, idx) =>
+                  p === "…" ? (
+                    <span key={`dots-${idx}`} className="px-2 text-white/40">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setUrlPage(p)}
+                      className={
+                        "min-w-7 rounded-lg px-2 py-1 transition " +
+                        (p === page
+                          ? "bg-white/10 text-cyan-200 border border-white/15"
+                          : "text-cyan-200/80 hover:text-cyan-200")
+                      }
+                      aria-current={p === page ? "page" : undefined}
+                    >
+                      {p}
+                    </button>
+                  ),
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setUrlPage(page + 1)}
+                  disabled={page >= lastPage}
+                  className="rounded-lg px-2 py-1 text-cyan-200/80 hover:text-cyan-200 disabled:opacity-40"
+                  aria-label="Page suivante"
+                >
+                  &gt;
                 </button>
               </div>
             ) : null}
