@@ -62,7 +62,7 @@ export default function ProductCard({
         {badgeLevel && <PremiumBadge level={badgeLevel} />}
       </div>
 
-      <div className="mt-4 h-32 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 via-transparent to-cyan-400/10 overflow-hidden relative">
+      <div className="mt-4 h-40 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 via-transparent to-cyan-400/10 overflow-hidden relative">
         {typeof likes === "number" && (
           <div className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-black/60 border border-white/20 px-2 py-1 text-[11px] text-white/80 backdrop-blur">
             <Heart className="h-3 w-3 text-rose-300" />
