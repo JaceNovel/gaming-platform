@@ -220,6 +220,8 @@ export default function GamingAccountsByGamePage() {
                 ))
               ) : items.length ? (
                 items.map((row) => {
+                  const rawId = (row as any)?.id;
+                  const listingId = String(rawId ?? "").trim();
                   const priceValue = Number(row?.price ?? 0);
                   const safePrice = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
                   const title = String(row?.title ?? "Annonce").trim() || "Annonce";
@@ -230,8 +232,8 @@ export default function GamingAccountsByGamePage() {
 
                   return (
                     <Link
-                      key={row.id}
-                      href={`/comptes-gaming/${row.id}`}
+                      key={listingId || title}
+                      href={`/comptes-gaming/${encodeURIComponent(listingId)}`}
                       className="group overflow-hidden rounded-[28px] border border-white/10 bg-black/40 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-fuchsia-300/40"
                     >
                       <div className="relative h-40 w-full overflow-hidden rounded-2xl">

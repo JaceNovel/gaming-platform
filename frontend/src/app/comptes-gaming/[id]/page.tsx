@@ -278,10 +278,10 @@ function MarketplaceListingClient({ id }: { id: number }) {
     return (
       <main className="min-h-[100dvh] bg-black text-white">
         <div className="mx-auto w-full max-w-3xl px-6 py-12">
-          <p className="text-sm text-white/60">Annonce introuvable ou indisponible.</p>
+          <p className="text-sm text-white/60">😵‍💫 Annonce introuvable ou indisponible.</p>
           <div className="mt-6">
             <Link href="/shop" className="text-cyan-300">
-              Retour à la boutique
+              ⬅ Retour à la boutique
             </Link>
           </div>
         </div>
@@ -351,27 +351,27 @@ function MarketplaceListingClient({ id }: { id: number }) {
                 </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {listing.account_level ? (
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <p className="text-xs uppercase tracking-[0.25em] text-white/50">Niveau</p>
+                    <p className="text-xs uppercase tracking-[0.25em] text-white/50">🏆 Niveau</p>
                     <p className="mt-1 text-sm font-semibold">{listing.account_level}</p>
                   </div>
                 ) : null}
                 {listing.account_rank ? (
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <p className="text-xs uppercase tracking-[0.25em] text-white/50">Rang</p>
+                    <p className="text-xs uppercase tracking-[0.25em] text-white/50">🥇 Rang</p>
                     <p className="mt-1 text-sm font-semibold">{listing.account_rank}</p>
                   </div>
                 ) : null}
                 {listing.account_region ? (
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <p className="text-xs uppercase tracking-[0.25em] text-white/50">Région</p>
+                    <p className="text-xs uppercase tracking-[0.25em] text-white/50">🌍 Région</p>
                     <p className="mt-1 text-sm font-semibold">{listing.account_region}</p>
                   </div>
                 ) : null}
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">Accès email</p>
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">📧 Accès email</p>
                   <p className="mt-1 text-sm font-semibold">{listing.has_email_access ? "Oui" : "Non"}</p>
                 </div>
               </div>
@@ -406,10 +406,11 @@ function MarketplaceListingClient({ id }: { id: number }) {
 
               {typeof successRate === "number" && typeof totalSales === "number" ? (
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <p className="text-xs text-white/60">Confiance vendeur</p>
+                  <p className="text-xs text-white/60">🧠 Confiance vendeur</p>
                   <p className="mt-1 text-sm font-semibold text-white/85">
                     {Math.round(successRate * 100)}% succès • {totalSales} vente{totalSales > 1 ? "s" : ""}
                   </p>
+                  <p className="mt-1 text-xs text-white/55">✅ Vérifié = vendeur approuvé • ⚠️ Sous surveillance = prudence</p>
                 </div>
               ) : null}
 
@@ -501,20 +502,25 @@ function MarketplaceListingClient({ id }: { id: number }) {
 }
 
 export default function MarketplaceListingPage({ params }: { params: { id: string } }) {
-  const numericId = useMemo(() => {
-    const trimmed = String(params.id ?? "").trim();
-    const n = Number(trimmed);
+  const listingId = useMemo(() => {
+    const raw = String(params?.id ?? "").trim();
+    if (!raw) return null;
+    const direct = Number(raw);
+    if (Number.isFinite(direct) && direct > 0) return Math.trunc(direct);
+    const match = raw.match(/(\d+)/);
+    if (!match) return null;
+    const n = Number(match[1]);
     return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
-  }, [params.id]);
+  }, [params?.id]);
 
-  if (!numericId) {
+  if (!listingId) {
     return (
       <main className="min-h-[100dvh] bg-black text-white">
         <div className="mx-auto w-full max-w-3xl px-6 py-12">
-          <p className="text-sm text-white/60">Identifiant d'annonce invalide.</p>
+          <p className="text-sm text-white/60">😵‍💫 Annonce introuvable ou indisponible.</p>
           <div className="mt-6">
             <Link href="/shop" className="text-cyan-300">
-              Retour à la boutique
+              ⬅ Retour à la boutique
             </Link>
           </div>
         </div>
@@ -522,5 +528,5 @@ export default function MarketplaceListingPage({ params }: { params: { id: strin
     );
   }
 
-  return <MarketplaceListingClient id={numericId} />;
+  return <MarketplaceListingClient id={listingId} />;
 }
