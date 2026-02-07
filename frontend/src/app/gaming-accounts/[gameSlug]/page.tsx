@@ -180,7 +180,7 @@ export default function GamingAccountsByGamePage() {
         <div className="mt-2 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black tracking-tight sm:text-3xl">{headerTitle}</h1>
-            <p className="mt-1 text-sm text-white/60">Marketplace — annonces de vendeurs vérifiés.</p>
+            <p className="mt-1 text-sm text-white/60">🎮 Marketplace — annonces de vendeurs vérifiés.</p>
           </div>
         </div>
 
@@ -190,7 +190,7 @@ export default function GamingAccountsByGamePage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher dans les annonces (client)…"
+              placeholder="🔎 Rechercher une annonce…"
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-10 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-fuchsia-300/40"
             />
           </div>
@@ -243,11 +243,11 @@ export default function GamingAccountsByGamePage() {
                         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
                         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                           <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-                            Compte Gaming
+                            🎮 Compte Gaming
                           </span>
                           {badges.includes("verified") ? (
                             <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">
-                              Vendeur vérifié
+                              ✅ Vendeur vérifié
                             </span>
                           ) : null}
                         </div>
@@ -262,13 +262,13 @@ export default function GamingAccountsByGamePage() {
                       <div className="mt-4 flex items-center justify-between">
                         <div>
                           <p className="text-xl font-black text-fuchsia-200">{formatNumber(safePrice)} FCFA</p>
-                          <p className="text-xs text-white/50">Livraison sous 24h</p>
+                          <p className="text-xs text-white/50">⏱ Livraison sous 24h</p>
                         </div>
                       </div>
 
                       <div className="mt-5">
                         <span className="inline-flex w-full items-center justify-center rounded-full border border-white/20 bg-white/5 px-5 py-2 text-sm font-medium text-white/80 transition group-hover:border-fuchsia-300/40 group-hover:bg-white/10">
-                          Voir l'annonce
+                          ⚡ Voir l'annonce
                         </span>
                       </div>
                     </Link>

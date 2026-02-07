@@ -221,11 +221,11 @@ export default function AdminMarketplaceListingsPage() {
                         title="Voir dossier annonce"
                       >
                         <EyeIcon className="h-4 w-4" />
-                        Voir
+                        👁 Voir
                       </button>
-                      <button className="rounded-lg bg-emerald-600 px-2 py-1 text-xs text-white" onClick={() => void doAction(l.id, "approve")}>Approuver</button>
-                      <button className="rounded-lg bg-amber-600 px-2 py-1 text-xs text-white" onClick={() => void doAction(l.id, "reject")}>Rejeter</button>
-                      <button className="rounded-lg bg-slate-900 px-2 py-1 text-xs text-white" onClick={() => void doAction(l.id, "suspend")}>Suspendre</button>
+                      <button className="rounded-lg bg-emerald-600 px-2 py-1 text-xs text-white" onClick={() => void doAction(l.id, "approve")}>✅ Approuver</button>
+                      <button className="rounded-lg bg-amber-600 px-2 py-1 text-xs text-white" onClick={() => void doAction(l.id, "reject")}>⛔ Rejeter</button>
+                      <button className="rounded-lg bg-slate-900 px-2 py-1 text-xs text-white" onClick={() => void doAction(l.id, "suspend")}>⏸ Suspendre</button>
                     </div>
                   </td>
                 </tr>
@@ -238,16 +238,16 @@ export default function AdminMarketplaceListingsPage() {
       <DetailsDrawer
         open={drawerOpen}
         onClose={closeDrawer}
-        title={detail ? `Dossier annonce #${detail?.id ?? "—"}` : "Dossier annonce"}
+        title={detail ? `🗂️ Dossier annonce #${detail?.id ?? "—"}` : "🗂️ Dossier annonce"}
         subtitle={detail?.seller?.user?.email ?? ""}
         footer={
           detail?.id ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xs text-slate-500">Vérifie les infos + image avant publication.</div>
+              <div className="text-xs text-slate-500">🔎 Vérifie les infos + image avant publication.</div>
               <div className="flex flex-wrap gap-2">
-                <button className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => void doAction(Number(detail.id), "approve")}>Approuver</button>
-                <button className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => void doAction(Number(detail.id), "reject")}>Rejeter</button>
-                <button className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white" onClick={() => void doAction(Number(detail.id), "suspend")}>Suspendre</button>
+                <button className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => void doAction(Number(detail.id), "approve")}>✅ Approuver</button>
+                <button className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => void doAction(Number(detail.id), "reject")}>⛔ Rejeter</button>
+                <button className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white" onClick={() => void doAction(Number(detail.id), "suspend")}>⏸ Suspendre</button>
               </div>
             </div>
           ) : null
