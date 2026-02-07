@@ -3,11 +3,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, ChevronDown, Coins, Mail } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
+import { onWalletUpdated } from "@/lib/walletEvents";
 
 type NotificationItem = {
   id: number;
@@ -83,33 +84,47 @@ export default function AppHeader() {
     return () => mq.removeListener(update);
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    const loadWallet = async () => {
-      if (!token) {
-        setWalletBalance(null);
-        return;
-      }
-      try {
-        const res = await authFetch(`${API_BASE}/wallet`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!active) return;
-        const balanceValue = typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
-        setWalletBalance(Number.isFinite(balanceValue) ? balanceValue : 0);
-        setWalletCurrency(data?.currency ?? null);
-      } catch {
-        if (!active) return;
-        setWalletBalance(null);
-        setWalletCurrency(null);
-      }
-    };
-
-    loadWallet();
-    return () => {
-      active = false;
-    };
+  const loadWallet = useCallback(async () => {
+    if (!token) {
+      setWalletBalance(null);
+      setWalletCurrency(null);
+      return;
+    }
+    try {
+      const res = await authFetch(`${API_BASE}/wallet`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const balanceValue = typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
+      setWalletBalance(Number.isFinite(balanceValue) ? balanceValue : 0);
+      setWalletCurrency(data?.currency ?? null);
+    } catch {
+      setWalletBalance(null);
+      setWalletCurrency(null);
+    }
   }, [authFetch, token]);
+
+  useEffect(() => {
+    void loadWallet();
+  }, [loadWallet]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onFocus = () => void loadWallet();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void loadWallet();
+    };
+    const offWalletUpdated = onWalletUpdated(() => void loadWallet());
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      offWalletUpdated();
+    };
+  }, [loadWallet]);
 
   useEffect(() => {
     let active = true;

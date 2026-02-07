@@ -150,6 +150,10 @@ class ProcessRedeemFulfillment implements ShouldQueue
             ]);
         }
 
+        if (!$order->hasPhysicalItems() && empty($order->delivered_at)) {
+            $order->forceFill(['delivered_at' => now()])->save();
+        }
+
         Log::info('Redeem fulfillment completed', [
             'order_id' => $order->id,
             'codes_sent' => count($assignedCodes),

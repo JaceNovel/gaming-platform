@@ -121,16 +121,21 @@ function ReferralClient() {
   };
 
   return (
-    <main className="min-h-[100dvh] bg-[#04020c] text-white pb-24">
-      <div className="mobile-shell py-8 space-y-6">
-        <div className="flex items-center justify-between gap-3">
+    <main className="min-h-[100dvh] bg-black text-white pb-24">
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(168,85,247,0.25),transparent_45%),radial-gradient(circle_at_75%_0%,rgba(14,165,233,0.22),transparent_50%),radial-gradient(circle_at_60%_80%,rgba(249,115,22,0.14),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.25),rgba(0,0,0,0.94))]" />
+      </div>
+
+      <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <SectionTitle eyebrow="Compte" label="Parrainage" />
             <p className="mt-1 text-sm text-white/60">
               Partage ton lien, gagne une commission sur le premier dépôt de tes filleuls.
             </p>
           </div>
-          <GlowButton variant="secondary" onClick={load} disabled={loading}>
+          <GlowButton variant="secondary" onClick={load} disabled={loading} className="w-full sm:w-auto justify-center">
             <span className="inline-flex items-center gap-2">
               <RefreshCcw className="h-4 w-4" />
               Rafraîchir
@@ -150,101 +155,105 @@ function ReferralClient() {
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Ton code</p>
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-2xl font-black tracking-[0.2em] text-cyan-200">{loading ? "…" : data?.referral.code ?? "—"}</p>
-              <button
-                type="button"
-                onClick={() => data?.referral.code && handleCopy(data.referral.code, "Code")}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white/80 hover:text-white"
-              >
-                <Copy className="h-4 w-4" />
-                Copier
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Lien de parrainage</p>
-            <div className="mt-3 flex flex-col gap-3">
-              <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-3 py-3">
-                <Link2 className="h-4 w-4 text-white/60" />
-                <p className="min-w-0 flex-1 truncate text-sm text-white/80">{loading ? "Chargement…" : data?.referral.link ?? "—"}</p>
-              </div>
-              <div className="flex gap-2">
-                <GlowButton
-                  variant="secondary"
-                  className="flex-1 justify-center"
-                  onClick={() => data?.referral.link && handleCopy(data.referral.link, "Lien")}
-                  disabled={loading || !data?.referral.link}
-                >
-                  <span className="inline-flex items-center gap-2">
+        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Ton code</p>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-2xl font-black tracking-[0.2em] text-cyan-200">{loading ? "…" : data?.referral.code ?? "—"}</p>
+                  <button
+                    type="button"
+                    onClick={() => data?.referral.code && handleCopy(data.referral.code, "Code")}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white/80 hover:text-white"
+                  >
                     <Copy className="h-4 w-4" />
                     Copier
-                  </span>
-                </GlowButton>
-                <GlowButton className="flex-1 justify-center" onClick={handleShare} disabled={loading || !data?.referral.link}>
-                  <span className="inline-flex items-center gap-2">
-                    <Share2 className="h-4 w-4" />
-                    Partager
-                  </span>
-                </GlowButton>
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Tes stats</p>
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/70 inline-flex items-center gap-2">
+                      <Users className="h-4 w-4" />Filleuls
+                    </span>
+                    <span className="font-semibold">{loading ? "…" : data?.referral.referred_count ?? 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-white/70">Total commissions</span>
+                    <span className="font-semibold text-emerald-200">{loading ? "…" : formatMoney(data?.referral.commission_total ?? 0)}</span>
+                  </div>
+                  {lastReferredLabel && <div className="text-xs text-white/50">Dernier filleul: {lastReferredLabel}</div>}
+                  <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/60">
+                    Commission sur le <b>premier dépôt wallet</b> du filleul. VIP: 3% • Standard: 1%.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/50">Lien de parrainage</p>
+              <div className="mt-3 flex flex-col gap-3">
+                <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-3 py-3">
+                  <Link2 className="h-4 w-4 text-white/60" />
+                  <p className="min-w-0 flex-1 truncate text-sm text-white/80">{loading ? "Chargement…" : data?.referral.link ?? "—"}</p>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <GlowButton
+                    variant="secondary"
+                    className="w-full sm:flex-1 justify-center"
+                    onClick={() => data?.referral.link && handleCopy(data.referral.link, "Lien")}
+                    disabled={loading || !data?.referral.link}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Copy className="h-4 w-4" />
+                      Copier
+                    </span>
+                  </GlowButton>
+                  <GlowButton className="w-full sm:flex-1 justify-center" onClick={handleShare} disabled={loading || !data?.referral.link}>
+                    <span className="inline-flex items-center gap-2">
+                      <Share2 className="h-4 w-4" />
+                      Partager
+                    </span>
+                  </GlowButton>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Tes stats</p>
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-white/70 inline-flex items-center gap-2"><Users className="h-4 w-4" />Filleuls</span>
-                <span className="font-semibold">{loading ? "…" : data?.referral.referred_count ?? 0}</span>
+            <p className="text-sm font-semibold">Historique des filleuls</p>
+            <p className="mt-1 text-xs text-white/60">Tu vois ici tes inscriptions attribuées et la commission quand elle est déclenchée.</p>
+
+            {loading ? (
+              <div className="mt-4 text-sm text-white/60">Chargement…</div>
+            ) : items.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-6 text-sm text-white/70">
+                Aucun filleul pour l’instant. Partage ton lien pour démarrer.
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-white/70">Total commissions</span>
-                <span className="font-semibold text-emerald-200">{loading ? "…" : formatMoney(data?.referral.commission_total ?? 0)}</span>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {items.map((it) => (
+                  <div key={it.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/30 p-4">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white">{it.referred?.name ?? "Utilisateur"}</p>
+                      <p className="text-xs text-white/50">
+                        {it.rewarded_at ? "Commission versée" : "En attente du premier dépôt"}
+                        {it.commission_rate ? ` • ${(it.commission_rate * 100).toFixed(0)}%` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-emerald-200">{formatMoney(it.commission_earned ?? 0)}</p>
+                      <p className="text-[11px] text-white/50">{it.rewarded_at ? new Date(it.rewarded_at).toLocaleString("fr-FR") : "—"}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              {lastReferredLabel && (
-                <div className="text-xs text-white/50">Dernier filleul: {lastReferredLabel}</div>
-              )}
-              <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/60">
-                Commission sur le <b>premier dépôt wallet</b> du filleul. VIP: 3% • Standard: 1%.
-              </div>
-            </div>
+            )}
           </div>
-        </div>
-
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-sm font-semibold">Historique des filleuls</p>
-          <p className="mt-1 text-xs text-white/60">Tu vois ici tes inscriptions attribuées et la commission quand elle est déclenchée.</p>
-
-          {loading ? (
-            <div className="mt-4 text-sm text-white/60">Chargement…</div>
-          ) : items.length === 0 ? (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-6 text-sm text-white/70">
-              Aucun filleul pour l’instant. Partage ton lien pour démarrer.
-            </div>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {items.map((it) => (
-                <div key={it.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/30 p-4">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-white">{it.referred?.name ?? "Utilisateur"}</p>
-                    <p className="text-xs text-white/50">
-                      {it.rewarded_at ? "Commission versée" : "En attente du premier dépôt"}
-                      {it.commission_rate ? ` • ${(it.commission_rate * 100).toFixed(0)}%` : ""}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-emerald-200">{formatMoney(it.commission_earned ?? 0)}</p>
-                    <p className="text-[11px] text-white/50">{it.rewarded_at ? new Date(it.rewarded_at).toLocaleString("fr-FR") : "—"}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </main>

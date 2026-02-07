@@ -242,11 +242,9 @@ export default function GamingAccountsByGamePage() {
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
                         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                          {row?.category?.name ? (
-                            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-                              {String(row.category.name)}
-                            </span>
-                          ) : null}
+                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+                            Compte Gaming
+                          </span>
                           {badges.includes("verified") ? (
                             <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">
                               Vendeur vérifié
@@ -264,9 +262,7 @@ export default function GamingAccountsByGamePage() {
                       <div className="mt-4 flex items-center justify-between">
                         <div>
                           <p className="text-xl font-black text-fuchsia-200">{formatNumber(safePrice)} FCFA</p>
-                          {row?.delivery_window_hours ? (
-                            <p className="text-xs text-white/50">Livraison sous {Number(row.delivery_window_hours)}h</p>
-                          ) : null}
+                          <p className="text-xs text-white/50">Livraison sous 24h</p>
                         </div>
                       </div>
 

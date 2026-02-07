@@ -7,6 +7,7 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
+import { emitWalletUpdated } from "@/lib/walletEvents";
 
 function CheckoutScreen() {
   const { authFetch, user } = useAuth();
@@ -113,6 +114,7 @@ function CheckoutScreen() {
       return;
     }
 
+        emitWalletUpdated({ source: "checkout_wallet_pay" });
     if (String(productType ?? "").toLowerCase() === "subscription" && !gameId.trim()) {
       setStatus("Veuillez renseigner votre ID (obligatoire pour l'abonnement).");
       return;

@@ -6,6 +6,7 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
+import { emitWalletUpdated } from "@/lib/walletEvents";
 
 type Game = { id: number; name: string };
 
@@ -163,6 +164,7 @@ function PremiumSubscribeScreen() {
       }
 
       setStatus("VIP activé via Wallet.");
+      emitWalletUpdated({ source: "premium_wallet_pay" });
       router.replace("/account");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Paiement wallet impossible.";

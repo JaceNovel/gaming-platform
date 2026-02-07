@@ -12,6 +12,7 @@ import PlayerProfileCard from "@/components/profile/PlayerProfileCard";
 import type { DashboardMenuId } from "@/components/profile/dashboardMenu";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
+import { onWalletUpdated } from "@/lib/walletEvents";
 
 const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
 
@@ -114,10 +115,17 @@ const formatCurrency = (value: number, code?: string | null) => {
   return new Intl.NumberFormat(info.locale, { style: "currency", currency: info.label }).format(value);
 };
 
-const mapOrderStatus = (status?: string | null): OrderStatus => {
-  const normalized = String(status ?? "").toLowerCase();
+const mapOrderStatus = (order: any): OrderStatus => {
+  const deliveredAt = order?.delivered_at ?? order?.deliveredAt ?? null;
+  const meta = order?.meta ?? null;
+  const fulfillmentStatus = typeof meta === "object" && meta ? String((meta as any).fulfillment_status ?? "") : "";
+
+  if (deliveredAt) return "COMPLÉTÉ";
+  if (fulfillmentStatus.toLowerCase() === "fulfilled") return "COMPLÉTÉ";
+
+  const normalized = String(order?.status ?? "").toLowerCase();
   if (["paid", "complete", "completed", "success", "delivered", "fulfilled"].includes(normalized)) return "COMPLÉTÉ";
-  if (["failed", "cancelled", "canceled", "error", "refused"].includes(normalized)) return "ÉCHOUÉ";
+  if (["failed", "cancelled", "canceled", "error", "refused", "payment_failed"].includes(normalized)) return "ÉCHOUÉ";
   return "EN_COURS";
 };
 
@@ -273,6 +281,21 @@ function AccountClient() {
   const [countryMessage, setCountryMessage] = useState("");
   const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
 
+  const refreshWalletSummary = useCallback(async () => {
+    if (!HAS_API_ENV) return;
+    try {
+      const res = await authFetch(`${API_BASE}/wallet`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const balanceValue = typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
+      const normalized = Number.isFinite(balanceValue) ? balanceValue : 0;
+      setWalletBalanceState(normalized);
+      setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: normalized } : prev));
+    } catch (error) {
+      console.warn("Wallet indisponible", error);
+    }
+  }, [authFetch]);
+
   const referralInviteUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
     const code = String(me?.referralCode ?? "").trim();
@@ -394,9 +417,9 @@ function AccountClient() {
             id: String(order.reference ?? order.id),
             internalId: String(order.id),
             title,
-            game: orderItems[0]?.product?.name ? "BADBOYSHOP" : "BADBOYSHOP",
+            game: "BADBOYSHOP",
             priceFcfa: Number(order.total_price ?? 0),
-            status: mapOrderStatus(order.status),
+            status: mapOrderStatus(order),
             thumb,
             shippingStatus: order.shipping_status ?? null,
             shippingEtaDays: order.shipping_eta_days ?? null,
@@ -435,12 +458,6 @@ function AccountClient() {
   }, []);
 
   useEffect(() => {
-    if (me?.countryCode) {
-      setCountryFormCode(me.countryCode);
-    }
-  }, [me?.countryCode]);
-
-  useEffect(() => {
     setWalletBalanceState(me?.walletBalanceFcfa ?? 0);
   }, [me?.walletBalanceFcfa]);
 
@@ -452,22 +469,6 @@ function AccountClient() {
         active = false;
       };
     }
-
-    const loadWalletSummary = async () => {
-      try {
-        const res = await authFetch(`${API_BASE}/wallet`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!active) return;
-        const balanceValue =
-          typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
-        const normalized = Number.isFinite(balanceValue) ? balanceValue : 0;
-        setWalletBalanceState(normalized);
-        setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: normalized } : prev));
-      } catch (error) {
-        console.warn("Wallet indisponible", error);
-      }
-    };
 
     const loadWalletTransactions = async () => {
       setWalletHistoryLoading(true);
@@ -504,12 +505,18 @@ function AccountClient() {
       }
     };
 
-    loadWalletSummary();
+    void refreshWalletSummary();
     loadWalletTransactions();
     return () => {
       active = false;
     };
-  }, [authFetch, me?.countryCode]);
+  }, [authFetch, me?.countryCode, refreshWalletSummary]);
+
+  useEffect(() => {
+    if (!HAS_API_ENV) return;
+    const off = onWalletUpdated(() => void refreshWalletSummary());
+    return off;
+  }, [refreshWalletSummary]);
 
   const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

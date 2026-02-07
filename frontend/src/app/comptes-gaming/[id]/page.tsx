@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
+import { emitWalletUpdated } from "@/lib/walletEvents";
 
 type ListingDetail = {
   id: number;
@@ -20,9 +21,7 @@ type ListingDetail = {
   account_rank?: string | null;
   account_region?: string | null;
   has_email_access?: boolean | null;
-  delivery_window_hours?: number | null;
   game?: { id: number; name: string; image?: string | null } | null;
-  category?: { id: number; name: string } | null;
   seller_trust?: { totalSales?: number; successRate?: number; badges?: string[] } | null;
 };
 
@@ -169,6 +168,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
           setStatus(payPayload?.message ?? "Paiement wallet impossible.");
           return;
         }
+        emitWalletUpdated({ source: "marketplace_listing_wallet_pay" });
         router.replace(`/order-confirmation?order=${orderId}&status=paid`);
         return;
       }
@@ -260,7 +260,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
             <h1 className="mt-1 text-2xl md:text-3xl font-semibold">{listing.title}</h1>
             <p className="mt-2 text-sm text-white/60">
               {listing.game?.name ? `${listing.game.name} • ` : ""}
-              {listing.category?.name ?? "Comptes Gaming"}
+              Compte Gaming
             </p>
           </div>
           <Link href="/shop" className="text-sm text-white/70 hover:text-white">
@@ -278,6 +278,9 @@ function MarketplaceListingClient({ id }: { id: number }) {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent" />
               <div className="absolute left-5 top-5 flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
+                  Livraison 24H
+                </span>
                 {badges.includes("verified") && (
                   <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">
                     <ShieldCheck className="h-4 w-4" />
@@ -338,9 +341,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
               <div className="mt-2 text-3xl font-black text-fuchsia-200">
                 {formatNumber(priceValue)} FCFA
               </div>
-              {listing.delivery_window_hours ? (
-                <p className="mt-2 text-sm text-white/60">Livraison sous {listing.delivery_window_hours}h</p>
-              ) : null}
+              <p className="mt-2 text-sm text-white/60">Livraison sous 24h</p>
 
               {typeof successRate === "number" && typeof totalSales === "number" ? (
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">

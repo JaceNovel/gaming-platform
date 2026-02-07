@@ -64,8 +64,13 @@ export default function GamingAccountsIndexPage() {
   }, [games, query]);
 
   return (
-    <main className="min-h-[100dvh] bg-[#04020c] text-white bg-[radial-gradient(circle_at_top,_#1b0d3f,_#04020c_70%)]">
-      <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+    <main className="min-h-[100dvh] bg-black text-white">
+      <div className="fixed inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(168,85,247,0.25),transparent_45%),radial-gradient(circle_at_75%_0%,rgba(14,165,233,0.22),transparent_50%),radial-gradient(circle_at_60%_80%,rgba(249,115,22,0.14),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.25),rgba(0,0,0,0.94))]" />
+      </div>
+
+      <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
             <Link href="/" className="hover:text-white">
@@ -74,11 +79,12 @@ export default function GamingAccountsIndexPage() {
             <span className="text-white/30">/</span>
             <span className="text-white/80">Comptes Gaming</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Comptes Gaming</h1>
-          <p className="text-sm text-white/60">Choisis ton jeu pour voir les comptes disponibles.</p>
+          <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Marketplace</p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Comptes Gaming</h1>
+          <p className="text-sm text-white/60">Choisis ton jeu pour voir les annonces disponibles.</p>
         </div>
 
-        <div className="mt-8 rounded-[28px] border border-white/10 bg-black/40 p-4 backdrop-blur">
+        <div className="mt-8 rounded-[28px] border border-white/10 bg-white/5 p-4 backdrop-blur">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-white/40" />
             <input
@@ -108,7 +114,7 @@ export default function GamingAccountsIndexPage() {
                   <Link
                     key={g.id}
                     href={`/gaming-accounts/${encodeURIComponent(String(g.slug))}`}
-                    className="group overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-5 transition hover:border-cyan-300/40"
+                    className="group overflow-hidden rounded-[28px] border border-white/10 bg-black/40 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-cyan-300/40"
                   >
                     <div className="relative h-40 overflow-hidden rounded-2xl bg-black/30">
                       {imageSrc ? (
@@ -119,6 +125,11 @@ export default function GamingAccountsIndexPage() {
                       ) : (
                         <div className="h-full w-full bg-gradient-to-br from-cyan-400/10 via-fuchsia-400/10 to-transparent" />
                       )}
+                      <div className="absolute left-4 top-4">
+                        <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+                          Compte Gaming
+                        </span>
+                      </div>
                     </div>
                     <div className="mt-4">
                       <p className="text-base font-black text-white">{g.name}</p>

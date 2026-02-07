@@ -37,6 +37,8 @@ type OrderDetail = {
   type?: string;
   total_price?: number;
   created_at?: string;
+  delivered_at?: string | null;
+  meta?: any;
   shipping_status?: string | null;
   shipping_eta_days?: number | null;
   shipping_estimated_date?: string | null;
@@ -80,16 +82,21 @@ const formatCurrency = (amount: number, countryCode?: string | null) => {
 const prettyStatus = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
   if (!s) return "—";
-  if (["paid", "completed", "fulfilled"].includes(s)) return "Complétée";
-  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "Échec";
+  if (["paid", "completed", "fulfilled", "delivered"].includes(s)) return "Livrée";
+  if (["failed", "payment_failed", "cancelled", "canceled", "refused", "error"].includes(s)) return "Échouée";
+  if (["pending", "awaiting_payment", "payment_processing", "payment_success"].includes(s)) return "En cours";
+  if (["paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "En cours";
   return status ?? "—";
 };
 
 const statusBadgeClass = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
-  if (["paid", "completed", "fulfilled"].includes(s)) return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
-  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
+  if (["paid", "completed", "fulfilled", "delivered"].includes(s)) return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
+  if (["failed", "payment_failed", "cancelled", "canceled", "refused", "error"].includes(s)) {
     return "bg-rose-500/20 border-rose-400/30 text-rose-100";
+  }
+  if (["pending", "awaiting_payment", "payment_processing", "payment_success", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
+    return "bg-amber-400/20 border-amber-300/30 text-amber-100";
   }
   return "bg-white/10 border-white/20 text-white/80";
 };
@@ -145,7 +152,7 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
       if (numericId) return numericId;
 
       try {
-        const res = await authFetch(`${API_BASE}/orders?include_wallet_topups=1`);
+        const res = await authFetch(`${API_BASE}/orders`);
         if (!res.ok) return null;
         const data = await res.json();
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
@@ -221,6 +228,12 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
 
   const currencyCountryCode = (order?.shipping_country_code ?? "CI") as string;
 
+  const orderDelivered = Boolean(order?.delivered_at) || String(order?.meta?.fulfillment_status ?? "").toLowerCase() === "fulfilled";
+  const orderStatusLabel = orderDelivered ? "Livrée" : prettyStatus(order?.status);
+  const orderStatusClass = orderDelivered
+    ? "bg-emerald-400/20 border-emerald-300/30 text-emerald-100"
+    : statusBadgeClass(order?.status);
+
   return (
     <div className="min-h-screen text-white">
       <div className="fixed inset-0 -z-10">
@@ -274,17 +287,18 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
               ) : (
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.35em] text-white/45">Référence</p>
-                    <p className="mt-1 text-lg font-semibold text-white">{order.reference ?? `#${order.id}`}</p>
+                    <p className="text-xs uppercase tracking-[0.35em] text-white/45">Identifiant</p>
+                    <p className="mt-1 text-lg font-semibold text-white">#{order.id}</p>
+                    <p className="mt-1 text-sm text-white/60">Référence: {order.reference ?? "—"}</p>
                     <p className="mt-1 text-sm text-white/60">
                       {order.created_at ? `Créée le ${new Date(order.created_at).toLocaleString("fr-FR")}` : ""}
                     </p>
                   </div>
                   <div className="text-right">
                     <span
-                      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${statusBadgeClass(order.status)}`}
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${orderStatusClass}`}
                     >
-                      {prettyStatus(order.status)}
+                      {orderStatusLabel}
                     </span>
                     <p className="mt-2 text-lg font-semibold text-amber-200">
                       {formatCurrency(Number(order.total_price ?? 0), currencyCountryCode)}

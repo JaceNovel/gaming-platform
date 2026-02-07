@@ -11,6 +11,7 @@ import { API_BASE } from "@/lib/config";
 import type { DeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { emitCartUpdated } from "@/lib/cartEvents";
+import { emitWalletUpdated } from "@/lib/walletEvents";
 
 type CartItem = {
   id: number;
@@ -240,6 +241,7 @@ function CartScreen() {
         }
 
         setStatus("Paiement wallet réussi.");
+        emitWalletUpdated({ source: "cart_wallet_pay" });
         setCartItems([]);
         if (typeof window !== "undefined") {
           localStorage.removeItem("bbshop_cart");
