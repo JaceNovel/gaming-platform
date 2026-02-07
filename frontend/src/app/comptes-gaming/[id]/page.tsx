@@ -299,15 +299,15 @@ function MarketplaceListingClient({ id }: { id: number }) {
       <div className="mx-auto w-full max-w-5xl px-6 py-10">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Marketplace</p>
+            <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">🎮 Marketplace</p>
             <h1 className="mt-1 text-2xl md:text-3xl font-semibold">{listing.title}</h1>
             <p className="mt-2 text-sm text-white/60">
               {listing.game?.name ? `${listing.game.name} • ` : ""}
-              Compte Gaming
+              Compte Gaming ✨
             </p>
           </div>
           <Link href="/shop" className="text-sm text-white/70 hover:text-white">
-            Retour
+            ⬅ Retour
           </Link>
         </div>
 
@@ -322,22 +322,22 @@ function MarketplaceListingClient({ id }: { id: number }) {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent" />
               <div className="absolute left-5 top-5 flex flex-wrap gap-2">
                 <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
-                  Livraison 24H
+                  ⏱ Livraison 24H
                 </span>
                 {badges.includes("verified") && (
                   <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">
                     <ShieldCheck className="h-4 w-4" />
-                    Vendeur vérifié
+                    Vendeur vérifié ✅
                   </span>
                 )}
                 {badges.includes("new") && (
                   <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
-                    Nouveau
+                    🆕 Nouveau
                   </span>
                 )}
                 {badges.includes("under_surveillance") && (
                   <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-100">
-                    Sous surveillance
+                    ⚠️ Sous surveillance
                   </span>
                 )}
               </div>
@@ -345,7 +345,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
 
             <div className="p-6">
               <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-                <p className="text-xs uppercase tracking-[0.25em] text-white/50">Informations du compte</p>
+                <p className="text-xs uppercase tracking-[0.25em] text-white/50">🧾 Informations du compte</p>
                 <p className="mt-2 text-sm text-white/70">
                   Toutes les infos renseignées par le vendeur sont visibles ici. Après paiement, le contact vendeur est révélé pour finaliser la livraison.
                 </p>
@@ -377,7 +377,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
               </div>
 
               <div className="mt-5 rounded-2xl border border-white/10 bg-black/30 p-5">
-                <p className="text-xs uppercase tracking-[0.25em] text-white/50">Description</p>
+                <p className="text-xs uppercase tracking-[0.25em] text-white/50">📝 Description</p>
                 <p className="mt-2 text-sm text-white/70 whitespace-pre-wrap">
                   {String(listing.description ?? "").trim() || "Aucune description fournie."}
                 </p>
@@ -385,11 +385,11 @@ function MarketplaceListingClient({ id }: { id: number }) {
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">Sécurité</p>
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">🛡️ Sécurité</p>
                   <p className="mt-2 text-sm text-white/70">Paiement sécurisé. L'annonce est réservée 20 minutes pendant le paiement.</p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">Litige</p>
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">⚖️ Litige</p>
                   <p className="mt-2 text-sm text-white/70">En cas de souci, tu peux ouvrir un litige depuis ta commande.</p>
                 </div>
               </div>
@@ -398,11 +398,11 @@ function MarketplaceListingClient({ id }: { id: number }) {
 
           <aside className="space-y-4">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur">
-              <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Prix</p>
+              <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">💎 Prix</p>
               <div className="mt-2 text-3xl font-black text-fuchsia-200">
                 {formatNumber(priceValue)} FCFA
               </div>
-              <p className="mt-2 text-sm text-white/60">Livraison sous 24h</p>
+              <p className="mt-2 text-sm text-white/60">🚀 Livraison sous 24h</p>
 
               {typeof successRate === "number" && typeof totalSales === "number" ? (
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -414,7 +414,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
               ) : null}
 
               <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
-                <p className="text-xs text-white/60">Téléphone (obligatoire)</p>
+                <p className="text-xs text-white/60">📲 Téléphone (obligatoire)</p>
                 <input
                   value={buyerPhone}
                   onChange={(e) => setBuyerPhone(e.target.value)}
@@ -435,7 +435,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 disabled:opacity-60"
                 >
                   <ShoppingCart className="h-4 w-4" />
-                  {submitting ? "Traitement..." : "Ajouter au panier"}
+                  {submitting ? "Traitement..." : "🛒 Ajouter au panier"}
                 </button>
 
                 <div className="flex gap-2">
@@ -450,7 +450,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
                   >
                     <span className="inline-flex items-center justify-center gap-2">
                       <ShoppingCart className="h-4 w-4" />
-                      Mobile Money
+                      📲 Mobile Money
                     </span>
                   </button>
                   <button
@@ -464,7 +464,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
                   >
                     <span className="inline-flex items-center justify-center gap-2">
                       <Wallet className="h-4 w-4" />
-                      Wallet
+                      💰 Wallet
                     </span>
                   </button>
                 </div>
@@ -472,7 +472,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
                 <GlowButton onClick={handleBuy} disabled={submitting}>
                   <span className="inline-flex items-center justify-center gap-2">
                     <Crown className="h-4 w-4" />
-                    {submitting ? "Traitement..." : "Acheter maintenant"}
+                    {submitting ? "Traitement..." : "⚡ Acheter maintenant"}
                   </span>
                 </GlowButton>
 
@@ -483,7 +483,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
                 )}
 
                 <p className="text-xs text-white/50">
-                  L'achat réserve l'annonce 20 minutes. Après paiement, le WhatsApp du vendeur est révélé.
+                  ⏳ L'achat réserve l'annonce 20 minutes. Après paiement, le WhatsApp du vendeur est révélé.
                 </p>
               </div>
             </div>
