@@ -217,6 +217,49 @@ function MarketplaceListingClient({ id }: { id: number }) {
     }
   };
 
+  const handleAddToCart = async () => {
+    if (!listing) return;
+
+    if (!user) {
+      const next = `/comptes-gaming/${id}`;
+      router.push(`/auth/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
+
+    setStatus(null);
+    if (!isValidBuyerPhone) {
+      setStatus("Veuillez entrer un numéro de téléphone valide.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const checkoutRes = await authFetch(`${API_BASE}/gaming-accounts/listings/${id}/checkout`, {
+        method: "POST",
+        body: JSON.stringify({ buyer_phone: buyerPhone.trim() }),
+      });
+      const checkoutPayload = await checkoutRes.json().catch(() => null);
+      if (!checkoutRes.ok) {
+        setStatus(checkoutPayload?.message ?? "Impossible de réserver l'annonce.");
+        return;
+      }
+
+      const order = checkoutPayload?.order;
+      const orderId = Number(order?.id ?? 0);
+      if (!Number.isFinite(orderId) || orderId <= 0) {
+        setStatus("Commande invalide.");
+        return;
+      }
+
+      setStatus("Ajouté au panier (réservé 20 minutes). Tu peux payer depuis la page commande.");
+      router.push(`/orders/${orderId}`);
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Connexion au serveur impossible.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <main className="min-h-[100dvh] bg-black text-white">
@@ -301,6 +344,13 @@ function MarketplaceListingClient({ id }: { id: number }) {
             </div>
 
             <div className="p-6">
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                <p className="text-xs uppercase tracking-[0.25em] text-white/50">Informations du compte</p>
+                <p className="mt-2 text-sm text-white/70">
+                  Toutes les infos renseignées par le vendeur sont visibles ici. Après paiement, le contact vendeur est révélé pour finaliser la livraison.
+                </p>
+              </div>
+
               <div className="grid gap-3 sm:grid-cols-2">
                 {listing.account_level ? (
                   <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -331,6 +381,17 @@ function MarketplaceListingClient({ id }: { id: number }) {
                 <p className="mt-2 text-sm text-white/70 whitespace-pre-wrap">
                   {String(listing.description ?? "").trim() || "Aucune description fournie."}
                 </p>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">Sécurité</p>
+                  <p className="mt-2 text-sm text-white/70">Paiement sécurisé. L'annonce est réservée 20 minutes pendant le paiement.</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">Litige</p>
+                  <p className="mt-2 text-sm text-white/70">En cas de souci, tu peux ouvrir un litige depuis ta commande.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -367,6 +428,16 @@ function MarketplaceListingClient({ id }: { id: number }) {
               </div>
 
               <div className="mt-5 space-y-3">
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  disabled={submitting}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 disabled:opacity-60"
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  {submitting ? "Traitement..." : "Ajouter au panier"}
+                </button>
+
                 <div className="flex gap-2">
                   <button
                     type="button"
