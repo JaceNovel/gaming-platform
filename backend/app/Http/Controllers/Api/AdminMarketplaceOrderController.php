@@ -8,6 +8,7 @@ use App\Models\PartnerWallet;
 use App\Models\PartnerWalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class AdminMarketplaceOrderController extends Controller
@@ -31,6 +32,60 @@ class AdminMarketplaceOrderController extends Controller
         $orders = $q->orderByDesc('created_at')->paginate(30);
 
         return response()->json(['data' => $orders]);
+    }
+
+    public function show(MarketplaceOrder $marketplaceOrder)
+    {
+        $marketplaceOrder->load(['order', 'buyer', 'seller.user', 'listing', 'dispute']);
+
+        $proof = $marketplaceOrder->delivery_proof;
+        if (!is_array($proof)) {
+            $proof = [];
+        }
+
+        $file = isset($proof['file']) && is_array($proof['file']) ? $proof['file'] : null;
+        $hasFile = is_array($file) && !empty($file['path']);
+
+        return response()->json([
+            'data' => [
+                'marketplaceOrder' => $marketplaceOrder,
+                'deliveryProof' => [
+                    'note' => is_string($proof['note'] ?? null) ? $proof['note'] : null,
+                    'hasFile' => $hasFile,
+                    'file' => $hasFile
+                        ? [
+                            'mime' => $file['mime'] ?? null,
+                            'size' => $file['size'] ?? null,
+                            'name' => basename((string) ($file['path'] ?? '')),
+                        ]
+                        : null,
+                ],
+            ],
+        ]);
+    }
+
+    public function downloadDeliveryProof(Request $request, MarketplaceOrder $marketplaceOrder)
+    {
+        $proof = $marketplaceOrder->delivery_proof;
+        if (!is_array($proof)) {
+            return response()->json(['message' => 'No delivery proof.'], 404);
+        }
+
+        $file = isset($proof['file']) && is_array($proof['file']) ? $proof['file'] : null;
+        $disk = is_array($file) ? ($file['disk'] ?? 'local') : 'local';
+        $path = is_array($file) ? (string) ($file['path'] ?? '') : '';
+
+        if (!$path) {
+            return response()->json(['message' => 'No proof file.'], 404);
+        }
+
+        if (!Storage::disk($disk)->exists($path)) {
+            return response()->json(['message' => 'File missing on storage.'], 404);
+        }
+
+        $downloadName = "marketplace_order_{$marketplaceOrder->id}_delivery_proof." . (pathinfo($path, PATHINFO_EXTENSION) ?: 'jpg');
+
+        return Storage::disk($disk)->download($path, $downloadName);
     }
 
     public function release(Request $request, MarketplaceOrder $marketplaceOrder)

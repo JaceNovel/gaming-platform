@@ -55,6 +55,7 @@ return [
             'redeems.manage',
             'stock.manage',
             'email.view',
+            'email.manage',
             'notifications.manage',
             'wallet.manage',
 
@@ -73,6 +74,7 @@ return [
             'support.view',
             'support.manage',
             'email.view',
+            'email.manage',
             'reviews.view',
             'wallet.manage',
 
@@ -97,6 +99,7 @@ return [
             'payments.view',
             'users.view',
             'email.view',
+            'email.manage',
             'wallet.manage',
 
             'marketplace.sellers.view',

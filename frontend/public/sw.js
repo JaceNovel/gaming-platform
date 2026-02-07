@@ -1,5 +1,42 @@
 /* global self */
 
+// Take over ASAP and purge any legacy caches from previous SW versions.
+self.addEventListener("install", function () {
+  try {
+    self.skipWaiting();
+  } catch (e) {
+    // ignore
+  }
+});
+
+self.addEventListener("activate", function (event) {
+  event.waitUntil(
+    (async () => {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      } catch (e) {
+        // ignore
+      }
+      try {
+        await self.clients.claim();
+      } catch (e) {
+        // ignore
+      }
+    })()
+  );
+});
+
+self.addEventListener("message", function (event) {
+  try {
+    if (event && event.data && event.data.type === "SKIP_WAITING") {
+      self.skipWaiting();
+    }
+  } catch (e) {
+    // ignore
+  }
+});
+
 self.addEventListener("push", function (event) {
   try {
     const data = event.data ? event.data.json() : {};

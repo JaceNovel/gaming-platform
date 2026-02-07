@@ -4,7 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.badboyshop.online").replace(/\/$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://badboyshop.online").replace(/\/$/, "");
 const ASSET_VERSION = "20260201";
 
 const geistSans = Geist({
@@ -66,6 +66,7 @@ import BottomNavigation from "@/components/BottomNavigation";
 import AppHeader from "@/components/layout/AppHeader";
 import ChunkErrorReload from "@/components/system/ChunkErrorReload";
 import CartDrawer from "@/components/cart/CartDrawer";
+import ServiceWorkerBootstrap from "@/components/system/ServiceWorkerBootstrap";
 
 export default function RootLayout({
   children,
@@ -98,6 +99,7 @@ gtag('config', 'G-66BKKJ3F7B');`}
         className={`${geistSans.variable} ${geistMono.variable} antialiased text-white min-h-[100dvh] overflow-x-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]`}
       >
         <ChunkErrorReload />
+        <ServiceWorkerBootstrap />
         <AuthProvider>
           <AppHeader />
           {children}

@@ -1299,9 +1299,9 @@ function AccountClient() {
                           type="button"
                           onClick={() => {
                             closeOrdersModal();
-                            const raw = String(order.internalId ?? "").trim();
-                            const fallback = String(order.id ?? "").trim();
-                            const targetId = raw && raw !== "undefined" && raw !== "null" ? raw : fallback;
+                            const reference = String(order.id ?? "").trim();
+                            const internal = String(order.internalId ?? "").trim();
+                            const targetId = reference && reference !== "undefined" && reference !== "null" ? reference : internal;
                             if (!targetId) {
                               return;
                             }
@@ -1367,9 +1367,9 @@ function AccountClient() {
                       type="button"
                       onClick={() => {
                         closeOrdersModal();
-                        const raw = String(order.internalId ?? "").trim();
-                        const fallback = String(order.id ?? "").trim();
-                        const targetId = raw && raw !== "undefined" && raw !== "null" ? raw : fallback;
+                        const reference = String(order.id ?? "").trim();
+                        const internal = String(order.internalId ?? "").trim();
+                        const targetId = reference && reference !== "undefined" && reference !== "null" ? reference : internal;
                         if (!targetId) {
                           return;
                         }

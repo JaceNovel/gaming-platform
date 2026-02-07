@@ -330,6 +330,10 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
     // Gaming Account Marketplace (Manual release)
     Route::get('/marketplace/orders', [AdminMarketplaceOrderController::class, 'index'])
         ->middleware('permission:marketplace.orders.manage');
+    Route::get('/marketplace/orders/{marketplaceOrder}', [AdminMarketplaceOrderController::class, 'show'])
+        ->middleware('permission:marketplace.orders.manage');
+    Route::get('/marketplace/orders/{marketplaceOrder}/delivery-proof', [AdminMarketplaceOrderController::class, 'downloadDeliveryProof'])
+        ->middleware('permission:marketplace.orders.manage');
     Route::post('/marketplace/orders/{marketplaceOrder}/release', [AdminMarketplaceOrderController::class, 'release'])
         ->middleware('permission:marketplace.orders.manage');
 

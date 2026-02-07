@@ -165,7 +165,27 @@ export default function AdminEmailPage() {
       });
 
       if (!res.ok) {
-        setError("Envoi impossible.");
+        let details = "";
+        try {
+          const payload = await res.json();
+          details =
+            String(payload?.message ?? "").trim() ||
+            (payload?.errors ? JSON.stringify(payload.errors) : "");
+        } catch {
+          try {
+            details = (await res.text()).trim();
+          } catch {
+            details = "";
+          }
+        }
+
+        if (res.status === 403) {
+          setError("Accès refusé: permissions insuffisantes pour envoyer des emails.");
+        } else if (res.status === 422) {
+          setError(details ? `Données invalides: ${details}` : "Données invalides.");
+        } else {
+          setError(details ? `Envoi impossible: ${details}` : "Envoi impossible.");
+        }
         return;
       }
 

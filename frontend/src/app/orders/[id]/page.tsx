@@ -157,7 +157,11 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
         const data = await res.json();
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
         const needle = decodeURIComponent(String(params.id ?? "")).trim();
-        const match = items.find((row: any) => String(row?.reference ?? "").trim() === needle);
+        const match = items.find((row: any) => {
+          const ref = String(row?.reference ?? "").trim();
+          const id = String(row?.id ?? "").trim();
+          return ref === needle || id === needle;
+        });
         const id = match?.id;
         return id ? String(id) : null;
       } catch {

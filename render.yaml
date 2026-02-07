@@ -6,6 +6,8 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm run start
     envVars:
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://badboyshop.online
       - key: NEXT_PUBLIC_API_URL
         value: https://api.badboyshop.online/api
       - key: NEXT_PUBLIC_CINETPAY_API_KEY

@@ -63,7 +63,9 @@ function NotificationsClient() {
         return;
       }
 
-      const reg = await navigator.serviceWorker.register("/sw.js");
+      const reg = await navigator.serviceWorker.register("/sw.js", {
+        updateViaCache: "none",
+      } as any);
       await reg.update();
 
       const keyRes = await fetch(`${API_BASE}/push/vapid-public-key`, { cache: "no-store" });
