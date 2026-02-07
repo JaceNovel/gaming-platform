@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/admin/AdminShell";
 import DetailsDrawer from "@/components/admin/DetailsDrawer";
 import { API_BASE } from "@/lib/config";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type ListingRow = {
   id: number;
@@ -261,9 +262,9 @@ export default function AdminMarketplaceListingsPage() {
         ) : detail ? (
           <div className="space-y-4">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-              {detail.image_url ? (
+              {toDisplayImageSrc(String(detail.image_url ?? "")) ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={detail.image_url} alt="image annonce" className="h-56 w-full object-cover" />
+                <img src={toDisplayImageSrc(String(detail.image_url ?? "")) as string} alt="image annonce" className="h-56 w-full object-cover" />
               ) : (
                 <div className="flex h-56 items-center justify-center bg-white text-sm text-slate-500">Aucune image</div>
               )}

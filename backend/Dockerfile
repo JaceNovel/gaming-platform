@@ -13,6 +13,15 @@ RUN apt-get update \
     && docker-php-ext-install pdo_mysql pdo_pgsql mbstring zip \
     && rm -rf /var/lib/apt/lists/*
 
+# Ensure file uploads work reliably in production (Render) when using the PHP built-in server.
+# Without this, PHP defaults can silently drop uploaded files, causing image_path to remain null.
+RUN { \
+            echo "file_uploads=On"; \
+            echo "upload_max_filesize=10M"; \
+            echo "post_max_size=12M"; \
+            echo "max_file_uploads=20"; \
+        } > /usr/local/etc/php/conf.d/uploads.ini
+
 COPY . /app
 COPY --from=vendor /app/vendor /app/vendor
 
