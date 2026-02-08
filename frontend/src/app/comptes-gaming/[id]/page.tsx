@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Crown, ShieldCheck, ShoppingCart, Wallet } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import GlowButton from "@/components/ui/GlowButton";
@@ -501,27 +501,32 @@ function MarketplaceListingClient({ id }: { id: number }) {
   );
 }
 
-export default function MarketplaceListingPage({ params }: { params: { id: string } }) {
+export default function MarketplaceListingPage() {
+  const params = useParams();
+
   const listingId = useMemo(() => {
-    const raw = String(params?.id ?? "").trim();
-    if (!raw) return null;
-    const direct = Number(raw);
+    const rawParam = (params as any)?.id;
+    const raw = Array.isArray(rawParam) ? rawParam[0] : rawParam;
+    const trimmed = String(raw ?? "").trim();
+    if (!trimmed) return null;
+    const direct = Number(trimmed);
     if (Number.isFinite(direct) && direct > 0) return Math.trunc(direct);
-    const match = raw.match(/(\d+)/);
+    const match = trimmed.match(/(\d+)/);
     if (!match) return null;
     const n = Number(match[1]);
     return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
-  }, [params?.id]);
+  }, [params]);
 
+  // On SSR, dynamic params may not be available for a client page.
+  // Show the same premium skeleton instead of a false "not found".
   if (!listingId) {
     return (
       <main className="min-h-[100dvh] bg-black text-white">
-        <div className="mx-auto w-full max-w-3xl px-6 py-12">
-          <p className="text-sm text-white/60">😵‍💫 Annonce introuvable ou indisponible.</p>
-          <div className="mt-6">
-            <Link href="/shop" className="text-cyan-300">
-              ⬅ Retour à la boutique
-            </Link>
+        <div className="mx-auto w-full max-w-5xl px-6 py-10">
+          <div className="h-6 w-40 rounded-full bg-white/10" />
+          <div className="mt-4 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
+            <div className="h-[360px] rounded-3xl border border-white/10 bg-white/5" />
+            <div className="h-[360px] rounded-3xl border border-white/10 bg-white/5" />
           </div>
         </div>
       </main>
