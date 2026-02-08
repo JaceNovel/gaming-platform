@@ -111,6 +111,8 @@ class MarketplaceListingController extends Controller
             'title' => ['required', 'string', 'max:140'],
             'description' => ['nullable', 'string', 'max:5000'],
             'image' => ['nullable', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+            'galleryImages' => ['nullable', 'array', 'max:4'],
+            'galleryImages.*' => ['file', 'mimes:jpeg,jpg,png', 'max:5120'],
             'price' => ['required', 'numeric', 'min:1'],
             'accountLevel' => ['nullable', 'string', 'max:64'],
             'accountRank' => ['nullable', 'string', 'max:64'],
@@ -123,6 +125,14 @@ class MarketplaceListingController extends Controller
             $imagePath = Storage::disk('public')->putFile('seller-listings', $request->file('image'));
         }
 
+        $galleryPaths = [];
+        if ($request->hasFile('galleryImages')) {
+            foreach ($request->file('galleryImages', []) as $file) {
+                if (!$file) continue;
+                $galleryPaths[] = Storage::disk('public')->putFile('seller-listings', $file);
+            }
+        }
+
         $listing = SellerListing::create([
             'seller_id' => $seller->id,
             'game_id' => $data['gameId'] ?? null,
@@ -131,6 +141,7 @@ class MarketplaceListingController extends Controller
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
             'image_path' => $imagePath,
+            'gallery_image_paths' => $galleryPaths,
             'price' => $data['price'],
             'currency' => 'FCFA',
             'account_level' => $data['accountLevel'] ?? null,
@@ -165,6 +176,8 @@ class MarketplaceListingController extends Controller
             'title' => ['sometimes', 'required', 'string', 'max:140'],
             'description' => ['nullable', 'string', 'max:5000'],
             'image' => ['nullable', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+            'galleryImages' => ['nullable', 'array', 'max:4'],
+            'galleryImages.*' => ['file', 'mimes:jpeg,jpg,png', 'max:5120'],
             'price' => ['sometimes', 'required', 'numeric', 'min:1'],
             'accountLevel' => ['nullable', 'string', 'max:64'],
             'accountRank' => ['nullable', 'string', 'max:64'],
@@ -194,6 +207,29 @@ class MarketplaceListingController extends Controller
                 } catch (\Throwable $e) {
                 }
             }
+        }
+
+        // Replace gallery images if provided.
+        if ($request->hasFile('galleryImages')) {
+            $next = [];
+            foreach ($request->file('galleryImages', []) as $file) {
+                if (!$file) continue;
+                $next[] = Storage::disk('public')->putFile('seller-listings', $file);
+            }
+
+            $oldPaths = $sellerListing->gallery_image_paths;
+            if (!is_array($oldPaths)) {
+                $oldPaths = [];
+            }
+            foreach ($oldPaths as $oldPath) {
+                if (!is_string($oldPath) || !$oldPath) continue;
+                try {
+                    Storage::disk('public')->delete($oldPath);
+                } catch (\Throwable $e) {
+                }
+            }
+
+            $map['gallery_image_paths'] = $next;
         }
 
         $sellerListing->update($map);

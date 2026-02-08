@@ -101,6 +101,92 @@ class MarketplaceOrderController extends Controller
         ]);
     }
 
+    public function showMarketplace(Request $request, string $order)
+    {
+        $orderModel = $this->resolveMarketplaceOrderForBuyer($request, $order);
+
+        $marketplaceOrder = MarketplaceOrder::query()
+            ->where('order_id', $orderModel->id)
+            ->with(['listing.game', 'listing.seller.stats'])
+            ->first();
+
+        if (!$marketplaceOrder) {
+            return response()->json(['message' => 'Marketplace order not found.'], 404);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'order' => [
+                'id' => $orderModel->id,
+                'reference' => $orderModel->reference,
+                'status' => $orderModel->status,
+                'delivered_at' => $orderModel->delivered_at?->toIso8601String(),
+                'type' => $orderModel->type,
+            ],
+            'marketplaceOrder' => [
+                'id' => $marketplaceOrder->id,
+                'status' => $marketplaceOrder->status,
+                'delivery_deadline_at' => $marketplaceOrder->delivery_deadline_at?->toIso8601String(),
+                'delivered_at' => $marketplaceOrder->delivered_at?->toIso8601String(),
+                'delivery_proof' => $marketplaceOrder->delivery_proof,
+                'listing' => $marketplaceOrder->listing,
+            ],
+            'can_confirm_delivered' => $marketplaceOrder->status === 'delivered' && !$orderModel->delivered_at,
+        ]);
+    }
+
+    public function confirmDelivered(Request $request, string $order)
+    {
+        $orderModel = $this->resolveMarketplaceOrderForBuyer($request, $order);
+
+        if (!$orderModel->isPaymentSuccess()) {
+            return response()->json(['message' => 'Order not paid.'], 422);
+        }
+
+        DB::transaction(function () use ($orderModel) {
+            $freshOrder = Order::query()->lockForUpdate()->findOrFail($orderModel->id);
+
+            $marketplaceOrder = MarketplaceOrder::query()
+                ->where('order_id', $freshOrder->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$marketplaceOrder) {
+                throw ValidationException::withMessages([
+                    'order' => ['Marketplace order not found.'],
+                ]);
+            }
+
+            if (in_array($marketplaceOrder->status, ['disputed', 'resolved_refund', 'resolved_release'], true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Order cannot be confirmed in this status.'],
+                ]);
+            }
+
+            if ($marketplaceOrder->status !== 'delivered') {
+                throw ValidationException::withMessages([
+                    'status' => ['Seller has not marked this order as delivered yet.'],
+                ]);
+            }
+
+            if (!$freshOrder->delivered_at) {
+                $freshOrder->delivered_at = now();
+            }
+
+            $meta = $freshOrder->meta;
+            if (!is_array($meta)) {
+                $meta = [];
+            }
+            $meta['fulfillment_status'] = 'fulfilled';
+            $meta['marketplace_buyer_confirmed_delivered_at'] = now()->toIso8601String();
+            $freshOrder->meta = $meta;
+
+            $freshOrder->save();
+        });
+
+        return response()->json(['ok' => true]);
+    }
+
     public function openDispute(Request $request, string $order)
     {
         $orderModel = $this->resolveMarketplaceOrderForBuyer($request, $order);

@@ -66,6 +66,30 @@ type RedeemCodesResponse = {
   guide_url?: string;
 };
 
+type MarketplaceOrderInfoResponse = {
+  ok?: boolean;
+  order?: {
+    id?: number;
+    reference?: string;
+    status?: string;
+    delivered_at?: string | null;
+    type?: string;
+  };
+  marketplaceOrder?: {
+    id?: number;
+    status?: string | null;
+    delivery_deadline_at?: string | null;
+    delivered_at?: string | null;
+    delivery_proof?: string | null;
+    listing?: {
+      id?: number;
+      title?: string | null;
+      delivery_window_hours?: number | null;
+    } | null;
+  };
+  can_confirm_delivered?: boolean;
+};
+
 const formatCurrency = (amount: number, countryCode?: string | null) => {
   const normalized = (countryCode ?? "CI").toUpperCase();
   const currency = ["FR", "BE"].includes(normalized) ? "EUR" : normalized === "US" ? "USD" : "XOF";
@@ -131,6 +155,11 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
   const [codes, setCodes] = useState<RedeemCodesResponse | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle");
 
+  const [resolvedOrderId, setResolvedOrderId] = useState<string | null>(null);
+  const [marketplaceInfo, setMarketplaceInfo] = useState<MarketplaceOrderInfoResponse | null>(null);
+  const [marketplaceLoading, setMarketplaceLoading] = useState(false);
+  const [marketplaceConfirmLoading, setMarketplaceConfirmLoading] = useState(false);
+
   const numericId = useMemo(() => {
     const trimmed = String(params.id ?? "").trim();
     const n = Number(trimmed);
@@ -188,6 +217,7 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
         const detail = (await res.json()) as OrderDetail;
         if (!active) return;
         setOrder(detail);
+        setResolvedOrderId(String(resolved));
 
         const codesRes = await authFetch(`${API_BASE}/orders/${encodeURIComponent(resolved)}/redeem-codes`);
         if (!codesRes.ok) {
@@ -206,6 +236,43 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
       active = false;
     };
   }, [API_BASE, authFetch, numericId, params.id]);
+
+  useEffect(() => {
+    let active = true;
+    if (!HAS_API_ENV) return;
+    if (!resolvedOrderId) {
+      setMarketplaceInfo(null);
+      return;
+    }
+
+    const isMarketplace = String(order?.type ?? "") === "marketplace_gaming_account";
+    if (!isMarketplace) {
+      setMarketplaceInfo(null);
+      return;
+    }
+
+    (async () => {
+      setMarketplaceLoading(true);
+      try {
+        const res = await authFetch(
+          `${API_BASE}/gaming-accounts/orders/${encodeURIComponent(resolvedOrderId)}/marketplace`,
+        );
+        if (!res.ok) {
+          if (active) setMarketplaceInfo(null);
+          return;
+        }
+        const payload = (await res.json()) as MarketplaceOrderInfoResponse;
+        if (!active) return;
+        setMarketplaceInfo(payload);
+      } finally {
+        if (active) setMarketplaceLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [API_BASE, authFetch, order?.type, resolvedOrderId]);
 
   const orderItems: OrderItem[] = useMemo(() => {
     const raw = order?.orderItems ?? order?.order_items ?? [];
@@ -237,6 +304,11 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
   const orderStatusClass = orderDelivered
     ? "bg-emerald-400/20 border-emerald-300/30 text-emerald-100"
     : statusBadgeClass(order?.status);
+
+  const marketplaceCanConfirm = Boolean(marketplaceInfo?.can_confirm_delivered) && !orderDelivered;
+  const marketplaceDeadlineLabel = marketplaceInfo?.marketplaceOrder?.delivery_deadline_at
+    ? new Date(marketplaceInfo.marketplaceOrder.delivery_deadline_at).toLocaleString("fr-FR")
+    : null;
 
   return (
     <div className="min-h-screen text-white">
@@ -358,6 +430,90 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
                     ))
                   )}
                 </div>
+              </div>
+            )}
+
+            {order && String(order.type ?? "") === "marketplace_gaming_account" && (
+              <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.35em] text-white/45">Livraison marketplace</p>
+
+                {marketplaceLoading ? (
+                  <div className="mt-4 animate-pulse space-y-3">
+                    <div className="h-4 w-2/3 rounded bg-white/10" />
+                    <div className="h-4 w-1/2 rounded bg-white/10" />
+                    <div className="h-10 w-full rounded bg-white/10" />
+                  </div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-1 gap-4">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-sm font-semibold text-white">
+                        {marketplaceInfo?.marketplaceOrder?.listing?.title ?? "Compte Gaming"}
+                      </p>
+                      <p className="mt-1 text-sm text-white/65">Livré sous 24H sinon litige.</p>
+                      <p className="mt-2 text-xs text-white/60">
+                        Délai max: {marketplaceDeadlineLabel ?? "—"}
+                      </p>
+                      <p className="mt-1 text-xs text-white/60">
+                        Statut vendeur: {prettyStatus(marketplaceInfo?.marketplaceOrder?.status ?? undefined)}
+                        {marketplaceInfo?.marketplaceOrder?.delivered_at
+                          ? ` • Marqué livré le ${new Date(marketplaceInfo.marketplaceOrder.delivered_at).toLocaleString("fr-FR")}`
+                          : ""}
+                      </p>
+
+                      {orderDelivered ? (
+                        <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-3 text-sm text-emerald-100">
+                          Livraison confirmée. Merci.
+                        </div>
+                      ) : null}
+
+                      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                        <button
+                          type="button"
+                          disabled={!marketplaceCanConfirm || marketplaceConfirmLoading}
+                          onClick={async () => {
+                            if (!resolvedOrderId) return;
+                            setMarketplaceConfirmLoading(true);
+                            try {
+                              const res = await authFetch(
+                                `${API_BASE}/gaming-accounts/orders/${encodeURIComponent(resolvedOrderId)}/confirm-delivered`,
+                                { method: "POST" },
+                              );
+                              if (!res.ok) return;
+                              setOrder((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      delivered_at: new Date().toISOString(),
+                                      meta: { ...(prev.meta ?? {}), fulfillment_status: "fulfilled" },
+                                    }
+                                  : prev,
+                              );
+                              setMarketplaceInfo((prev) => (prev ? { ...prev, can_confirm_delivered: false } : prev));
+                            } finally {
+                              setMarketplaceConfirmLoading(false);
+                            }
+                          }}
+                          className="w-full rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100 disabled:opacity-60"
+                        >
+                          {marketplaceConfirmLoading ? "Confirmation..." : "J’ai été livré"}
+                        </button>
+
+                        <Link
+                          href="/account/litige"
+                          className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-center text-sm font-semibold"
+                        >
+                          Ouvrir un litige
+                        </Link>
+                      </div>
+
+                      {!marketplaceCanConfirm && !orderDelivered ? (
+                        <p className="mt-3 text-xs text-white/55">
+                          Le bouton “J’ai été livré” s’active quand le vendeur marque la commande comme livrée.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

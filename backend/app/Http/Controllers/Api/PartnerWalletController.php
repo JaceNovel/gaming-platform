@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 class PartnerWalletController extends Controller
 {
+    private const WITHDRAW_FEE_AMOUNT = 1000.0;
+
     public function show(Request $request)
     {
         $user = $request->user();
@@ -77,23 +79,37 @@ class PartnerWalletController extends Controller
             }
 
             $amount = (float) $data['amount'];
+            $fee = self::WITHDRAW_FEE_AMOUNT;
+            $totalDebit = $amount + $fee;
 
-            if ($amount > (float) $wallet->available_balance) {
+            if ($totalDebit > (float) $wallet->available_balance) {
                 throw ValidationException::withMessages([
-                    'amount' => ['Insufficient available balance.'],
+                    'amount' => ['Insufficient available balance (withdraw amount + fee).'],
                 ]);
             }
 
-            $wallet->available_balance = (float) $wallet->available_balance - $amount;
-            $wallet->reserved_withdraw_balance = (float) $wallet->reserved_withdraw_balance + $amount;
+            $wallet->available_balance = (float) $wallet->available_balance - $totalDebit;
+            $wallet->reserved_withdraw_balance = (float) $wallet->reserved_withdraw_balance + $totalDebit;
             $wallet->save();
+
+            $payoutDetails = $data['payoutDetails'] ?? null;
+            if (!is_array($payoutDetails)) {
+                $payoutDetails = null;
+            }
+
+            // Store fee information for admin processing (backward compatible with older rows).
+            $payoutDetailsWithFee = array_merge($payoutDetails ?? [], [
+                'withdraw_fee_amount' => $fee,
+                'withdraw_total_debit' => $totalDebit,
+                'withdraw_net_amount' => $amount,
+            ]);
 
             return PartnerWithdrawRequest::create([
                 'partner_wallet_id' => $wallet->id,
                 'seller_id' => $seller->id,
                 'amount' => $amount,
                 'status' => 'requested',
-                'payout_details' => $data['payoutDetails'] ?? null,
+                'payout_details' => $payoutDetailsWithFee,
             ]);
         });
 

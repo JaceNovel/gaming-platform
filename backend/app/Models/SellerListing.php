@@ -16,6 +16,7 @@ class SellerListing extends Model
         'title',
         'description',
         'image_path',
+        'gallery_image_paths',
         'price',
         'currency',
         'account_level',
@@ -39,12 +40,14 @@ class SellerListing extends Model
 
     protected $appends = [
         'image_url',
+        'gallery_image_urls',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'has_email_access' => 'boolean',
         'delivery_window_hours' => 'integer',
+        'gallery_image_paths' => 'array',
         'reserved_until' => 'datetime',
         'sold_at' => 'datetime',
         'submitted_at' => 'datetime',
@@ -94,5 +97,26 @@ class SellerListing extends Model
         $path = (string) ($this->image_path ?? '');
         if (!$path) return null;
         return Storage::disk('public')->url($path);
+    }
+
+    public function getGalleryImageUrlsAttribute(): array
+    {
+        $paths = $this->gallery_image_paths;
+        if (!is_array($paths)) {
+            $paths = [];
+        }
+
+        $urls = [];
+        foreach ($paths as $path) {
+            if (!is_string($path) || !$path) {
+                continue;
+            }
+            try {
+                $urls[] = Storage::disk('public')->url($path);
+            } catch (\Throwable $e) {
+            }
+        }
+
+        return array_values(array_unique(array_filter($urls)));
     }
 }

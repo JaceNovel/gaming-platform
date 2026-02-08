@@ -47,14 +47,24 @@ class AdminMarketplaceWithdrawController extends Controller
             $wallet = PartnerWallet::query()->where('id', $partnerWithdrawRequest->partner_wallet_id)->lockForUpdate()->firstOrFail();
 
             $amount = (float) $partnerWithdrawRequest->amount;
+            $payout = $partnerWithdrawRequest->payout_details;
+            if (!is_array($payout)) {
+                $payout = [];
+            }
 
-            if ($amount > (float) $wallet->reserved_withdraw_balance) {
+            $feeAmount = (float) ($payout['withdraw_fee_amount'] ?? 0);
+            $totalDebit = (float) ($payout['withdraw_total_debit'] ?? ($amount + $feeAmount));
+            if ($totalDebit <= 0) {
+                $totalDebit = $amount;
+            }
+
+            if ($totalDebit > (float) $wallet->reserved_withdraw_balance) {
                 throw ValidationException::withMessages([
                     'amount' => ['Reserved balance is insufficient.'],
                 ]);
             }
 
-            $wallet->reserved_withdraw_balance = (float) $wallet->reserved_withdraw_balance - $amount;
+            $wallet->reserved_withdraw_balance = (float) $wallet->reserved_withdraw_balance - $totalDebit;
             $wallet->save();
 
             $partnerWithdrawRequest->status = 'paid';
@@ -66,12 +76,15 @@ class AdminMarketplaceWithdrawController extends Controller
             PartnerWalletTransaction::create([
                 'partner_wallet_id' => $wallet->id,
                 'type' => 'debit_withdraw',
-                'amount' => $amount,
+                'amount' => $totalDebit,
                 'reference' => 'partner_withdraw_paid_' . $partnerWithdrawRequest->id,
                 'meta' => [
                     'withdraw_request_id' => $partnerWithdrawRequest->id,
                     'seller_id' => $partnerWithdrawRequest->seller_id,
                     'admin_id' => $admin->id,
+                    'withdraw_amount' => $amount,
+                    'withdraw_fee_amount' => $feeAmount,
+                    'withdraw_total_debit' => $totalDebit,
                 ],
                 'status' => 'success',
             ]);
@@ -130,15 +143,25 @@ class AdminMarketplaceWithdrawController extends Controller
             $wallet = PartnerWallet::query()->where('id', $partnerWithdrawRequest->partner_wallet_id)->lockForUpdate()->firstOrFail();
 
             $amount = (float) $partnerWithdrawRequest->amount;
+            $payout = $partnerWithdrawRequest->payout_details;
+            if (!is_array($payout)) {
+                $payout = [];
+            }
 
-            if ($amount > (float) $wallet->reserved_withdraw_balance) {
+            $feeAmount = (float) ($payout['withdraw_fee_amount'] ?? 0);
+            $totalDebit = (float) ($payout['withdraw_total_debit'] ?? ($amount + $feeAmount));
+            if ($totalDebit <= 0) {
+                $totalDebit = $amount;
+            }
+
+            if ($totalDebit > (float) $wallet->reserved_withdraw_balance) {
                 throw ValidationException::withMessages([
                     'amount' => ['Reserved balance is insufficient.'],
                 ]);
             }
 
-            $wallet->reserved_withdraw_balance = (float) $wallet->reserved_withdraw_balance - $amount;
-            $wallet->available_balance = (float) $wallet->available_balance + $amount;
+            $wallet->reserved_withdraw_balance = (float) $wallet->reserved_withdraw_balance - $totalDebit;
+            $wallet->available_balance = (float) $wallet->available_balance + $totalDebit;
             $wallet->save();
 
             $partnerWithdrawRequest->status = 'rejected';

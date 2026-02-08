@@ -268,6 +268,28 @@ export default function AdminMarketplaceListingsPage() {
               ) : (
                 <div className="flex h-56 items-center justify-center bg-white text-sm text-slate-500">Aucune image</div>
               )}
+
+              {Array.isArray((detail as any)?.gallery_image_urls) && (detail as any).gallery_image_urls.length ? (
+                <div className="border-t border-slate-200 bg-white p-4">
+                  <div className="text-xs font-semibold text-slate-500">Photos (galerie)</div>
+                  <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+                    {(detail as any).gallery_image_urls.slice(0, 4).map((src: any, idx: number) => {
+                      const safe = toDisplayImageSrc(String(src ?? ""));
+                      if (!safe) return null;
+                      return (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={`${String(src)}_${idx}`}
+                          src={safe as string}
+                          alt={`photo ${idx + 1}`}
+                          className="h-20 w-28 flex-none rounded-xl border border-slate-200 object-cover"
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="border-t border-slate-200 bg-white p-4">
                 <div className="text-sm font-extrabold text-slate-900">{detail.title ?? "—"}</div>
                 <div className="mt-1 text-xs text-slate-600">

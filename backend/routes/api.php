@@ -243,6 +243,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/listings/{sellerListing}/checkout', [MarketplaceCheckoutController::class, 'checkout']);
         Route::get('/orders/{order}/whatsapp', [MarketplaceOrderController::class, 'whatsapp']);
 
+        // Buyer delivery tracking
+        Route::get('/orders/{order}/marketplace', [MarketplaceOrderController::class, 'showMarketplace']);
+        Route::post('/orders/{order}/confirm-delivered', [MarketplaceOrderController::class, 'confirmDelivered']);
+
         // Disputes
         Route::post('/orders/{order}/dispute', [MarketplaceOrderController::class, 'openDispute']);
         Route::get('/disputes/mine', [MarketplaceDisputeController::class, 'mine']);

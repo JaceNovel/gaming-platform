@@ -15,6 +15,7 @@ type ListingDetail = {
   title: string;
   description?: string | null;
   image_url?: string | null;
+  gallery_image_urls?: string[] | null;
   price: number | string;
   currency?: string | null;
   account_level?: string | null;
@@ -344,6 +345,27 @@ function MarketplaceListingClient({ id }: { id: number }) {
             </div>
 
             <div className="p-6">
+              {Array.isArray(listing.gallery_image_urls) && listing.gallery_image_urls.length ? (
+                <div className="mb-5">
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">🖼️ Photos</p>
+                  <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+                    {listing.gallery_image_urls
+                      .slice(0, 4)
+                      .map((src, idx) => ({ src, idx, safe: toDisplayImageSrc(String(src ?? "").trim()) ?? String(src ?? "").trim() }))
+                      .filter((row) => Boolean(row.safe))
+                      .map((row) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={`${row.src}_${row.idx}`}
+                          src={row.safe}
+                          alt={`photo ${row.idx + 1}`}
+                          className="h-24 w-36 flex-none rounded-2xl border border-white/10 object-cover"
+                        />
+                      ))}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
                 <p className="text-xs uppercase tracking-[0.25em] text-white/50">🧾 Informations du compte</p>
                 <p className="mt-2 text-sm text-white/70">

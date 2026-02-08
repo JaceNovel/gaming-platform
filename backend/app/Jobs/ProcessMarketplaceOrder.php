@@ -58,12 +58,17 @@ class ProcessMarketplaceOrder implements ShouldQueue
                 return;
             }
 
-            $commission = (float) (
-                $orderMeta['commission_amount']
-                ?? ($orderMeta['marketplace']['commission_amount'] ?? null)
-                ?? 400
-            );
+                $commission = (float) (
+                    $orderMeta['commission_amount']
+                    ?? ($orderMeta['marketplace']['commission_amount'] ?? null)
+                    ?? 0
+                );
             $price = (float) ($this->order->total_price ?? $listing->price);
+                // Commission is disabled by default; protect against unexpected commission values.
+                if ($commission < 0 || $commission > $price) {
+                    $commission = 0;
+                }
+
             $earnings = max(0.0, $price - $commission);
 
             $existingMarketplaceOrder = MarketplaceOrder::query()->where('order_id', $this->order->id)->lockForUpdate()->first();

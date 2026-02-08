@@ -397,6 +397,7 @@ function SellerPageClient() {
     mode: "create" | "edit";
     id?: number;
     image?: File | null;
+    galleryImages?: File[];
     values: {
       gameId?: number | null;
       title: string;
@@ -409,15 +410,25 @@ function SellerPageClient() {
     };
   }) => {
     try {
-      const hasImage = Boolean(payload.image);
-      if (hasImage) {
+      const hasCoverImage = Boolean(payload.image);
+      const galleryImages = Array.isArray(payload.galleryImages) ? payload.galleryImages.filter(Boolean).slice(0, 4) : [];
+      const hasAnyFile = hasCoverImage || galleryImages.length > 0;
+
+      if (hasAnyFile) {
         const fd = new FormData();
         Object.entries(payload.values).forEach(([key, value]) => {
           if (value === undefined) return;
           if (value === null) return;
+
+          if (typeof value === "boolean") {
+            fd.append(key, value ? "1" : "0");
+            return;
+          }
+
           fd.append(key, String(value));
         });
         if (payload.image) fd.append("image", payload.image);
+        galleryImages.forEach((file) => fd.append("galleryImages[]", file));
 
         const endpoint = payload.mode === "create" ? "/gaming-accounts/listings" : `/gaming-accounts/listings/${payload.id}`;
         const method = payload.mode === "create" ? "POST" : "PATCH";
@@ -561,6 +572,7 @@ function SellerPageClient() {
 
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
 
     useEffect(() => {
       if (!isOpen) return;
@@ -578,6 +590,7 @@ function SellerPageClient() {
       setImageFile(null);
       const existing = toDisplayImageSrc(String(base?.image_url ?? "")) ?? (base?.image_url ? String(base.image_url) : null);
       setImagePreview(existing);
+      setGalleryFiles([]);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, base?.id, listingModal?.mode]);
 
@@ -647,6 +660,29 @@ function SellerPageClient() {
                     </option>
                   ))}
                 </select>
+              </label>
+
+              <label className="text-sm text-white/70 sm:col-span-2">
+                Photos dans l’annonce (jusqu’à 4)
+                <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs text-white/55">Ces images s’affichent dans la page “Voir l’annonce”.</p>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    multiple
+                    disabled={disable}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []).filter(Boolean).slice(0, 4);
+                      setGalleryFiles(files);
+                    }}
+                    className="mt-3 block w-full text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white/85 hover:file:bg-white/15"
+                  />
+                  {galleryFiles.length ? (
+                    <p className="mt-2 text-xs text-white/55">{galleryFiles.length} photo(s) sélectionnée(s)</p>
+                  ) : (
+                    <p className="mt-2 text-xs text-white/45">Aucune photo sélectionnée</p>
+                  )}
+                </div>
               </label>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
@@ -785,6 +821,7 @@ function SellerPageClient() {
                   mode: listingModal.mode,
                   id: base?.id,
                   image: imageFile,
+                  galleryImages: galleryFiles,
                   values: {
                     gameId: values.gameId,
                     title: values.title.trim(),
@@ -1589,6 +1626,7 @@ function WithdrawForm({
   available: any;
   onSubmit: (amount: number, payoutDetails: any) => void;
 }) {
+  const WITHDRAW_FEE = 1000;
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("wave");
   const [phone, setPhone] = useState("");
@@ -1596,6 +1634,7 @@ function WithdrawForm({
 
   const availNum = Number(available ?? 0);
   const avail = Number.isFinite(availNum) ? availNum : 0;
+  const maxWithdrawable = Math.max(0, Math.floor(avail - WITHDRAW_FEE));
 
   const parsedAmount = Number(amount);
   const canSubmit =
@@ -1603,7 +1642,7 @@ function WithdrawForm({
     !busy &&
     Number.isFinite(parsedAmount) &&
     parsedAmount >= 1 &&
-    parsedAmount <= avail &&
+    parsedAmount <= maxWithdrawable &&
     phone.trim().length >= 6;
 
   return (
@@ -1617,10 +1656,13 @@ function WithdrawForm({
             type="number"
             min={1}
             className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-            placeholder={`Max ${Math.max(0, Math.round(avail))}`}
+            placeholder={`Max ${maxWithdrawable}`}
             disabled={disabled}
           />
-          <p className="mt-1 text-xs text-white/45">Disponible: {new Intl.NumberFormat("fr-FR").format(Math.max(0, Math.round(avail)))} FCFA</p>
+          <p className="mt-1 text-xs text-white/45">
+            Disponible: {new Intl.NumberFormat("fr-FR").format(Math.max(0, Math.round(avail)))} FCFA · Frais retrait: {new Intl.NumberFormat("fr-FR").format(WITHDRAW_FEE)} FCFA
+          </p>
+          <p className="mt-1 text-xs text-white/45">Tu peux retirer jusqu’à {new Intl.NumberFormat("fr-FR").format(maxWithdrawable)} FCFA (montant + frais ≤ disponible).</p>
         </label>
         <label className="text-sm text-white/70">
           Méthode
@@ -1664,7 +1706,14 @@ function WithdrawForm({
         disabled={!canSubmit}
         onClick={() => {
           const amountNum = Math.round(Number(amount));
-          onSubmit(amountNum, { method, phone: phone.trim(), name: name.trim() || null });
+          onSubmit(amountNum, {
+            method,
+            phone: phone.trim(),
+            name: name.trim() || null,
+            withdraw_fee_amount: WITHDRAW_FEE,
+            withdraw_total_debit: amountNum + WITHDRAW_FEE,
+            withdraw_net_amount: amountNum,
+          });
           setAmount("");
         }}
         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
@@ -1675,8 +1724,8 @@ function WithdrawForm({
 
       {disabled ? (
         <p className="mt-3 text-xs text-white/50">Action indisponible selon ton statut vendeur.</p>
-      ) : parsedAmount > avail ? (
-        <p className="mt-3 text-xs text-rose-200">Montant supérieur au solde disponible.</p>
+      ) : parsedAmount + WITHDRAW_FEE > avail ? (
+        <p className="mt-3 text-xs text-rose-200">Montant + frais supérieur au solde disponible.</p>
       ) : null}
     </div>
   );
