@@ -32,7 +32,7 @@ class DbWalletCredited extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'DBWallet crédité - BADBOYSHOP'
+            subject: 'DBWallet crédité - PRIME Gaming'
         );
     }
 

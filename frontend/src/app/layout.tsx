@@ -4,7 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://badboyshop.online").replace(/\/$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://primegaming.space").replace(/\/$/, "");
 const ASSET_VERSION = "20260201";
 
 const geistSans = Geist({
@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BADBOYSHOP - Gaming Platform",
+  title: "PRIME Gaming",
   description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
   metadataBase: new URL(SITE_URL),
   alternates: {
@@ -27,33 +27,29 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: `/favicon.ico?v=${ASSET_VERSION}` },
-      { url: `/favicon-16x16.png?v=${ASSET_VERSION}`, sizes: "16x16", type: "image/png" },
-      { url: `/favicon-32x32.png?v=${ASSET_VERSION}`, sizes: "32x32", type: "image/png" },
+      { url: `/images/Design%20sans%20titre.png?v=${ASSET_VERSION}`, type: "image/png" },
     ],
-    apple: [{ url: `/apple-touch-icon.png?v=${ASSET_VERSION}`, sizes: "180x180", type: "image/png" }],
-    shortcut: [{ url: `/favicon.ico?v=${ASSET_VERSION}` }],
+    apple: [{ url: `/images/Design%20sans%20titre.png?v=${ASSET_VERSION}`, type: "image/png" }],
+    shortcut: [{ url: `/images/Design%20sans%20titre.png?v=${ASSET_VERSION}` }],
   },
   openGraph: {
-    title: "BADBOYSHOP - Gaming Platform",
+    title: "PRIME Gaming",
     description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
     url: SITE_URL,
-    siteName: "BADBOYSHOP",
+    siteName: "PRIME Gaming",
     images: [
       {
-        url: "/logo-512.png",
-        width: 512,
-        height: 512,
-        alt: "BADBOYSHOP",
+        url: "/images/Design%20sans%20titre.png",
+        alt: "PRIME Gaming",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "BADBOYSHOP - Gaming Platform",
+    title: "PRIME Gaming",
     description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
-    images: ["/logo-512.png"],
+    images: ["/images/Design%20sans%20titre.png"],
   },
 };
 
@@ -76,9 +72,9 @@ export default function RootLayout({
   const orgJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "BADBOYSHOP",
-    url: "https://www.badboyshop.online",
-    logo: "https://www.badboyshop.online/logo-512.png",
+    name: "PRIME Gaming",
+    url: SITE_URL,
+    logo: `${SITE_URL}/images/Design%20sans%20titre.png`,
   };
 
   return (

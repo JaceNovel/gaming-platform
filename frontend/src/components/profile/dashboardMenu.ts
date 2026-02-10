@@ -27,7 +27,7 @@ export const DASHBOARD_MENU: DashboardMenuItem[] = [
   { id: "Litige", label: "Litige", icon: AlertTriangle },
   { id: "Parrainage", label: "Parrainage", icon: Gift },
   { id: "Vendeur", label: "Devenir vendeur", icon: Store },
-  { id: "VIP", label: "BADBOY VIP", icon: Crown },
+  { id: "VIP", label: "PRIME VIP", icon: Crown },
   { id: "Principal", label: "Principal", icon: Home },
   { id: "Parametres", label: "Paramètres", icon: Settings },
 ];

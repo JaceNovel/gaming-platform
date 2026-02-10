@@ -57,7 +57,7 @@ class CinetPayTransferService
             'currency' => 'XOF',
             'phone_number' => $phone,
             'country' => strtoupper($country),
-            'description' => 'BADBOYSHOP payout',
+            'description' => 'PRIME Gaming payout',
             'idempotency_key' => $idempotencyKey,
         ];
 

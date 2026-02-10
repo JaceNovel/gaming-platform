@@ -38,7 +38,7 @@ export default function PlayerProfileCard({
             <span role="img" aria-label="Trophée">
               🏆
             </span>
-            <span>BADBOY {tierLabel}</span>
+            <span>PRIME {tierLabel}</span>
           </div>
         </div>
         {onAction && (

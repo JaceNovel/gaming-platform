@@ -96,7 +96,7 @@ class PremiumController extends Controller
         $initResult = $this->fedaPayService->initPayment($order, $user, [
             'amount' => $price,
             'currency' => strtoupper(config('fedapay.default_currency', 'XOF')),
-            'description' => sprintf('BADBOY VIP (%s)', strtoupper((string) $validated['level'])),
+            'description' => sprintf('PRIME VIP (%s)', strtoupper((string) $validated['level'])),
             'callback_url' => $callbackUrl,
             'customer_email' => $email,
             'metadata' => [

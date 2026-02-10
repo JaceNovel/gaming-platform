@@ -92,7 +92,7 @@ export default function AdminClientsPage() {
     <div className="space-y-6 bg-[radial-gradient(circle_at_top,_#111927_0%,_#020617_45%,_#0f172a_100%)] px-4 py-6 text-white">
       <header className="flex flex-col gap-4 rounded-3xl border border-white/5 bg-gradient-to-r from-slate-900/80 to-slate-800/60 p-6 shadow-2xl shadow-emerald-500/10 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs uppercase tracking-[0.35em] text-emerald-300">BADBOYSHOP</div>
+          <div className="text-xs uppercase tracking-[0.35em] text-emerald-300">PRIME GAMING</div>
           <h1 className="mt-1 text-3xl font-black">Admin Clients</h1>
           <p className="text-sm text-white/70">Gestion des clients, commandes, paiements et emails.</p>
         </div>

@@ -79,22 +79,17 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
 function WalletClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { authFetch, user } = useAuth();
-
-  const TX_LIMIT = 5;
+  const { authFetch } = useAuth();
 
   const [loading, setLoading] = useState(HAS_API_ENV);
   const [refreshing, setRefreshing] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
 
   const [balance, setBalance] = useState<number>(0);
-  const [bonusBalance, setBonusBalance] = useState<number>(0);
-  const [bonusExpiresAt, setBonusExpiresAt] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string>("FCFA");
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
-  const [walletId, setWalletId] = useState<string>("");
-  const [walletIdToast, setWalletIdToast] = useState<string | null>(null);
 
+  const [limit, setLimit] = useState<10 | 25 | 50>(25);
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
 
   const refreshSeq = useRef(0);
@@ -122,16 +117,10 @@ function WalletClient() {
 
       const nextBalance = Number(summary?.balance ?? 0);
       setBalance(Number.isFinite(nextBalance) ? nextBalance : 0);
-
-      const nextBonus = Number(summary?.bonus_balance ?? 0);
-      setBonusBalance(Number.isFinite(nextBonus) ? nextBonus : 0);
-      setBonusExpiresAt(typeof summary?.bonus_expires_at === "string" ? summary.bonus_expires_at : null);
-
       setCurrency(String(summary?.currency ?? "FCFA"));
       setWalletStatus(summary?.status ?? null);
-      setWalletId(String(summary?.wallet_id ?? "").trim());
 
-      const txRes = await authFetch(`${API_BASE}/wallet/transactions?limit=${TX_LIMIT}`);
+      const txRes = await authFetch(`${API_BASE}/wallet/transactions?limit=${limit}`);
       if (!txRes.ok) return;
       const txPayload = await txRes.json().catch(() => null);
       if (refreshSeq.current !== seq) return;
@@ -174,7 +163,7 @@ function WalletClient() {
   useEffect(() => {
     void loadWallet();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [limit]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -194,7 +183,7 @@ function WalletClient() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [limit]);
 
   useEffect(() => {
     if (!hasPendingTx) return;
@@ -215,37 +204,15 @@ function WalletClient() {
       window.clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPendingTx]);
+  }, [hasPendingTx, limit]);
 
 
   const supportMessage = useMemo(() => {
     return "Bonjour, j’ai besoin d’aide concernant mon wallet.";
   }, []);
 
-  const rechargeMessage = useMemo(() => {
-    const email = String(user?.email ?? "").trim();
-    const id = String(walletId ?? "").trim();
-    return `Bonjour, j’aimerais recharger mon DBWallet.\nWallet ID : ${id || "(inconnu)"}\nEmail : ${email || "(inconnu)"}`;
-  }, [user?.email, walletId]);
-
-  const bonusIsActive = useMemo(() => {
-    if (!(bonusBalance > 0)) return false;
-    if (!bonusExpiresAt) return false;
-    const expires = new Date(bonusExpiresAt);
-    return Number.isFinite(expires.getTime()) && expires.getTime() > Date.now();
-  }, [bonusBalance, bonusExpiresAt]);
-
   const displayBalance = useMemo(() => formatMoney(balance, currency), [balance, currency]);
-  const effectiveBonusBalance = useMemo(() => (bonusIsActive ? bonusBalance : 0), [bonusIsActive, bonusBalance]);
-  const displayBonus = useMemo(() => formatMoney(effectiveBonusBalance, currency), [effectiveBonusBalance, currency]);
   const { label: currencyLabel } = useMemo(() => normalizeCurrency(currency), [currency]);
-
-  const displayBonusExpiresAt = useMemo(() => {
-    if (!bonusExpiresAt) return "—";
-    const d = new Date(bonusExpiresAt);
-    if (!Number.isFinite(d.getTime())) return "—";
-    return d.toLocaleString("fr-FR");
-  }, [bonusExpiresAt]);
 
   return (
     <div className="min-h-screen text-white">
@@ -258,7 +225,8 @@ function WalletClient() {
 
       <main className="w-full px-5 md:px-10 lg:px-12 py-10 pb-24">
         <div className="mx-auto w-full max-w-4xl space-y-6">
-          <SectionTitle eyebrow="Wallet" label="BADBOY Wallet" />
+          <SectionTitle eyebrow="Wallet" label="PRIME Wallet" />
+          
 
           {banner && (
             <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-sm text-cyan-100">
@@ -276,17 +244,6 @@ function WalletClient() {
                   {walletStatus ? (
                     <p className="mt-1 text-xs text-white/60">Statut: {walletStatus}</p>
                   ) : null}
-
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs uppercase tracking-[0.35em] text-white/45">Bonus (recharges uniquement)</p>
-                    <p className="mt-1 text-sm font-semibold text-white/90">{displayBonus}</p>
-                    {bonusIsActive ? (
-                      <>
-                        <p className="mt-1 text-xs text-white/55">Expire: {displayBonusExpiresAt}</p>
-                        <p className="mt-1 text-xs text-emerald-200/80">Actif</p>
-                      </>
-                    ) : null}
-                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -316,43 +273,6 @@ function WalletClient() {
                 </GlowButton>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs uppercase tracking-[0.35em] text-white/45">Wallet ID</p>
-                    <p className="mt-1 truncate text-sm font-semibold text-white/90">{walletId || "—"}</p>
-                    <p className="mt-1 text-xs text-white/50">À communiquer à l’admin pour un crédit manuel.</p>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="rounded-2xl border border-white/15 bg-black/30 px-4 py-2 text-sm font-semibold text-white/85 disabled:opacity-50"
-                    disabled={!walletId}
-                    onClick={async () => {
-                      if (!walletId) return;
-                      const ok = await copyToClipboard(walletId);
-                      setWalletIdToast(ok ? "Wallet ID copié" : "Impossible de copier");
-                      window.setTimeout(() => setWalletIdToast(null), 1800);
-                    }}
-                  >
-                    Copier
-                  </button>
-                </div>
-
-                {walletIdToast ? <p className="mt-3 text-xs text-white/60">{walletIdToast}</p> : null}
-
-                <button
-                  type="button"
-                  onClick={() => void openTidioChat({ message: rechargeMessage })}
-                  className="mt-4 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-black text-black active:scale-[0.99]"
-                >
-                  Recharger mon DBWallet
-                </button>
-                <p className="mt-2 text-xs text-white/50">
-                  Ce bouton n’effectue aucun paiement automatique : il ouvre simplement le chat.
-                </p>
-              </div>
-
               {/* Recharge wallet supprimée */}
             </div>
 
@@ -360,7 +280,21 @@ function WalletClient() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.35em] text-white/45">Historique</p>
-                  <p className="mt-1 text-sm text-white/60">5 dernières transactions.</p>
+                  <p className="mt-1 text-sm text-white/60">Dernières transactions (limit {limit}).</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-white/60">
+                    Limite
+                    <select
+                      value={limit}
+                      onChange={(e) => setLimit(Number(e.target.value) as 10 | 25 | 50)}
+                      className="ml-2 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </label>
                 </div>
               </div>
 

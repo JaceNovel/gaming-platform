@@ -7,6 +7,6 @@ return [
         ->values()
         ->all(),
 
-    'owner_email' => env('OWNER_ADMIN_EMAIL', 'admin@badboyshop.online'),
-    'owner_password' => env('OWNER_ADMIN_PASSWORD', 'admin@badboyshop.online'),
+    'owner_email' => env('OWNER_ADMIN_EMAIL', 'admin@primegaming.space'),
+    'owner_password' => env('OWNER_ADMIN_PASSWORD', 'admin@primegaming.space'),
 ];

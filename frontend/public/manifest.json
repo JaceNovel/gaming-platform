@@ -1,19 +1,19 @@
 {
-  "name": "BADBOYSHOP",
-  "short_name": "BADBOYSHOP",
+  "name": "PRIME Gaming",
+  "short_name": "PRIME Gaming",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B0F19",
   "theme_color": "#0B0F19",
   "icons": [
     {
-      "src": "/android-chrome-192x192.png",
-      "sizes": "192x192",
+      "src": "/images/Design%20sans%20titre.png",
+      "sizes": "any",
       "type": "image/png"
     },
     {
-      "src": "/android-chrome-512x512.png",
-      "sizes": "512x512",
+      "src": "/images/Design%20sans%20titre.png",
+      "sizes": "any",
       "type": "image/png"
     }
   ]

@@ -388,7 +388,7 @@ class AdminOrderController extends Controller
     public function updateShippingStatus(Request $request, Order $order)
     {
         $data = $request->validate([
-            'shipping_status' => 'required|string|in:pending,warehouse,shipped,arrived_local,ready_for_pickup,out_for_delivery,delivered,canceled',
+            'shipping_status' => 'required|string|in:pending,ready_for_pickup,out_for_delivery,delivered,canceled',
         ]);
 
         $updates = ['shipping_status' => $data['shipping_status']];
@@ -423,7 +423,7 @@ class AdminOrderController extends Controller
             'user_id' => $order->user_id,
             'to' => $order->user->email,
             'type' => 'redeem_code_resend',
-            'subject' => 'Votre code de recharge BADBOYSHOP',
+            'subject' => 'Votre code de recharge PRIME Gaming',
             'status' => 'queued',
             'sent_at' => now(),
         ]);

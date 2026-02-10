@@ -308,7 +308,7 @@ function ChatScreen() {
               <MessageCircle className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-emerald-200">BADBOYSHOP</p>
+              <p className="text-xs uppercase tracking-[0.25em] text-emerald-200">PRIME GAMING</p>
               <h1 className="text-2xl font-black">Chat temps réel</h1>
               {status && <p className="text-xs text-amber-300">{status}</p>}
             </div>

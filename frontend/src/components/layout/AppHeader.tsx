@@ -343,8 +343,8 @@ export default function AppHeader() {
             <Link href="/" className="flex items-center gap-3">
               <div className="relative h-10 w-10 overflow-hidden rounded-2xl ring-1 ring-white/15 bg-black/20">
                 <Image
-                  src="/logo-v2.png"
-                  alt="BADBOYSHOP"
+                  src="/images/Design%20sans%20titre.png"
+                  alt="PRIME Gaming"
                   width={44}
                   height={44}
                   className="h-full w-full object-contain"
@@ -352,7 +352,7 @@ export default function AppHeader() {
                 />
               </div>
               <div className="text-base font-extrabold tracking-tight text-white">
-                BADBOY<span className="text-fuchsia-400">SHOP</span>
+                PRIME<span className="text-fuchsia-400">Gaming</span>
               </div>
             </Link>
 
@@ -525,8 +525,8 @@ export default function AppHeader() {
           <Link href="/" className="flex items-center gap-2">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-black/30 ring-1 ring-white/15">
               <Image
-                src="/logo-v2.png"
-                alt="BADBOYSHOP"
+                src="/images/Design%20sans%20titre.png"
+                alt="PRIME Gaming"
                 width={36}
                 height={36}
                 className="h-7 w-7 object-contain"
@@ -534,7 +534,7 @@ export default function AppHeader() {
               />
             </span>
             <span className="text-sm font-extrabold tracking-tight text-white">
-              BADBOY<span className="text-white/70">SHOP</span>
+              PRIME<span className="text-white/70">Gaming</span>
             </span>
           </Link>
 

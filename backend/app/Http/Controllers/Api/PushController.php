@@ -76,7 +76,7 @@ class PushController extends Controller
         }
 
         $webPush->sendToUser($user, [
-            'title' => 'BADBOYSHOP',
+            'title' => 'PRIME Gaming',
             'body' => 'Notifications activées ✅',
             'url' => '/account',
         ]);

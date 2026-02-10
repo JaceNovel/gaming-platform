@@ -25,7 +25,7 @@ class TopupConfirmation extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Confirmation de recharge BADBOYSHOP'
+            subject: 'Confirmation de recharge PRIME Gaming'
         );
     }
 
@@ -63,7 +63,7 @@ class TopupConfirmation extends Mailable
         $rendered = $renderer->render(
             'topup_confirmation',
             $context,
-            'Confirmation de recharge BADBOYSHOP',
+            'Confirmation de recharge PRIME Gaming',
             $fallbackHtml
         );
 

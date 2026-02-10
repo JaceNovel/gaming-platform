@@ -64,13 +64,13 @@ export default function ProfileHeader({
             </div>
             <div className="mt-4 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-yellow-500/15 border border-yellow-300/25">
               <span>🏆</span>
-              <span className="text-sm font-semibold">BADBOY {tierLabel}</span>
+              <span className="text-sm font-semibold">PRIME {tierLabel}</span>
             </div>
 
             <div className="mt-7 rounded-3xl bg-white/8 border border-white/10 p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold opacity-90 flex items-center justify-center gap-2">
-                  <Wallet className="h-4 w-4 text-emerald-200" /> BADBOY Wallet BD
+                  <Wallet className="h-4 w-4 text-emerald-200" /> PRIME Wallet
                 </div>
                 <div className="mt-2 text-3xl md:text-4xl font-black">{walletDisplay}</div>
                 <p className="mt-2 text-xs text-white/70">Affiché en {walletCurrencyLabel}.</p>

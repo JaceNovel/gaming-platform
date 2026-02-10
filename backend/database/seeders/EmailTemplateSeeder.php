@@ -26,7 +26,7 @@ class EmailTemplateSeeder extends Seeder
   <li>Sélectionnez "Utiliser un code" puis saisissez le code.</li>
   <li>Validez pour recevoir vos diamants.</li>
 </ol>
-<p>Merci,<br/>L'équipe BADBOYSHOP</p>
+<p>Merci,<br/>L'équipe PRIME Gaming</p>
 HTML,
                 'is_active' => true,
             ]
@@ -36,13 +36,13 @@ HTML,
             ['key' => 'payment_success'],
             [
                 'name' => 'Paiement confirmé',
-                'subject' => 'Paiement réussi - BADBOYSHOP',
+                'subject' => 'Paiement réussi - PRIME Gaming',
                 'body' => <<<HTML
 <h2>Paiement confirmé</h2>
 <p>Bonjour {{user.name}},</p>
 <p>Votre paiement pour la commande <strong>{{order.reference}}</strong> a bien été reçu.</p>
 <p>Montant : <strong>{{order.total_price}}</strong></p>
-<p>Merci,<br/>L'équipe BADBOYSHOP</p>
+<p>Merci,<br/>L'équipe PRIME Gaming</p>
 HTML,
                 'is_active' => true,
             ]
@@ -52,13 +52,13 @@ HTML,
             ['key' => 'topup_confirmation'],
             [
                 'name' => 'Confirmation recharge',
-                'subject' => 'Confirmation de recharge BADBOYSHOP',
+                'subject' => 'Confirmation de recharge PRIME Gaming',
                 'body' => <<<HTML
 <h2>Recharge en validation</h2>
 <p>Bonjour {{user.name}},</p>
 <p>Votre demande de recharge pour la commande <strong>{{order.reference}}</strong> a bien été reçue.</p>
 <p>Notre équipe traite votre demande.</p>
-<p>Merci,<br/>L'équipe BADBOYSHOP</p>
+<p>Merci,<br/>L'équipe PRIME Gaming</p>
 HTML,
                 'is_active' => true,
             ]

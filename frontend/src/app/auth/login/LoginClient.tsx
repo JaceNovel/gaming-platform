@@ -11,11 +11,11 @@ import { API_BASE } from "@/lib/config";
 const HERO_FRAGMENTS = [
   {
     title: "Transactions instantanées",
-    caption: "Paiements protégés CinetPay + BD Wallet.",
+    caption: "Paiements protégés CinetPay + PRIME Wallet.",
   },
   {
     title: "Support 24/7",
-    caption: "Passe en live avec l'équipe BADBOYSHOP.",
+    caption: "Passe en live avec l'équipe PRIME Gaming.",
   },
   {
     title: "Accès multi-jeux",
@@ -110,7 +110,7 @@ export default function LoginClient() {
       <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col lg:flex-row">
         <section className="flex flex-1 flex-col justify-between gap-10 px-6 py-12 lg:px-10">
           <div>
-            <p className="text-xs uppercase tracking-[0.45em] text-cyan-200/80">BADBOYSHOP</p>
+            <p className="text-xs uppercase tracking-[0.45em] text-cyan-200/80">PRIME GAMING</p>
             <h1 className="mt-5 text-4xl font-black leading-tight md:text-5xl">
               Pilote tes recharges
               <br />
@@ -171,7 +171,7 @@ export default function LoginClient() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
-                    placeholder="gamer@badboy.gg"
+                    placeholder="gamer@primegaming.space"
                     required
                   />
                 </div>
@@ -223,7 +223,7 @@ export default function LoginClient() {
             <p className="mt-6 text-center text-sm text-white/60">
               Pas encore de compte ? {" "}
               <Link className="text-cyan-300 no-underline" href={`/auth/register?next=${encodeURIComponent(next)}`}>
-                Crée ton profil BADBOY
+                Crée ton profil PRIME
               </Link>
             </p>
           </div>

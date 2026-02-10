@@ -21,7 +21,7 @@ class AdminEmailSendController extends Controller
         ]);
 
         $to = strtolower(trim($data['to_email']));
-        $subject = trim((string) ($data['subject'] ?? 'Message de BADBOYSHOP'));
+        $subject = trim((string) ($data['subject'] ?? 'Message de PRIME Gaming'));
         $message = (string) $data['message'];
 
         $targetUser = User::where('email', $to)->first();

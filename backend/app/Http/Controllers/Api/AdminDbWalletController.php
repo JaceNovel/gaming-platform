@@ -115,7 +115,7 @@ class AdminDbWalletController extends Controller
                 'user_id' => $wallet->user->id,
                 'to' => $wallet->user->email,
                 'type' => 'dbwallet_credited',
-                'subject' => 'DBWallet crédité - BADBOYSHOP',
+                'subject' => 'DBWallet crédité - PRIME Gaming',
                 'status' => 'queued',
             ]);
 

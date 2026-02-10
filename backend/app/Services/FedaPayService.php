@@ -108,7 +108,7 @@ class FedaPayService
         $amountInt = (int) round($amount);
         $currency = strtoupper((string) ($meta['currency'] ?? $this->defaultCurrency));
 
-        $description = (string) ($meta['description'] ?? sprintf('BADBOYSHOP Order #%s', $order->reference ?? $order->id));
+        $description = (string) ($meta['description'] ?? sprintf('PRIME Gaming Order #%s', $order->reference ?? $order->id));
         $callbackUrl = (string) ($meta['callback_url'] ?? $this->defaultCallbackUrl ?? '');
 
         $customer = $meta['customer'] ?? null;

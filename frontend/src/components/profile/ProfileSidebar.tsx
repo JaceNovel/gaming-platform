@@ -27,7 +27,7 @@ export default function ProfileSidebar({
         <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-500/40 to-cyan-400/20 border border-white/15" />
         <div>
           <div className="font-bold">{username}</div>
-          <div className="text-xs opacity-70">BADBOY {premiumTier}</div>
+          <div className="text-xs opacity-70">PRIME {premiumTier}</div>
         </div>
       </div>
 

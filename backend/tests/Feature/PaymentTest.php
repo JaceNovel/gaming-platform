@@ -62,8 +62,8 @@ class PaymentTest extends TestCase
             'amount' => 5000,
             'currency' => 'XOF',
             'customer_email' => $this->user->email,
-            'return_url' => 'https://badboyshop.com/payment/success',
-            'cancel_url' => 'https://badboyshop.com/payment/cancel',
+            'return_url' => 'https://primegaming.space/payment/success',
+            'cancel_url' => 'https://primegaming.space/payment/cancel',
         ];
 
         $response = $this->postJson('/api/payments/cinetpay/init', $paymentData);

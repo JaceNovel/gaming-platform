@@ -6,9 +6,9 @@ export function proxy(request: NextRequest) {
   const hostname = url.hostname;
 
   // Force a single canonical host to avoid split caches/service-workers between www and apex.
-  if (hostname === "www.badboyshop.online") {
+  if (hostname === "www.primegaming.space") {
     const target = new URL(request.url);
-    target.hostname = "badboyshop.online";
+    target.hostname = "primegaming.space";
     return NextResponse.redirect(target, 308);
   }
 

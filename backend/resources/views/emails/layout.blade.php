@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $title ?? 'BADBOYSHOP' }}</title>
+    <title>{{ $title ?? 'PRIME Gaming' }}</title>
     <style>
         body {
             margin: 0;
@@ -74,16 +74,16 @@
     <div class="container">
         <div class="header">
             @if(!empty($logo))
-                <img src="{{ $logo }}" alt="BADBOYSHOP Logo" class="logo">
+                <img src="{{ $logo }}" alt="PRIME Gaming Logo" class="logo">
             @else
-                <h1 style="color: #ffffff; margin: 0;">BADBOYSHOP</h1>
+                <h1 style="color: #ffffff; margin: 0;">PRIME Gaming</h1>
             @endif
         </div>
         <div class="content">
             {{ $slot }}
         </div>
         <div class="footer">
-            <p>© 2026 BADBOYSHOP. Tous droits réservés.</p>
+            <p>© 2026 PRIME Gaming. Tous droits réservés.</p>
             <p>Si vous avez des questions, contactez-nous sur WhatsApp : +228 93 97 06 11</p>
         </div>
     </div>

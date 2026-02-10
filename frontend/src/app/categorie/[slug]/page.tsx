@@ -19,7 +19,7 @@ type ApiProduct = {
 
 const getSiteUrl = () => {
   const raw = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
-  return raw !== "" ? raw.replace(/\/$/, "") : "https://www.badboyshop.online";
+  return raw !== "" ? raw.replace(/\/$/, "") : "https://primegaming.space";
 };
 
 const getApiBase = () => {
@@ -76,7 +76,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     categoryName = found?.name ?? categoryName;
   }
 
-  const title = `${categoryName} | BADBOYSHOP`;
+  const title = `${categoryName} | PRIME Gaming`;
   const description = `Découvre nos ${categoryName} : recharges, comptes, abonnements et offres gaming.`;
 
   return {

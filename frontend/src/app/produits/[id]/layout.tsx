@@ -23,7 +23,7 @@ type ApiProduct = {
 
 const getSiteUrl = () => {
   const raw = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
-  return raw !== "" ? raw.replace(/\/$/, "") : "https://www.badboyshop.online";
+  return raw !== "" ? raw.replace(/\/$/, "") : "https://primegaming.space";
 };
 
 const getApiBase = () => {
@@ -76,10 +76,10 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   const name = String(product?.name ?? product?.title ?? `Produit ${id}`);
   const categoryName = String(product?.category_entity?.name ?? product?.category ?? "");
   const rawDesc = String(product?.details?.description ?? product?.description ?? "");
-  const description = rawDesc.trim() ? rawDesc.trim().slice(0, 180) : `Découvre ${name} sur BADBOYSHOP.`;
+  const description = rawDesc.trim() ? rawDesc.trim().slice(0, 180) : `Découvre ${name} sur PRIME Gaming.`;
   const image = pickImage(product);
 
-  const title = categoryName ? `${name} | ${categoryName} | BADBOYSHOP` : `${name} | BADBOYSHOP`;
+  const title = categoryName ? `${name} | ${categoryName} | PRIME Gaming` : `${name} | PRIME Gaming`;
   const canonical = `${siteUrl}/produits/${encodeURIComponent(id)}`;
 
   return {

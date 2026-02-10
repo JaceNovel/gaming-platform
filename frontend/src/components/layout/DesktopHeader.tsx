@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Crown, Search, ShoppingCart, User } from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
 
@@ -7,11 +8,18 @@ export default function DesktopHeader() {
     <header className="hidden lg:block w-full sticky top-0 z-30 border-b border-white/10 bg-black/50 backdrop-blur">
       <div className="w-full px-12 xl:px-20 2xl:px-28 py-4 flex items-center gap-6">
         <Link href="/" className="flex items-center gap-4">
-          <span className="h-12 w-12 rounded-2xl bg-gradient-to-br from-cyan-400 to-purple-500 text-black grid place-items-center shadow-[0_14px_36px_rgba(110,231,255,0.38)]">
-            <Crown className="h-6 w-6" />
+          <span className="h-12 w-12 rounded-2xl bg-black/30 ring-1 ring-white/15 grid place-items-center overflow-hidden">
+            <Image
+              src="/images/Design%20sans%20titre.png"
+              alt="PRIME Gaming"
+              width={48}
+              height={48}
+              className="h-10 w-10 object-contain"
+              priority
+            />
           </span>
           <div>
-            <p className="text-sm uppercase tracking-[0.32em] text-cyan-200/90">BADBOYSHOP</p>
+            <p className="text-sm uppercase tracking-[0.32em] text-cyan-200/90">PRIME GAMING</p>
             <p className="text-base text-white/65">Gaming Premium</p>
           </div>
         </Link>

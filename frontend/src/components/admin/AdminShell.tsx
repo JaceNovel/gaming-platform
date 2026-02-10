@@ -135,7 +135,7 @@ export default function AdminShell({
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4">
         <div className="max-w-sm w-full rounded-2xl border border-white/10 bg-black/70 p-6 text-center">
-          <div className="text-sm uppercase tracking-[0.3em] text-white/50">BADBOYSHOP</div>
+          <div className="text-sm uppercase tracking-[0.3em] text-white/50">PRIME GAMING</div>
           <h1 className="mt-3 text-xl font-semibold">Accès admin limité</h1>
           <p className="mt-2 text-sm text-white/70">
             Connectez-vous sur un PC pour accéder à l’administration.

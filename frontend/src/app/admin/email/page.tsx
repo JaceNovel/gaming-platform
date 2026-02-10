@@ -50,7 +50,7 @@ export default function AdminEmailPage() {
   const [error, setError] = useState("");
 
   const [directTo, setDirectTo] = useState("");
-  const [directSubject, setDirectSubject] = useState("Message de BADBOYSHOP");
+  const [directSubject, setDirectSubject] = useState("Message de PRIME Gaming");
   const [directMessage, setDirectMessage] = useState("");
   const [directSending, setDirectSending] = useState(false);
   const [directStatus, setDirectStatus] = useState<string | null>(null);
@@ -142,7 +142,7 @@ export default function AdminEmailPage() {
 
     const to = directTo.trim();
     const message = directMessage.trim();
-    const subject = directSubject.trim() || "Message de BADBOYSHOP";
+    const subject = directSubject.trim() || "Message de PRIME Gaming";
 
     if (!to || !message) {
       setError("Email et message sont obligatoires.");
@@ -223,7 +223,7 @@ export default function AdminEmailPage() {
               value={directSubject}
               onChange={(e) => setDirectSubject(e.target.value)}
               className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2"
-              placeholder="Message de BADBOYSHOP"
+              placeholder="Message de PRIME Gaming"
             />
           </div>
         </div>

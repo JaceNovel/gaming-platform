@@ -15,7 +15,7 @@
     </style>
 </head>
 <body>
-    <h1>Bon de livraison BADBOYSHOP</h1>
+    <h1>Bon de livraison PRIME Gaming</h1>
     <div class="section">
         <div><span class="label">Commande:</span> #{{ $order->id }}</div>
         <div><span class="label">Référence:</span> {{ $order->reference }}</div>
@@ -54,7 +54,7 @@
 
     <div class="signature">
         <div>Signature client</div>
-        <div>Signature BADBOYSHOP</div>
+        <div>Signature PRIME Gaming</div>
     </div>
 </body>
 </html>

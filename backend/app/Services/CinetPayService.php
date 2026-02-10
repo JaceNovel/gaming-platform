@@ -69,7 +69,7 @@ class CinetPayService
             'transaction_id' => $transactionId,
             'amount' => number_format($amount, 2, '.', ''),
             'currency' => $currency,
-            'description' => $meta['description'] ?? sprintf('BADBOYSHOP Order #%s', $order->reference ?? $order->id),
+            'description' => $meta['description'] ?? sprintf('PRIME Gaming Order #%s', $order->reference ?? $order->id),
             'customer_name' => $meta['customer_name'] ?? trim($user->name ?? $user->username ?? 'Client'),
             'customer_email' => $meta['customer_email'] ?? $user->email,
             'customer_phone_number' => $meta['customer_phone'] ?? Arr::get($order->meta ?? [], 'phone'),

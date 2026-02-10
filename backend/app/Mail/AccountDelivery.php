@@ -22,7 +22,7 @@ class AccountDelivery extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Vos identifiants de jeu BADBOYSHOP'
+            subject: 'Vos identifiants de jeu PRIME Gaming'
         );
     }
 

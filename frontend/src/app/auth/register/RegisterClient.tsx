@@ -126,7 +126,7 @@ export default function RegisterClient() {
       <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col lg:flex-row">
         <section className="flex flex-1 flex-col justify-between gap-8 px-6 py-12 lg:px-10">
           <div>
-            <p className="text-xs uppercase tracking-[0.45em] text-emerald-200/80">Badboy club</p>
+            <p className="text-xs uppercase tracking-[0.45em] text-emerald-200/80">Prime club</p>
             <h1 className="mt-5 text-4xl font-black leading-tight md:text-5xl">
               Débloque le cockpit
               <br />
@@ -180,7 +180,7 @@ export default function RegisterClient() {
                     value={name}
                     onChange={(e) => setName(e.target.value.toUpperCase())}
                     className="w-full bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
-                    placeholder="BADBOY"
+                    placeholder="PRIME"
                     required
                   />
                 </div>
@@ -194,7 +194,7 @@ export default function RegisterClient() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
-                    placeholder="gamer@badboy.gg"
+                    placeholder="gamer@primegaming.space"
                     required
                   />
                 </div>

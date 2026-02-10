@@ -124,7 +124,7 @@ class WalletService
                     : 'Commission parrainage';
 
                 $webPush->sendToUser($user, [
-                    'title' => 'BADBOYSHOP',
+                    'title' => 'PRIME Gaming',
                     'body' => $label . ' : +' . number_format($amount, 0, ',', ' ') . ' FCFA',
                     'url' => '/wallet',
                 ]);

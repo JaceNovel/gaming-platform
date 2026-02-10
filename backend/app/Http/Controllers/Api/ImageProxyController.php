@@ -82,7 +82,7 @@ class ImageProxyController extends Controller
                     'verify' => true,
                 ])
                 ->withHeaders([
-                    'User-Agent' => 'BADBOYSHOP/1.0 (+image-proxy)',
+                    'User-Agent' => 'PRIME-Gaming/1.0 (+image-proxy)',
                     'Accept' => 'image/*,*/*;q=0.8',
                 ])
                 ->get($rawUrl);

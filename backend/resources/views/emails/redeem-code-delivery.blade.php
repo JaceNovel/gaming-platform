@@ -1,7 +1,7 @@
 @component('emails.layout', ['title' => 'Code de recharge', 'logo' => ($logo ?? null)])
 	<h2 style="margin:0 0 10px 0; color:#00ff99;">Recharge prête ✅</h2>
 
-	<p>Bonjour {{ $order->user->name ?? 'Badboy' }},</p>
+	<p>Bonjour {{ $order->user->name ?? 'Prime' }},</p>
 	<p>Votre commande <strong>{{ $order->reference }}</strong> est confirmée. Voici votre/vos code(s) :</p>
 
 	<div class="highlight">

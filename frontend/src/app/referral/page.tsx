@@ -104,8 +104,8 @@ function ReferralClient() {
     const link = data?.referral?.link;
     if (!link) return;
 
-    const title = "Parrainage BADBOYSHOP";
-    const text = `Rejoins BADBOYSHOP avec mon lien: ${link}`;
+    const title = "Parrainage PRIME Gaming";
+    const text = `Rejoins PRIME Gaming avec mon lien: ${link}`;
 
     const nav: any = navigator;
     if (nav?.share) {

@@ -28,7 +28,7 @@ class RefundIssued extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Remboursement crédité sur votre wallet - BADBOYSHOP'
+            subject: 'Remboursement crédité sur votre wallet - PRIME Gaming'
         );
     }
 
@@ -62,7 +62,7 @@ class RefundIssued extends Mailable
         $rendered = $renderer->render(
             'refund_issued',
             $context,
-            'Remboursement crédité sur votre wallet - BADBOYSHOP',
+            'Remboursement crédité sur votre wallet - PRIME Gaming',
             $fallbackHtml
         );
 

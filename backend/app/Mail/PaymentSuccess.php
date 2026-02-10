@@ -26,7 +26,7 @@ class PaymentSuccess extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Paiement réussi - BADBOYSHOP'
+            subject: 'Paiement réussi - PRIME Gaming'
         );
     }
 
@@ -57,7 +57,7 @@ class PaymentSuccess extends Mailable
         $rendered = $renderer->render(
             'payment_success',
             $context,
-            'Paiement réussi - BADBOYSHOP',
+            'Paiement réussi - PRIME Gaming',
             $fallbackHtml
         );
 

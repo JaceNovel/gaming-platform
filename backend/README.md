@@ -1,4 +1,4 @@
-# Backend Laravel — BADBOYSHOP API
+# Backend Laravel — PRIME Gaming API
 
 API backend pour la plateforme gaming. Le frontend Next.js consomme cette API via `NEXT_PUBLIC_API_URL`.
 
@@ -56,7 +56,7 @@ Si usage de cookies/Sanctum:
 
 ## Health check
 
-- `GET /api/health` → `{ "ok": true, "app": "BADBOYSHOP", "time": "...", "env": "production" }`
+- `GET /api/health` → `{ "ok": true, "app": "PRIME Gaming", "time": "...", "env": "production" }`
 
 ## Build / perf (prod)
 
@@ -74,8 +74,8 @@ URL base API en prod: `https://TON_BACKEND_URL/api`
 
 ## Checklist rapide
 
-- `curl https://api.badboyshop.online/api/health`
-- Tester `register/login` depuis https://badboyshop.online
+- `curl https://api.primegaming.space/api/health`
+- Tester `register/login` depuis https://primegaming.space
 - Vérifier CORS (aucune erreur console)
 
 ## Render
@@ -88,10 +88,10 @@ Backend (Docker):
 Variables env minimales:
 - `APP_ENV=production`
 - `APP_DEBUG=false`
-- `APP_URL=https://api.badboyshop.online`
-- `FRONTEND_URL=https://badboyshop.online`
+- `APP_URL=https://api.primegaming.space`
+- `FRONTEND_URL=https://primegaming.space`
 - `DB_CONNECTION=mysql` (ou `pgsql`)
 - `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
 - `CORS_SUPPORTS_CREDENTIALS=true`
-- `SANCTUM_STATEFUL_DOMAINS=badboyshop.online`
-- `SESSION_DOMAIN=.badboyshop.online`
+- `SANCTUM_STATEFUL_DOMAINS=primegaming.space`
+- `SESSION_DOMAIN=.primegaming.space`

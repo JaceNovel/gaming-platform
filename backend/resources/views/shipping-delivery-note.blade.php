@@ -20,11 +20,11 @@
 <body>
     <div class="header">
         <div>
-            <h1>BADBOYSHOP</h1>
+            <h1>PRIME Gaming</h1>
             <div class="muted">BON DE LIVRAISON</div>
         </div>
         @if(!empty($logo_url))
-            <img src="{{ $logo_url }}" alt="BADBOYSHOP" class="logo" />
+            <img src="{{ $logo_url }}" alt="PRIME Gaming" class="logo" />
         @endif
     </div>
 
@@ -89,10 +89,10 @@
     <div class="signature" style="margin-top: 20px;">
         <div>
             @if(!empty($signature_url))
-                <img src="{{ $signature_url }}" alt="Signature BADBOYSHOP" style="height: 60px;" />
-                <div class="muted">Signé BADBOYSHOP</div>
+                <img src="{{ $signature_url }}" alt="Signature PRIME Gaming" style="height: 60px;" />
+                <div class="muted">Signé PRIME Gaming</div>
             @else
-                BADBOYSHOP – Signature officielle
+                PRIME Gaming – Signature officielle
             @endif
         </div>
     </div>

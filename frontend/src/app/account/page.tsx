@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Globe, LogOut } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
@@ -12,7 +12,6 @@ import PlayerProfileCard from "@/components/profile/PlayerProfileCard";
 import type { DashboardMenuId } from "@/components/profile/dashboardMenu";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
-import { onWalletUpdated } from "@/lib/walletEvents";
 
 const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
 
@@ -83,18 +82,7 @@ const AVATARS: Avatar[] = [
   },
 ];
 
-const VIP_PLANS: VipPlan[] = [
-  { level: "bronze", label: "Bronze" },
-  { level: "platine", label: "Platine" },
-];
-
-type PremiumStatus = {
-  is_premium: boolean;
-  level: string | null;
-  expiration: string | null;
-  renewal_count: number;
-  membership?: any;
-};
+const VIP_PLANS: VipPlan[] = [];
 
 const getCurrencyInfo = (code?: string | null) => {
   const normalized = (code ?? "CI").toUpperCase();
@@ -115,17 +103,10 @@ const formatCurrency = (value: number, code?: string | null) => {
   return new Intl.NumberFormat(info.locale, { style: "currency", currency: info.label }).format(value);
 };
 
-const mapOrderStatus = (order: any): OrderStatus => {
-  const deliveredAt = order?.delivered_at ?? order?.deliveredAt ?? null;
-  const meta = order?.meta ?? null;
-  const fulfillmentStatus = typeof meta === "object" && meta ? String((meta as any).fulfillment_status ?? "") : "";
-
-  if (deliveredAt) return "COMPLÉTÉ";
-  if (fulfillmentStatus.toLowerCase() === "fulfilled") return "COMPLÉTÉ";
-
-  const normalized = String(order?.status ?? "").toLowerCase();
+const mapOrderStatus = (status?: string | null): OrderStatus => {
+  const normalized = String(status ?? "").toLowerCase();
   if (["paid", "complete", "completed", "success", "delivered", "fulfilled"].includes(normalized)) return "COMPLÉTÉ";
-  if (["failed", "cancelled", "canceled", "error", "refused", "payment_failed"].includes(normalized)) return "ÉCHOUÉ";
+  if (["failed", "cancelled", "canceled", "error", "refused"].includes(normalized)) return "ÉCHOUÉ";
   return "EN_COURS";
 };
 
@@ -163,23 +144,13 @@ const normalizeMe = (payload: any, baseline: Me | null): Me => {
   const fallback =
     baseline ??
     ({
-      username: "BADBOY",
+      username: "PRIME",
       countryCode: "CI",
       countryName: "Côte d'Ivoire",
       avatarId: "nova_ghost",
       walletBalanceFcfa: 0,
-      premiumTier: "Basic",
+      premiumTier: "Bronze",
     } satisfies Me);
-
-  const isPremium = Boolean(payload?.is_premium);
-  const rawLevel = String(payload?.premium_level ?? payload?.premiumTier ?? payload?.premium_tier ?? "")
-    .trim()
-    .toLowerCase();
-  const premiumTier = isPremium
-    ? rawLevel === "platine" || rawLevel === "platinum"
-      ? "Platine"
-      : "Bronze"
-    : "Basic";
 
   return {
     username: payload?.username ?? payload?.name ?? fallback.username,
@@ -193,7 +164,7 @@ const normalizeMe = (payload: any, baseline: Me | null): Me => {
           payload?.wallet_balance ??
           fallback.walletBalanceFcfa,
       ) || 0,
-    premiumTier,
+    premiumTier: payload?.premiumTier ?? payload?.premium_tier ?? payload?.premium_level ?? fallback.premiumTier,
     referralCode: payload?.referralCode ?? payload?.referral_code ?? fallback.referralCode ?? null,
   } satisfies Me;
 };
@@ -205,7 +176,7 @@ const statusBadgeClass = (status: Order["status"]) => {
 };
 
 function AccountClient() {
-  const { authFetch, user, loading: authLoading, logout, refreshUser } = useAuth();
+  const { authFetch, user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const fallbackProfile = useMemo<Me | null>(() => {
@@ -238,7 +209,7 @@ function AccountClient() {
         ? "Platine"
         : "Basic";
     return {
-      username: user.name ?? legacyUser.username ?? "BADBOY",
+      username: user.name ?? legacyUser.username ?? "PRIME",
       countryCode,
       countryName: legacyUser.country_name ?? null,
       avatarId: legacyUser.is_premium ? "stellar_viper" : "nova_ghost",
@@ -264,10 +235,6 @@ function AccountClient() {
   const disablePasswordForm = !HAS_API_ENV;
   const disableCountryForm = !HAS_API_ENV;
   const [vipModalOpen, setVipModalOpen] = useState(false);
-  const [vipStatus, setVipStatus] = useState<PremiumStatus | null>(null);
-  const [vipStatusLoading, setVipStatusLoading] = useState(false);
-  const [vipActionLoading, setVipActionLoading] = useState(false);
-  const [vipActionMessage, setVipActionMessage] = useState<string | null>(null);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>(DEFAULT_WALLET_TRANSACTIONS);
   const [walletHistoryLoading, setWalletHistoryLoading] = useState(HAS_API_ENV);
@@ -280,21 +247,6 @@ function AccountClient() {
   const [countryStatus, setCountryStatus] = useState<"idle" | "success" | "error">("idle");
   const [countryMessage, setCountryMessage] = useState("");
   const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
-
-  const refreshWalletSummary = useCallback(async () => {
-    if (!HAS_API_ENV) return;
-    try {
-      const res = await authFetch(`${API_BASE}/wallet`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const balanceValue = typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
-      const normalized = Number.isFinite(balanceValue) ? balanceValue : 0;
-      setWalletBalanceState(normalized);
-      setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: normalized } : prev));
-    } catch (error) {
-      console.warn("Wallet indisponible", error);
-    }
-  }, [authFetch]);
 
   const referralInviteUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -310,7 +262,7 @@ function AccountClient() {
     if (!status) return;
 
     if (status === 'success' || status === 'paid' || status === 'completed') {
-      setPaymentBanner('Paiement confirmé. Merci pour votre achat.');
+      setPaymentBanner('Paiement confirmé. PRIME Gaming vous remercie pour votre achat.');
     } else if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
       setPaymentBanner('Paiement échoué ou annulé. Merci de réessayer.');
     } else {
@@ -329,18 +281,11 @@ function AccountClient() {
     const id = me?.avatarId || "nova_ghost";
     return AVATARS.find((a) => a.id === id) || AVATARS[0];
   }, [me?.avatarId]);
-
-  const currentTier = useMemo(() => {
-    const raw = String((user as any)?.premium_level ?? me?.premiumTier ?? "")
-      .trim()
-      .toLowerCase();
-    if (raw === "platinum") return "platine";
-    if (raw === "basic" || raw === "none" || raw === "aucun" || raw === "") return "";
-    return raw;
-  }, [me?.premiumTier, user]);
-
-  const vipActive = Boolean(user?.is_premium) || currentTier === "bronze" || currentTier === "platine";
-  const currentPlan = VIP_PLANS.find((plan) => plan.level === currentTier);
+  const currentTier = (me?.premiumTier ?? "").toLowerCase();
+  const vipActive = Boolean(currentTier && currentTier !== "aucun" && currentTier !== "none");
+  const currentPlan = VIP_PLANS.find(
+    (plan) => plan.level === currentTier || plan.label.toLowerCase() === currentTier,
+  );
 
   useEffect(() => {
     if (fallbackProfile && !me) {
@@ -417,9 +362,9 @@ function AccountClient() {
             id: String(order.reference ?? order.id),
             internalId: String(order.id),
             title,
-            game: "BADBOYSHOP",
+            game: orderItems[0]?.product?.name ? "PRIME Gaming" : "PRIME Gaming",
             priceFcfa: Number(order.total_price ?? 0),
-            status: mapOrderStatus(order),
+            status: mapOrderStatus(order.status),
             thumb,
             shippingStatus: order.shipping_status ?? null,
             shippingEtaDays: order.shipping_eta_days ?? null,
@@ -458,6 +403,12 @@ function AccountClient() {
   }, []);
 
   useEffect(() => {
+    if (me?.countryCode) {
+      setCountryFormCode(me.countryCode);
+    }
+  }, [me?.countryCode]);
+
+  useEffect(() => {
     setWalletBalanceState(me?.walletBalanceFcfa ?? 0);
   }, [me?.walletBalanceFcfa]);
 
@@ -469,6 +420,22 @@ function AccountClient() {
         active = false;
       };
     }
+
+    const loadWalletSummary = async () => {
+      try {
+        const res = await authFetch(`${API_BASE}/wallet`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!active) return;
+        const balanceValue =
+          typeof data?.balance === "number" ? data.balance : Number(data?.balance ?? 0);
+        const normalized = Number.isFinite(balanceValue) ? balanceValue : 0;
+        setWalletBalanceState(normalized);
+        setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: normalized } : prev));
+      } catch (error) {
+        console.warn("Wallet indisponible", error);
+      }
+    };
 
     const loadWalletTransactions = async () => {
       setWalletHistoryLoading(true);
@@ -505,18 +472,12 @@ function AccountClient() {
       }
     };
 
-    void refreshWalletSummary();
+    loadWalletSummary();
     loadWalletTransactions();
     return () => {
       active = false;
     };
-  }, [authFetch, me?.countryCode, refreshWalletSummary]);
-
-  useEffect(() => {
-    if (!HAS_API_ENV) return;
-    const off = onWalletUpdated(() => void refreshWalletSummary());
-    return off;
-  }, [refreshWalletSummary]);
+  }, [authFetch, me?.countryCode]);
 
   const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -603,72 +564,17 @@ function AccountClient() {
     router.push("/auth/login");
   };
 
-  const loadVipStatus = useCallback(async () => {
-    if (!HAS_API_ENV) {
-      setVipStatus(null);
+  const handleVipEntry = () => {
+    if (isDesktop) {
+      router.push("/premium");
       return;
     }
-    setVipStatusLoading(true);
-    try {
-      const res = await authFetch(`${API_BASE}/premium/status`);
-      const payload = (await res.json().catch(() => null)) as PremiumStatus | null;
-      if (!res.ok || !payload) return;
-      setVipStatus(payload);
-    } catch {
-      // ignore
-    } finally {
-      setVipStatusLoading(false);
-    }
-  }, [authFetch]);
-
-  useEffect(() => {
-    if (!vipModalOpen) return;
-    setVipActionMessage(null);
-    void loadVipStatus();
-  }, [loadVipStatus, vipModalOpen]);
-
-  const handleCancelVip = async () => {
-    if (vipActionLoading) return;
-    if (typeof window !== "undefined") {
-      const ok = window.confirm(
-        "Confirmer la résiliation VIP ? Aucun remboursement ne sera effectué.",
-      );
-      if (!ok) return;
-    }
-
-    setVipActionLoading(true);
-    setVipActionMessage(null);
-    try {
-      const res = await authFetch(`${API_BASE}/premium/cancel`, { method: "POST" });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
-        setVipActionMessage(payload?.message ?? "Impossible de résilier l’abonnement VIP.");
-        return;
-      }
-
-      setVipActionMessage(payload?.message ?? "Abonnement résilié.");
-      await refreshUser();
-      try {
-        const meRes = await authFetch(`${API_BASE}/me`);
-        if (meRes.ok) {
-          const mePayload = await meRes.json().catch(() => null);
-          if (mePayload?.me || mePayload) {
-            setMe(normalizeMe(mePayload?.me ?? mePayload, fallbackProfile));
-          }
-        }
-      } catch {
-        // ignore
-      }
-
-      await loadVipStatus();
-    } finally {
-      setVipActionLoading(false);
-    }
+    setVipModalOpen(true);
   };
 
   const handleMenuChange = (menu: MenuKey) => {
     if (menu === "VIP") {
-      setVipModalOpen(true);
+      handleVipEntry();
       return;
     }
     if (menu === "MesCodes") {
@@ -685,14 +591,6 @@ function AccountClient() {
     }
     if (menu === "Parrainage") {
       router.push("/referral");
-      return;
-    }
-    if (menu === "Vendeur") {
-      router.push("/account/seller");
-      return;
-    }
-    if (menu === "Litige") {
-      router.push("/account/litige");
       return;
     }
     if (menu === "MesCommandes") {
@@ -769,6 +667,7 @@ function AccountClient() {
     <div className="min-h-screen text-white">
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-black" />
+        <div className="absolute inset-0 bg-[url('/backgrounds/profile.jpg')] bg-cover bg-center" />
         <div className="absolute inset-0 bg-black/55" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(180,70,255,0.35),transparent_45%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.25),transparent_50%),radial-gradient(circle_at_50%_90%,rgba(255,160,0,0.2),transparent_55%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.15),rgba(0,0,0,0.9))]" />
@@ -1100,7 +999,7 @@ function AccountClient() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.4em] text-cyan-200/80">Wallet express</p>
-                  <h2 className="mt-1 text-2xl font-bold">BADBOY Wallet</h2>
+                  <h2 className="mt-1 text-2xl font-bold">PRIME Wallet</h2>
                   <p className="text-sm text-white/60">Pilotage rapide sans quitter le dashboard.</p>
                 </div>
                 <button
@@ -1208,7 +1107,7 @@ function AccountClient() {
               </div>
               <div className="mt-5 space-y-4 overflow-y-auto pr-1">
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">BADBOY Wallet</p>
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">PRIME Wallet</p>
                   <p className="mt-2 text-3xl font-black">{walletDisplay}</p>
                   <p className="text-xs text-white/60">En {walletCurrencyLabel}</p>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1299,9 +1198,9 @@ function AccountClient() {
                           type="button"
                           onClick={() => {
                             closeOrdersModal();
-                            const reference = String(order.id ?? "").trim();
-                            const internal = String(order.internalId ?? "").trim();
-                            const targetId = reference && reference !== "undefined" && reference !== "null" ? reference : internal;
+                            const raw = String(order.internalId ?? "").trim();
+                            const fallback = String(order.id ?? "").trim();
+                            const targetId = raw && raw !== "undefined" && raw !== "null" ? raw : fallback;
                             if (!targetId) {
                               return;
                             }
@@ -1367,9 +1266,9 @@ function AccountClient() {
                       type="button"
                       onClick={() => {
                         closeOrdersModal();
-                        const reference = String(order.id ?? "").trim();
-                        const internal = String(order.internalId ?? "").trim();
-                        const targetId = reference && reference !== "undefined" && reference !== "null" ? reference : internal;
+                        const raw = String(order.internalId ?? "").trim();
+                        const fallback = String(order.id ?? "").trim();
+                        const targetId = raw && raw !== "undefined" && raw !== "null" ? raw : fallback;
                         if (!targetId) {
                           return;
                         }
@@ -1388,110 +1287,33 @@ function AccountClient() {
       )}
       {null}
 
-      {vipModalOpen && (
+      {vipModalOpen && !isDesktop && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeVipModal} />
-          <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-[32px] border border-white/15 bg-black/90 p-6 text-white shadow-[0_30px_120px_rgba(0,0,0,0.85)]">
-            <div className="pointer-events-none absolute inset-0 opacity-70" style={{ background: "radial-gradient(circle at 20% 20%, rgba(34,211,238,0.18), transparent 45%), radial-gradient(circle at 70% 50%, rgba(217,70,239,0.16), transparent 52%), radial-gradient(circle at 50% 100%, rgba(255,160,0,0.10), transparent 55%)" }} />
-
-            <div className="relative">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.5em] text-fuchsia-200/80">BADBOY VIP</p>
-                  <h2 className="mt-2 text-2xl font-semibold">Profil VIP</h2>
-                  <p className="mt-1 text-sm text-white/60">Gère ton plan et ton statut.</p>
-                </div>
-                <button
-                  type="button"
-                  className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
-                  onClick={closeVipModal}
-                >
-                  Fermer
-                </button>
+          <div className="relative z-10 w-full max-w-md rounded-[28px] border border-white/15 bg-black/90 p-6 text-white shadow-[0_30px_120px_rgba(0,0,0,0.8)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.5em] text-fuchsia-200/80">PRIME VIP</p>
+                <h2 className="mt-2 text-2xl font-semibold">Section réservée desktop</h2>
               </div>
-
-              <div className="mt-5 rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur">
-                {vipStatusLoading ? (
-                  <div className="space-y-3">
-                    <div className="h-5 w-40 animate-pulse rounded-xl bg-white/10" />
-                    <div className="h-4 w-64 animate-pulse rounded-xl bg-white/10" />
-                    <div className="h-4 w-52 animate-pulse rounded-xl bg-white/10" />
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Statut</p>
-                        <p className="mt-1 text-lg font-semibold text-white">
-                          {vipStatus?.is_premium || vipActive
-                            ? String(vipStatus?.level ?? me.premiumTier ?? "VIP").toLowerCase() === "platine"
-                              ? "VIP Platine 💎"
-                              : "VIP Bronze 🥉"
-                            : "Basic"}
-                        </p>
-                      </div>
-                      <span
-                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold ${
-                          vipStatus?.is_premium || vipActive
-                            ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
-                            : "border-white/15 bg-white/5 text-white/70"
-                        }`}
-                      >
-                        {vipStatus?.is_premium || vipActive ? "Actif" : "Inactif"}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                        <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Expiration</p>
-                        <p className="mt-1 text-sm font-semibold text-white/85">
-                          {vipStatus?.expiration
-                            ? new Date(vipStatus.expiration).toLocaleString("fr-FR")
-                            : "—"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                        <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Renouvellements</p>
-                        <p className="mt-1 text-sm font-semibold text-white/85">
-                          {typeof vipStatus?.renewal_count === "number" ? vipStatus.renewal_count : "—"}
-                        </p>
-                      </div>
-                    </div>
-
-                    {vipActionMessage ? (
-                      <p className="mt-4 text-sm text-amber-200">{vipActionMessage}</p>
-                    ) : null}
-                  </>
-                )}
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  className="rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-60"
-                  onClick={() => {
-                    closeVipModal();
-                    router.push("/premium");
-                  }}
-                  disabled={vipActionLoading}
-                >
-                  {vipStatus?.is_premium || vipActive ? "Update Plan" : "Devenir VIP"}
-                </button>
-
-                <button
-                  type="button"
-                  className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 disabled:opacity-60"
-                  onClick={handleCancelVip}
-                  disabled={vipActionLoading || !(vipStatus?.is_premium || vipActive)}
-                >
-                  {vipActionLoading ? "Résiliation..." : "Résilier"}
-                </button>
-              </div>
-
-              <p className="mt-4 text-center text-xs text-white/50">
-                L’activation Premium est traitée après paiement (webhook).
+              <button
+                className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
+                onClick={closeVipModal}
+              >
+                Fermer
+              </button>
+            </div>
+            <div className="mt-5 space-y-4 text-sm text-white/70">
+              <p className="text-base text-white">
+                Cette section est disponible sur ordinateur. Merci d’utiliser un PC.
               </p>
             </div>
+            <button
+              className="mt-6 w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/20"
+              onClick={closeVipModal}
+            >
+              Compris
+            </button>
           </div>
         </div>
       )}

@@ -14,7 +14,7 @@ class WebPushService
     {
         $publicKey = (string) env('VAPID_PUBLIC_KEY', '');
         $privateKey = (string) env('VAPID_PRIVATE_KEY', '');
-        $subject = (string) env('VAPID_SUBJECT', env('APP_URL', 'mailto:support@badboyshop.online'));
+        $subject = (string) env('VAPID_SUBJECT', env('APP_URL', 'mailto:support@primegaming.space'));
 
         if ($publicKey === '' || $privateKey === '') {
             return;

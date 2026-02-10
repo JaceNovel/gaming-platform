@@ -4,8 +4,8 @@ return [
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
     'allowed_methods' => ['*'],
     'allowed_origins' => array_values(array_filter([
-        'https://badboyshop.online',
-        'https://www.badboyshop.online',
+        'https://primegaming.space',
+        'https://www.primegaming.space',
         env('FRONTEND_URL'),
         env('FRONTEND_URL_WWW'),
         env('NEXT_PUBLIC_APP_URL'),

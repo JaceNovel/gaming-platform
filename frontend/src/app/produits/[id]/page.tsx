@@ -299,7 +299,7 @@ export default function ProductDetailsPage() {
   );
   const description =
     product?.description ?? product?.details?.description ??
-    "Offre spéciale disponible dans la boutique BADBOYSHOP.";
+    "Offre spéciale disponible dans la boutique PRIME Gaming.";
   const categoryLabel = product?.category_entity?.name ?? product?.category ?? "—";
   const brandLabel = product?.brand ?? product?.details?.brand ?? "N/A";
   const stockCount = useMemo(() => {

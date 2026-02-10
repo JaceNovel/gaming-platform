@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 const getSiteUrl = () => {
   const raw = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
-  return raw !== "" ? raw.replace(/\/$/, "") : "https://www.badboyshop.online";
+  return raw !== "" ? raw.replace(/\/$/, "") : "https://primegaming.space";
 };
 
 type ApiCategory = { slug?: string | null; updated_at?: string | null };

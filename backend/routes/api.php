@@ -77,7 +77,7 @@ Route::get('/health', function () {
 
     return response()->json([
         'ok' => true,
-        'app' => 'BADBOYSHOP',
+        'app' => 'PRIME Gaming',
         'app_env' => app()->environment(),
         'app_url' => config('app.url'),
         'db' => $dbStatus,
