@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Globe, LogOut } from "lucide-react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -247,6 +248,7 @@ function AccountClient() {
   const [countryStatus, setCountryStatus] = useState<"idle" | "success" | "error">("idle");
   const [countryMessage, setCountryMessage] = useState("");
   const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
+  const [thankYouOpen, setThankYouOpen] = useState(false);
 
   const referralInviteUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -261,16 +263,21 @@ function AccountClient() {
     const status = (searchParams.get('payment_status') ?? '').toLowerCase();
     if (!status) return;
 
-    if (status === 'success' || status === 'paid' || status === 'completed') {
+    const isSuccess = status === 'success' || status === 'paid' || status === 'completed';
+    if (isSuccess) {
       setPaymentBanner('Paiement confirmé. PRIME Gaming vous remercie pour votre achat.');
+      setThankYouOpen(true);
     } else if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
       setPaymentBanner('Paiement échoué ou annulé. Merci de réessayer.');
+      setThankYouOpen(false);
     } else {
       setPaymentBanner('Paiement en attente de confirmation.');
+      setThankYouOpen(false);
     }
 
     const timer = setTimeout(() => {
       setPaymentBanner(null);
+      setThankYouOpen(false);
       router.replace('/account');
     }, 4500);
 
@@ -669,6 +676,46 @@ function AccountClient() {
 
   return (
     <div className="min-h-screen text-white">
+      {thankYouOpen ? (
+        <div
+          className="fixed inset-0 z-[120] grid place-items-center bg-black/70 px-5"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Remerciement d'achat"
+          onClick={() => setThankYouOpen(false)}
+        >
+          <div
+            className="w-full max-w-[420px] rounded-3xl border border-white/10 bg-black/85 p-6 backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="relative h-20 w-20">
+                <Image
+                  src="/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png"
+                  alt="PRIME Gaming"
+                  fill
+                  className="object-contain"
+                  priority
+                />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Achat confirmé</p>
+                <p className="mt-2 text-lg font-extrabold text-white">Merci pour votre achat</p>
+                <p className="mt-1 text-sm text-white/70">PRIME Gaming vous remercie.</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setThankYouOpen(false)}
+                className="mt-1 w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-2 text-sm font-semibold text-white/90 hover:bg-white/15 transition"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-black" />
         <div className="absolute inset-0 bg-[url('/backgrounds/profile.jpg')] bg-cover bg-center" />
@@ -1202,9 +1249,10 @@ function AccountClient() {
                           type="button"
                           onClick={() => {
                             closeOrdersModal();
-                            const raw = String(order.internalId ?? "").trim();
-                            const fallback = String(order.id ?? "").trim();
-                            const targetId = raw && raw !== "undefined" && raw !== "null" ? raw : fallback;
+                            const internalRaw = String(order.internalId ?? "").trim();
+                            const displayRaw = String(order.id ?? "").trim();
+                            const internalIsNumeric = /^\d+$/.test(internalRaw);
+                            const targetId = internalIsNumeric ? internalRaw : displayRaw;
                             if (!targetId) {
                               return;
                             }
@@ -1270,9 +1318,10 @@ function AccountClient() {
                       type="button"
                       onClick={() => {
                         closeOrdersModal();
-                        const raw = String(order.internalId ?? "").trim();
-                        const fallback = String(order.id ?? "").trim();
-                        const targetId = raw && raw !== "undefined" && raw !== "null" ? raw : fallback;
+                        const internalRaw = String(order.internalId ?? "").trim();
+                        const displayRaw = String(order.id ?? "").trim();
+                        const internalIsNumeric = /^\d+$/.test(internalRaw);
+                        const targetId = internalIsNumeric ? internalRaw : displayRaw;
                         if (!targetId) {
                           return;
                         }

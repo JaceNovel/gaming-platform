@@ -67,6 +67,10 @@ export default function GamingAccountsIndexPage() {
     <main className="min-h-[100dvh] bg-black text-white">
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(168,85,247,0.25),transparent_45%),radial-gradient(circle_at_75%_0%,rgba(14,165,233,0.22),transparent_50%),radial-gradient(circle_at_60%_80%,rgba(249,115,22,0.14),transparent_55%)]" />
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-55"
+          style={{ backgroundImage: "url('/images/WhatsApp Image 2026-02-06 at 03.44.47.jpeg')" }}
+        />
         <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.25),rgba(0,0,0,0.94))]" />
       </div>
 

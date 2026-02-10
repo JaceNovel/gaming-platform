@@ -133,6 +133,11 @@ function HeroBackdrop() {
     <div className="fixed inset-0 -z-10" aria-hidden="true">
       <div className="absolute inset-0 bg-black" />
 
+      <div
+        className="absolute inset-0 bg-cover bg-center opacity-55"
+        style={{ backgroundImage: "url('/images/WhatsApp Image 2026-02-06 at 03.44.47.jpeg')" }}
+      />
+
       <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-fuchsia-500/15 blur-3xl motion-safe:animate-pulse" />
       <div className="absolute top-16 right-[-60px] h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl motion-safe:animate-pulse" />
       <div className="absolute bottom-[-80px] left-[20%] h-80 w-80 rounded-full bg-amber-400/10 blur-3xl motion-safe:animate-pulse" />
@@ -341,12 +346,19 @@ export default function AccessoiresPage() {
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        addToCart(p);
-                                        router.push("/cart");
+                                        router.push(`/checkout?product=${encodeURIComponent(String(p.id))}`);
                                       }}
                                       className="flex-1 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/15 transition"
                                     >
                                       Acheter
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => addToCart(p)}
+                                      className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/85 hover:bg-white/10 transition"
+                                    >
+                                      Ajouter au panier
                                     </button>
                                   </div>
                                 </div>
