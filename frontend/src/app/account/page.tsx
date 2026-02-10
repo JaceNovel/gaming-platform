@@ -600,6 +600,10 @@ function AccountClient() {
       router.push("/notifications");
       return;
     }
+    if (menu === "Litige") {
+      router.push("/account/litige");
+      return;
+    }
     if (menu === "Parrainage") {
       router.push("/referral");
       return;
@@ -758,22 +762,6 @@ function AccountClient() {
                   </div>
 
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(String(me.referralCode ?? "").trim());
-                          setReferralToast("Code copié");
-                          window.setTimeout(() => setReferralToast(null), 1800);
-                        } catch {
-                          setReferralToast("Impossible de copier");
-                          window.setTimeout(() => setReferralToast(null), 1800);
-                        }
-                      }}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/85"
-                    >
-                      Copier code
-                    </button>
                     {referralInviteUrl && (
                       <button
                         type="button"

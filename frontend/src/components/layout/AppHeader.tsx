@@ -9,6 +9,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { onWalletUpdated } from "@/lib/walletEvents";
+import { onNotificationsPrefChanged, readNotificationsEnabled } from "@/lib/notificationPrefs";
 
 type NotificationItem = {
   id: number;
@@ -45,6 +46,8 @@ export default function AppHeader() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [inboxItems, setInboxItems] = useState<
     Array<{ id: number; message: string; is_read: boolean; created_at: string }>
   >([]);
@@ -221,6 +224,11 @@ export default function AppHeader() {
   }, [openMenu]);
 
   useEffect(() => {
+    setNotificationsEnabled(readNotificationsEnabled());
+    return onNotificationsPrefChanged(() => setNotificationsEnabled(readNotificationsEnabled()));
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const loadInbox = async () => {
       if (!token) {
@@ -228,6 +236,13 @@ export default function AppHeader() {
         setInboxUnread(0);
         return;
       }
+
+      if (!notificationsEnabled) {
+        setInboxItems([]);
+        setInboxUnread(0);
+        return;
+      }
+
       try {
         const limit = isMobile ? 4 : 6;
         const res = await authFetch(`${API_BASE}/notifications?limit=${limit}&type=redeem_code`);
@@ -247,7 +262,7 @@ export default function AppHeader() {
     return () => {
       active = false;
     };
-  }, [authFetch, token, isMobile]);
+  }, [authFetch, token, isMobile, notificationsEnabled]);
 
   useEffect(() => {
     let active = true;
@@ -257,6 +272,13 @@ export default function AppHeader() {
         setUnreadCount(0);
         return;
       }
+
+      if (!notificationsEnabled) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+
       try {
         const limit = isMobile ? 4 : 6;
         const res = await authFetch(`${API_BASE}/notifications?limit=${limit}`);
@@ -278,17 +300,19 @@ export default function AppHeader() {
     return () => {
       active = false;
     };
-  }, [authFetch, token, isMobile]);
+  }, [authFetch, token, isMobile, notificationsEnabled]);
 
   const unreadBadge = useMemo(() => {
+    if (!notificationsEnabled) return null;
     if (unreadCount <= 0) return null;
     return unreadCount > 9 ? "9+" : String(unreadCount);
-  }, [unreadCount]);
+  }, [unreadCount, notificationsEnabled]);
 
   const inboxBadge = useMemo(() => {
+    if (!notificationsEnabled) return null;
     if (inboxUnread <= 0) return null;
     return inboxUnread > 9 ? "9+" : String(inboxUnread);
-  }, [inboxUnread]);
+  }, [inboxUnread, notificationsEnabled]);
 
   const mobileNotifications = useMemo(() => notifications.slice(0, 4), [notifications]);
   const mobileInboxItems = useMemo(() => inboxItems.slice(0, 4), [inboxItems]);

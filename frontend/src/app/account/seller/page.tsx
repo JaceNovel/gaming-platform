@@ -559,6 +559,9 @@ function SellerPageClient() {
     const isEdit = listingModal?.mode === "edit";
     const base = listingModal?.listing;
 
+    const steps = ["Informations", "Détails compte", "Images", "Vérification"] as const;
+    const [step, setStep] = useState<number>(1);
+
     const [values, setValues] = useState(() => ({
       gameId: base?.game?.id ?? null,
       title: String(base?.title ?? ""),
@@ -576,6 +579,7 @@ function SellerPageClient() {
 
     useEffect(() => {
       if (!isOpen) return;
+      setStep(1);
       setValues({
         gameId: base?.game?.id ?? null,
         title: String(base?.title ?? ""),
@@ -617,6 +621,21 @@ function SellerPageClient() {
       !Number.isFinite(Number(values.price)) ||
       Number(values.price) < 1;
 
+    const step1Invalid =
+      disable ||
+      !values.title.trim() ||
+      values.title.trim().length > 140 ||
+      !Number.isFinite(Number(values.price)) ||
+      Number(values.price) < 1;
+
+    const canGoNext = (s: number) => {
+      if (s === 1) return !step1Invalid;
+      return !disable;
+    };
+
+    const goPrev = () => setStep((p) => Math.max(1, p - 1));
+    const goNext = () => setStep((p) => Math.min(steps.length, p + 1));
+
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-4 backdrop-blur sm:items-center">
         <div className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl max-h-[calc(100dvh-2rem)]">
@@ -627,6 +646,22 @@ function SellerPageClient() {
               <p className="mt-1 text-sm text-white/60">
                 L'annonce est <span className="text-white/80">soumise</span> à validation. Après approbation, elle devient visible sur le marketplace.
               </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {steps.map((label, idx) => {
+                  const current = step === idx + 1;
+                  return (
+                    <span
+                      key={label}
+                      className={
+                        "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold " +
+                        (current ? "border-white/15 bg-white/10 text-white/85" : "border-white/10 bg-white/5 text-white/55")
+                      }
+                    >
+                      {idx + 1}. {label}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
             <button
               type="button"
@@ -644,201 +679,314 @@ function SellerPageClient() {
               </div>
             ) : null}
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm text-white/70">
-                Jeu (optionnel)
-                <select
-                  value={values.gameId ?? ""}
-                  onChange={(e) => setValues((p) => ({ ...p, gameId: e.target.value ? Number(e.target.value) : null }))}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  disabled={disable}
-                >
-                  <option value="">—</option>
-                  {games.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm text-white/70 sm:col-span-2">
-                Photos dans l’annonce (jusqu’à 4)
-                <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs text-white/55">Ces images s’affichent dans la page “Voir l’annonce”.</p>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    multiple
+            {step === 1 ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm text-white/70">
+                  Jeu (optionnel)
+                  <select
+                    value={values.gameId ?? ""}
+                    onChange={(e) => setValues((p) => ({ ...p, gameId: e.target.value ? Number(e.target.value) : null }))}
+                    className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
                     disabled={disable}
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files ?? []).filter(Boolean).slice(0, 4);
-                      setGalleryFiles(files);
-                    }}
-                    className="mt-3 block w-full text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white/85 hover:file:bg-white/15"
-                  />
-                  {galleryFiles.length ? (
-                    <p className="mt-2 text-xs text-white/55">{galleryFiles.length} photo(s) sélectionnée(s)</p>
-                  ) : (
-                    <p className="mt-2 text-xs text-white/45">Aucune photo sélectionnée</p>
-                  )}
+                  >
+                    <option value="">—</option>
+                    {games.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">Catégorie</p>
+                  <p className="mt-1 font-semibold text-white/80">Compte Gaming</p>
                 </div>
-              </label>
 
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-                <p className="text-xs uppercase tracking-[0.25em] text-white/50">Catégorie</p>
-                <p className="mt-1 font-semibold text-white/80">Compte Gaming</p>
+                <label className="text-sm text-white/70 sm:col-span-2">
+                  Titre *
+                  <input
+                    value={values.title}
+                    onChange={(e) => setValues((p) => ({ ...p, title: e.target.value }))}
+                    className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                    placeholder="Ex: Compte Valorant - Rank Ascendant"
+                    disabled={disable}
+                  />
+                  <p className="mt-1 text-xs text-white/45">{values.title.trim().length}/140</p>
+                </label>
+
+                <label className="text-sm text-white/70 sm:col-span-2">
+                  Description
+                  <textarea
+                    value={values.description}
+                    onChange={(e) => setValues((p) => ({ ...p, description: e.target.value }))}
+                    className="mt-2 min-h-[120px] w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                    placeholder="Détails importants: skins, niveau, région, email..."
+                    disabled={disable}
+                  />
+                </label>
+
+                <label className="text-sm text-white/70">
+                  Prix * (FCFA)
+                  <input
+                    type="number"
+                    value={values.price}
+                    onChange={(e) => setValues((p) => ({ ...p, price: Number(e.target.value) }))}
+                    className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                    min={1}
+                    disabled={disable}
+                  />
+                </label>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">Délai livraison</p>
+                  <p className="mt-1 font-semibold text-white/80">24H</p>
+                </div>
               </div>
+            ) : null}
 
-              <label className="text-sm text-white/70 sm:col-span-2">
-                Image annonce (PNG/JPEG)
-                <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="h-20 w-28 overflow-hidden rounded-2xl border border-white/10 bg-black/40">
-                      {imagePreview ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={imagePreview} alt="Aperçu" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="grid h-full w-full place-items-center text-white/35">
-                          <ImageIcon className="h-5 w-5" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-white/80">Choisir une image</p>
-                      <p className="mt-1 text-xs text-white/55">Formats: JPG/PNG. Max 5MB.</p>
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg"
-                        disabled={disable}
-                        onChange={(e) => {
-                          const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-                          setImageFile(file);
-                          if (!file) return;
-                          const url = URL.createObjectURL(file);
-                          setImagePreview(url);
-                        }}
-                        className="mt-3 block w-full text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white/85 hover:file:bg-white/15"
-                      />
+            {step === 2 ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm text-white/70">
+                  Niveau (optionnel)
+                  <input
+                    value={values.accountLevel}
+                    onChange={(e) => setValues((p) => ({ ...p, accountLevel: e.target.value }))}
+                    className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                    placeholder="Ex: 153"
+                    disabled={disable}
+                  />
+                </label>
+                <label className="text-sm text-white/70">
+                  Rang (optionnel)
+                  <input
+                    value={values.accountRank}
+                    onChange={(e) => setValues((p) => ({ ...p, accountRank: e.target.value }))}
+                    className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                    placeholder="Ex: Diamond"
+                    disabled={disable}
+                  />
+                </label>
+                <label className="text-sm text-white/70 sm:col-span-2">
+                  Région (optionnel)
+                  <input
+                    value={values.accountRegion}
+                    onChange={(e) => setValues((p) => ({ ...p, accountRegion: e.target.value }))}
+                    className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                    placeholder="EU / NA / AFR..."
+                    disabled={disable}
+                  />
+                </label>
+
+                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={values.hasEmailAccess}
+                    onChange={(e) => setValues((p) => ({ ...p, hasEmailAccess: e.target.checked }))}
+                    className="h-4 w-4 rounded border-white/20 bg-black/30"
+                    disabled={disable}
+                  />
+                  Email inclus (accès / changement)
+                </label>
+              </div>
+            ) : null}
+
+            {step === 3 ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm text-white/70 sm:col-span-2">
+                  Image annonce (PNG/JPEG)
+                  <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-start gap-4">
+                      <div className="h-20 w-28 overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                        {imagePreview ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={imagePreview} alt="Aperçu" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center text-white/35">
+                            <ImageIcon className="h-5 w-5" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-white/80">Choisir une image</p>
+                        <p className="mt-1 text-xs text-white/55">Formats: JPG/PNG. Max 5MB.</p>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          disabled={disable}
+                          onChange={(e) => {
+                            const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                            setImageFile(file);
+                            if (!file) return;
+                            const url = URL.createObjectURL(file);
+                            setImagePreview((prev) => {
+                              if (prev && prev.startsWith("blob:")) {
+                                try {
+                                  URL.revokeObjectURL(prev);
+                                } catch {
+                                  // ignore
+                                }
+                              }
+                              return url;
+                            });
+                          }}
+                          className="mt-3 block w-full text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white/85 hover:file:bg-white/15"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </label>
+                </label>
 
-              <label className="text-sm text-white/70 sm:col-span-2">
-                Titre *
-                <input
-                  value={values.title}
-                  onChange={(e) => setValues((p) => ({ ...p, title: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  placeholder="Ex: Compte Valorant - Rank Ascendant"
-                  disabled={disable}
-                />
-                <p className="mt-1 text-xs text-white/45">{values.title.trim().length}/140</p>
-              </label>
-
-              <label className="text-sm text-white/70 sm:col-span-2">
-                Description
-                <textarea
-                  value={values.description}
-                  onChange={(e) => setValues((p) => ({ ...p, description: e.target.value }))}
-                  className="mt-2 min-h-[120px] w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  placeholder="Détails importants: skins, niveau, région, email..."
-                  disabled={disable}
-                />
-              </label>
-
-              <label className="text-sm text-white/70">
-                Prix * (FCFA)
-                <input
-                  type="number"
-                  value={values.price}
-                  onChange={(e) => setValues((p) => ({ ...p, price: Number(e.target.value) }))}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  min={1}
-                  disabled={disable}
-                />
-              </label>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-                <p className="text-xs uppercase tracking-[0.25em] text-white/50">Délai livraison</p>
-                <p className="mt-1 font-semibold text-white/80">24H</p>
+                <label className="text-sm text-white/70 sm:col-span-2">
+                  Photos dans l’annonce (jusqu’à 4)
+                  <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs text-white/55">Ces images s’affichent dans la page “Voir l’annonce”.</p>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      multiple
+                      disabled={disable}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []).filter(Boolean).slice(0, 4);
+                        setGalleryFiles(files);
+                      }}
+                      className="mt-3 block w-full text-xs text-white/70 file:mr-3 file:rounded-xl file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white/85 hover:file:bg-white/15"
+                    />
+                    {galleryFiles.length ? (
+                      <p className="mt-2 text-xs text-white/55">{galleryFiles.length} photo(s) sélectionnée(s)</p>
+                    ) : (
+                      <p className="mt-2 text-xs text-white/45">Aucune photo sélectionnée</p>
+                    )}
+                  </div>
+                </label>
               </div>
+            ) : null}
 
-              <label className="text-sm text-white/70">
-                Niveau (optionnel)
-                <input
-                  value={values.accountLevel}
-                  onChange={(e) => setValues((p) => ({ ...p, accountLevel: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  placeholder="Ex: 153"
-                  disabled={disable}
-                />
-              </label>
-              <label className="text-sm text-white/70">
-                Rang (optionnel)
-                <input
-                  value={values.accountRank}
-                  onChange={(e) => setValues((p) => ({ ...p, accountRank: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  placeholder="Ex: Diamond"
-                  disabled={disable}
-                />
-              </label>
-              <label className="text-sm text-white/70 sm:col-span-2">
-                Région (optionnel)
-                <input
-                  value={values.accountRegion}
-                  onChange={(e) => setValues((p) => ({ ...p, accountRegion: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                  placeholder="EU / NA / AFR..."
-                  disabled={disable}
-                />
-              </label>
+            {step === 4 ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">Vérification</p>
+                  <p className="mt-2 text-sm text-white/70">Vérifie le récapitulatif. L’admin verra ces infos pour valider l’annonce.</p>
+                </div>
 
-              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={values.hasEmailAccess}
-                  onChange={(e) => setValues((p) => ({ ...p, hasEmailAccess: e.target.checked }))}
-                  className="h-4 w-4 rounded border-white/20 bg-black/30"
-                  disabled={disable}
-                />
-                Email inclus (accès / changement)
-              </label>
-            </div>
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                  <div className="grid gap-4 p-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                      <div className="text-xs font-semibold text-white/55">Titre</div>
+                      <div className="mt-1 text-sm font-extrabold text-white/90">{values.title.trim() || "—"}</div>
+                      <div className="mt-3 text-xs font-semibold text-white/55">Prix</div>
+                      <div className="mt-1 text-sm font-bold text-white/85">{Number(values.price) ? `${Math.round(Number(values.price)).toLocaleString()} FCFA` : "—"}</div>
+                      <div className="mt-3 text-xs font-semibold text-white/55">Jeu</div>
+                      <div className="mt-1 text-sm text-white/75">
+                        {values.gameId ? games.find((g) => g.id === values.gameId)?.name ?? "—" : "—"}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                      <div className="text-xs font-semibold text-white/55">Image annonce</div>
+                      <div className="mt-2 h-44 overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                        {imagePreview ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={imagePreview} alt="Aperçu" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center text-white/35">
+                            <div className="text-sm">Aucune image</div>
+                          </div>
+                        )}
+                      </div>
+                      <p className="mt-2 text-xs text-white/55">Astuce: ajoute une image pour accélérer la validation.</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-white/10 p-4">
+                    <div className="text-xs font-semibold text-white/55">Description</div>
+                    <div className="mt-2 whitespace-pre-wrap text-sm text-white/75">{values.description.trim() || "—"}</div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                        <div className="text-xs text-white/55">Level</div>
+                        <div className="mt-1 text-sm font-bold text-white/85">{values.accountLevel.trim() || "—"}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                        <div className="text-xs text-white/55">Rank</div>
+                        <div className="mt-1 text-sm font-bold text-white/85">{values.accountRank.trim() || "—"}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                        <div className="text-xs text-white/55">Région</div>
+                        <div className="mt-1 text-sm font-bold text-white/85">{values.accountRegion.trim() || "—"}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 p-3">
+                      <div className="text-xs text-white/55">Accès email</div>
+                      <div className="mt-1 text-sm font-bold text-white/85">{values.hasEmailAccess ? "Oui" : "Non"}</div>
+                    </div>
+
+                    {galleryFiles.length ? (
+                      <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 p-3">
+                        <div className="text-xs text-white/55">Galerie</div>
+                        <div className="mt-1 text-sm font-bold text-white/85">{galleryFiles.length} photo(s)</div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-3 border-t border-white/10 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-xs text-white/55">
               Commission marketplace appliquée à la vente. Les gains sont <span className="text-white/80">en attente</span> jusqu'à libération manuelle.
             </div>
-            <button
-              type="button"
-              disabled={submitDisabled}
-              onClick={() =>
-                void saveListing({
-                  mode: listingModal.mode,
-                  id: base?.id,
-                  image: imageFile,
-                  galleryImages: galleryFiles,
-                  values: {
-                    gameId: values.gameId,
-                    title: values.title.trim(),
-                    description: values.description.trim() || null,
-                    price: Math.round(Number(values.price)),
-                    accountLevel: values.accountLevel.trim() || null,
-                    accountRank: values.accountRank.trim() || null,
-                    accountRegion: values.accountRegion.trim() || null,
-                    hasEmailAccess: Boolean(values.hasEmailAccess),
-                  },
-                })
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              {isEdit ? "Enregistrer" : "Créer"}
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {step > 1 ? (
+                <button
+                  type="button"
+                  onClick={goPrev}
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/10"
+                >
+                  Précédent
+                </button>
+              ) : null}
+
+              {step < steps.length ? (
+                <button
+                  type="button"
+                  disabled={!canGoNext(step)}
+                  onClick={goNext}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/85 hover:bg-white/10 disabled:opacity-50"
+                >
+                  Suivant
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={submitDisabled}
+                  onClick={() =>
+                    void saveListing({
+                      mode: listingModal.mode,
+                      id: base?.id,
+                      image: imageFile,
+                      galleryImages: galleryFiles,
+                      values: {
+                        gameId: values.gameId,
+                        title: values.title.trim(),
+                        description: values.description.trim() || null,
+                        price: Math.round(Number(values.price)),
+                        accountLevel: values.accountLevel.trim() || null,
+                        accountRank: values.accountRank.trim() || null,
+                        accountRegion: values.accountRegion.trim() || null,
+                        hasEmailAccess: Boolean(values.hasEmailAccess),
+                      },
+                    })
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {isEdit ? "Enregistrer" : "Créer"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

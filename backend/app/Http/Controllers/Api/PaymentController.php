@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
+use App\Jobs\SendOrderPaidSms;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
@@ -90,6 +91,21 @@ class PaymentController extends Controller
         $digits = preg_replace('/\D+/', '', $rawPhone) ?? '';
         $allZeros = $digits !== '' && preg_match('/^0+$/', $digits);
         $resolvedPhone = ($digits !== '' && !$allZeros && strlen($digits) >= 6) ? $rawPhone : null;
+
+        // Persist customer's phone on the order so it can be used for SMS after payment.
+        if ($digits !== '' && !$allZeros && strlen($digits) >= 6) {
+            $orderMeta = $order->meta ?? [];
+            if (!is_array($orderMeta)) {
+                $orderMeta = [];
+            }
+
+            $orderMeta['customer_phone'] = $digits;
+            $order->meta = $orderMeta;
+            if (empty($order->shipping_phone)) {
+                $order->shipping_phone = $digits;
+            }
+            $order->save();
+        }
 
         try {
             $payment = DB::transaction(function () use ($order, $expectedAmount) {
@@ -485,6 +501,10 @@ class PaymentController extends Controller
                 return response()->json(['message' => $result['message'] ?? 'Wallet payment failed'], (int) ($result['status'] ?? 422));
             }
 
+            if (!empty($result['order_id'])) {
+                SendOrderPaidSms::dispatch((int) $result['order_id']);
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => $result,
@@ -550,6 +570,24 @@ class PaymentController extends Controller
 
         if ($currency !== $defaultCurrency) {
             return response()->json(['message' => 'Unsupported currency'], 422);
+        }
+
+        // Persist customer's phone on the order so it can be used for SMS after payment.
+        $rawPhone = trim((string) ($validated['customer_phone'] ?? ''));
+        $digits = preg_replace('/\D+/', '', $rawPhone) ?? '';
+        $allZeros = $digits !== '' && preg_match('/^0+$/', $digits);
+        if ($digits !== '' && !$allZeros && strlen($digits) >= 6) {
+            $orderMeta = $order->meta ?? [];
+            if (!is_array($orderMeta)) {
+                $orderMeta = [];
+            }
+
+            $orderMeta['customer_phone'] = $digits;
+            $order->meta = $orderMeta;
+            if (empty($order->shipping_phone)) {
+                $order->shipping_phone = $digits;
+            }
+            $order->save();
         }
 
         $transactionId = $order->payment?->transaction_id

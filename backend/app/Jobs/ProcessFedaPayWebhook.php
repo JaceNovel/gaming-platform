@@ -556,6 +556,10 @@ class ProcessFedaPayWebhook implements ShouldQueue
                     $order->update(['status' => $newOrderStatus]);
                 }
 
+                if ($normalized === 'completed' && (string) ($order->type ?? '') !== 'wallet_topup') {
+                    SendOrderPaidSms::dispatch($order->id)->afterCommit();
+                }
+
                 // Wallet topup
                 if ((string) ($order->type ?? '') === 'wallet_topup') {
                     $reference = (string) ($payment->walletTransaction?->reference ?? $order->reference ?? '');

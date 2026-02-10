@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
+use App\Jobs\SendOrderPaidSms;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\Order;
@@ -125,6 +126,10 @@ class PaymentWebhookController extends Controller
                 ? Order::STATUS_PAYMENT_SUCCESS
                 : Order::STATUS_PAYMENT_FAILED;
             $payment->order->update(['status' => $orderStatus]);
+
+            if ($normalized === 'completed' && (string) ($payment->order->type ?? '') !== 'wallet_topup') {
+                SendOrderPaidSms::dispatch($payment->order_id)->afterCommit();
+            }
 
             if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'premium_subscription') {
                 $order = $payment->order->fresh(['user']);

@@ -81,6 +81,59 @@ export default function RootLayout({
     <html lang="fr" className="dark" suppressHydrationWarning>
       <head>
         <meta name="theme-color" content="#0B0F19" />
+        <Script id="sentry-blocker" strategy="beforeInteractive">
+          {`(() => {
+  try {
+    if (typeof window === 'undefined') return;
+    if (window.__primeSentryBlocked) return;
+
+    const isSentryUrl = (value) => {
+      try {
+        const raw = typeof value === 'string' ? value : (value && value.url) ? value.url : '';
+        if (!raw) return false;
+        const u = new URL(raw, window.location.href);
+        return typeof u.hostname === 'string' && u.hostname.endsWith('sentry.io');
+      } catch {
+        return false;
+      }
+    };
+
+    const originalFetch = window.fetch;
+    if (typeof originalFetch === 'function') {
+      window.fetch = function (input, init) {
+        try {
+          if (isSentryUrl(input)) {
+            if (typeof Response === 'function') {
+              return Promise.resolve(new Response(null, { status: 204 }));
+            }
+            return Promise.resolve({ ok: true, status: 204 });
+          }
+        } catch {
+          // ignore
+        }
+        return originalFetch.call(this, input, init);
+      };
+    }
+
+    const nav = window.navigator;
+    const originalSendBeacon = nav && typeof nav.sendBeacon === 'function' ? nav.sendBeacon.bind(nav) : null;
+    if (originalSendBeacon) {
+      nav.sendBeacon = function (url, data) {
+        try {
+          if (isSentryUrl(url)) return true;
+        } catch {
+          // ignore
+        }
+        return originalSendBeacon(url, data);
+      };
+    }
+
+    window.__primeSentryBlocked = true;
+  } catch {
+    // ignore
+  }
+})();`}
+        </Script>
         <Script async src="https://www.googletagmanager.com/gtag/js?id=G-66BKKJ3F7B" />
         <Script id="gtag-init">
           {`window.dataLayer = window.dataLayer || [];
@@ -102,7 +155,7 @@ gtag('config', 'G-66BKKJ3F7B');`}
           <BottomNavigation />
           <CartDrawer />
         </AuthProvider>
-        <Script src="//code.tidio.co/txhqas6mr4cvgvb9rm4hbz7rdvye2cjw.js" strategy="afterInteractive" async />
+        <Script src="https://code.tidio.co/txhqas6mr4cvgvb9rm4hbz7rdvye2cjw.js" strategy="afterInteractive" async />
       </body>
     </html>
   );
