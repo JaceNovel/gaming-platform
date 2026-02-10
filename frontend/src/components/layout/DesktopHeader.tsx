@@ -10,7 +10,7 @@ export default function DesktopHeader() {
         <Link href="/" className="flex items-center gap-4">
           <span className="h-12 w-12 rounded-2xl bg-black/30 ring-1 ring-white/15 grid place-items-center overflow-hidden">
             <Image
-              src="/images/Design%20sans%20titre.png"
+              src="/images/Design_sans_titre-removebg-preview.png"
               alt="PRIME Gaming"
               width={48}
               height={48}

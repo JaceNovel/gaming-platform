@@ -351,7 +351,7 @@ export default function HomeClient() {
         <div className="relative z-10 text-center drop-shadow-[0_2px_18px_rgba(0,0,0,0.65)]">
           <h1 className="bb-hero-title text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
             <Image
-              src="/images/Wordmark%20Logo%20for%20Prime%20Gaming.png"
+              src="/images/Wordmark_Logo_for_Prime_Gaming-removebg-preview%20(1).png"
               alt="PRIME Gaming"
               width={900}
               height={260}

@@ -27,10 +27,10 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: `/images/Design%20sans%20titre.png?v=${ASSET_VERSION}`, type: "image/png" },
+      { url: `/images/Design_sans_titre-removebg-preview.png?v=${ASSET_VERSION}`, type: "image/png" },
     ],
-    apple: [{ url: `/images/Design%20sans%20titre.png?v=${ASSET_VERSION}`, type: "image/png" }],
-    shortcut: [{ url: `/images/Design%20sans%20titre.png?v=${ASSET_VERSION}` }],
+    apple: [{ url: `/images/Design_sans_titre-removebg-preview.png?v=${ASSET_VERSION}`, type: "image/png" }],
+    shortcut: [{ url: `/images/Design_sans_titre-removebg-preview.png?v=${ASSET_VERSION}` }],
   },
   openGraph: {
     title: "PRIME Gaming",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     siteName: "PRIME Gaming",
     images: [
       {
-        url: "/images/Design%20sans%20titre.png",
+        url: "/images/Design_sans_titre-removebg-preview.png",
         alt: "PRIME Gaming",
       },
     ],
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PRIME Gaming",
     description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
-    images: ["/images/Design%20sans%20titre.png"],
+    images: ["/images/Design_sans_titre-removebg-preview.png"],
   },
 };
 
@@ -74,7 +74,7 @@ export default function RootLayout({
     "@type": "Organization",
     name: "PRIME Gaming",
     url: SITE_URL,
-    logo: `${SITE_URL}/images/Design%20sans%20titre.png`,
+    logo: `${SITE_URL}/images/Design_sans_titre-removebg-preview.png`,
   };
 
   return (
