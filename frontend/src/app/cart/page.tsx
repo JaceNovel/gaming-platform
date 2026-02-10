@@ -12,6 +12,7 @@ import type { DeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { emitWalletUpdated } from "@/lib/walletEvents";
+import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
 
 type CartItem = {
   id: number;
@@ -57,6 +58,11 @@ function CartScreen() {
   const [walletBonusExpiresAt, setWalletBonusExpiresAt] = useState<string | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
+
+  const [shippingMapsUrl, setShippingMapsUrl] = useState("");
+  const [shippingCity, setShippingCity] = useState("");
+  const [shippingPhone, setShippingPhone] = useState("");
+  const [shippingStatus, setShippingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -146,6 +152,41 @@ function CartScreen() {
     };
   }, [authFetch]);
 
+  useEffect(() => {
+    const existing = readShippingInfo();
+    if (!existing) return;
+    setShippingMapsUrl(existing.mapsUrl ?? "");
+    setShippingCity(existing.city ?? "");
+    setShippingPhone(existing.phone ?? "");
+  }, []);
+
+  const persistShipping = () => {
+    writeShippingInfo({ mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() });
+  };
+
+  const fillCurrentPosition = async () => {
+    setShippingStatus(null);
+    if (typeof window === "undefined") return;
+    if (!("geolocation" in navigator)) {
+      setShippingStatus("La géolocalisation n'est pas supportée sur cet appareil.");
+      return;
+    }
+    setShippingStatus("Récupération de la position...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const url = buildMapsUrlFromCoords(pos.coords.latitude, pos.coords.longitude);
+        if (!url) {
+          setShippingStatus("Position invalide.");
+          return;
+        }
+        setShippingMapsUrl(url);
+        setShippingStatus("Position ajoutée.");
+      },
+      () => setShippingStatus("Impossible de récupérer la position. Autorise la localisation puis réessaie."),
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
+
   const removeItem = (id: number) => {
     setCartItems((prev) => {
       const next = prev.filter((item) => item.id !== id);
@@ -225,6 +266,14 @@ function CartScreen() {
   const fees = Math.round((productsSubtotal + shippingTotal) * 0.02);
   const total = productsSubtotal + shippingTotal + fees;
 
+  const hasPhysicalItems = useMemo(() => {
+    return cartItems.some((it: any) => {
+      const fee = Number(it?.shippingFee ?? it?.shipping_fee ?? 0);
+      if (Number.isFinite(fee) && fee > 0) return true;
+      return Boolean(it?.accessoryCategory);
+    });
+  }, [cartItems]);
+
   useEffect(() => {
     if (paymentMethod === "wallet" && (walletLoading || walletAvailable + 0.0001 < total)) {
       setPaymentMethod("fedapay");
@@ -238,6 +287,21 @@ function CartScreen() {
       if (!cartItems.length) {
         setStatus("Ton panier est vide.");
         return;
+      }
+
+      if (hasPhysicalItems) {
+        const info = { mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() };
+        const resolved = isValidShippingInfo(info) ? info : readShippingInfo();
+        if (!isValidShippingInfo(resolved)) {
+          setStatus("Veuillez renseigner l'adresse (lien Google Maps), la ville et le téléphone.");
+          return;
+        }
+        if (!isValidShippingInfo(info)) {
+          setShippingMapsUrl(resolved!.mapsUrl);
+          setShippingCity(resolved!.city);
+          setShippingPhone(resolved!.phone);
+        }
+        persistShipping();
       }
 
       const missingSubscriptionId = cartItems.find(
@@ -256,6 +320,13 @@ function CartScreen() {
             quantity: item.quantity,
             ...(String(item.type ?? "").toLowerCase() === "subscription" ? { game_id: String(item.gameId ?? "").trim() } : {}),
           })),
+          ...(hasPhysicalItems
+            ? {
+                shipping_address_line1: shippingMapsUrl.trim(),
+                shipping_city: shippingCity.trim(),
+                shipping_phone: shippingPhone.trim(),
+              }
+            : {}),
         }),
       });
 
@@ -497,6 +568,61 @@ function CartScreen() {
                   <span>{total.toLocaleString()} FCFA</span>
                 </div>
               </div>
+
+              {hasPhysicalItems ? (
+                <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-sm font-semibold text-white">Adresse de livraison</p>
+                  <p className="text-xs text-white/60">Lien Google Maps + ville + téléphone (obligatoire).</p>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-white/60">Lien Google Maps *</label>
+                    <input
+                      type="text"
+                      value={shippingMapsUrl}
+                      onChange={(e) => {
+                        setShippingMapsUrl(e.target.value);
+                        setShippingStatus(null);
+                      }}
+                      placeholder="https://maps.google.com/..."
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={fillCurrentPosition}
+                      className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/15"
+                    >
+                      Ma position actuelle
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-white/60">Ville *</label>
+                    <input
+                      type="text"
+                      value={shippingCity}
+                      onChange={(e) => setShippingCity(e.target.value)}
+                      placeholder="Ex: Douala"
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs text-white/60">Téléphone (WhatsApp) *</label>
+                    <input
+                      type="text"
+                      value={shippingPhone}
+                      onChange={(e) => setShippingPhone(e.target.value)}
+                      placeholder="Ex: 690000000"
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+
+                  {shippingStatus ? <p className="text-xs text-white/60">{shippingStatus}</p> : null}
+                  {!isValidShippingInfo({ mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() }) ? (
+                    <p className="text-xs text-amber-200">Merci de renseigner tous les champs.</p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-sm font-semibold text-white">Mode de paiement</p>

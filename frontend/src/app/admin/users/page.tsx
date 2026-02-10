@@ -48,10 +48,11 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [vipFilter, setVipFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const loadUsers = useCallback(async (term = "", role = "all") => {
+  const loadUsers = useCallback(async (term = "", role = "all", vip = "all") => {
     setLoading(true);
     setError("");
     try {
@@ -60,6 +61,7 @@ export default function AdminUsersPage() {
           name: term,
           email: term,
           role: role === "all" ? "" : role,
+          is_premium: vip === "vip" ? "1" : "",
           per_page: "100",
         }),
         {
@@ -83,10 +85,10 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadUsers(search.trim(), roleFilter);
+      loadUsers(search.trim(), roleFilter, vipFilter);
     }, 300);
     return () => clearTimeout(timer);
-  }, [loadUsers, roleFilter, search]);
+  }, [loadUsers, roleFilter, search, vipFilter]);
 
   const filteredUsers = useMemo(() => {
     if (statusFilter === "all") return users;
@@ -147,11 +149,20 @@ export default function AdminUsersPage() {
           <option value="active">Actifs</option>
           <option value="new">Nouveaux</option>
         </select>
+        <select
+          value={vipFilter}
+          onChange={(e) => setVipFilter(e.target.value)}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+        >
+          <option value="all">Tous (VIP inclus)</option>
+          <option value="vip">PRIME VIP uniquement</option>
+        </select>
         <button
           onClick={() => {
             setSearch("");
             setRoleFilter("all");
             setStatusFilter("all");
+            setVipFilter("all");
           }}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
         >

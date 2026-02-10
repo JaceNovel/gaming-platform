@@ -80,15 +80,25 @@ const formatCurrency = (amount: number, countryCode?: string | null) => {
 const prettyStatus = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
   if (!s) return "—";
-  if (["paid", "completed", "fulfilled"].includes(s)) return "Complétée";
-  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "Échec";
+  if (["paid", "completed", "fulfilled", "success", "payment_success", "delivery_success"].includes(s)) return "Succès";
+  if (["paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "En attente stock";
+  if (["pending", "processing", "payment_processing", "in_progress"].includes(s)) return "En cours";
+  if (["failed", "cancelled", "payment_failed", "expired", "refunded"].includes(s)) return "Échec";
   return status ?? "—";
 };
 
 const statusBadgeClass = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
-  if (["paid", "completed", "fulfilled"].includes(s)) return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
-  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
+  if (["paid", "completed", "fulfilled", "success", "payment_success", "delivery_success"].includes(s)) {
+    return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
+  }
+  if (["paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
+    return "bg-amber-400/15 border-amber-300/25 text-amber-100";
+  }
+  if (["pending", "processing", "payment_processing", "in_progress"].includes(s)) {
+    return "bg-cyan-400/15 border-cyan-300/25 text-cyan-100";
+  }
+  if (["failed", "cancelled", "payment_failed", "expired", "refunded"].includes(s)) {
     return "bg-rose-500/20 border-rose-400/30 text-rose-100";
   }
   return "bg-white/10 border-white/20 text-white/80";
@@ -113,6 +123,12 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
       return false;
     }
   }
+};
+
+const isHttpUrl = (value: string) => {
+  const v = String(value ?? "").trim();
+  if (!v) return false;
+  return v.startsWith("http://") || v.startsWith("https://");
 };
 
 function OrderTrackingClient() {
@@ -358,9 +374,37 @@ function OrderTrackingClient() {
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p className="text-xs text-white/60">Adresse</p>
-                    <p className="mt-1 text-sm font-semibold text-white">
-                      {order.shipping_address_line1 || "Adresse non renseignée"}
-                    </p>
+                    {order.shipping_address_line1 ? (
+                      <div className="mt-1">
+                        {isHttpUrl(order.shipping_address_line1) ? (
+                          <a
+                            href={order.shipping_address_line1}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm font-semibold text-cyan-100 hover:text-cyan-50 break-all"
+                          >
+                            {order.shipping_address_line1}
+                          </a>
+                        ) : (
+                          <p className="text-sm font-semibold text-white">{order.shipping_address_line1}</p>
+                        )}
+
+                        {isHttpUrl(order.shipping_address_line1) ? (
+                          <div className="mt-2">
+                            <a
+                              href={order.shipping_address_line1}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/15"
+                            >
+                              Ouvrir dans Maps
+                            </a>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-sm font-semibold text-white">Adresse non renseignée</p>
+                    )}
                     <p className="mt-1 text-xs text-white/60">
                       {order.shipping_city ? `${order.shipping_city} ` : ""}
                       {order.shipping_country_code ? `(${order.shipping_country_code})` : ""}

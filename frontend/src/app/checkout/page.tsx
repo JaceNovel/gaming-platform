@@ -8,6 +8,7 @@ import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
 import { emitWalletUpdated } from "@/lib/walletEvents";
+import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
 
 function CheckoutScreen() {
   const { authFetch, user } = useAuth();
@@ -17,6 +18,7 @@ function CheckoutScreen() {
   const [quantity, setQuantity] = useState(1);
   const [productType, setProductType] = useState<string | null>(null);
   const [productPrice, setProductPrice] = useState<number>(0);
+  const [shippingRequired, setShippingRequired] = useState(false);
   const [gameId, setGameId] = useState<string>("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -25,6 +27,11 @@ function CheckoutScreen() {
   const [walletBonusExpiresAt, setWalletBonusExpiresAt] = useState<string | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
+
+  const [shippingMapsUrl, setShippingMapsUrl] = useState("");
+  const [shippingCity, setShippingCity] = useState("");
+  const [shippingPhone, setShippingPhone] = useState("");
+  const [shippingStatus, setShippingStatus] = useState<string | null>(null);
 
   const isValidProduct = useMemo(() => Number.isFinite(productId) && productId > 0, [productId]);
 
@@ -37,6 +44,7 @@ function CheckoutScreen() {
       const data = await res.json();
       if (!active) return;
       setProductType(data?.type ?? null);
+      setShippingRequired(Boolean(data?.shipping_required ?? false));
 
       const discountPrice = typeof data?.discount_price === "number" ? data.discount_price : Number(data?.discount_price ?? NaN);
       const basePrice = typeof data?.price === "number" ? data.price : Number(data?.price ?? NaN);
@@ -48,6 +56,41 @@ function CheckoutScreen() {
       active = false;
     };
   }, [isValidProduct, productId]);
+
+  useEffect(() => {
+    const existing = readShippingInfo();
+    if (!existing) return;
+    setShippingMapsUrl(existing.mapsUrl ?? "");
+    setShippingCity(existing.city ?? "");
+    setShippingPhone(existing.phone ?? "");
+  }, []);
+
+  const persistShipping = () => {
+    writeShippingInfo({ mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() });
+  };
+
+  const fillCurrentPosition = async () => {
+    setShippingStatus(null);
+    if (typeof window === "undefined") return;
+    if (!("geolocation" in navigator)) {
+      setShippingStatus("La géolocalisation n'est pas supportée sur cet appareil.");
+      return;
+    }
+    setShippingStatus("Récupération de la position...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const url = buildMapsUrlFromCoords(pos.coords.latitude, pos.coords.longitude);
+        if (!url) {
+          setShippingStatus("Position invalide.");
+          return;
+        }
+        setShippingMapsUrl(url);
+        setShippingStatus("Position ajoutée.");
+      },
+      () => setShippingStatus("Impossible de récupérer la position. Autorise la localisation puis réessaie."),
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
 
   useEffect(() => {
     // no-op: FedaPay uses hosted payment page redirection
@@ -114,6 +157,21 @@ function CheckoutScreen() {
       return;
     }
 
+    if (shippingRequired) {
+      const info = { mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() };
+      const resolved = isValidShippingInfo(info) ? info : readShippingInfo();
+      if (!isValidShippingInfo(resolved)) {
+        setStatus("Veuillez renseigner l'adresse (lien Google Maps), la ville et le téléphone.");
+        return;
+      }
+      if (!isValidShippingInfo(info)) {
+        setShippingMapsUrl(resolved!.mapsUrl);
+        setShippingCity(resolved!.city);
+        setShippingPhone(resolved!.phone);
+      }
+      persistShipping();
+    }
+
         emitWalletUpdated({ source: "checkout_wallet_pay" });
     if (String(productType ?? "").toLowerCase() === "subscription" && !gameId.trim()) {
       setStatus("Veuillez renseigner votre ID (obligatoire pour l'abonnement).");
@@ -132,6 +190,13 @@ function CheckoutScreen() {
               ...(String(productType ?? "").toLowerCase() === "subscription" ? { game_id: gameId.trim() } : {}),
             },
           ],
+          ...(shippingRequired
+            ? {
+                shipping_address_line1: shippingMapsUrl.trim(),
+                shipping_city: shippingCity.trim(),
+                shipping_phone: shippingPhone.trim(),
+              }
+            : {}),
         }),
       });
 
@@ -267,6 +332,61 @@ function CheckoutScreen() {
 
         <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-3">
           <p className="text-sm text-white/70">Produit sélectionné: #{isValidProduct ? productId : "-"}</p>
+
+          {shippingRequired ? (
+            <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
+              <p className="text-sm font-semibold text-white">Adresse de livraison</p>
+              <p className="text-xs text-white/60">Lien Google Maps + ville + téléphone (obligatoire).</p>
+
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Lien Google Maps *</label>
+                <input
+                  type="text"
+                  value={shippingMapsUrl}
+                  onChange={(e) => {
+                    setShippingMapsUrl(e.target.value);
+                    setShippingStatus(null);
+                  }}
+                  placeholder="https://maps.google.com/..."
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
+                />
+                <button
+                  type="button"
+                  onClick={fillCurrentPosition}
+                  className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/15"
+                >
+                  Ma position actuelle
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Ville *</label>
+                <input
+                  type="text"
+                  value={shippingCity}
+                  onChange={(e) => setShippingCity(e.target.value)}
+                  placeholder="Ex: Douala"
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-white/70">Téléphone (WhatsApp) *</label>
+                <input
+                  type="text"
+                  value={shippingPhone}
+                  onChange={(e) => setShippingPhone(e.target.value)}
+                  placeholder="Ex: 690000000"
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
+                />
+              </div>
+
+              {shippingStatus ? <p className="text-xs text-white/60">{shippingStatus}</p> : null}
+              {!isValidShippingInfo({ mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() }) ? (
+                <p className="text-xs text-amber-200">Merci de renseigner tous les champs.</p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
             <p className="text-sm font-semibold text-white">Mode de paiement</p>

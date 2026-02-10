@@ -165,7 +165,7 @@ function PremiumSubscribeScreen() {
 
       setStatus("VIP activé via Wallet.");
       emitWalletUpdated({ source: "premium_wallet_pay" });
-      router.replace("/account");
+      router.replace("/account?payment_status=paid");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Paiement wallet impossible.";
       setStatus(message || "Paiement wallet impossible.");
