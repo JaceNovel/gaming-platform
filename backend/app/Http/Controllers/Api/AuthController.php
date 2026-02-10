@@ -18,12 +18,22 @@ class AuthController extends Controller
         $request->validate([
             'name' => 'required|string|max:7',
             'email' => 'required|string|email|max:255|unique:users',
+            'phone' => 'required|string|min:6|max:32',
             'password' => 'required|string|min:8|confirmed',
             'game_username' => 'nullable|string|max:255',
             'countryCode' => 'required|string|size:2',
             'countryName' => 'required|string|max:100',
             'referralCode' => 'nullable|string|max:32',
         ]);
+
+        $rawPhone = (string) $request->input('phone', '');
+        $phoneDigits = preg_replace('/\D+/', '', $rawPhone) ?? '';
+        if (strlen($phoneDigits) < 6) {
+            return response()->json([
+                'message' => 'Numéro de téléphone invalide.',
+                'errors' => ['phone' => ['Numéro de téléphone invalide.']],
+            ], 422);
+        }
 
         $referralCode = strtoupper(trim((string) $request->input('referralCode', '')));
         $referrer = null;
@@ -40,6 +50,7 @@ class AuthController extends Controller
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
+            'phone' => $phoneDigits,
             'password' => Hash::make($request->password),
             'game_username' => $request->game_username,
             'country_code' => strtoupper($request->countryCode),
@@ -162,6 +173,7 @@ class AuthController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+            'phone' => $user->phone,
             'role' => $user->role,
             'is_premium' => (bool) $user->is_premium,
             'premium_level' => $user->premium_level,

@@ -28,6 +28,19 @@ type Me = {
   referralCode?: string | null;
 };
 
+type PremiumStatus = {
+  is_premium?: boolean;
+  level?: string | null;
+  expiration?: string | null;
+  membership?: {
+    level?: string | null;
+    created_at?: string | null;
+    expiration_date?: string | null;
+    is_active?: boolean;
+    renewal_count?: number | null;
+  } | null;
+};
+
 type OrderStatus = "COMPLÉTÉ" | "ÉCHOUÉ" | "EN_COURS";
 
 type Order = {
@@ -63,6 +76,7 @@ type Avatar = {
 type VipPlan = {
   level: string;
   label: string;
+  perks: string[];
 };
 
 const AVATARS: Avatar[] = [
@@ -83,7 +97,26 @@ const AVATARS: Avatar[] = [
   },
 ];
 
-const VIP_PLANS: VipPlan[] = [];
+const VIP_PLANS: VipPlan[] = [
+  {
+    level: "bronze",
+    label: "Bronze",
+    perks: [
+      "Réductions VIP",
+      "Parrainage VIP (commission améliorée)",
+      "Support prioritaire",
+    ],
+  },
+  {
+    level: "platine",
+    label: "Platine",
+    perks: [
+      "Réductions VIP +",
+      "Support prioritaire",
+      "Accès offres partenaires",
+    ],
+  },
+];
 
 const getCurrencyInfo = (code?: string | null) => {
   const normalized = (code ?? "CI").toUpperCase();
@@ -177,7 +210,7 @@ const statusBadgeClass = (status: Order["status"]) => {
 };
 
 function AccountClient() {
-  const { authFetch, user, loading: authLoading, logout } = useAuth();
+  const { authFetch, user, loading: authLoading, logout, refreshUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const fallbackProfile = useMemo<Me | null>(() => {
@@ -236,6 +269,11 @@ function AccountClient() {
   const disablePasswordForm = !HAS_API_ENV;
   const disableCountryForm = !HAS_API_ENV;
   const [vipModalOpen, setVipModalOpen] = useState(false);
+  const [premiumStatus, setPremiumStatus] = useState<PremiumStatus | null>(null);
+  const [vipStatusLoading, setVipStatusLoading] = useState(false);
+  const [vipCancelSubmitting, setVipCancelSubmitting] = useState(false);
+  const [vipStatusError, setVipStatusError] = useState<string>("");
+  const [vipStatusSuccess, setVipStatusSuccess] = useState<string>("");
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>(DEFAULT_WALLET_TRANSACTIONS);
   const [walletHistoryLoading, setWalletHistoryLoading] = useState(HAS_API_ENV);
@@ -249,6 +287,36 @@ function AccountClient() {
   const [countryMessage, setCountryMessage] = useState("");
   const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
   const [thankYouOpen, setThankYouOpen] = useState(false);
+
+  useEffect(() => {
+    if (!vipModalOpen) return;
+    let active = true;
+    setVipStatusLoading(true);
+    setVipStatusError("");
+    setVipStatusSuccess("");
+
+    (async () => {
+      try {
+        const res = await authFetch(`${API_BASE}/premium/status`);
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(payload?.message ?? "Impossible de charger le statut VIP");
+        }
+        if (!active) return;
+        setPremiumStatus((payload ?? null) as PremiumStatus | null);
+      } catch (e) {
+        if (!active) return;
+        setPremiumStatus(null);
+        setVipStatusError(e instanceof Error ? e.message : "Impossible de charger le statut VIP");
+      } finally {
+        if (active) setVipStatusLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [authFetch, vipModalOpen]);
 
   const referralInviteUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -1335,7 +1403,7 @@ function AccountClient() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.5em] text-fuchsia-200/80">PRIME VIP</p>
-                <h2 className="mt-2 text-2xl font-semibold">Section réservée desktop</h2>
+                <h2 className="mt-2 text-2xl font-semibold">Mon plan</h2>
               </div>
               <button
                 className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 hover:text-white"
@@ -1344,17 +1412,92 @@ function AccountClient() {
                 Fermer
               </button>
             </div>
-            <div className="mt-5 space-y-4 text-sm text-white/70">
-              <p className="text-base text-white">
-                Cette section est disponible sur ordinateur. Merci d’utiliser un PC.
-              </p>
+
+            <div className="mt-5 space-y-4">
+              {vipStatusError ? (
+                <div className="rounded-2xl border border-rose-300/20 bg-rose-500/10 p-3 text-sm text-rose-100">{vipStatusError}</div>
+              ) : null}
+              {vipStatusSuccess ? (
+                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-sm text-emerald-100">{vipStatusSuccess}</div>
+              ) : null}
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Plan actuel</p>
+                <p className="mt-2 text-lg font-semibold text-white">{tierLabel}</p>
+                <p className="mt-1 text-xs text-white/60">
+                  {vipStatusLoading ? "Chargement..." : premiumStatus?.expiration ? `Expiration: ${premiumStatus.expiration}` : "Expiration: —"}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Avantages</p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/70">
+                  {(currentPlan?.perks?.length ? currentPlan.perks : ["Réductions VIP", "Support prioritaire", "Parrainage VIP"]).map((perk) => (
+                    <span key={perk} className="rounded-full border border-white/10 bg-black/30 px-3 py-1">{perk}</span>
+                  ))}
+                </div>
+              </div>
+
+              {(() => {
+                const startedAt = premiumStatus?.membership?.created_at ? new Date(String(premiumStatus.membership.created_at)) : null;
+                const deadline = startedAt ? new Date(startedAt.getTime() + 10 * 24 * 60 * 60 * 1000) : null;
+                const now = new Date();
+                const withinWindow = deadline ? now <= deadline : false;
+
+                return (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Résiliation</p>
+                    <p className="mt-2 text-sm text-white/70">
+                      {deadline ? (
+                        withinWindow ? "Résiliation possible (fenêtre 10 jours)." : "Résiliation expirée (fenêtre 10 jours dépassée)."
+                      ) : (
+                        "Règle: tu peux résilier seulement dans les 10 prochains jours après l'abonnement."
+                      )}
+                    </p>
+
+                    <button
+                      type="button"
+                      disabled={vipCancelSubmitting || vipStatusLoading || !withinWindow}
+                      onClick={async () => {
+                        if (vipCancelSubmitting) return;
+                        setVipStatusError("");
+                        setVipStatusSuccess("");
+                        setVipCancelSubmitting(true);
+                        try {
+                          const res = await authFetch(`${API_BASE}/premium/cancel`, { method: "POST" });
+                          const payload = await res.json().catch(() => null);
+                          if (!res.ok) {
+                            throw new Error(payload?.message ?? "Résiliation impossible");
+                          }
+                          setVipStatusSuccess(payload?.message ?? "Abonnement résilié.");
+                          setPremiumStatus((prev) => (prev ? { ...prev, is_premium: false, level: null, expiration: null } : prev));
+                          setMe((prev) => (prev ? { ...prev, premiumTier: "Basic" } : prev));
+                          await refreshUser();
+                        } catch (e) {
+                          setVipStatusError(e instanceof Error ? e.message : "Résiliation impossible");
+                        } finally {
+                          setVipCancelSubmitting(false);
+                        }
+                      }}
+                      className="mt-4 w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {vipCancelSubmitting ? "Résiliation..." : "Résilier"}
+                    </button>
+                  </div>
+                );
+              })()}
+
+              <button
+                type="button"
+                className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black"
+                onClick={() => {
+                  closeVipModal();
+                  router.push("/premium");
+                }}
+              >
+                Voir les plans
+              </button>
             </div>
-            <button
-              className="mt-6 w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/20"
-              onClick={closeVipModal}
-            >
-              Compris
-            </button>
           </div>
         </div>
       )}

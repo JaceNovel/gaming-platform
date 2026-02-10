@@ -35,6 +35,7 @@ export default function RegisterClient() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [referralCode, setReferralCode] = useState(initialReferral);
@@ -92,8 +93,13 @@ export default function RegisterClient() {
     setError(null);
     const cleanName = name.trim();
     const cleanEmail = email.trim();
+    const cleanPhone = phone.trim();
     if (cleanName.length === 0 || cleanName.length > 7) {
       setError("Choisis un pseudo entre 1 et 7 caractères.");
+      return;
+    }
+    if (cleanPhone.length < 6) {
+      setError("Numéro de téléphone requis.");
       return;
     }
     if (password !== passwordConfirmation) {
@@ -105,6 +111,7 @@ export default function RegisterClient() {
       await register({
         name: cleanName,
         email: cleanEmail,
+        phone: cleanPhone,
         password,
         password_confirmation: passwordConfirmation,
         countryCode,
@@ -201,6 +208,20 @@ export default function RegisterClient() {
               </label>
 
               <label className="block text-sm">
+                <span className="text-white/70">Téléphone</span>
+                <div className="mt-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+                    placeholder="Ex: +228 90 00 00 00"
+                    required
+                  />
+                </div>
+              </label>
+
+              <label className="block text-sm">
                 <span className="text-white/70">Mot de passe</span>
                 <div className="mt-1 flex items-center rounded-2xl border border-white/10 bg-white/5 px-2">
                   <input
@@ -283,6 +304,7 @@ export default function RegisterClient() {
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
                 <p>• Le pseudo est utilisé pour ton badge public</p>
                 <p>• Les informations pays sont obligatoires (anti-fraude)</p>
+                <p>• Téléphone: requis pour les notifications SMS</p>
                 <p>• Mot de passe: 8 caractères minimum</p>
               </div>
 

@@ -244,8 +244,7 @@ class OrderController extends Controller
         ]);
 
         $user = $request->user();
-        $productsSubtotal = 0;
-        $shippingTotal = 0;
+        $totalAmount = 0;
         $validatedItems = [];
         $requiresRedeemFulfillment = false;
         $hasPhysicalItems = false;
@@ -335,13 +334,7 @@ class OrderController extends Controller
 
             $unitPrice = $product->discount_price ?? $product->price;
             $lineTotal = $unitPrice * $quantity;
-            $productsSubtotal += $lineTotal;
-
-            $unitShippingFee = (float) ($product->shipping_fee ?? 0);
-            if ($unitShippingFee < 0) {
-                $unitShippingFee = 0;
-            }
-            $shippingTotal += $unitShippingFee * $quantity;
+            $totalAmount += $lineTotal;
 
             $isPhysical = (bool) ($product->shipping_required ?? false);
             if ($isPhysical) {
@@ -366,7 +359,6 @@ class OrderController extends Controller
                 'redeem_denomination_id' => $redeemDenomination->id ?? null,
                 'quantity' => $quantity,
                 'price' => $unitPrice,
-                'shipping_fee' => $unitShippingFee,
                 'game_id' => $item['game_id'] ?? null,
                 'type' => $product->type,
                 'is_physical' => $isPhysical,
@@ -375,9 +367,9 @@ class OrderController extends Controller
             ];
         }
 
-        $order = DB::transaction(function () use ($data, $user, $validatedItems, $productsSubtotal, $shippingTotal, $requiresRedeemFulfillment, $hasPhysicalItems) {
-            $promotionSummary = $this->buildPromotionSummary($user, $productsSubtotal);
-            $finalTotal = max(0, $productsSubtotal - $promotionSummary['total_discount']) + max(0, $shippingTotal);
+        $order = DB::transaction(function () use ($data, $user, $validatedItems, $totalAmount, $requiresRedeemFulfillment, $hasPhysicalItems) {
+            $promotionSummary = $this->buildPromotionSummary($user, $totalAmount);
+            $finalTotal = max(0, $totalAmount - $promotionSummary['total_discount']);
 
             $payload = [
                 'user_id' => $user->id,
@@ -408,7 +400,6 @@ class OrderController extends Controller
                     'redeem_denomination_id' => $item['redeem_denomination_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'shipping_fee' => $item['shipping_fee'] ?? 0,
                     'game_user_id' => $item['game_id'],
                     'delivery_status' => 'pending',
                     'is_physical' => $item['is_physical'] ?? false,
@@ -498,6 +489,16 @@ class OrderController extends Controller
     {
         if (!$user?->is_premium) {
             return 0.0;
+        }
+
+        $level = strtolower(trim((string) ($user->premium_level ?? '')));
+        if ($level !== '') {
+            return match ($level) {
+                'platine' => 10.0,
+                'or' => 7.0,
+                'bronze' => 5.0,
+                default => 3.0,
+            };
         }
 
         return match ((int) ($user->premium_level ?? 1)) {

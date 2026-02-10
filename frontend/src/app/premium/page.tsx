@@ -59,13 +59,19 @@ const cutCorners =
   "polygon(18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px)";
 
 export default function Premium() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const [showPrompt, setShowPrompt] = useState(false);
+
+  const currentLevel = String(user?.premium_level ?? "").trim().toLowerCase();
+  const vipActive = Boolean(user?.is_premium) && currentLevel !== "";
 
   const requestSubscribe = (level: string) => {
     if (!token) {
       setShowPrompt(true);
+      return;
+    }
+    if (vipActive && currentLevel === String(level).toLowerCase()) {
       return;
     }
     router.push(`/premium/subscribe?level=${encodeURIComponent(level)}`);
@@ -97,7 +103,9 @@ export default function Premium() {
               Choisis ton plan VIP pour débloquer des avantages, un support prioritaire et des offres réservées.
             </p>
             <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-              <GlowButton className="px-6" onClick={() => requestSubscribe("bronze")}>Mettre à jour maintenant</GlowButton>
+              <GlowButton className="px-6" onClick={() => (vipActive ? router.push("/account") : requestSubscribe("bronze"))}>
+                {vipActive ? "Voir mon plan" : "Mettre à jour maintenant"}
+              </GlowButton>
             </div>
           </motion.div>
 
@@ -133,55 +141,61 @@ export default function Premium() {
             </div>
 
             <div className="lg:col-span-2 grid gap-6 md:grid-cols-2">
-              {premiumPlans.map((plan, index) => (
-                <motion.div
-                  key={plan.id}
-                  initial={{ opacity: 0, y: 22 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.08 }}
-                  whileHover={{ y: -8 }}
-                  className={`relative overflow-hidden border bg-gradient-to-br ${plan.theme.gradient} ${plan.theme.border} ${plan.theme.glow} p-[1px] backdrop-blur-2xl ${plan.theme.ring}`}
-                  style={{ clipPath: cutCorners }}
-                >
-                  <div className="h-full bg-black/60 px-6 py-7" style={{ clipPath: cutCorners }}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.35em] text-white/55">Plan</p>
-                        <h3 className="mt-1 text-3xl font-black text-white">{plan.name}</h3>
-                        <p className={`mt-2 text-xs uppercase tracking-[0.35em] ${plan.theme.accent}`}>{plan.billing}</p>
+              {premiumPlans.map((plan, index) => {
+                const isCurrent = vipActive && currentLevel === String(plan.id).toLowerCase();
+                return (
+                  <motion.div
+                    key={plan.id}
+                    initial={{ opacity: 0, y: 22 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: index * 0.08 }}
+                    whileHover={{ y: -8 }}
+                    className={`relative overflow-hidden border bg-gradient-to-br ${plan.theme.gradient} ${plan.theme.border} ${plan.theme.glow} p-[1px] backdrop-blur-2xl ${plan.theme.ring}`}
+                    style={{ clipPath: cutCorners }}
+                  >
+                    <div className="h-full bg-black/60 px-6 py-7" style={{ clipPath: cutCorners }}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.35em] text-white/55">Plan</p>
+                          <h3 className="mt-1 text-3xl font-black text-white">{plan.name}</h3>
+                          <p className={`mt-2 text-xs uppercase tracking-[0.35em] ${plan.theme.accent}`}>{plan.billing}</p>
+                        </div>
+                        {plan.badge ? (
+                          <span className="rounded-full border border-amber-300/35 bg-amber-400/15 px-3 py-1 text-xs font-semibold text-amber-100">
+                            {plan.badge}
+                          </span>
+                        ) : null}
                       </div>
-                      {plan.badge ? (
-                        <span className="rounded-full border border-amber-300/35 bg-amber-400/15 px-3 py-1 text-xs font-semibold text-amber-100">
-                          {plan.badge}
-                        </span>
-                      ) : null}
-                    </div>
 
-                    <div className="mt-5 flex items-end justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-white/60">Prix</p>
-                        <p className="mt-1 text-3xl font-black text-white">{plan.price}</p>
+                      <div className="mt-5 flex items-end justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-white/60">Prix</p>
+                          <p className="mt-1 text-3xl font-black text-white">{plan.price}</p>
+                        </div>
+                        <button
+                          onClick={() => requestSubscribe(plan.id)}
+                          disabled={isCurrent}
+                          className={`inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold shadow-[0_14px_40px_rgba(0,0,0,0.45)] hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed ${
+                            isCurrent ? "bg-white/10 text-white" : `bg-gradient-to-r ${plan.theme.button} text-black`
+                          }`}
+                        >
+                          {isCurrent ? "Plan actuel" : "Mettre à jour"}
+                        </button>
                       </div>
-                      <button
-                        onClick={() => requestSubscribe(plan.id)}
-                        className={`inline-flex items-center justify-center rounded-xl bg-gradient-to-r ${plan.theme.button} px-5 py-3 text-sm font-semibold text-black shadow-[0_14px_40px_rgba(0,0,0,0.45)] hover:opacity-95`}
-                      >
-                        Mettre à jour
-                      </button>
-                    </div>
 
-                    <ul className="mt-6 space-y-3 text-left text-sm text-white/80">
-                      {plan.perks.map((perk) => (
-                        <li key={perk} className="flex items-start gap-2">
-                          <Check className="mt-0.5 h-4 w-4 text-cyan-200" />
-                          <span>{perk}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </motion.div>
-              ))}
+                      <ul className="mt-6 space-y-3 text-left text-sm text-white/80">
+                        {plan.perks.map((perk) => (
+                          <li key={perk} className="flex items-start gap-2">
+                            <Check className="mt-0.5 h-4 w-4 text-cyan-200" />
+                            <span>{perk}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </div>
         </div>

@@ -9,6 +9,7 @@ export type AuthUser = {
   id: number;
   name: string;
   email: string;
+  phone?: string | null;
   role?: string | null;
   is_premium?: boolean;
   premium_level?: number | string | null;
@@ -24,6 +25,7 @@ type AuthContextValue = {
   register: (payload: {
     name: string;
     email: string;
+    phone: string;
     password: string;
     password_confirmation: string;
     countryCode: string;
@@ -206,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (payload: {
     name: string;
     email: string;
+    phone: string;
     password: string;
     password_confirmation: string;
     countryCode: string;

@@ -240,6 +240,16 @@ class PremiumController extends Controller
             ], 400);
         }
 
+        $startedAt = $membership->created_at;
+        if ($startedAt) {
+            $deadline = Carbon::parse($startedAt)->addDays(10);
+            if (Carbon::now()->greaterThan($deadline)) {
+                return response()->json([
+                    'message' => "Résiliation impossible : tu peux résilier seulement dans les 10 prochains jours après l'abonnement.",
+                ], 422);
+            }
+        }
+
         DB::transaction(function () use ($membership, $user) {
             $membership->update([
                 'is_active' => false,

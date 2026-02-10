@@ -21,12 +21,15 @@ export default function ProfileSidebar({
   onVipClick,
   onWalletClick,
 }: ProfileSidebarProps) {
+  const isVip = String(premiumTier ?? "").toLowerCase() !== "basic";
   return (
     <aside className="rounded-3xl bg-black/35 border border-white/10 backdrop-blur-xl p-4">
       <div className="flex items-center gap-3 p-2">
         <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-500/40 to-cyan-400/20 border border-white/15" />
         <div>
-          <div className="font-bold">{username}</div>
+          <div className={isVip ? "font-extrabold bg-gradient-to-r from-cyan-200 via-fuchsia-200 to-violet-200 bg-clip-text text-transparent" : "font-bold"}>
+            {username}
+          </div>
           <div className="text-xs opacity-70">PRIME {premiumTier}</div>
         </div>
       </div>
