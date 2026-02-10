@@ -416,35 +416,35 @@ class PaymentController extends Controller
                         $gameId = (int) ($orderMeta['game_id'] ?? 0);
                         $gameUsername = (string) ($orderMeta['game_username'] ?? '');
 
+                        $levels = [
+                            'bronze' => ['duration' => 30],
+                            'platine' => ['duration' => 30],
+                        ];
+                        $duration = (int) ($levels[$level]['duration'] ?? 30);
+                        $expiresAt = Carbon::now()->addDays(max(1, $duration));
+
+                        // Always activate VIP at user level (membership is optional).
+                        $order->user?->update([
+                            'is_premium' => true,
+                            'premium_level' => $level,
+                            'premium_expiration' => $expiresAt,
+                        ]);
+
                         if ($gameId > 0 && $gameUsername !== '') {
-                            $levels = [
-                                'bronze' => ['duration' => 30],
-                                'platine' => ['duration' => 30],
-                            ];
-                            $duration = $levels[$level]['duration'] ?? 30;
-
-                            $membership = PremiumMembership::updateOrCreate(
-                                [
-                                    'user_id' => $order->user_id,
-                                    'game_id' => $gameId,
-                                ],
-                                [
-                                    'level' => $level,
-                                    'game_username' => $gameUsername,
-                                    'expiration_date' => Carbon::now()->addDays($duration),
-                                    'is_active' => true,
-                                    'renewal_count' => DB::raw('renewal_count + 1'),
-                                ]
-                            );
-
-                            $order->user?->update([
-                                'is_premium' => true,
-                                'premium_level' => $level,
-                                'premium_expiration' => $membership->expiration_date,
+                            $membership = PremiumMembership::firstOrNew([
+                                'user_id' => $order->user_id,
+                                'game_id' => $gameId,
                             ]);
 
-                            $orderMeta['premium_activated_at'] = now()->toIso8601String();
+                            $membership->level = $level;
+                            $membership->game_username = $gameUsername;
+                            $membership->expiration_date = $expiresAt;
+                            $membership->is_active = true;
+                            $membership->renewal_count = (int) ($membership->renewal_count ?? 0) + 1;
+                            $membership->save();
                         }
+
+                        $orderMeta['premium_activated_at'] = now()->toIso8601String();
                     }
                 } else {
                     if (empty($orderMeta['sales_recorded_at'])) {
@@ -494,6 +494,9 @@ class PaymentController extends Controller
                 'stage' => 'wallet-pay',
                 'order_id' => $order->id ?? null,
                 'user_id' => $user->id ?? null,
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'message' => $e->getMessage(),
             ]);
 

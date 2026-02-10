@@ -378,7 +378,7 @@ export default function AccessoiresPage() {
 
       <main className="w-full px-5 md:px-10 lg:px-12 py-10">
         <div className="mx-auto w-full max-w-6xl">
-          <header className="rounded-[28px] border border-white/10 bg-black/45 p-6 backdrop-blur">
+          <header className="p-2">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Catalogue</p>
@@ -435,7 +435,7 @@ export default function AccessoiresPage() {
                     </Link>
                   </div>
 
-                  <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur">
+                  <div className="p-1">
                     {loading ? (
                       <div className="animate-pulse grid gap-3">
                         <div className="h-4 w-2/3 rounded bg-white/10" />
@@ -463,7 +463,7 @@ export default function AccessoiresPage() {
                           return (
                             <div
                               key={p.id}
-                              className="snap-start w-[320px] sm:w-[420px] flex-none rounded-[26px] border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
+                              className="snap-start w-[320px] sm:w-[420px] flex-none p-4 transition hover:bg-white/5 rounded-[26px]"
                             >
                               <div className="flex gap-4">
                                 <div className="min-w-0 flex-1">
@@ -530,7 +530,7 @@ export default function AccessoiresPage() {
                                   </div>
                                 </div>
 
-                                <div className="relative h-[148px] w-[132px] flex-none overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                                <div className="relative h-[148px] w-[132px] flex-none overflow-hidden rounded-2xl">
                                   {imgSrc ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={imgSrc} alt={name} className="h-full w-full object-cover" loading="lazy" />
