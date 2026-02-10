@@ -341,16 +341,14 @@ export default function AppHeader() {
         <div className="mx-auto w-full max-w-7xl px-6">
           <div className="flex h-[64px] w-full items-center justify-between gap-6 whitespace-nowrap">
             <Link href="/" className="flex items-center gap-3">
-              <div className="relative h-10 w-10 overflow-hidden rounded-2xl ring-1 ring-white/15 bg-black/20">
-                <Image
-                  src="/images/Design_sans_titre-removebg-preview.png"
-                  alt="PRIME Gaming"
-                  width={44}
-                  height={44}
-                  className="h-full w-full object-contain"
-                  priority
-                />
-              </div>
+              <Image
+                src="/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png"
+                alt="PRIME Gaming"
+                width={44}
+                height={44}
+                className="h-10 w-10 object-contain"
+                priority
+              />
               <div className="text-base font-extrabold tracking-tight text-white">
                 PRIME<span className="text-fuchsia-400">Gaming</span>
               </div>
@@ -523,16 +521,14 @@ export default function AppHeader() {
       <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-black/55 backdrop-blur lg:hidden">
         <div className="mx-auto flex w-full items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-black/30 ring-1 ring-white/15">
-              <Image
-                src="/images/Design_sans_titre-removebg-preview.png"
-                alt="PRIME Gaming"
-                width={36}
-                height={36}
-                className="h-7 w-7 object-contain"
-                priority
-              />
-            </span>
+            <Image
+              src="/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png"
+              alt="PRIME Gaming"
+              width={36}
+              height={36}
+              className="h-9 w-9 object-contain"
+              priority
+            />
             <span className="text-sm font-extrabold tracking-tight text-white">
               PRIME<span className="text-white/70">Gaming</span>
             </span>

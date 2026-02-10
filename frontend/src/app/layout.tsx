@@ -27,10 +27,10 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: `/images/Design_sans_titre-removebg-preview.png?v=${ASSET_VERSION}`, type: "image/png" },
+      { url: `/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png?v=${ASSET_VERSION}`, type: "image/png" },
     ],
-    apple: [{ url: `/images/Design_sans_titre-removebg-preview.png?v=${ASSET_VERSION}`, type: "image/png" }],
-    shortcut: [{ url: `/images/Design_sans_titre-removebg-preview.png?v=${ASSET_VERSION}` }],
+    apple: [{ url: `/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png?v=${ASSET_VERSION}`, type: "image/png" }],
+    shortcut: [{ url: `/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png?v=${ASSET_VERSION}` }],
   },
   openGraph: {
     title: "PRIME Gaming",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     siteName: "PRIME Gaming",
     images: [
       {
-        url: "/images/Design_sans_titre-removebg-preview.png",
+        url: "/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png",
         alt: "PRIME Gaming",
       },
     ],
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PRIME Gaming",
     description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
-    images: ["/images/Design_sans_titre-removebg-preview.png"],
+    images: ["/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png"],
   },
 };
 
@@ -74,7 +74,7 @@ export default function RootLayout({
     "@type": "Organization",
     name: "PRIME Gaming",
     url: SITE_URL,
-    logo: `${SITE_URL}/images/Design_sans_titre-removebg-preview.png`,
+    logo: `${SITE_URL}/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png`,
   };
 
   return (

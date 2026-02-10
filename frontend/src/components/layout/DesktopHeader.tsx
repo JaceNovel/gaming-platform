@@ -8,16 +8,14 @@ export default function DesktopHeader() {
     <header className="hidden lg:block w-full sticky top-0 z-30 border-b border-white/10 bg-black/50 backdrop-blur">
       <div className="w-full px-12 xl:px-20 2xl:px-28 py-4 flex items-center gap-6">
         <Link href="/" className="flex items-center gap-4">
-          <span className="h-12 w-12 rounded-2xl bg-black/30 ring-1 ring-white/15 grid place-items-center overflow-hidden">
-            <Image
-              src="/images/Design_sans_titre-removebg-preview.png"
-              alt="PRIME Gaming"
-              width={48}
-              height={48}
-              className="h-10 w-10 object-contain"
-              priority
-            />
-          </span>
+          <Image
+            src="/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png"
+            alt="PRIME Gaming"
+            width={48}
+            height={48}
+            className="h-12 w-12 object-contain"
+            priority
+          />
           <div>
             <p className="text-sm uppercase tracking-[0.32em] text-cyan-200/90">PRIME GAMING</p>
             <p className="text-base text-white/65">Gaming Premium</p>
