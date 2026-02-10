@@ -577,6 +577,10 @@ function AccountClient() {
       handleVipEntry();
       return;
     }
+    if (menu === "Vendeur") {
+      router.push("/account/seller");
+      return;
+    }
     if (menu === "MesCodes") {
       router.push("/codes");
       return;

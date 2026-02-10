@@ -63,10 +63,11 @@ const safeFetchJson = async <T,>(url: string): Promise<T | null> => {
   }
 };
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const siteUrl = getSiteUrl();
   const apiBase = getApiBase();
-  const slug = String(params.slug ?? "");
+  const resolvedParams = await params;
+  const slug = String(resolvedParams.slug ?? "");
 
   let categoryName = slug;
   if (apiBase) {
@@ -92,9 +93,10 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function CategoryPage({ params }: { params: { slug: string } }) {
+export default async function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const apiBase = getApiBase();
-  const slug = String(params.slug ?? "");
+  const resolvedParams = await params;
+  const slug = String(resolvedParams.slug ?? "");
 
   const [categoriesPayload, productsPayload] = await Promise.all([
     apiBase ? safeFetchJson<{ data?: ApiCategory[] } | ApiCategory[]>(`${apiBase}/categories`) : Promise.resolve(null),

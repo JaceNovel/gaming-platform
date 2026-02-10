@@ -62,10 +62,11 @@ const safeFetchJson = async <T,>(url: string): Promise<T | null> => {
   }
 };
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const siteUrl = getSiteUrl();
   const apiBase = getApiBase();
-  const id = String(params.id ?? "");
+  const resolvedParams = await params;
+  const id = String(resolvedParams.id ?? "");
 
   let product: ApiProduct | null = null;
   if (apiBase) {

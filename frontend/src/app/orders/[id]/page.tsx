@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
@@ -37,8 +37,6 @@ type OrderDetail = {
   type?: string;
   total_price?: number;
   created_at?: string;
-  delivered_at?: string | null;
-  meta?: any;
   shipping_status?: string | null;
   shipping_eta_days?: number | null;
   shipping_estimated_date?: string | null;
@@ -66,30 +64,6 @@ type RedeemCodesResponse = {
   guide_url?: string;
 };
 
-type MarketplaceOrderInfoResponse = {
-  ok?: boolean;
-  order?: {
-    id?: number;
-    reference?: string;
-    status?: string;
-    delivered_at?: string | null;
-    type?: string;
-  };
-  marketplaceOrder?: {
-    id?: number;
-    status?: string | null;
-    delivery_deadline_at?: string | null;
-    delivered_at?: string | null;
-    delivery_proof?: string | null;
-    listing?: {
-      id?: number;
-      title?: string | null;
-      delivery_window_hours?: number | null;
-    } | null;
-  };
-  can_confirm_delivered?: boolean;
-};
-
 const formatCurrency = (amount: number, countryCode?: string | null) => {
   const normalized = (countryCode ?? "CI").toUpperCase();
   const currency = ["FR", "BE"].includes(normalized) ? "EUR" : normalized === "US" ? "USD" : "XOF";
@@ -106,43 +80,16 @@ const formatCurrency = (amount: number, countryCode?: string | null) => {
 const prettyStatus = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
   if (!s) return "—";
-  if (["paid", "completed", "fulfilled", "delivered"].includes(s)) return "Livrée";
-  if (["failed", "payment_failed", "cancelled", "canceled", "refused", "error"].includes(s)) return "Échouée";
-  if (["pending", "awaiting_payment", "payment_processing", "payment_success"].includes(s)) return "En cours";
-  if (["paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "En cours";
+  if (["paid", "completed", "fulfilled"].includes(s)) return "Complétée";
+  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) return "Échec";
   return status ?? "—";
-};
-
-const prettyShippingStatus = (status?: string | null) => {
-  const s = String(status ?? "").toLowerCase().trim();
-  if (!s) return "—";
-  if (["canceled", "cancelled"].includes(s)) return "Annulée";
-  if (["delivered"].includes(s)) return "Livrée";
-  if (["out_for_delivery"].includes(s)) return "En livraison";
-  if (["arrived_local", "ready_for_pickup"].includes(s)) return "Arrivée localement";
-  if (["shipped", "in_transit"].includes(s)) return "Expédiée";
-  if (["warehouse", "pending"].includes(s)) return "En entrepôt";
-  return status ?? "—";
-};
-
-const shippingStepIndex = (status?: string | null) => {
-  const s = String(status ?? "").toLowerCase().trim();
-  if (["delivered"].includes(s)) return 4;
-  if (["out_for_delivery"].includes(s)) return 3;
-  if (["arrived_local", "ready_for_pickup"].includes(s)) return 2;
-  if (["shipped", "in_transit"].includes(s)) return 1;
-  if (["canceled", "cancelled"].includes(s)) return 0;
-  return 0;
 };
 
 const statusBadgeClass = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
-  if (["paid", "completed", "fulfilled", "delivered"].includes(s)) return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
-  if (["failed", "payment_failed", "cancelled", "canceled", "refused", "error"].includes(s)) {
+  if (["paid", "completed", "fulfilled"].includes(s)) return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
+  if (["pending", "failed", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
     return "bg-rose-500/20 border-rose-400/30 text-rose-100";
-  }
-  if (["pending", "awaiting_payment", "payment_processing", "payment_success", "paid_but_out_of_stock", "paid_waiting_stock"].includes(s)) {
-    return "bg-amber-400/20 border-amber-300/30 text-amber-100";
   }
   return "bg-white/10 border-white/20 text-white/80";
 };
@@ -168,19 +115,15 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 };
 
-function OrderTrackingClient({ params }: { params: { id: string } }) {
+function OrderTrackingClient() {
   const router = useRouter();
   const { authFetch } = useAuth();
+  const params = useParams<{ id: string }>();
 
   const [loading, setLoading] = useState(HAS_API_ENV);
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [codes, setCodes] = useState<RedeemCodesResponse | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "success" | "error">("idle");
-
-  const [resolvedOrderId, setResolvedOrderId] = useState<string | null>(null);
-  const [marketplaceInfo, setMarketplaceInfo] = useState<MarketplaceOrderInfoResponse | null>(null);
-  const [marketplaceLoading, setMarketplaceLoading] = useState(false);
-  const [marketplaceConfirmLoading, setMarketplaceConfirmLoading] = useState(false);
 
   const numericId = useMemo(() => {
     const trimmed = String(params.id ?? "").trim();
@@ -203,16 +146,12 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
       if (numericId) return numericId;
 
       try {
-        const res = await authFetch(`${API_BASE}/orders`);
+        const res = await authFetch(`${API_BASE}/orders?include_wallet_topups=1`);
         if (!res.ok) return null;
         const data = await res.json();
         const items = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
         const needle = decodeURIComponent(String(params.id ?? "")).trim();
-        const match = items.find((row: any) => {
-          const ref = String(row?.reference ?? "").trim();
-          const id = String(row?.id ?? "").trim();
-          return ref === needle || id === needle;
-        });
+        const match = items.find((row: any) => String(row?.reference ?? "").trim() === needle);
         const id = match?.id;
         return id ? String(id) : null;
       } catch {
@@ -239,7 +178,6 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
         const detail = (await res.json()) as OrderDetail;
         if (!active) return;
         setOrder(detail);
-        setResolvedOrderId(String(resolved));
 
         const codesRes = await authFetch(`${API_BASE}/orders/${encodeURIComponent(resolved)}/redeem-codes`);
         if (!codesRes.ok) {
@@ -258,43 +196,6 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
       active = false;
     };
   }, [API_BASE, authFetch, numericId, params.id]);
-
-  useEffect(() => {
-    let active = true;
-    if (!HAS_API_ENV) return;
-    if (!resolvedOrderId) {
-      setMarketplaceInfo(null);
-      return;
-    }
-
-    const isMarketplace = String(order?.type ?? "") === "marketplace_gaming_account";
-    if (!isMarketplace) {
-      setMarketplaceInfo(null);
-      return;
-    }
-
-    (async () => {
-      setMarketplaceLoading(true);
-      try {
-        const res = await authFetch(
-          `${API_BASE}/gaming-accounts/orders/${encodeURIComponent(resolvedOrderId)}/marketplace`,
-        );
-        if (!res.ok) {
-          if (active) setMarketplaceInfo(null);
-          return;
-        }
-        const payload = (await res.json()) as MarketplaceOrderInfoResponse;
-        if (!active) return;
-        setMarketplaceInfo(payload);
-      } finally {
-        if (active) setMarketplaceLoading(false);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [API_BASE, authFetch, order?.type, resolvedOrderId]);
 
   const orderItems: OrderItem[] = useMemo(() => {
     const raw = order?.orderItems ?? order?.order_items ?? [];
@@ -320,35 +221,6 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
   }, [order?.reference, params.id]);
 
   const currencyCountryCode = (order?.shipping_country_code ?? "CI") as string;
-
-  const orderDelivered = Boolean(order?.delivered_at) || String(order?.meta?.fulfillment_status ?? "").toLowerCase() === "fulfilled";
-  const orderStatusLabel = orderDelivered ? "Livrée" : prettyStatus(order?.status);
-  const orderStatusClass = orderDelivered
-    ? "bg-emerald-400/20 border-emerald-300/30 text-emerald-100"
-    : statusBadgeClass(order?.status);
-
-  const marketplaceCanConfirm = Boolean(marketplaceInfo?.can_confirm_delivered) && !orderDelivered;
-  const marketplaceDeadlineLabel = marketplaceInfo?.marketplaceOrder?.delivery_deadline_at
-    ? new Date(marketplaceInfo.marketplaceOrder.delivery_deadline_at).toLocaleString("fr-FR")
-    : null;
-
-  const shippingSteps = useMemo(
-    () => [
-      { key: "warehouse", label: "En entrepôt" },
-      { key: "shipped", label: "Expédiée" },
-      { key: "arrived_local", label: "Arrivée localement" },
-      { key: "out_for_delivery", label: "En livraison" },
-      { key: "delivered", label: "Livrée" },
-    ],
-    [],
-  );
-
-  const shippingCanceled = useMemo(() => {
-    const s = String(order?.shipping_status ?? "").toLowerCase().trim();
-    return ["canceled", "cancelled"].includes(s);
-  }, [order?.shipping_status]);
-
-  const shippingActiveIdx = useMemo(() => shippingStepIndex(order?.shipping_status), [order?.shipping_status]);
 
   return (
     <div className="min-h-screen text-white">
@@ -403,18 +275,17 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
               ) : (
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.35em] text-white/45">Identifiant</p>
-                    <p className="mt-1 text-lg font-semibold text-white">#{order.id}</p>
-                    <p className="mt-1 text-sm text-white/60">Référence: {order.reference ?? "—"}</p>
+                    <p className="text-xs uppercase tracking-[0.35em] text-white/45">Référence</p>
+                    <p className="mt-1 text-lg font-semibold text-white">{order.reference ?? `#${order.id}`}</p>
                     <p className="mt-1 text-sm text-white/60">
                       {order.created_at ? `Créée le ${new Date(order.created_at).toLocaleString("fr-FR")}` : ""}
                     </p>
                   </div>
                   <div className="text-right">
                     <span
-                      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${orderStatusClass}`}
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${statusBadgeClass(order.status)}`}
                     >
-                      {orderStatusLabel}
+                      {prettyStatus(order.status)}
                     </span>
                     <p className="mt-2 text-lg font-semibold text-amber-200">
                       {formatCurrency(Number(order.total_price ?? 0), currencyCountryCode)}
@@ -473,143 +344,13 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
               </div>
             )}
 
-            {order && String(order.type ?? "") === "marketplace_gaming_account" && (
-              <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/45">Livraison marketplace</p>
-
-                {marketplaceLoading ? (
-                  <div className="mt-4 animate-pulse space-y-3">
-                    <div className="h-4 w-2/3 rounded bg-white/10" />
-                    <div className="h-4 w-1/2 rounded bg-white/10" />
-                    <div className="h-10 w-full rounded bg-white/10" />
-                  </div>
-                ) : (
-                  <div className="mt-4 grid grid-cols-1 gap-4">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <p className="text-sm font-semibold text-white">
-                        {marketplaceInfo?.marketplaceOrder?.listing?.title ?? "Compte Gaming"}
-                      </p>
-                      <p className="mt-1 text-sm text-white/65">Livré sous 24H sinon litige.</p>
-                      <p className="mt-2 text-xs text-white/60">
-                        Délai max: {marketplaceDeadlineLabel ?? "—"}
-                      </p>
-                      <p className="mt-1 text-xs text-white/60">
-                        Statut vendeur: {prettyStatus(marketplaceInfo?.marketplaceOrder?.status ?? undefined)}
-                        {marketplaceInfo?.marketplaceOrder?.delivered_at
-                          ? ` • Marqué livré le ${new Date(marketplaceInfo.marketplaceOrder.delivered_at).toLocaleString("fr-FR")}`
-                          : ""}
-                      </p>
-
-                      {orderDelivered ? (
-                        <div className="mt-4 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-3 text-sm text-emerald-100">
-                          Livraison confirmée. Merci.
-                        </div>
-                      ) : null}
-
-                      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                        <button
-                          type="button"
-                          disabled={!marketplaceCanConfirm || marketplaceConfirmLoading}
-                          onClick={async () => {
-                            if (!resolvedOrderId) return;
-                            setMarketplaceConfirmLoading(true);
-                            try {
-                              const res = await authFetch(
-                                `${API_BASE}/gaming-accounts/orders/${encodeURIComponent(resolvedOrderId)}/confirm-delivered`,
-                                { method: "POST" },
-                              );
-                              if (!res.ok) return;
-                              setOrder((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      delivered_at: new Date().toISOString(),
-                                      meta: { ...(prev.meta ?? {}), fulfillment_status: "fulfilled" },
-                                    }
-                                  : prev,
-                              );
-                              setMarketplaceInfo((prev) => (prev ? { ...prev, can_confirm_delivered: false } : prev));
-                            } finally {
-                              setMarketplaceConfirmLoading(false);
-                            }
-                          }}
-                          className="w-full rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100 disabled:opacity-60"
-                        >
-                          {marketplaceConfirmLoading ? "Confirmation..." : "J’ai été livré"}
-                        </button>
-
-                        <Link
-                          href="/account/litige"
-                          className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-center text-sm font-semibold"
-                        >
-                          Ouvrir un litige
-                        </Link>
-                      </div>
-
-                      {!marketplaceCanConfirm && !orderDelivered ? (
-                        <p className="mt-3 text-xs text-white/55">
-                          Le bouton “J’ai été livré” s’active quand le vendeur marque la commande comme livrée.
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {order && hasPhysicalItems && (
               <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
                 <p className="text-xs uppercase tracking-[0.35em] text-white/45">Livraison</p>
-
-                {!shippingCanceled ? (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-white/60">Suivi simplifié</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {shippingSteps.map((step, idx) => {
-                        const isActive = idx === shippingActiveIdx;
-                        const isCompleted = idx < shippingActiveIdx;
-                        const dotClass = isActive
-                          ? "bg-cyan-400/20 border-cyan-300/30 text-cyan-100"
-                          : isCompleted
-                            ? "bg-emerald-400/15 border-emerald-300/25 text-emerald-100"
-                            : "bg-white/5 border-white/10 text-white/45";
-                        const labelClass = isActive
-                          ? "text-white"
-                          : isCompleted
-                            ? "text-white/75"
-                            : "text-white/45";
-                        const connectorClass = idx < shippingActiveIdx ? "bg-cyan-300/25" : "bg-white/10";
-
-                        return (
-                          <div key={step.key} className="flex items-center">
-                            <div
-                              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-bold ${dotClass}`}
-                              aria-current={isActive ? "step" : undefined}
-                            >
-                              {idx + 1}
-                            </div>
-                            <div className={`ml-2 text-xs font-semibold ${labelClass}`}>{step.label}</div>
-                            {idx < shippingSteps.length - 1 ? (
-                              <div className={`mx-3 h-[2px] w-8 rounded ${connectorClass}`} aria-hidden="true" />
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p className="mt-3 text-sm font-semibold text-white">
-                      État actuel: {shippingSteps[Math.min(Math.max(shippingActiveIdx, 0), shippingSteps.length - 1)]?.label}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-rose-300/30 bg-rose-500/10 p-4 text-sm text-rose-100">
-                    Livraison annulée.
-                  </div>
-                )}
-
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p className="text-xs text-white/60">Statut</p>
-                    <p className="mt-1 text-sm font-semibold text-white">{prettyShippingStatus(order.shipping_status)}</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{prettyStatus(order.shipping_status)}</p>
                     <p className="mt-2 text-xs text-white/60">
                       ETA: {order.shipping_eta_days ? `${order.shipping_eta_days} jours` : "—"}
                       {order.shipping_estimated_date ? ` • ${order.shipping_estimated_date}` : ""}
@@ -715,10 +456,10 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
   );
 }
 
-export default function OrderTrackingPage({ params }: { params: { id: string } }) {
+export default function OrderTrackingPage() {
   return (
     <RequireAuth>
-      <OrderTrackingClient params={params} />
+      <OrderTrackingClient />
     </RequireAuth>
   );
 }
