@@ -19,6 +19,7 @@ type ApiProduct = {
   title?: string | null;
   description?: string | null;
   type?: string | null;
+  shipping_fee?: number | string | null;
   estimated_delivery_label?: string | null;
   delivery_estimate_label?: string | null;
   delivery_eta_days?: number | null;
@@ -332,6 +333,7 @@ export default function ProductDetailsPage() {
       displaySection?: string | null;
       deliveryEstimateLabel?: string | null;
       deliveryLabel?: string;
+      shippingFee?: number;
     }>;
     try {
       cart = cartRaw ? JSON.parse(cartRaw) : [];
@@ -341,6 +343,9 @@ export default function ProductDetailsPage() {
     const existing = cart.find((item) => item.id === product.id);
     if (existing) {
       existing.quantity = Number(existing.quantity ?? 0) + 1;
+      if (existing.shippingFee === undefined) {
+        existing.shippingFee = Number(product.shipping_fee ?? 0) || 0;
+      }
     } else {
       cart.push({
         id: product.id,
@@ -352,6 +357,7 @@ export default function ProductDetailsPage() {
         displaySection: product.display_section ?? null,
         deliveryEstimateLabel: product.delivery_estimate_label ?? null,
         deliveryLabel: delivery?.desktopLabel ?? undefined,
+        shippingFee: Number(product.shipping_fee ?? 0) || 0,
         quantity: 1,
       });
     }

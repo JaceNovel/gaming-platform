@@ -113,6 +113,28 @@ const prettyStatus = (status?: string | null) => {
   return status ?? "—";
 };
 
+const prettyShippingStatus = (status?: string | null) => {
+  const s = String(status ?? "").toLowerCase().trim();
+  if (!s) return "—";
+  if (["canceled", "cancelled"].includes(s)) return "Annulée";
+  if (["delivered"].includes(s)) return "Livrée";
+  if (["out_for_delivery"].includes(s)) return "En livraison";
+  if (["arrived_local", "ready_for_pickup"].includes(s)) return "Arrivée localement";
+  if (["shipped", "in_transit"].includes(s)) return "Expédiée";
+  if (["warehouse", "pending"].includes(s)) return "En entrepôt";
+  return status ?? "—";
+};
+
+const shippingStepIndex = (status?: string | null) => {
+  const s = String(status ?? "").toLowerCase().trim();
+  if (["delivered"].includes(s)) return 4;
+  if (["out_for_delivery"].includes(s)) return 3;
+  if (["arrived_local", "ready_for_pickup"].includes(s)) return 2;
+  if (["shipped", "in_transit"].includes(s)) return 1;
+  if (["canceled", "cancelled"].includes(s)) return 0;
+  return 0;
+};
+
 const statusBadgeClass = (status?: string | null) => {
   const s = String(status ?? "").toLowerCase();
   if (["paid", "completed", "fulfilled", "delivered"].includes(s)) return "bg-emerald-400/20 border-emerald-300/30 text-emerald-100";
@@ -309,6 +331,24 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
   const marketplaceDeadlineLabel = marketplaceInfo?.marketplaceOrder?.delivery_deadline_at
     ? new Date(marketplaceInfo.marketplaceOrder.delivery_deadline_at).toLocaleString("fr-FR")
     : null;
+
+  const shippingSteps = useMemo(
+    () => [
+      { key: "warehouse", label: "En entrepôt" },
+      { key: "shipped", label: "Expédiée" },
+      { key: "arrived_local", label: "Arrivée localement" },
+      { key: "out_for_delivery", label: "En livraison" },
+      { key: "delivered", label: "Livrée" },
+    ],
+    [],
+  );
+
+  const shippingCanceled = useMemo(() => {
+    const s = String(order?.shipping_status ?? "").toLowerCase().trim();
+    return ["canceled", "cancelled"].includes(s);
+  }, [order?.shipping_status]);
+
+  const shippingActiveIdx = useMemo(() => shippingStepIndex(order?.shipping_status), [order?.shipping_status]);
 
   return (
     <div className="min-h-screen text-white">
@@ -520,10 +560,56 @@ function OrderTrackingClient({ params }: { params: { id: string } }) {
             {order && hasPhysicalItems && (
               <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
                 <p className="text-xs uppercase tracking-[0.35em] text-white/45">Livraison</p>
+
+                {!shippingCanceled ? (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs text-white/60">Suivi simplifié</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {shippingSteps.map((step, idx) => {
+                        const isActive = idx === shippingActiveIdx;
+                        const isCompleted = idx < shippingActiveIdx;
+                        const dotClass = isActive
+                          ? "bg-cyan-400/20 border-cyan-300/30 text-cyan-100"
+                          : isCompleted
+                            ? "bg-emerald-400/15 border-emerald-300/25 text-emerald-100"
+                            : "bg-white/5 border-white/10 text-white/45";
+                        const labelClass = isActive
+                          ? "text-white"
+                          : isCompleted
+                            ? "text-white/75"
+                            : "text-white/45";
+                        const connectorClass = idx < shippingActiveIdx ? "bg-cyan-300/25" : "bg-white/10";
+
+                        return (
+                          <div key={step.key} className="flex items-center">
+                            <div
+                              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-bold ${dotClass}`}
+                              aria-current={isActive ? "step" : undefined}
+                            >
+                              {idx + 1}
+                            </div>
+                            <div className={`ml-2 text-xs font-semibold ${labelClass}`}>{step.label}</div>
+                            {idx < shippingSteps.length - 1 ? (
+                              <div className={`mx-3 h-[2px] w-8 rounded ${connectorClass}`} aria-hidden="true" />
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-white">
+                      État actuel: {shippingSteps[Math.min(Math.max(shippingActiveIdx, 0), shippingSteps.length - 1)]?.label}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-rose-300/30 bg-rose-500/10 p-4 text-sm text-rose-100">
+                    Livraison annulée.
+                  </div>
+                )}
+
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p className="text-xs text-white/60">Statut</p>
-                    <p className="mt-1 text-sm font-semibold text-white">{prettyStatus(order.shipping_status)}</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{prettyShippingStatus(order.shipping_status)}</p>
                     <p className="mt-2 text-xs text-white/60">
                       ETA: {order.shipping_eta_days ? `${order.shipping_eta_days} jours` : "—"}
                       {order.shipping_estimated_date ? ` • ${order.shipping_estimated_date}` : ""}

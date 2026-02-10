@@ -17,6 +17,7 @@ type CartItem = {
   deliveryEstimateLabel?: string | null;
   deliveryLabel?: string;
   gameId?: string;
+  shippingFee?: number;
 };
 
 const DISMISSED_KEY = "bbshop_cart_drawer_dismissed";
@@ -64,7 +65,13 @@ export default function CartDrawer() {
     [items]
   );
   const subtotal = useMemo(
-    () => items.reduce((sum, item) => sum + (Number(item.price ?? 0) || 0) * (Number(item.quantity ?? 0) || 0), 0),
+    () =>
+      items.reduce(
+        (sum, item) =>
+          sum +
+          ((Number(item.price ?? 0) || 0) + (Number(item.shippingFee ?? 0) || 0)) * (Number(item.quantity ?? 0) || 0),
+        0,
+      ),
     [items]
   );
 
@@ -190,6 +197,9 @@ export default function CartDrawer() {
                         <div className="truncate text-sm font-extrabold text-white">{item.name}</div>
                         <div className="mt-0.5 text-xs font-semibold text-white/60">
                           {item.priceLabel ?? `${Number(item.price ?? 0).toLocaleString("fr-FR")} FCFA`}
+                          {Number(item.shippingFee ?? 0) > 0 ? (
+                            <span className="text-white/45"> · Livraison: {Number(item.shippingFee ?? 0).toLocaleString("fr-FR")} FCFA</span>
+                          ) : null}
                         </div>
                       </div>
                       <button
@@ -234,7 +244,7 @@ export default function CartDrawer() {
 
           <div className="border-t border-white/10 px-4 py-4">
             <div className="flex items-center justify-between text-sm font-extrabold text-white">
-              <span>Sous-total</span>
+              <span>Total</span>
               <span>{subtotal.toLocaleString("fr-FR")} FCFA</span>
             </div>
 

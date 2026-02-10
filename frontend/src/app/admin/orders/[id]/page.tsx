@@ -466,11 +466,14 @@ export default function AdminOrderDetailPage() {
                   onChange={(e) => setShippingStatus(e.target.value)}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                 >
-                  <option value="pending">pending</option>
-                  <option value="ready_for_pickup">ready_for_pickup</option>
-                  <option value="out_for_delivery">out_for_delivery</option>
-                  <option value="delivered">delivered</option>
-                  <option value="canceled">canceled</option>
+                  <option value="pending">pending (en attente)</option>
+                  <option value="warehouse">warehouse (entrepôt)</option>
+                  <option value="shipped">shipped (expédiée)</option>
+                  <option value="arrived_local">arrived_local (arrivée localement)</option>
+                  <option value="ready_for_pickup">ready_for_pickup (prête)</option>
+                  <option value="out_for_delivery">out_for_delivery (en livraison)</option>
+                  <option value="delivered">delivered (livrée)</option>
+                  <option value="canceled">canceled (annulée)</option>
                 </select>
                 <button
                   onClick={handleStatusSave}

@@ -58,11 +58,15 @@ export default function AdminProductsAddPage() {
   const [description, setDescription] = useState("");
   const [serverTags, setServerTags] = useState("");
   const [price, setPrice] = useState("");
+  const [shippingFee, setShippingFee] = useState("");
   const [discountPrice, setDiscountPrice] = useState("");
   const [stock, setStock] = useState("0");
   const [categoryId, setCategoryId] = useState("");
   const [gameId, setGameId] = useState("");
   const [type, setType] = useState("account");
+  const [accessoryCategory, setAccessoryCategory] = useState("");
+  const [accessorySubcategory, setAccessorySubcategory] = useState("");
+  const [accessoryStockMode, setAccessoryStockMode] = useState<"local" | "air" | "sea">("local");
   const [shippingRequired, setShippingRequired] = useState(false);
   const [deliveryType, setDeliveryType] = useState("in_stock");
   const [deliveryEtaDays, setDeliveryEtaDays] = useState("2");
@@ -148,6 +152,20 @@ export default function AdminProductsAddPage() {
     setDeliveryEstimateLabel("");
   }, [deliveryEstimateLabel, displaySection, type]);
 
+  useEffect(() => {
+    const isAccessory = type === "item" && displaySection !== "emote_skin";
+    if (!isAccessory) {
+      if (accessoryCategory) setAccessoryCategory("");
+      if (accessorySubcategory) setAccessorySubcategory("");
+      if (shippingFee) setShippingFee("");
+      if (accessoryStockMode !== "local") setAccessoryStockMode("local");
+      return;
+    }
+
+    // Physical accessories should generally require shipping.
+    if (!shippingRequired) setShippingRequired(true);
+  }, [accessoryCategory, accessoryStockMode, accessorySubcategory, displaySection, shippingFee, shippingRequired, type]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("");
@@ -164,11 +182,17 @@ export default function AdminProductsAddPage() {
         description: description.trim() || undefined,
         server_tags: serverTags.trim() || undefined,
         price: Number(price),
+        shipping_fee: shippingFee.trim() ? Number(shippingFee) : undefined,
         discount_price: discountPrice ? Number(discountPrice) : undefined,
         stock: Number(stock),
         category_id: categoryId ? Number(categoryId) : undefined,
         game_id: gameId ? Number(gameId) : undefined,
         type,
+        accessory_category:
+          type === "item" && displaySection !== "emote_skin" && accessoryCategory.trim() ? accessoryCategory.trim() : undefined,
+        accessory_subcategory:
+          type === "item" && displaySection !== "emote_skin" && accessorySubcategory.trim() ? accessorySubcategory.trim() : undefined,
+        accessory_stock_mode: type === "item" && displaySection !== "emote_skin" ? accessoryStockMode : undefined,
         is_active: isActive,
         shipping_required: shippingRequired,
         delivery_type: shippingRequired ? deliveryType : undefined,
@@ -676,6 +700,63 @@ export default function AdminProductsAddPage() {
                   <option value="gaming_accounts">Compte Gaming</option>
                 </select>
               </div>
+
+              {type === "item" && displaySection !== "emote_skin" && (
+                <>
+                  <div>
+                    <label className="text-sm font-medium">Catégorie Accessoires Gaming</label>
+                    <select
+                      value={accessoryCategory}
+                      onChange={(e) => setAccessoryCategory(e.target.value)}
+                      className={SELECT}
+                    >
+                      <option value="">—</option>
+                      <option value="audio">Audio Gaming</option>
+                      <option value="keyboard_mouse">Clavier & Souris</option>
+                      <option value="mobile">Mobile Gaming</option>
+                      <option value="setup_comfort">Setup & Confort</option>
+                    </select>
+                    <p className={HELP}>Utilisé pour la navigation interne et les sections sur la page Accessoires Gaming.</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Sous-catégorie (optionnel)</label>
+                    <input
+                      value={accessorySubcategory}
+                      onChange={(e) => setAccessorySubcategory(e.target.value)}
+                      className={INPUT}
+                      placeholder="ex: Casque, Micro, Manette mobile"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Stock / logistique</label>
+                    <select
+                      value={accessoryStockMode}
+                      onChange={(e) => setAccessoryStockMode(e.target.value as any)}
+                      className={SELECT}
+                    >
+                      <option value="local">En stock local</option>
+                      <option value="air">Import aérien</option>
+                      <option value="sea">Import bateau</option>
+                    </select>
+                    <p className={HELP}>Tag automatique: prêt à livrer / import aérien / import bateau.</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Frais de livraison (FCFA)</label>
+                    <input
+                      value={shippingFee}
+                      onChange={(e) => setShippingFee(e.target.value)}
+                      type="number"
+                      min="0"
+                      className={INPUT}
+                      placeholder="ex: 2000"
+                    />
+                    <p className={HELP}>Affiché avant paiement (page accessoires, panier, commande).</p>
+                  </div>
+                </>
+              )}
 
               {type === "item" && displaySection !== "emote_skin" && (
                 <div>

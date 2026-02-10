@@ -38,7 +38,7 @@ class ProductController extends Controller
                 $query->where('type', 'subscription');
             } elseif ($shopType === 'accessory') {
                 // Accessories are stored as type=item.
-                $query->where('type', 'item');
+                $query->where('type', 'item')->whereNotNull('accessory_category');
             } elseif ($shopType === 'gaming_account') {
                 // Gaming accounts catalog products are stored as type=account.
                 $query->where('type', 'account');

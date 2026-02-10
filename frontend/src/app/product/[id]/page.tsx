@@ -21,6 +21,7 @@ type Product = {
   price?: number;
   discount_price?: number | null;
   old_price?: number | null;
+  shipping_fee?: number | string | null;
   type?: string;
   display_section?: string | null;
   stockType?: "IN_STOCK" | "PREORDER";
@@ -129,6 +130,7 @@ export default function ProductPage() {
       displaySection?: string | null;
       deliveryEstimateLabel?: string | null;
       deliveryLabel?: string;
+      shippingFee?: number;
     }> = [];
     if (stored) {
       try {
@@ -140,6 +142,9 @@ export default function ProductPage() {
     const existing = cart.find((item) => item.id === product.id);
     if (existing) {
       existing.quantity = Number(existing.quantity ?? 0) + 1;
+      if (existing.shippingFee === undefined) {
+        existing.shippingFee = Number(product.shipping_fee ?? 0) || 0;
+      }
     } else {
       const delivery = getDeliveryBadgeDisplay({
         type: product.type ?? null,
@@ -156,6 +161,7 @@ export default function ProductPage() {
         displaySection: product.display_section ?? null,
         deliveryEstimateLabel: product.delivery_estimate_label ?? null,
         deliveryLabel: delivery?.desktopLabel ?? undefined,
+        shippingFee: Number(product.shipping_fee ?? 0) || 0,
         quantity: 1,
       });
     }

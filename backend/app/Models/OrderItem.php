@@ -20,6 +20,7 @@ class OrderItem extends Model
         'delivery_eta_days',
         'quantity',
         'price',
+        'shipping_fee',
         'game_user_id',
         'delivery_status',
         'delivery_payload',
@@ -27,6 +28,7 @@ class OrderItem extends Model
 
     protected $casts = [
         'price' => 'decimal:2',
+        'shipping_fee' => 'decimal:2',
         'game_user_id' => 'array',
         'delivery_payload' => 'array',
         'is_physical' => 'boolean',

@@ -25,6 +25,7 @@ type CartItem = {
   displaySection?: string | null;
   deliveryEstimateLabel?: string | null;
   deliveryLabel?: string;
+  shippingFee?: number;
 };
 
 const legacyDeliveryLabelToBadge = (raw?: string | null): DeliveryBadgeDisplay | null => {
@@ -68,6 +69,55 @@ function CartScreen() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const missing = cartItems.filter((it) => it && typeof it.shippingFee !== "number").map((it) => it.id);
+    const unique = Array.from(new Set(missing)).slice(0, 30);
+    if (!unique.length) return;
+
+    (async () => {
+      try {
+        const results = await Promise.all(
+          unique.map(async (id) => {
+            try {
+              const res = await fetch(`${API_BASE}/products/${encodeURIComponent(String(id))}`, {
+                headers: { Accept: "application/json" },
+              });
+              const payload = await res.json().catch(() => null);
+              if (!res.ok) return { id, shippingFee: 0 };
+              const fee = Number(payload?.shipping_fee ?? 0);
+              return { id, shippingFee: Number.isFinite(fee) && fee > 0 ? fee : 0 };
+            } catch {
+              return { id, shippingFee: 0 };
+            }
+          }),
+        );
+
+        if (!active) return;
+        setCartItems((prev) => {
+          const map = new Map(results.map((r) => [r.id, r.shippingFee]));
+          const next = prev.map((it) => {
+            if (!it) return it;
+            if (typeof it.shippingFee === "number") return it;
+            const fee = map.get(it.id);
+            return fee === undefined ? it : { ...it, shippingFee: fee };
+          });
+          if (typeof window !== "undefined") {
+            localStorage.setItem("bbshop_cart", JSON.stringify(next));
+            emitCartUpdated({ action: "update" });
+          }
+          return next;
+        });
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [API_BASE, cartItems]);
 
   useEffect(() => {
     let active = true;
@@ -164,12 +214,16 @@ function CartScreen() {
     }
   };
 
-  const subtotal = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
+  const productsSubtotal = useMemo(
+    () => cartItems.reduce((sum, item) => sum + (Number(item.price ?? 0) || 0) * (Number(item.quantity ?? 0) || 0), 0),
     [cartItems],
   );
-  const fees = Math.round(subtotal * 0.02);
-  const total = subtotal + fees;
+  const shippingTotal = useMemo(
+    () => cartItems.reduce((sum, item) => sum + (Number(item.shippingFee ?? 0) || 0) * (Number(item.quantity ?? 0) || 0), 0),
+    [cartItems],
+  );
+  const fees = Math.round((productsSubtotal + shippingTotal) * 0.02);
+  const total = productsSubtotal + shippingTotal + fees;
 
   useEffect(() => {
     if (paymentMethod === "wallet" && (walletLoading || walletAvailable + 0.0001 < total)) {
@@ -392,9 +446,16 @@ function CartScreen() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <p className="text-base font-bold text-cyan-200">
-                          {(item.price * item.quantity).toLocaleString()} FCFA
-                        </p>
+                        <div className="text-right">
+                          <p className="text-base font-bold text-cyan-200">
+                            {((item.price + (item.shippingFee ?? 0)) * item.quantity).toLocaleString()} FCFA
+                          </p>
+                          {Number(item.shippingFee ?? 0) > 0 ? (
+                            <p className="mt-0.5 text-xs text-white/55">
+                              Prix: {(item.price * item.quantity).toLocaleString()} • Livraison: {((item.shippingFee ?? 0) * item.quantity).toLocaleString()} FCFA
+                            </p>
+                          ) : null}
+                        </div>
                         <button
                           type="button"
                           onClick={() => removeItem(item.id)}
@@ -420,7 +481,11 @@ function CartScreen() {
               <div className="space-y-3 text-sm text-white/70">
                 <div className="flex items-center justify-between">
                   <span>Sous-total</span>
-                  <span>{subtotal.toLocaleString()} FCFA</span>
+                  <span>{productsSubtotal.toLocaleString()} FCFA</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Livraison</span>
+                  <span>{shippingTotal.toLocaleString()} FCFA</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Frais de paiement</span>

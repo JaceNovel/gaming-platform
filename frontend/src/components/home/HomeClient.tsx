@@ -18,6 +18,7 @@ type ProductCard = {
   subtitle: string;
   price: string;
   priceValue: number;
+  shippingFee?: number;
   description: string;
   type: string;
   likes: number;
@@ -146,6 +147,7 @@ export default function HomeClient() {
       description?: string | null;
       discount_price?: number | string | null;
       price?: number | string | null;
+      shipping_fee?: number | string | null;
       likes_count?: number | string | null;
       category?: string | null;
       type?: string | null;
@@ -178,6 +180,7 @@ export default function HomeClient() {
 
         const mapToCard = (item: ApiProduct): ProductCard => {
           const priceValue = Number(item?.discount_price ?? item?.price ?? 0);
+          const shippingFee = Number(item?.shipping_fee ?? 0) || 0;
           const image =
             item?.details?.banner ??
             item?.banner ??
@@ -196,6 +199,7 @@ export default function HomeClient() {
             subtitle: item.game?.name ?? item.category ?? item.type ?? "Gaming",
             price: `${formatNumber(priceValue)} FCFA`,
             priceValue,
+            shippingFee,
             description,
             type: String(item?.type ?? ""),
             likes: Number(item.likes_count ?? 0),
@@ -285,7 +289,7 @@ export default function HomeClient() {
 
   const addToCart = (product: ProductCard, origin?: HTMLElement | null) => {
     if (typeof window === "undefined") return;
-    let nextCart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string }> = [];
+    let nextCart: Array<{ id: number; name: string; description?: string; price: number; priceLabel?: string; quantity: number; type?: string; shippingFee?: number }> = [];
     const stored = localStorage.getItem("bbshop_cart");
     if (stored) {
       try {
@@ -298,6 +302,9 @@ export default function HomeClient() {
     const existing = nextCart.find((item) => item.id === product.id);
     if (existing) {
       existing.quantity = Number(existing.quantity ?? 0) + 1;
+      if (existing.shippingFee === undefined) {
+        existing.shippingFee = Number(product.shippingFee ?? 0) || 0;
+      }
     } else {
       nextCart.push({
         id: product.id,
@@ -306,6 +313,7 @@ export default function HomeClient() {
         price: product.priceValue,
         priceLabel: product.price,
         type: product.type,
+        shippingFee: Number(product.shippingFee ?? 0) || 0,
         quantity: 1,
       });
     }
