@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessOrderDelivery;
+use App\Jobs\ProcessMarketplaceOrder;
 use App\Jobs\ProcessRedeemFulfillment;
 use App\Jobs\SendOrderPaidSms;
 use App\Models\MarketplaceOrder;
@@ -11,6 +12,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\Product;
+use App\Models\SellerListing;
 use App\Models\RedeemCode;
 use App\Models\RedeemDenomination;
 use App\Models\PremiumMembership;
@@ -487,9 +489,27 @@ class PaymentController extends Controller
 
                     // Marketplace gaming account orders must always create a MarketplaceOrder (seller pending credit + listing sold).
                     if ($orderType === 'marketplace_gaming_account') {
+                        // Ensure listing still exists (better error message).
+                        $listingId = (int) (
+                            $orderMeta['seller_listing_id']
+                            ?? ($orderMeta['marketplace']['seller_listing_id'] ?? 0)
+                        );
+
+                        $listing = $listingId > 0 ? SellerListing::query()->find($listingId) : null;
+                        if ($listingId > 0 && !$listing) {
+                            throw new \RuntimeException("Annonce introuvable. Veuillez réessayer.");
+                        }
+
+                        // Process marketplace order (idempotent). This makes wallet checkout fully synchronous.
+                        ProcessMarketplaceOrder::dispatchSync($order);
+
                         $ready = MarketplaceOrder::query()->where('order_id', $order->id)->lockForUpdate()->exists();
                         if (!$ready) {
-                            throw new \RuntimeException('Marketplace order not created.');
+                            $listing = $listingId > 0 ? SellerListing::query()->find($listingId) : null;
+                            if ($listing && (int) ($listing->order_id ?? 0) && (int) $listing->order_id !== (int) $order->id) {
+                                throw new \RuntimeException("Annonce déjà vendue. Veuillez choisir une autre annonce.");
+                            }
+                            throw new \RuntimeException("Commande en cours de traitement. Réessaie dans quelques secondes.");
                         }
                     }
                 }

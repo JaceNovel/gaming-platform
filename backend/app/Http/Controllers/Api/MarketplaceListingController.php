@@ -120,6 +120,13 @@ class MarketplaceListingController extends Controller
             'hasEmailAccess' => ['nullable', 'boolean'],
         ]);
 
+        $price = (float) ($data['price'] ?? 0);
+        if (!is_finite($price) || $price < 5000) {
+            throw ValidationException::withMessages([
+                'price' => ['Annonce Frauduleux et sera supprimé.'],
+            ]);
+        }
+
         $imagePath = null;
         if ($request->hasFile('image')) {
             $imagePath = Storage::disk('public')->putFile('seller-listings', $request->file('image'));
@@ -142,7 +149,7 @@ class MarketplaceListingController extends Controller
             'description' => $data['description'] ?? null,
             'image_path' => $imagePath,
             'gallery_image_paths' => $galleryPaths,
-            'price' => $data['price'],
+            'price' => $price,
             'currency' => 'FCFA',
             'account_level' => $data['accountLevel'] ?? null,
             'account_rank' => $data['accountRank'] ?? null,
@@ -185,11 +192,20 @@ class MarketplaceListingController extends Controller
             'hasEmailAccess' => ['nullable', 'boolean'],
         ]);
 
+        if (array_key_exists('price', $data)) {
+            $price = (float) ($data['price'] ?? 0);
+            if (!is_finite($price) || $price < 5000) {
+                throw ValidationException::withMessages([
+                    'price' => ['Annonce Frauduleux et sera supprimé.'],
+                ]);
+            }
+        }
+
         $map = [];
         if (array_key_exists('gameId', $data)) $map['game_id'] = $data['gameId'];
         if (array_key_exists('title', $data)) $map['title'] = $data['title'];
         if (array_key_exists('description', $data)) $map['description'] = $data['description'];
-        if (array_key_exists('price', $data)) $map['price'] = $data['price'];
+        if (array_key_exists('price', $data)) $map['price'] = (float) $data['price'];
         if (array_key_exists('accountLevel', $data)) $map['account_level'] = $data['accountLevel'];
         if (array_key_exists('accountRank', $data)) $map['account_rank'] = $data['accountRank'];
         if (array_key_exists('accountRegion', $data)) $map['account_region'] = $data['accountRegion'];
@@ -274,6 +290,42 @@ class MarketplaceListingController extends Controller
             if (!$seller->canSell()) {
                 return response()->json(['message' => 'Seller is not allowed to submit listings.'], 403);
             }
+
+            $price = (float) ($sellerListing->price ?? 0);
+            if (!is_finite($price) || $price < 5000) {
+                // Delete fraudulent listing and its uploaded images.
+                $paths = [];
+                if (!empty($sellerListing->image_path)) {
+                    $paths[] = (string) $sellerListing->image_path;
+                }
+                $gallery = $sellerListing->gallery_image_paths;
+                if (is_array($gallery)) {
+                    foreach ($gallery as $p) {
+                        if (is_string($p) && $p) {
+                            $paths[] = $p;
+                        }
+                    }
+                }
+                foreach (array_values(array_unique($paths)) as $p) {
+                    try {
+                        Storage::disk('public')->delete($p);
+                    } catch (\Throwable $e) {
+                    }
+                }
+
+                try {
+                    $sellerListing->delete();
+                } catch (\Throwable $e) {
+                }
+
+                return response()->json([
+                    'message' => 'Annonce Frauduleux et sera supprimé.',
+                    'errors' => [
+                        'price' => ['Annonce Frauduleux et sera supprimé.'],
+                    ],
+                ], 422);
+            }
+
             $sellerListing->status = 'pending_review';
             $sellerListing->status_reason = null;
             $sellerListing->submitted_at = now();

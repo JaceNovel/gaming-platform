@@ -626,14 +626,14 @@ function SellerPageClient() {
       !values.title.trim() ||
       values.title.trim().length > 140 ||
       !Number.isFinite(Number(values.price)) ||
-      Number(values.price) < 1;
+      Number(values.price) < 5000;
 
     const step1Invalid =
       disable ||
       !values.title.trim() ||
       values.title.trim().length > 140 ||
       !Number.isFinite(Number(values.price)) ||
-      Number(values.price) < 1;
+      Number(values.price) < 5000;
 
     const canGoNext = (s: number) => {
       if (s === 1) return !step1Invalid;
@@ -740,7 +740,7 @@ function SellerPageClient() {
                     value={values.price}
                     onChange={(e) => setValues((p) => ({ ...p, price: Number(e.target.value) }))}
                     className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
-                    min={1}
+                    min={5000}
                     disabled={disable}
                   />
                 </label>
@@ -969,7 +969,12 @@ function SellerPageClient() {
                 <button
                   type="button"
                   disabled={submitDisabled}
-                  onClick={() =>
+                  onClick={() => {
+                    const price = Math.round(Number(values.price));
+                    if (!Number.isFinite(price) || price < 5000) {
+                      pushToast("Annonce Frauduleux et sera supprimé.", "error");
+                      return;
+                    }
                     void saveListing({
                       mode: listingModal.mode,
                       id: base?.id,
@@ -979,14 +984,14 @@ function SellerPageClient() {
                         gameId: values.gameId,
                         title: values.title.trim(),
                         description: values.description.trim() || null,
-                        price: Math.round(Number(values.price)),
+                        price,
                         accountLevel: values.accountLevel.trim() || null,
                         accountRank: values.accountRank.trim() || null,
                         accountRegion: values.accountRegion.trim() || null,
                         hasEmailAccess: Boolean(values.hasEmailAccess),
                       },
-                    })
-                  }
+                    });
+                  }}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-4 w-4" />

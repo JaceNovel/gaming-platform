@@ -33,6 +33,10 @@ export const toDisplayImageSrc = (raw: string | null | undefined): string | null
   // - Frontend assets like /images/... should remain relative.
   // - Backend public storage paths like /storage/... are served from the API.
   if (value.startsWith("/")) {
+    if (value.startsWith("/api/storage/") && apiOrigin) {
+      // Public storage served from API origin (avoid double /api prefix).
+      return `${apiOrigin}${value}`;
+    }
     if (value.startsWith("/storage/") && API_BASE) {
       // Route through API so it works even when /storage static serving is not configured.
       return `${API_BASE}${value}`;
@@ -54,6 +58,11 @@ export const toDisplayImageSrc = (raw: string | null | undefined): string | null
   const parsed = safeParseUrl(value);
   if (parsed && sameHostAsApi(value) && parsed.pathname.startsWith("/storage/")) {
     return `${parsed.origin}/api${parsed.pathname}${parsed.search}`;
+  }
+
+  // If the image is hosted by our backend but points to /api/api/storage, normalize it.
+  if (parsed && sameHostAsApi(value) && parsed.pathname.startsWith("/api/api/storage/")) {
+    return `${parsed.origin}${parsed.pathname.replace("/api/api/storage/", "/api/storage/")}${parsed.search}`;
   }
 
   // If the image is already hosted by our backend, keep it as-is.

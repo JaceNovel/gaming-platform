@@ -43,7 +43,17 @@ return [
             'root' => storage_path('app/public'),
             // Serve public uploads through the API to avoid relying on web server symlink/static config.
             // Example: https://api.primegaming.space/api/storage/seller-listings/xxx.png
-            'url' => rtrim(env('APP_URL', env('FRONTEND_URL', '')), '/').'/api/storage',
+            'url' => (function () {
+                $base = rtrim((string) (env('APP_URL') ?: config('app.url') ?: ''), '/');
+                if ($base === '') {
+                    // Fallback (should be avoided in production): keep relative URLs.
+                    return '/api/storage';
+                }
+                if (str_ends_with($base, '/api')) {
+                    $base = substr($base, 0, -4);
+                }
+                return $base . '/api/storage';
+            })(),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

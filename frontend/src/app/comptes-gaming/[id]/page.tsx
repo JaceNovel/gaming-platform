@@ -160,15 +160,40 @@ function MarketplaceListingClient({ id }: { id: number }) {
       }
 
       if (paymentMethod === "wallet") {
-        const payRes = await authFetch(`${API_BASE}/payments/wallet/pay`, {
-          method: "POST",
-          body: JSON.stringify({ order_id: orderId }),
-        });
-        const payPayload = await payRes.json().catch(() => null);
-        if (!payRes.ok) {
+        setStatus("Validation du paiement wallet...");
+
+        const attemptPay = async () => {
+          const payRes = await authFetch(`${API_BASE}/payments/wallet/pay`, {
+            method: "POST",
+            body: JSON.stringify({ order_id: orderId }),
+          });
+          const payPayload = await payRes.json().catch(() => null);
+          return { payRes, payPayload };
+        };
+
+        // Sometimes marketplace finalization may take a short moment.
+        let lastError: any = null;
+        for (let i = 0; i < 3; i++) {
+          const { payRes, payPayload } = await attemptPay();
+          if (payRes.ok) {
+            emitWalletUpdated({ source: "marketplace_listing_wallet_pay" });
+            router.replace(`/order-confirmation?order=${orderId}&status=paid`);
+            return;
+          }
+
+          // 409 = still processing; retry quickly.
+          if (payRes.status === 409) {
+            lastError = payPayload;
+            setStatus("Finalisation de la commande..." + (i < 2 ? "" : " Réessaie."));
+            await new Promise((r) => setTimeout(r, 700 + i * 500));
+            continue;
+          }
+
           setStatus(payPayload?.message ?? "Paiement wallet impossible.");
           return;
         }
+
+        setStatus(lastError?.message ?? "Finalisation en cours. Réessaie dans quelques secondes.");
         emitWalletUpdated({ source: "marketplace_listing_wallet_pay" });
         router.replace(`/order-confirmation?order=${orderId}&status=paid`);
         return;

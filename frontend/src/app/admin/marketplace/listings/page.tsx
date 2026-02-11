@@ -262,25 +262,30 @@ export default function AdminMarketplaceListingsPage() {
         ) : detail ? (
           <div className="space-y-4">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-              {toDisplayImageSrc(String(detail.image_url ?? "")) ? (
+              {(() => {
+                const raw = String(detail.image_url ?? "").trim();
+                const safe = raw ? (toDisplayImageSrc(raw) ?? raw) : "";
+                return safe ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={toDisplayImageSrc(String(detail.image_url ?? "")) as string} alt="image annonce" className="h-56 w-full object-cover" />
-              ) : (
-                <div className="flex h-56 items-center justify-center bg-white text-sm text-slate-500">Aucune image</div>
-              )}
+                  <img src={safe} alt="image annonce" className="h-56 w-full object-cover" />
+                ) : (
+                  <div className="flex h-56 items-center justify-center bg-white text-sm text-slate-500">Aucune image</div>
+                );
+              })()}
 
               {Array.isArray((detail as any)?.gallery_image_urls) && (detail as any).gallery_image_urls.length ? (
                 <div className="border-t border-slate-200 bg-white p-4">
                   <div className="text-xs font-semibold text-slate-500">Photos (galerie)</div>
                   <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
                     {(detail as any).gallery_image_urls.slice(0, 4).map((src: any, idx: number) => {
-                      const safe = toDisplayImageSrc(String(src ?? ""));
+                      const raw = String(src ?? "").trim();
+                      const safe = raw ? (toDisplayImageSrc(raw) ?? raw) : "";
                       if (!safe) return null;
                       return (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           key={`${String(src)}_${idx}`}
-                          src={safe as string}
+                          src={safe}
                           alt={`photo ${idx + 1}`}
                           className="h-20 w-28 flex-none rounded-xl border border-slate-200 object-cover"
                         />
