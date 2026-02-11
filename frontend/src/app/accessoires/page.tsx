@@ -463,7 +463,7 @@ export default function AccessoiresPage() {
                           return (
                             <div
                               key={p.id}
-                              className="snap-start w-[320px] sm:w-[420px] flex-none p-4 transition hover:bg-white/5 rounded-[26px]"
+                              className="snap-start w-[320px] sm:w-[420px] flex-none rounded-[26px] border border-white/15 bg-white/5 p-4 backdrop-blur transition hover:bg-white/10"
                             >
                               <div className="flex gap-4">
                                 <div className="min-w-0 flex-1">

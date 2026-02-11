@@ -108,6 +108,12 @@ class ProcessOrderDelivery implements ShouldQueue
                 'error' => $e->getMessage()
             ]);
 
+            // For marketplace gaming accounts, never swallow errors: payments must rollback (wallet)
+            // and queued jobs must retry.
+            if ((string) ($this->order->type ?? '') === 'marketplace_gaming_account') {
+                throw $e;
+            }
+
             // Could send admin notification here
         }
     }

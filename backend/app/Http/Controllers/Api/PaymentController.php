@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
 use App\Jobs\SendOrderPaidSms;
+use App\Models\MarketplaceOrder;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
@@ -483,10 +484,29 @@ class PaymentController extends Controller
                         }
                         $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
                     }
+
+                    // Marketplace gaming account orders must always create a MarketplaceOrder (seller pending credit + listing sold).
+                    if ($orderType === 'marketplace_gaming_account') {
+                        $ready = MarketplaceOrder::query()->where('order_id', $order->id)->lockForUpdate()->exists();
+                        if (!$ready) {
+                            throw new \RuntimeException('Marketplace order not created.');
+                        }
+                    }
                 }
 
-                $orderMeta['wallet_paid_at'] = $orderMeta['wallet_paid_at'] ?? now()->toIso8601String();
-                $order->meta = $orderMeta;
+                // Preserve any meta updates done by fulfillment jobs (e.g. marketplace order info).
+                $freshMeta = $order->fresh()?->meta ?? [];
+                if (!is_array($freshMeta)) {
+                    $freshMeta = [];
+                }
+                if (!empty($orderMeta['sales_recorded_at'])) {
+                    $freshMeta['sales_recorded_at'] = $freshMeta['sales_recorded_at'] ?? $orderMeta['sales_recorded_at'];
+                }
+                if (!empty($orderMeta['fulfillment_dispatched_at'])) {
+                    $freshMeta['fulfillment_dispatched_at'] = $freshMeta['fulfillment_dispatched_at'] ?? $orderMeta['fulfillment_dispatched_at'];
+                }
+                $freshMeta['wallet_paid_at'] = $freshMeta['wallet_paid_at'] ?? now()->toIso8601String();
+                $order->meta = $freshMeta;
                 $order->save();
 
                 return [
@@ -510,6 +530,19 @@ class PaymentController extends Controller
                 'data' => $result,
             ]);
         } catch (\Throwable $e) {
+            if ($e instanceof \RuntimeException) {
+                Log::warning('wallet:pay:runtime', [
+                    'stage' => 'wallet-pay',
+                    'order_id' => $order->id ?? null,
+                    'user_id' => $user->id ?? null,
+                    'message' => $e->getMessage(),
+                ]);
+
+                return response()->json([
+                    'message' => $e->getMessage() ?: 'Paiement wallet en cours de traitement. Réessaie dans quelques secondes.',
+                ], 409);
+            }
+
             Log::error('wallet:pay:error', [
                 'stage' => 'wallet-pay',
                 'order_id' => $order->id ?? null,

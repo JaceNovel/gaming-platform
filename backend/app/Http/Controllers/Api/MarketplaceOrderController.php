@@ -85,7 +85,7 @@ class MarketplaceOrderController extends Controller
         $title = (string) ($listing->title ?? 'Gaming Account');
         $price = (float) ($marketplaceOrder->price ?? $listing->price);
 
-        $msg = "Bonjour, je viens d’acheter: {$title}. Référence commande: {$orderModel->reference}. Montant: "
+        $msg = "Bonjour, je viens d’acheter un compte sur le site PRIME Gaming: {$title}. Référence commande: {$orderModel->reference}. Montant: "
             . number_format($price, 0, ',', ' ') . " FCFA. Merci de me livrer dans les délais.";
 
         $url = 'https://wa.me/' . $waNumber . '?text=' . urlencode($msg);
