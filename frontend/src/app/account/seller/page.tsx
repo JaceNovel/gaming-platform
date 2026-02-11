@@ -43,6 +43,8 @@ type Seller = {
   bannedAt?: string | null;
   partnerWalletFrozen?: boolean;
   partnerWalletFrozenAt?: string | null;
+  agreementPdfUrl?: string | null;
+  agreementPdfGeneratedAt?: string | null;
   kycFiles?: { idFront: boolean; selfie: boolean };
 };
 
@@ -97,6 +99,7 @@ type Listing = {
 type MarketplaceOrderRow = {
   id: number;
   status?: string | null;
+  buyer_phone?: string | null;
   price?: number | string | null;
   commission_amount?: number | string | null;
   seller_earnings?: number | string | null;
@@ -1447,6 +1450,24 @@ function SellerPageClient() {
                             </span>
                           </div>
                         </div>
+
+                        {seller.status === "approved" && seller.agreementPdfUrl ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                            <p className="font-semibold text-white/85">Document vendeur (PDF)</p>
+                            <p className="mt-1 text-white/60">
+                              Conditions et règles applicables. Généré le {formatDateTime(seller.agreementPdfGeneratedAt)}.
+                            </p>
+                            <a
+                              href={seller.agreementPdfUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-4 py-2 text-sm font-semibold text-white/85 hover:bg-black/40"
+                            >
+                              <ClipboardList className="h-4 w-4" /> Télécharger
+                            </a>
+                          </div>
+                        ) : null}
+
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
                           <p className="font-semibold text-white/85">Conseil</p>
                           <p className="mt-1 text-white/60">Plus vite tu livres, meilleur est ton score de confiance.</p>
@@ -1664,6 +1685,11 @@ function SellerPageClient() {
                               </div>
                               <div>
                                 <span className="text-white/45">Livrée:</span> <span className="text-white/80">{formatDateTime(o.delivered_at)}</span>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <span className="text-white/45">Téléphone acheteur (paiement):</span>{" "}
+                                <span className="text-white/80">{String(o.buyer_phone ?? "—")}</span>
+                                <span className="ml-2 text-xs text-white/45">(le numéro qui te contacte doit être identique)</span>
                               </div>
                             </div>
                           </div>

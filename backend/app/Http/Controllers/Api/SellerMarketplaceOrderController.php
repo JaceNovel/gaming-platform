@@ -22,10 +22,21 @@ class SellerMarketplaceOrderController extends Controller
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
         $orders = MarketplaceOrder::query()
-            ->with(['order', 'listing'])
+            ->with(['order', 'listing', 'buyer'])
             ->where('seller_id', $seller->id)
             ->orderByDesc('created_at')
             ->paginate(20);
+
+        $orders->getCollection()->transform(function (MarketplaceOrder $row) {
+            $meta = is_array($row->order?->meta) ? $row->order->meta : [];
+            $buyerPhone = (string) ($meta['buyer_phone'] ?? '');
+            if ($buyerPhone === '') {
+                $buyerPhone = (string) ($row->buyer?->phone ?? '');
+            }
+
+            $row->setAttribute('buyer_phone', $buyerPhone ?: null);
+            return $row;
+        });
 
         return response()->json(['data' => $orders]);
     }

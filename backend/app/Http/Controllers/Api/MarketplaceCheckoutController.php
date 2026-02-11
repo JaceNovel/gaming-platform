@@ -85,6 +85,12 @@ class MarketplaceCheckoutController extends Controller
                 ],
             ]);
 
+            // Persist the buyer phone for next purchases (first time only).
+            if (empty($user->phone)) {
+                $user->phone = $buyerPhoneRaw;
+                $user->save();
+            }
+
             $listing->reserved_order_id = $order->id;
             $listing->reserved_until = $now->copy()->addMinutes(20);
             $listing->save();

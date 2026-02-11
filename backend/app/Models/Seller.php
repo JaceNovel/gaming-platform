@@ -28,6 +28,8 @@ class Seller extends Model
         'status_reason',
         'partner_wallet_frozen',
         'partner_wallet_frozen_at',
+        'agreement_pdf_path',
+        'agreement_pdf_generated_at',
     ];
 
     protected $casts = [
@@ -39,6 +41,7 @@ class Seller extends Model
         'banned_at' => 'datetime',
         'partner_wallet_frozen' => 'boolean',
         'partner_wallet_frozen_at' => 'datetime',
+        'agreement_pdf_generated_at' => 'datetime',
     ];
 
     public function user(): BelongsTo

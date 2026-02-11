@@ -9,6 +9,8 @@ use App\Models\SellerKycFile;
 use App\Models\SellerListing;
 use App\Models\SellerStat;
 use App\Services\AdminAuditLogger;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -106,6 +108,31 @@ class AdminMarketplaceSellerController extends Controller
 
             SellerStat::query()->firstOrCreate(['seller_id' => $seller->id]);
         });
+
+        // Generate the seller agreement PDF (best-effort).
+        try {
+            $seller->loadMissing('user');
+            $html = view('seller-agreement', [
+                'seller' => $seller,
+            ])->render();
+
+            $options = new Options();
+            $options->set('isRemoteEnabled', false);
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4');
+            $dompdf->render();
+
+            $disk = Storage::disk('public');
+            $pdfPath = 'seller-agreements/seller-' . $seller->id . '-agreement.pdf';
+            $disk->put($pdfPath, $dompdf->output());
+
+            $seller->agreement_pdf_path = $pdfPath;
+            $seller->agreement_pdf_generated_at = now();
+            $seller->save();
+        } catch (\Throwable $e) {
+            // best-effort
+        }
 
         try {
             /** @var AdminAuditLogger $audit */

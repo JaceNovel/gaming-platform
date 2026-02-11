@@ -52,7 +52,7 @@ return [
     |
     */
 
-    'url' => env('APP_URL', env('FRONTEND_URL')),
+    'url' => env('APP_URL', env('FRONTEND_URL', 'http://localhost')),
 
     /*
     |--------------------------------------------------------------------------

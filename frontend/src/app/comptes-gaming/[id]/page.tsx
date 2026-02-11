@@ -42,6 +42,40 @@ function MarketplaceListingClient({ id }: { id: number }) {
   const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
   const [buyerPhone, setBuyerPhone] = useState<string>("");
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const rawUser: any = user ?? {};
+    const fromUser = String(rawUser?.phone ?? rawUser?.phone_number ?? "").trim();
+    const saved = String(window.localStorage.getItem("bbshop_buyer_phone") ?? "").trim();
+    const candidate = fromUser || saved;
+    if (candidate && !buyerPhone.trim()) {
+      setBuyerPhone(candidate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const persistBuyerPhone = async (phone: string) => {
+    const trimmed = String(phone ?? "").trim();
+    if (!trimmed) return;
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("bbshop_buyer_phone", trimmed);
+    }
+
+    const rawUser: any = user ?? {};
+    const existing = String(rawUser?.phone ?? rawUser?.phone_number ?? "").trim();
+    if (existing) return;
+
+    try {
+      await authFetch(`${API_BASE}/me/profile`, {
+        method: "PATCH",
+        body: JSON.stringify({ phone: trimmed }),
+      });
+    } catch {
+      // best-effort
+    }
+  };
+
   const isValidBuyerPhone = useMemo(() => {
     const raw = buyerPhone.trim();
     const digits = raw.replace(/\D+/g, "");
@@ -135,6 +169,8 @@ function MarketplaceListingClient({ id }: { id: number }) {
       setStatus("Veuillez entrer un numéro de téléphone valide.");
       return;
     }
+
+    await persistBuyerPhone(buyerPhone);
     setSubmitting(true);
     try {
       const checkoutRes = await authFetch(`${API_BASE}/gaming-accounts/listings/${id}/checkout`, {
@@ -257,6 +293,8 @@ function MarketplaceListingClient({ id }: { id: number }) {
       setStatus("Veuillez entrer un numéro de téléphone valide.");
       return;
     }
+
+    await persistBuyerPhone(buyerPhone);
 
     setSubmitting(true);
     try {

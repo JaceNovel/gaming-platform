@@ -28,6 +28,8 @@ use App\Http\Controllers\Api\PushController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\GuideController;
 use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\Api\PhoneChangeRequestController;
+use App\Http\Controllers\Api\AdminPhoneChangeController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\LikeController;
@@ -211,6 +213,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Profile
     Route::get('/me/profile', [UserProfileController::class, 'show']);
     Route::patch('/me/profile', [UserProfileController::class, 'update']);
+
+    // Phone change (Basic users)
+    Route::post('/me/phone-change-requests', [PhoneChangeRequestController::class, 'store']);
 
     // Redeem deliveries
     Route::get('/me/redeems', [MeRedeemController::class, 'index']);
@@ -474,6 +479,16 @@ Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manag
         ->middleware('permission:users.view');
     Route::get('/users/{user}', [\App\Http\Controllers\Api\AdminUsersController::class, 'show'])
         ->middleware('permission:users.view');
+
+    // Phone changes
+    Route::get('/users/{user}/phone-change-requests', [AdminPhoneChangeController::class, 'indexByUser'])
+        ->middleware('permission:users.view');
+    Route::post('/users/{user}/phone/change', [AdminPhoneChangeController::class, 'applyManual'])
+        ->middleware('permission:users.manage');
+    Route::post('/phone-change-requests/{phoneChangeRequest}/approve', [AdminPhoneChangeController::class, 'approve'])
+        ->middleware('permission:users.manage');
+    Route::post('/phone-change-requests/{phoneChangeRequest}/reject', [AdminPhoneChangeController::class, 'reject'])
+        ->middleware('permission:users.manage');
 
     // DBWallet (admin-only manual operations)
     Route::get('/dbwallet/transactions', [AdminDbWalletController::class, 'transactions'])

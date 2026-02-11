@@ -7,6 +7,7 @@ use App\Models\Seller;
 use App\Models\SellerKycFile;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
 
 class SellerKycController extends Controller
 {
@@ -33,6 +34,9 @@ class SellerKycController extends Controller
 
         $filesByType = $seller->kycFiles->keyBy('type');
 
+        $publicDisk = Storage::disk('public');
+        $agreementUrl = $seller->agreement_pdf_path ? $publicDisk->url($seller->agreement_pdf_path) : null;
+
         return response()->json([
             'seller' => [
                 'id' => $seller->id,
@@ -53,6 +57,8 @@ class SellerKycController extends Controller
                 'bannedAt' => $seller->banned_at?->toIso8601String(),
                 'partnerWalletFrozen' => (bool) $seller->partner_wallet_frozen,
                 'partnerWalletFrozenAt' => $seller->partner_wallet_frozen_at?->toIso8601String(),
+                'agreementPdfUrl' => $agreementUrl,
+                'agreementPdfGeneratedAt' => $seller->agreement_pdf_generated_at?->toIso8601String(),
                 'kycFiles' => [
                     'idFront' => $filesByType->has('id_front'),
                     'selfie' => $filesByType->has('selfie'),

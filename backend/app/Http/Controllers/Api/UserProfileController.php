@@ -21,6 +21,7 @@ class UserProfileController extends Controller
             'username' => $user->game_username ?: $user->name,
             'countryCode' => $user->country_code,
             'countryName' => $user->country_name,
+            'phone' => $user->phone,
             'avatarId' => $user->avatar_id ?? 'shadow_default',
             'walletId' => $wallet->wallet_id,
             'walletBalanceFcfa' => (float) $wallet->balance,
@@ -40,6 +41,7 @@ class UserProfileController extends Controller
             'countryCode' => 'sometimes|required|string|size:2',
             'countryName' => 'sometimes|required|string|max:100',
             'avatarId' => 'sometimes|required|string|max:64',
+            'phone' => 'sometimes|nullable|string|max:64',
         ]);
 
         $user = $request->user();
@@ -53,6 +55,9 @@ class UserProfileController extends Controller
         if (array_key_exists('avatarId', $data)) {
             $user->avatar_id = $data['avatarId'];
         }
+        if (array_key_exists('phone', $data)) {
+            $user->phone = $data['phone'] !== null ? trim((string) $data['phone']) : null;
+        }
 
         $user->save();
 
@@ -62,6 +67,7 @@ class UserProfileController extends Controller
             'username' => $user->game_username ?: $user->name,
             'countryCode' => $user->country_code,
             'countryName' => $user->country_name,
+            'phone' => $user->phone,
             'avatarId' => $user->avatar_id ?? 'shadow_default',
             'walletId' => $wallet->wallet_id,
             'walletBalanceFcfa' => (float) $wallet->balance,

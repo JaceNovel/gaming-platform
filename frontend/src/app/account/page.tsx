@@ -12,6 +12,7 @@ import AvatarPickerModal from "@/components/profile/AvatarPickerModal";
 import PlayerProfileCard from "@/components/profile/PlayerProfileCard";
 import type { DashboardMenuId } from "@/components/profile/dashboardMenu";
 import { API_BASE } from "@/lib/config";
+import { openTidioChat } from "@/lib/tidioChat";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
@@ -290,6 +291,14 @@ function AccountClient() {
   const [thankYouTitle, setThankYouTitle] = useState<string>("Paiement confirmé");
   const [thankYouMessage, setThankYouMessage] = useState<string>("Ton achat est confirmé.");
   const [thankYouTrackTarget, setThankYouTrackTarget] = useState<string | null>(null);
+
+  const [phoneOld, setPhoneOld] = useState<string>("");
+  const [phoneNew, setPhoneNew] = useState<string>("");
+  const [phoneReason, setPhoneReason] = useState<string>("");
+  const [phoneFile, setPhoneFile] = useState<File | null>(null);
+  const [phoneSubmitting, setPhoneSubmitting] = useState(false);
+  const [phoneStatus, setPhoneStatus] = useState<string>("");
+  const [phoneError, setPhoneError] = useState<string>("");
   const [marketplaceSellerContactEligible, setMarketplaceSellerContactEligible] = useState(false);
   const [marketplaceSellerWhatsappUrl, setMarketplaceSellerWhatsappUrl] = useState<string | null>(null);
   const [marketplaceSellerWhatsappLoading, setMarketplaceSellerWhatsappLoading] = useState(false);
@@ -876,6 +885,79 @@ function AccountClient() {
     setWalletModalOpen(false);
   };
 
+  const validPhoneLike = (value: string) => {
+    const raw = String(value ?? "").trim();
+    const digits = raw.replace(/\D+/g, "");
+    if (!digits) return false;
+    if (/^0+$/.test(digits)) return false;
+    return digits.length >= 6;
+  };
+
+  const submitPhoneChangeBasic = async () => {
+    setPhoneError("");
+    setPhoneStatus("");
+
+    if (!validPhoneLike(phoneOld) || !validPhoneLike(phoneNew)) {
+      setPhoneError("Veuillez entrer un ancien et un nouveau numéro valides.");
+      return;
+    }
+
+    if (!phoneReason.trim()) {
+      setPhoneError("Veuillez renseigner le motif.");
+      return;
+    }
+
+    if (!phoneFile) {
+      setPhoneError("Veuillez ajouter un fichier justificatif.");
+      return;
+    }
+
+    setPhoneSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.set("old_phone", phoneOld.trim());
+      fd.set("new_phone", phoneNew.trim());
+      fd.set("reason", phoneReason.trim());
+      fd.set("attachment", phoneFile);
+
+      const res = await authFetch(`${API_BASE}/me/phone-change-requests`, {
+        method: "POST",
+        body: fd,
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        setPhoneError(payload?.message ?? "Demande impossible.");
+        return;
+      }
+
+      setPhoneStatus(
+        "Demande envoyée. Elle sera examinée par l’admin. Un PDF a été généré pour le dossier.",
+      );
+      setPhoneOld("");
+      setPhoneNew("");
+      setPhoneReason("");
+      setPhoneFile(null);
+    } catch {
+      setPhoneError("Demande impossible.");
+    } finally {
+      setPhoneSubmitting(false);
+    }
+  };
+
+  const submitPhoneChangeVip = async () => {
+    setPhoneError("");
+    setPhoneStatus("");
+
+    if (!validPhoneLike(phoneOld) || !validPhoneLike(phoneNew)) {
+      setPhoneError("Veuillez entrer un ancien et un nouveau numéro valides.");
+      return;
+    }
+
+    const message = `Bonjour, je veux changer de numéro. Ancien: ${phoneOld.trim()} -> Nouveau: ${phoneNew.trim()}.`;
+    await openTidioChat({ message });
+    setPhoneStatus("Chat ouvert. Un agent va confirmer le changement.");
+  };
+
 
   if (!me || authLoading || loadingProfile) {
     return <ProfileLoading />;
@@ -985,6 +1067,12 @@ function AccountClient() {
 
               {marketplaceSellerWhatsappError ? (
                 <p className="text-xs text-amber-200">{marketplaceSellerWhatsappError}</p>
+              ) : null}
+
+              {showMarketplaceSellerButton ? (
+                <p className="text-xs text-white/65">
+                  Important: le numéro utilisé pour cet achat doit être identique au numéro qui contactera le vendeur.
+                </p>
               ) : null}
 
               <button
@@ -1133,6 +1221,74 @@ function AccountClient() {
                     </button>
                   </form>
 
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">Changer de numéro</p>
+                        <p className="mt-1 text-xs text-white/60">
+                          {vipActive
+                            ? "Réservé VIP : demande instantanée via chat."
+                            : "Basic : demande examinée par l’admin (formulaire + fichier)."}
+                        </p>
+                      </div>
+                      <span className="text-[11px] px-3 py-1 rounded-full border border-white/10 text-white/60">📞</span>
+                    </div>
+
+                    <div className="mt-3 space-y-3">
+                      <input
+                        value={phoneOld}
+                        onChange={(e) => setPhoneOld(e.target.value)}
+                        placeholder="Ancien numéro"
+                        className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-2 focus:border-cyan-300 focus:outline-none"
+                        inputMode="tel"
+                      />
+                      <input
+                        value={phoneNew}
+                        onChange={(e) => setPhoneNew(e.target.value)}
+                        placeholder="Nouveau numéro"
+                        className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-2 focus:border-cyan-300 focus:outline-none"
+                        inputMode="tel"
+                      />
+
+                      {!vipActive ? (
+                        <>
+                          <textarea
+                            value={phoneReason}
+                            onChange={(e) => setPhoneReason(e.target.value)}
+                            placeholder="Motif (obligatoire)"
+                            className="min-h-[90px] w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-2 focus:border-cyan-300 focus:outline-none"
+                          />
+                          <input
+                            type="file"
+                            accept="application/pdf,image/*"
+                            onChange={(e) => setPhoneFile(e.target.files?.[0] ?? null)}
+                            className="w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-2 text-xs text-white/70"
+                          />
+                          <button
+                            type="button"
+                            disabled={phoneSubmitting}
+                            onClick={submitPhoneChangeBasic}
+                            className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                          >
+                            {phoneSubmitting ? "Envoi..." : "Valider"}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={phoneSubmitting}
+                          onClick={submitPhoneChangeVip}
+                          className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                        >
+                          Ouvrir le chat
+                        </button>
+                      )}
+                    </div>
+
+                    {phoneError ? <p className="mt-2 text-xs text-rose-300">{phoneError}</p> : null}
+                    {phoneStatus ? <p className="mt-2 text-xs text-emerald-300">{phoneStatus}</p> : null}
+                  </div>
+
                   <form onSubmit={handlePasswordSubmit} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
                     <p className="font-semibold">Changer mot de passe</p>
                     <div className="mt-3 space-y-3">
@@ -1230,6 +1386,70 @@ function AccountClient() {
                     >
                       {countrySubmitting ? "Mise à jour..." : "Mettre à jour"}
                     </button>
+
+                    <div className="mt-5 border-t border-white/10 pt-5">
+                      <p className="text-xs uppercase tracking-[0.3em] text-white/50">Téléphone</p>
+                      <h3 className="mt-1 text-lg font-semibold">Changer de numéro</h3>
+                      <p className="mt-1 text-sm text-white/60">
+                        {vipActive
+                          ? "Réservé VIP : demande instantanée via chat."
+                          : "Basic : demande examinée par l’admin (formulaire + fichier)."}
+                      </p>
+
+                      <div className="mt-4 space-y-3">
+                        <input
+                          value={phoneOld}
+                          onChange={(e) => setPhoneOld(e.target.value)}
+                          placeholder="Ancien numéro"
+                          className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                          inputMode="tel"
+                        />
+                        <input
+                          value={phoneNew}
+                          onChange={(e) => setPhoneNew(e.target.value)}
+                          placeholder="Nouveau numéro"
+                          className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                          inputMode="tel"
+                        />
+
+                        {!vipActive ? (
+                          <>
+                            <textarea
+                              value={phoneReason}
+                              onChange={(e) => setPhoneReason(e.target.value)}
+                              placeholder="Motif (obligatoire)"
+                              className="min-h-[110px] w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 focus:outline-none focus:border-cyan-300"
+                            />
+                            <input
+                              type="file"
+                              accept="application/pdf,image/*"
+                              onChange={(e) => setPhoneFile(e.target.files?.[0] ?? null)}
+                              className="w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-xs text-white/70"
+                            />
+                            <button
+                              type="button"
+                              disabled={phoneSubmitting}
+                              onClick={submitPhoneChangeBasic}
+                              className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                            >
+                              {phoneSubmitting ? "Envoi..." : "Valider"}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={phoneSubmitting}
+                            onClick={submitPhoneChangeVip}
+                            className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                          >
+                            Ouvrir le chat
+                          </button>
+                        )}
+
+                        {phoneError ? <p className="text-sm text-rose-300">{phoneError}</p> : null}
+                        {phoneStatus ? <p className="text-sm text-emerald-300">{phoneStatus}</p> : null}
+                      </div>
+                    </div>
                   </form>
 
                   <form onSubmit={handlePasswordSubmit} className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm">
