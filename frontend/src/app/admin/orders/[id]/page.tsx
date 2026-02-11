@@ -9,7 +9,6 @@ type OrderItem = {
   id: number;
   quantity?: number | null;
   price?: number | null;
-  game_user_id?: unknown;
   is_physical?: boolean | null;
   delivery_type?: string | null;
   delivery_eta_days?: number | null;
@@ -70,18 +69,6 @@ const toOutcomeLabel = (raw?: string | null) => {
   return "Échec";
 };
 
-const formatGameUserId = (value: unknown): string => {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number") return String(value);
-  if (Array.isArray(value)) return value.map((v) => String(v ?? "").trim()).filter(Boolean).join(", ");
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-};
-
 export default function AdminOrderDetailPage() {
   const params = useParams();
   const orderId = Number(params?.id);
@@ -130,14 +117,6 @@ export default function AdminOrderDetailPage() {
   }, [loadOrder]);
 
   const items = useMemo(() => order?.order_items ?? order?.orderItems ?? [], [order]);
-
-  const firstGameUserId = useMemo(() => {
-    for (const it of items) {
-      const formatted = formatGameUserId((it as any)?.game_user_id);
-      if (formatted) return formatted;
-    }
-    return "";
-  }, [items]);
   const physicalItems = useMemo(
     () =>
       items.filter(
@@ -322,9 +301,6 @@ export default function AdminOrderDetailPage() {
               <div><span className="text-slate-400">Paiement:</span> {order.payment?.status ?? "—"}</div>
               <div><span className="text-slate-400">Montant:</span> {formatAmount(order.total_price)}</div>
               <div><span className="text-slate-400">Créée:</span> {order.created_at ?? "—"}</div>
-              {firstGameUserId ? (
-                <div><span className="text-slate-400">ID joueur:</span> {firstGameUserId}</div>
-              ) : null}
             </div>
             <div className="space-y-2 text-sm">
               <div><span className="text-slate-400">Client:</span> {order.user?.name ?? "—"}</div>
@@ -334,36 +310,6 @@ export default function AdminOrderDetailPage() {
               <div><span className="text-slate-400">Ville:</span> {order.shipping_city ?? "—"}</div>
               <div><span className="text-slate-400">Adresse:</span> {order.shipping_address_line1 ?? "—"}</div>
             </div>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 text-sm font-semibold text-slate-700">Articles</div>
-        {loading || !order ? (
-          <div className="text-sm text-slate-500">Chargement...</div>
-        ) : items.length === 0 ? (
-          <div className="text-sm text-slate-500">Aucun article.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase text-slate-400">
-                <tr>
-                  <th className="pb-2 pr-4">Produit</th>
-                  <th className="pb-2 pr-4">Quantité</th>
-                  <th className="pb-2 pr-4">ID joueur</th>
-                </tr>
-              </thead>
-              <tbody className="text-slate-700">
-                {items.map((it) => (
-                  <tr key={it.id} className="border-t border-slate-100">
-                    <td className="py-2 pr-4">{it.product?.name ?? "—"}</td>
-                    <td className="py-2 pr-4">{it.quantity ?? 1}</td>
-                    <td className="py-2 pr-4">{formatGameUserId((it as any)?.game_user_id) || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
       </div>
@@ -466,14 +412,11 @@ export default function AdminOrderDetailPage() {
                   onChange={(e) => setShippingStatus(e.target.value)}
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                 >
-                  <option value="pending">pending (en attente)</option>
-                  <option value="warehouse">warehouse (entrepôt)</option>
-                  <option value="shipped">shipped (expédiée)</option>
-                  <option value="arrived_local">arrived_local (arrivée localement)</option>
-                  <option value="ready_for_pickup">ready_for_pickup (prête)</option>
-                  <option value="out_for_delivery">out_for_delivery (en livraison)</option>
-                  <option value="delivered">delivered (livrée)</option>
-                  <option value="canceled">canceled (annulée)</option>
+                  <option value="pending">pending</option>
+                  <option value="ready_for_pickup">ready_for_pickup</option>
+                  <option value="out_for_delivery">out_for_delivery</option>
+                  <option value="delivered">delivered</option>
+                  <option value="canceled">canceled</option>
                 </select>
                 <button
                   onClick={handleStatusSave}
@@ -522,7 +465,7 @@ export default function AdminOrderDetailPage() {
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Remboursement</div>
                 <div className="mt-1 text-lg font-semibold text-slate-900">Créditer le wallet</div>
                 <div className="mt-1 text-sm text-slate-600">
-                  Aucun remboursement Mobile Money/CinetPay: crédit interne uniquement.
+                  Aucun remboursement FedaPay/CinetPay: crédit interne uniquement.
                 </div>
               </div>
               <button

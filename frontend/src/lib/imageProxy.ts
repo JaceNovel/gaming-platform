@@ -31,10 +31,11 @@ export const toDisplayImageSrc = (raw: string | null | undefined): string | null
 
   // Relative URLs
   // - Frontend assets like /images/... should remain relative.
-  // - Backend public storage paths like /storage/... must be served from the API host.
+  // - Backend public storage paths like /storage/... are served from the API.
   if (value.startsWith("/")) {
-    if ((value.startsWith("/storage/") || value.startsWith("/uploads/")) && apiOrigin) {
-      return `${apiOrigin}${value}`;
+    if (value.startsWith("/storage/") && API_BASE) {
+      // Route through API so it works even when /storage static serving is not configured.
+      return `${API_BASE}${value}`;
     }
     return value;
   }
@@ -48,6 +49,12 @@ export const toDisplayImageSrc = (raw: string | null | undefined): string | null
   }
 
   if (!isHttpUrl(value)) return value;
+
+  // If the image is hosted by our backend but points to /storage, rewrite to /api/storage.
+  const parsed = safeParseUrl(value);
+  if (parsed && sameHostAsApi(value) && parsed.pathname.startsWith("/storage/")) {
+    return `${parsed.origin}/api${parsed.pathname}${parsed.search}`;
+  }
 
   // If the image is already hosted by our backend, keep it as-is.
   if (sameHostAsApi(value)) return value;

@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\MarketplaceDisputeController;
 use App\Http\Controllers\Api\SellerMarketplaceOrderController;
 use App\Http\Controllers\Api\AdminMarketplaceDisputeController;
 use App\Http\Controllers\Api\AdminMarketplaceCommissionController;
+use App\Http\Controllers\Api\PublicStorageController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -118,6 +119,9 @@ Route::get('/health/db', function () {
         ], 500);
     }
 });
+
+// Public files (uploads) served through API
+Route::get('/storage/{path}', [PublicStorageController::class, 'show'])->where('path', '.*');
 
 // Client-side error reporting (best-effort, no auth)
 Route::post('/client-errors', [\App\Http\Controllers\Api\ClientErrorController::class, 'store']);

@@ -150,10 +150,6 @@ class ProcessRedeemFulfillment implements ShouldQueue
             ]);
         }
 
-        if (!$order->hasPhysicalItems() && empty($order->delivered_at)) {
-            $order->forceFill(['delivered_at' => now()])->save();
-        }
-
         Log::info('Redeem fulfillment completed', [
             'order_id' => $order->id,
             'codes_sent' => count($assignedCodes),
@@ -176,31 +172,9 @@ class ProcessRedeemFulfillment implements ShouldQueue
                 continue;
             }
 
-            $hasProductDenominations = RedeemDenomination::query()
-                ->where('active', true)
-                ->where('product_id', $product->id)
-                ->exists();
-
-            $rawRedeemSku = trim((string) ($product->redeem_sku ?? ''));
-            $rawSku = trim((string) ($product->sku ?? ''));
-            $resolvedSku = $rawRedeemSku;
-
-            if ($resolvedSku === '' && $rawSku !== '') {
-                $hasSkuDenomination = RedeemDenomination::query()
-                    ->where('active', true)
-                    ->where('code', $rawSku)
-                    ->exists();
-
-                if ($hasSkuDenomination) {
-                    $resolvedSku = $rawSku;
-                }
-            }
-
             $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
                 || (bool) ($product->redeem_code_delivery ?? false)
-                || strtolower((string) ($product->type ?? '')) === 'redeem'
-                || $resolvedSku !== ''
-                || $hasProductDenominations;
+                || strtolower((string) ($product->type ?? '')) === 'redeem';
 
             if (!$requiresDenomination) {
                 continue;
@@ -208,19 +182,12 @@ class ProcessRedeemFulfillment implements ShouldQueue
 
             $quantity = max(1, (int) ($orderItem->quantity ?? 1));
 
-            $redeemSku = $resolvedSku;
-
             $denominations = RedeemDenomination::query()
                 ->where('active', true)
-                ->where(function ($q) use ($product, $redeemSku) {
-                    $q->where('product_id', $product->id)
-                        ->orWhereNull('product_id');
-
-                    if ($redeemSku !== '') {
-                        $q->orWhere('code', $redeemSku);
-                    }
+                ->where(function ($q) use ($product) {
+                    $q->where('product_id', $product->id)->orWhereNull('product_id');
                 })
-                ->orderByRaw('CASE WHEN code = ? THEN 0 WHEN product_id IS NULL THEN 2 ELSE 1 END', [$redeemSku !== '' ? $redeemSku : '__no_sku__'])
+                ->orderByRaw('CASE WHEN product_id IS NULL THEN 1 ELSE 0 END')
                 ->orderByDesc('diamonds')
                 ->get();
 

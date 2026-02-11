@@ -11,6 +11,8 @@ use App\Models\Product;
 use App\Models\Refund;
 use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
+use App\Jobs\ProcessMarketplaceOrder;
+use App\Models\MarketplaceOrder;
 use App\Services\AdminAuditLogger;
 use App\Services\WalletService;
 use App\Services\ShippingService;

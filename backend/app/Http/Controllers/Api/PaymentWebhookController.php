@@ -13,6 +13,8 @@ use App\Models\Product;
 use App\Models\PremiumMembership;
 use App\Services\CinetPayService;
 use App\Services\ShippingService;
+use App\Jobs\ProcessMarketplaceOrder;
+use App\Models\MarketplaceOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -224,6 +226,12 @@ class PaymentWebhookController extends Controller
                 }
 
                 if (!empty($orderMeta['fulfillment_dispatched_at'])) {
+                    if ((string) ($payment->order->type ?? '') === 'marketplace_gaming_account') {
+                        $exists = MarketplaceOrder::query()->where('order_id', $payment->order->id)->exists();
+                        if (!$exists && $payment->order->canBeFulfilled()) {
+                            ProcessMarketplaceOrder::dispatchSync($payment->order);
+                        }
+                    }
                     return;
                 }
 

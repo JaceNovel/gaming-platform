@@ -41,7 +41,9 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', env('FRONTEND_URL', '')), '/').'/storage',
+            // Serve public uploads through the API to avoid relying on web server symlink/static config.
+            // Example: https://api.primegaming.space/api/storage/seller-listings/xxx.png
+            'url' => rtrim(env('APP_URL', env('FRONTEND_URL', '')), '/').'/api/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

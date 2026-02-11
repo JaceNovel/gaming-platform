@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Jobs\ProcessFedaPayWebhook;
 use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
+use App\Jobs\ProcessMarketplaceOrder;
+use App\Models\MarketplaceOrder;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
@@ -207,7 +209,7 @@ class PaymentResyncService
                         $orderMeta = [];
                     }
 
-                    if (empty($orderMeta['fulfillment_dispatched_at']) && $order->canBeFulfilled()) {
+                        if (empty($orderMeta['fulfillment_dispatched_at']) && $order->canBeFulfilled()) {
                         if ($order->hasPhysicalItems()) {
                             $this->shippingService->computeShippingForOrder($order);
                         }
@@ -220,6 +222,11 @@ class PaymentResyncService
 
                         $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
                         $order->update(['meta' => $orderMeta]);
+                        } elseif (!empty($orderMeta['fulfillment_dispatched_at']) && (string) ($order->type ?? '') === 'marketplace_gaming_account' && $order->canBeFulfilled()) {
+                            $exists = MarketplaceOrder::query()->where('order_id', $order->id)->exists();
+                            if (!$exists) {
+                                ProcessMarketplaceOrder::dispatchSync($order);
+                            }
                     }
                 }
             }

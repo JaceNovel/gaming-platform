@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\PaymentEvent;
+use App\Models\MarketplaceOrder;
 use App\Models\Product;
 use App\Models\PremiumMembership;
 use App\Models\Referral;
@@ -717,6 +718,11 @@ class ProcessFedaPayWebhook implements ShouldQueue
 
                         $orderMeta['fulfillment_dispatched_at'] = now()->toIso8601String();
                         $order->update(['meta' => $orderMeta]);
+                    } elseif (!empty($orderMeta['fulfillment_dispatched_at']) && (string) ($order->type ?? '') === 'marketplace_gaming_account' && $order->canBeFulfilled()) {
+                        $exists = MarketplaceOrder::query()->where('order_id', $order->id)->exists();
+                        if (!$exists) {
+                            ProcessMarketplaceOrder::dispatchSync($order);
+                        }
                     } elseif (!empty($orderMeta)) {
                         $order->update(['meta' => $orderMeta]);
                     }

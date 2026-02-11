@@ -19,10 +19,7 @@ class WalletController extends Controller
         $transactions = $wallet->transactions()->latest()->limit(10)->get();
 
         return response()->json([
-            'wallet_id' => $wallet->wallet_id,
             'balance' => $wallet->balance,
-            'bonus_balance' => $wallet->bonus_balance,
-            'bonus_expires_at' => optional($wallet->bonus_expires_at)->toIso8601String(),
             'currency' => $wallet->currency,
             'status' => $wallet->status,
             'transactions' => $transactions,
@@ -43,8 +40,6 @@ class WalletController extends Controller
             $label = match (true) {
                 $typeHint === 'order_refund' => 'Remboursement commande',
                 $typeHint === 'admin_wallet_credit' => 'Crédit wallet (admin)',
-                $typeHint === 'admin_dbwallet_credit' => 'Crédit DBWallet (admin)',
-                $typeHint === 'welcome_bonus' => 'Welcome bonus (DBWallet)',
                 default => 'Transaction wallet',
             };
 
