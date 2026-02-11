@@ -54,42 +54,45 @@ type Paginated<T> = {
   prev_page_url?: string | null;
 };
 
+import { isVipActive, vipDiscountPercentForProductType, vipPriceFromUnitPrice } from "@/lib/vipPricing";
+
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
 const parseGamesPayload = (payload: any): MenuGame[] => {
-  if (!payload) return [];
-  if (Array.isArray(payload)) return payload as MenuGame[];
-  if (Array.isArray(payload?.data)) return payload.data as MenuGame[];
-  if (Array.isArray(payload?.data?.data)) return payload.data.data as MenuGame[];
-  return [];
+  const boxed = payload?.data ?? payload;
+  const rows = Array.isArray(boxed) ? boxed : Array.isArray(boxed?.data) ? boxed.data : [];
+
+  return (rows as any[])
+    .map((g) => ({
+      id: Number(g?.id ?? 0),
+      name: String(g?.name ?? "").trim(),
+      slug: String(g?.slug ?? "").trim(),
+      icon: g?.icon ?? null,
+      image: g?.image ?? null,
+    }))
+    .filter((g) => Number.isFinite(g.id) && g.id > 0 && g.slug);
 };
 
 const parsePaginator = <T,>(payload: any): { items: T[]; meta: Paginated<T> | null } => {
-  if (!payload) return { items: [], meta: null };
+  const boxed = payload?.data ?? payload;
 
-  // Laravel paginator shape: { data: [...], current_page, last_page, ... }
-  if (typeof payload === "object" && Array.isArray(payload.data)) {
-    const maybePaged = payload as Paginated<T>;
-    const hasPaging = typeof maybePaged.current_page === "number" || typeof maybePaged.last_page === "number";
-    return {
-      items: payload.data as T[],
-      meta: hasPaging ? (maybePaged as Paginated<T>) : null,
-    };
+  // Typical paginator: { data: [...], current_page, ... }
+  if (boxed && typeof boxed === "object" && Array.isArray((boxed as any).data)) {
+    const meta = boxed as Paginated<T>;
+    const hasPaging = typeof meta.current_page === "number" || typeof meta.last_page === "number";
+    return { items: (meta.data ?? []) as T[], meta: hasPaging ? meta : null };
   }
 
   // Some endpoints wrap paginator as { data: { data: [...], current_page, ... } }
-  if (typeof payload === "object" && payload.data && typeof payload.data === "object" && Array.isArray(payload.data.data)) {
-    const inner = payload.data as Paginated<T>;
+  if (boxed && typeof boxed === "object" && boxed.data && typeof boxed.data === "object" && Array.isArray((boxed.data as any).data)) {
+    const inner = boxed.data as Paginated<T>;
     const hasPaging = typeof inner.current_page === "number" || typeof inner.last_page === "number";
-    return {
-      items: payload.data.data as T[],
-      meta: hasPaging ? inner : null,
-    };
+    return { items: (inner.data ?? []) as T[], meta: hasPaging ? inner : null };
   }
 
   // Plain arrays
-  if (Array.isArray(payload)) {
-    return { items: payload as T[], meta: null };
+  if (Array.isArray(boxed)) {
+    return { items: boxed as T[], meta: null };
   }
 
   return { items: [], meta: null };
@@ -114,23 +117,7 @@ export default function ProductsCatalogPage({
   const router = useRouter();
   const { user } = useAuth();
 
-  const vipLevel = String(user?.premium_level ?? "").trim().toLowerCase();
-  const vipActive = Boolean(user?.is_premium) && vipLevel !== "";
-  const vipPercentForType = (productType?: string | null) => {
-    if (!vipActive) return 0;
-    const type = String(productType ?? "").trim().toLowerCase();
-
-    if (vipLevel === "bronze") {
-      if (type === "item") return 10;
-      if (type === "recharge" || type === "subscription") return 5;
-      return 0;
-    }
-
-    if (vipLevel === "platine") return 10;
-    if (vipLevel === "or") return 7;
-
-    return 3;
-  };
+  const vipActive = isVipActive(user);
 
   const gameSlug = useMemo(() => {
     const raw = gameSlugParam ?? (params?.gameSlug as string | undefined);
@@ -405,8 +392,8 @@ export default function ProductsCatalogPage({
                   const isTop = String(p.display_section ?? "").toLowerCase() === "popular" || likes >= 1000;
                   const isInstant = delivery?.tone === "bolt";
 
-                  const vipPercent = vipPercentForType(p.type ?? null);
-                  const vipPrice = vipActive && vipPercent > 0 ? Math.max(0, Math.round(safePrice * (1 - vipPercent / 100))) : null;
+                  const vipPercent = vipDiscountPercentForProductType(user, p.type ?? null);
+                  const vipPrice = vipActive && vipPercent > 0 ? Math.max(0, Math.round(vipPriceFromUnitPrice(safePrice, vipPercent))) : null;
 
                   return (
                     <div key={p.id} className="min-w-0">
@@ -417,7 +404,7 @@ export default function ProductsCatalogPage({
                         tag={vipActive && vipPercent > 0 ? `VIP -${vipPercent}%` : undefined}
                         likes={likes}
                         delivery={delivery}
-                        details={vipPrice !== null ? [`Prix VIP: ${formatNumber(vipPrice)} FCFA`] : undefined}
+                        vipPrice={vipPrice !== null ? `${formatNumber(vipPrice)} FCFA` : undefined}
                         onAction={() => router.push(`/produits/${p.id}`)}
                         onDoubleClick={() => router.push(`/produits/${p.id}`)}
                         imageSlot={

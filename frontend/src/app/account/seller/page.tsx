@@ -434,8 +434,10 @@ function SellerPageClient() {
         galleryImages.forEach((file) => fd.append("galleryImages[]", file));
 
         const endpoint = payload.mode === "create" ? "/gaming-accounts/listings" : `/gaming-accounts/listings/${payload.id}`;
-        const method = payload.mode === "create" ? "POST" : "PATCH";
-        const res = await authFetch(`${API_BASE}${endpoint}`, { method, body: fd });
+        if (payload.mode === "edit") {
+          fd.append("_method", "PATCH");
+        }
+        const res = await authFetch(`${API_BASE}${endpoint}`, { method: "POST", body: fd });
         const json = await res.json().catch(() => null);
         if (!res.ok) {
           throw new Error(json?.message ?? `Erreur ${res.status}`);

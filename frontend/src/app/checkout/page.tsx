@@ -9,6 +9,7 @@ import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
 import { emitWalletUpdated } from "@/lib/walletEvents";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
+import { isVipActive, vipDiscountAmount, vipDiscountPercentForProductType } from "@/lib/vipPricing";
 
 function CheckoutScreen() {
   const { authFetch, user } = useAuth();
@@ -296,6 +297,14 @@ function CheckoutScreen() {
     return Math.max(0, q * p);
   }, [productPrice, quantity]);
 
+  const vipActive = useMemo(() => isVipActive(user), [user]);
+  const vipPercent = useMemo(() => vipDiscountPercentForProductType(user, productType), [user, productType]);
+  const vipDiscount = useMemo(() => {
+    if (!vipActive || vipPercent <= 0) return 0;
+    return Math.round(vipDiscountAmount(estimatedTotal, vipPercent));
+  }, [estimatedTotal, vipActive, vipPercent]);
+  const estimatedTotalAfterVip = useMemo(() => Math.max(0, estimatedTotal - vipDiscount), [estimatedTotal, vipDiscount]);
+
   const isRechargeProduct = useMemo(() => {
     const t = String(productType ?? "").toLowerCase();
     return t === "recharge" || t === "topup" || t === "pass";
@@ -315,9 +324,9 @@ function CheckoutScreen() {
 
   const walletPayable = useMemo(() => {
     if (walletLoading) return false;
-    if (!Number.isFinite(estimatedTotal) || estimatedTotal <= 0) return false;
-    return walletAvailable + 0.0001 >= estimatedTotal;
-  }, [estimatedTotal, walletAvailable, walletLoading]);
+    if (!Number.isFinite(estimatedTotalAfterVip) || estimatedTotalAfterVip <= 0) return false;
+    return walletAvailable + 0.0001 >= estimatedTotalAfterVip;
+  }, [estimatedTotalAfterVip, walletAvailable, walletLoading]);
 
   useEffect(() => {
     if (paymentMethod === "wallet" && !walletPayable) {
@@ -332,6 +341,30 @@ function CheckoutScreen() {
 
         <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-3">
           <p className="text-sm text-white/70">Produit sélectionné: #{isValidProduct ? productId : "-"}</p>
+
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="text-sm font-semibold text-white">Récapitulatif</p>
+            <div className="mt-3 grid gap-1 text-sm">
+              <div className="flex items-center justify-between text-white/70">
+                <span>Montant</span>
+                <span className={vipDiscount > 0 ? "font-semibold text-white/55 line-through" : "font-semibold text-white"}>
+                  {Math.floor(estimatedTotal)} FCFA
+                </span>
+              </div>
+              {vipDiscount > 0 ? (
+                <>
+                  <div className="flex items-center justify-between text-white/70">
+                    <span>Réduction VIP (-{vipPercent}%)</span>
+                    <span className="font-semibold text-emerald-200">- {Math.floor(vipDiscount)} FCFA</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-fuchsia-200/90">Total VIP</span>
+                    <span className="font-black text-fuchsia-200 text-lg tracking-tight">{Math.floor(estimatedTotalAfterVip)} FCFA</span>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </div>
 
           {shippingRequired ? (
             <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">

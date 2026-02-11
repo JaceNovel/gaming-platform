@@ -12,6 +12,7 @@ import { toDisplayImageSrc } from "../../lib/imageProxy";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
 import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
+import { isVipActive, vipDiscountPercentForProductType, vipPriceFromUnitPrice } from "@/lib/vipPricing";
 
 type ProductCard = {
   id: number;
@@ -49,12 +50,16 @@ function ProductCardUI({
   onBuy,
   showAddToCart = true,
   imageOverrideSrc,
+  vipPrice,
+  vipPercent,
 }: {
   p: ProductCard;
   onAddToCart: (product: ProductCard, origin?: HTMLElement | null) => void;
   onBuy: (product: ProductCard, origin?: HTMLElement | null) => void;
   showAddToCart?: boolean;
   imageOverrideSrc?: string | null;
+  vipPrice?: string | null;
+  vipPercent?: number;
 }) {
   const thumbSrc = toDisplayImageSrc(p.image) ?? p.image;
 
@@ -75,9 +80,16 @@ function ProductCardUI({
       ) : null}
       <div className="relative p-4">
         <div className="flex items-start justify-between gap-3">
-          <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/10">
-            {p.badge}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-white/10 px-2 py-1 text-[11px] font-semibold text-white/80 ring-1 ring-white/10">
+              {p.badge}
+            </span>
+            {vipPrice && vipPercent ? (
+              <span className="rounded-full bg-fuchsia-400/10 px-2 py-1 text-[11px] font-semibold text-fuchsia-100 ring-1 ring-fuchsia-200/20">
+                VIP -{vipPercent}%
+              </span>
+            ) : null}
+          </div>
           <div className="flex items-center gap-1 text-xs text-white/80">
             <Heart className="h-4 w-4 text-pink-400" />
             {p.likes}
@@ -99,9 +111,14 @@ function ProductCardUI({
               {p.title}
             </div>
             <div className="truncate text-xs text-white/70">{p.subtitle}</div>
-            <div className="mt-2 text-sm font-extrabold text-cyan-300">
-              {p.price}
-            </div>
+            {vipPrice ? (
+              <div className="mt-2">
+                <div className="text-xs font-bold text-white/55 line-through">{p.price}</div>
+                <div className="mt-1 text-base font-black tracking-tight text-fuchsia-200">{vipPrice}</div>
+              </div>
+            ) : (
+              <div className="mt-2 text-sm font-extrabold text-cyan-300">{p.price}</div>
+            )}
           </div>
         </div>
 
@@ -135,6 +152,8 @@ export default function HomeClient() {
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
   const { user, loading: authLoading } = useAuth();
+
+  const vipActive = isVipActive(user);
   const [headlineStats, setHeadlineStats] = useState<HomeHeadlineStats>(DEFAULT_HOME_HEADLINE_STATS);
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [desktopStart, setDesktopStart] = useState(0);
@@ -451,6 +470,12 @@ export default function HomeClient() {
                     onAddToCart={addToCart}
                     onBuy={handleBuy}
                     imageOverrideSrc={getHomePopularSlotImage(idx)}
+                    vipPercent={vipActive ? vipDiscountPercentForProductType(user, p.type) : 0}
+                    vipPrice={
+                      vipActive && vipDiscountPercentForProductType(user, p.type) > 0
+                        ? `${formatNumber(Math.round(vipPriceFromUnitPrice(p.priceValue, vipDiscountPercentForProductType(user, p.type))))} FCFA`
+                        : null
+                    }
                   />
                 ))}
               </div>
@@ -462,6 +487,12 @@ export default function HomeClient() {
                     onAddToCart={addToCart}
                     onBuy={handleBuy}
                     imageOverrideSrc={getHomePopularSlotImage(idx)}
+                    vipPercent={vipActive ? vipDiscountPercentForProductType(user, p.type) : 0}
+                    vipPrice={
+                      vipActive && vipDiscountPercentForProductType(user, p.type) > 0
+                        ? `${formatNumber(Math.round(vipPriceFromUnitPrice(p.priceValue, vipDiscountPercentForProductType(user, p.type))))} FCFA`
+                        : null
+                    }
                   />
                 ))}
               </div>

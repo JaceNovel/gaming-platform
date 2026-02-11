@@ -10,6 +10,7 @@ export type ProductCardProps = {
   title: string;
   subtitle?: string;
   price: string;
+  vipPrice?: string;
   likes?: number;
   tag?: string;
   badgeLevel?: "Bronze" | "Or" | "Platine";
@@ -25,6 +26,7 @@ export default function ProductCard({
   title,
   subtitle,
   price,
+  vipPrice,
   likes,
   tag,
   badgeLevel,
@@ -98,7 +100,17 @@ export default function ProductCard({
       <div className="mt-5 flex items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.3em] text-white/45">Prix</p>
-          <p className="mt-1 text-2xl font-black tracking-tight text-cyan-200">{price}</p>
+          {vipPrice ? (
+            <div className="mt-1">
+              <p className="text-sm font-bold text-white/55 line-through">{price}</p>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-fuchsia-200/80">Prix VIP</span>
+                <span className="text-3xl font-black tracking-tight text-fuchsia-200">{vipPrice}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-1 text-2xl font-black tracking-tight text-cyan-200">{price}</p>
+          )}
         </div>
 
         <button
