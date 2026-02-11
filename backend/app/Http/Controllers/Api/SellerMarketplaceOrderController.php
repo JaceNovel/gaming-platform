@@ -33,9 +33,21 @@ class SellerMarketplaceOrderController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
+        $proof = $marketplaceOrder->delivery_proof;
+        if (!is_array($proof)) {
+            $proof = [];
+        }
+        $file = isset($proof['file']) && is_array($proof['file']) ? $proof['file'] : null;
+        $hasExistingProofFile = is_array($file) && !empty($file['path']);
+
         $data = $request->validate([
             'note' => ['nullable', 'string', 'max:2000'],
-            'proof' => ['nullable', 'file', 'image', 'max:5120'],
+            'proof' => [
+                $hasExistingProofFile ? 'nullable' : 'required',
+                'file',
+                'image',
+                'max:5120',
+            ],
         ]);
 
         DB::transaction(function () use ($marketplaceOrder, $data) {
@@ -69,6 +81,14 @@ class SellerMarketplaceOrderController extends Controller
                     'mime' => $file->getMimeType(),
                     'size' => $file->getSize(),
                 ];
+            }
+
+            $file = isset($proof['file']) && is_array($proof['file']) ? $proof['file'] : null;
+            $hasFile = is_array($file) && !empty($file['path']);
+            if (!$hasFile) {
+                throw ValidationException::withMessages([
+                    'proof' => ['Une preuve (image) est obligatoire pour marquer comme livré.'],
+                ]);
             }
 
             $order->status = 'delivered';

@@ -497,7 +497,14 @@ function SellerPageClient() {
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(payload?.message ?? "Action impossible");
+        const errors = payload?.errors;
+        const firstError =
+          errors && typeof errors === "object"
+            ? Object.values(errors)
+                .flat()
+                .find((v: any) => typeof v === "string" && v.trim())
+            : null;
+        throw new Error(firstError ?? payload?.message ?? "Action impossible");
       }
       pushToast("Marqué comme livré.", "success");
       setDeliveryModal(null);
@@ -638,7 +645,7 @@ function SellerPageClient() {
 
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-4 backdrop-blur sm:items-center">
-        <div className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl max-h-[calc(100dvh-2rem)]">
+        <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl">
           <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
             <div>
               <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Annonces</p>
@@ -672,7 +679,7 @@ function SellerPageClient() {
             </button>
           </div>
 
-          <div className="px-6 py-6 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
             {!canSell ? (
               <div className="mb-5 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-100">
                 Ton compte vendeur doit être <span className="font-semibold">validé</span> (et wallet non gelé) pour créer/modifier/activer des annonces.
@@ -1011,6 +1018,13 @@ function SellerPageClient() {
 
     const title = String(dm.order?.listing?.title ?? "Commande marketplace");
     const ref = String(dm.order?.order?.reference ?? "");
+    const proof = dm.order?.delivery_proof;
+    const existingPath =
+      proof && typeof proof === "object" && (proof as any).file && typeof (proof as any).file === "object"
+        ? String((proof as any).file?.path ?? "")
+        : "";
+    const hasExistingProofFile = Boolean(existingPath);
+    const proofRequired = !hasExistingProofFile;
 
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-4 backdrop-blur sm:items-center">
@@ -1045,8 +1059,12 @@ function SellerPageClient() {
             </label>
 
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/50">Preuve (image)</p>
-              <p className="mt-2 text-sm text-white/60">Optionnel, mais recommandé (max 5MB).</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-white/50">Preuve (image){proofRequired ? " *" : ""}</p>
+              <p className="mt-2 text-sm text-white/60">
+                {proofRequired
+                  ? "Obligatoire pour marquer comme livré (max 5MB)."
+                  : "Une preuve est déjà enregistrée. Tu peux la remplacer si besoin (max 5MB)."}
+              </p>
               <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-black/40">
                 <ImageIcon className="h-4 w-4" />
                 {file ? "Changer" : "Importer"}
@@ -1069,8 +1087,12 @@ function SellerPageClient() {
           <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-5">
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || (proofRequired && !file)}
               onClick={async () => {
+                if (proofRequired && !file) {
+                  pushToast("Ajoute une preuve (image) avant de confirmer.", "error");
+                  return;
+                }
                 setBusy(true);
                 await markDelivered(dm.order.id, note, file);
                 setBusy(false);

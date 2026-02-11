@@ -107,6 +107,24 @@ class AdminMarketplaceOrderController extends Controller
                 ]);
             }
 
+            if ($mpOrder->status !== 'delivered') {
+                throw ValidationException::withMessages([
+                    'status' => ['Seller must mark the order as delivered (with proof) before release.'],
+                ]);
+            }
+
+            $proof = $mpOrder->delivery_proof;
+            if (!is_array($proof)) {
+                $proof = [];
+            }
+            $file = isset($proof['file']) && is_array($proof['file']) ? $proof['file'] : null;
+            $hasProofFile = is_array($file) && !empty($file['path']);
+            if (!$hasProofFile) {
+                throw ValidationException::withMessages([
+                    'delivery_proof' => ['Delivery proof is required before releasing funds.'],
+                ]);
+            }
+
             if (!$mpOrder->order || !$mpOrder->order->isPaymentSuccess()) {
                 throw ValidationException::withMessages([
                     'payment' => ['Order is not paid.'],

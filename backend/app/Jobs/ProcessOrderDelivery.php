@@ -9,16 +9,19 @@ use App\Models\Refund;
 use App\Mail\RefundIssued;
 use App\Services\DeliveryService;
 use App\Services\WalletService;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class ProcessOrderDelivery implements ShouldQueue
 {
-    use Queueable;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $order;
+    public Order $order;
 
     /**
      * Create a new job instance.
@@ -34,6 +37,18 @@ class ProcessOrderDelivery implements ShouldQueue
     public function handle(DeliveryService $deliveryService, WalletService $walletService): void
     {
         try {
+            // Marketplace gaming account orders have their own workflow (seller delivery proof + admin release).
+            if ((string) ($this->order->type ?? '') === 'marketplace_gaming_account') {
+                if (!$this->order->isPaymentSuccess()) {
+                    return;
+                }
+
+                // Creates MarketplaceOrder, marks listing sold, and credits seller earnings to pending balance.
+                ProcessMarketplaceOrder::dispatchSync($this->order);
+                Log::info('Marketplace order processed', ['order_id' => $this->order->id]);
+                return;
+            }
+
             $this->order->loadMissing(['user', 'orderItems.product', 'orderItems.product.game']);
 
             // Process each order item
