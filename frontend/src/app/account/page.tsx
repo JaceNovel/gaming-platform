@@ -287,6 +287,9 @@ function AccountClient() {
   const [countryMessage, setCountryMessage] = useState("");
   const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
   const [thankYouOpen, setThankYouOpen] = useState(false);
+  const [thankYouTitle, setThankYouTitle] = useState<string>("Paiement confirmé");
+  const [thankYouMessage, setThankYouMessage] = useState<string>("Ton achat est confirmé.");
+  const [thankYouTrackTarget, setThankYouTrackTarget] = useState<string | null>(null);
   const [marketplaceSellerContactEligible, setMarketplaceSellerContactEligible] = useState(false);
   const [marketplaceSellerWhatsappUrl, setMarketplaceSellerWhatsappUrl] = useState<string | null>(null);
   const [marketplaceSellerWhatsappLoading, setMarketplaceSellerWhatsappLoading] = useState(false);
@@ -331,30 +334,115 @@ function AccountClient() {
 
   // Wallet topups have been removed.
 
+  const closeThankYou = () => {
+    setThankYouOpen(false);
+    setPaymentBanner(null);
+    setThankYouTrackTarget(null);
+    router.replace('/account');
+  };
+
   useEffect(() => {
     const status = (searchParams.get('payment_status') ?? '').toLowerCase();
     if (!status) return;
 
+    const orderId = String(searchParams.get('order') ?? '').trim();
     const isSuccess = status === 'success' || status === 'paid' || status === 'completed';
-    if (isSuccess) {
-      setPaymentBanner('Paiement confirmé. PRIME Gaming vous remercie pour votre achat.');
-      setThankYouOpen(true);
-    } else if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
-      setPaymentBanner('Paiement échoué ou annulé. Merci de réessayer.');
+
+    if (!isSuccess) {
+      if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
+        setPaymentBanner('Paiement échoué ou annulé. Merci de réessayer.');
+      } else {
+        setPaymentBanner('Paiement en attente de confirmation.');
+      }
       setThankYouOpen(false);
-    } else {
-      setPaymentBanner('Paiement en attente de confirmation.');
-      setThankYouOpen(false);
+      return;
     }
 
-    const timer = setTimeout(() => {
-      setPaymentBanner(null);
-      setThankYouOpen(false);
-      router.replace('/account');
-    }, 4500);
+    // Defaults (will be refined by order inspection)
+    setPaymentBanner('Paiement confirmé.');
+    setThankYouTitle('Paiement confirmé');
+    setThankYouMessage('Ton achat est confirmé.');
+    setThankYouTrackTarget(null);
+    setThankYouOpen(true);
 
-    return () => clearTimeout(timer);
-  }, [router, searchParams]);
+    if (!HAS_API_ENV || !orderId) return;
+
+    let active = true;
+    (async () => {
+      try {
+        const orderRes = await authFetch(`${API_BASE}/orders/${encodeURIComponent(orderId)}`);
+        const orderPayload = await orderRes.json().catch(() => null);
+        if (!active || !orderRes.ok) return;
+
+        const rawItems = orderPayload?.orderItems ?? orderPayload?.order_items ?? [];
+        const items = Array.isArray(rawItems) ? rawItems : [];
+        const nameBlob = items
+          .map((it: any) => String(it?.product?.name ?? ''))
+          .filter(Boolean)
+          .join(' | ');
+        const isFreeFire = /free\s*fire/i.test(nameBlob);
+        const isSubscription = items.some(
+          (it: any) => String(it?.product?.type ?? '').trim().toLowerCase() === 'subscription',
+        ) || String(orderPayload?.type ?? '').toLowerCase().includes('subscription');
+        const hasPhysicalItems = items.some(
+          (it: any) => Boolean(it?.is_physical) || Boolean(it?.product?.shipping_required),
+        );
+
+        // Check if the order delivers redeem codes (recharge non-direct). This endpoint is the most reliable.
+        let hasRedeemItems = false;
+        try {
+          const redeemRes = await authFetch(
+            `${API_BASE}/orders/${encodeURIComponent(orderId)}/redeem-codes`,
+          );
+          const redeemPayload = await redeemRes.json().catch(() => null);
+          if (redeemRes.ok) {
+            hasRedeemItems = Boolean(redeemPayload?.has_redeem_items);
+          }
+        } catch {
+          // ignore
+        }
+
+        if (!active) return;
+
+        // Free Fire recharge (not direct) -> redirect to Mes codes
+        if (isFreeFire && hasRedeemItems) {
+          const params = new URLSearchParams();
+          params.set('payment_status', status);
+          params.set('order', orderId);
+          router.replace(`/codes?${params.toString()}`);
+          return;
+        }
+
+        // Free Fire subscription -> show 2h waiting message
+        if (isFreeFire && isSubscription) {
+          setThankYouTitle('Abonnement Free Fire');
+          setThankYouMessage('Les abonnements Free Fire prennent en général ~2H. Veuillez patienter.');
+          setPaymentBanner('Paiement confirmé. Ton abonnement Free Fire est en cours de traitement (~2H).');
+          setThankYouTrackTarget(null);
+          return;
+        }
+
+        // Accessories / physical items -> show tracking button
+        if (hasPhysicalItems) {
+          setThankYouTitle('Commande confirmée');
+          setThankYouMessage('Ton achat est confirmé. Tu peux suivre la livraison de l’article.');
+          setThankYouTrackTarget(orderId);
+          return;
+        }
+
+        // Generic success (remove old thank-you wording)
+        setThankYouTitle('Paiement confirmé');
+        setThankYouMessage('Ton achat est confirmé.');
+        setThankYouTrackTarget(null);
+      } catch {
+        // keep defaults
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [authFetch, router, searchParams]);
 
   useEffect(() => {
     if (!thankYouOpen) return;
@@ -822,7 +910,7 @@ function AccountClient() {
           role="dialog"
           aria-modal="true"
           aria-label="Remerciement d'achat"
-          onClick={() => setThankYouOpen(false)}
+          onClick={closeThankYou}
         >
           <div
             className="w-full max-w-[420px] rounded-3xl border border-white/10 bg-black/85 p-6 backdrop-blur"
@@ -840,9 +928,24 @@ function AccountClient() {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.35em] text-white/50">Achat confirmé</p>
-                <p className="mt-2 text-lg font-extrabold text-white">Merci pour votre achat</p>
-                <p className="mt-1 text-sm text-white/70">PRIME Gaming vous remercie.</p>
+                <p className="mt-2 text-lg font-extrabold text-white">{thankYouTitle}</p>
+                <p className="mt-1 text-sm text-white/70">{thankYouMessage}</p>
               </div>
+
+              {thankYouTrackTarget ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = String(thankYouTrackTarget ?? '').trim();
+                    if (!trimmed) return;
+                    closeThankYou();
+                    router.push(`/orders/${encodeURIComponent(trimmed)}`);
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/15 transition"
+                >
+                  Suivre
+                </button>
+              ) : null}
 
               {showMarketplaceSellerButton ? (
                 <button
@@ -886,7 +989,7 @@ function AccountClient() {
 
               <button
                 type="button"
-                onClick={() => setThankYouOpen(false)}
+                onClick={closeThankYou}
                 className="mt-1 w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-2 text-sm font-semibold text-white/90 hover:bg-white/15 transition"
               >
                 OK

@@ -55,7 +55,7 @@ class PremiumController extends Controller
         }
 
         $levels = [
-            'bronze' => ['price' => 10000, 'duration' => 30],
+            'bronze' => ['price' => 10000, 'duration' => 7],
             'platine' => ['price' => 13000, 'duration' => 30],
         ];
 
@@ -165,7 +165,7 @@ class PremiumController extends Controller
         $user = $request->user();
 
         $levels = [
-            'bronze' => ['price' => 10000, 'duration' => 30],
+            'bronze' => ['price' => 10000, 'duration' => 7],
             'platine' => ['price' => 13000, 'duration' => 30],
         ];
 

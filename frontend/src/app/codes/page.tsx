@@ -138,6 +138,20 @@ function CodesClient() {
   const [banner, setBanner] = useState<string | null>(null);
   const loadSeq = useRef(0);
 
+  useEffect(() => {
+    const status = String(searchParams.get("payment_status") ?? "").toLowerCase();
+    if (!status) return;
+
+    const isSuccess = status === "success" || status === "paid" || status === "completed";
+    if (isSuccess) {
+      setBanner("Paiement confirmé. Tes codes sont disponibles ci-dessous.");
+      window.setTimeout(() => {
+        setBanner(null);
+        router.replace("/codes");
+      }, 4500);
+    }
+  }, [router, searchParams]);
+
   // Wallet topups have been removed.
 
   const redeemOrders = useMemo(() => orders.filter(isRedeemOrder), [orders]);

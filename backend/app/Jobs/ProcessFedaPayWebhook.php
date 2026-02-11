@@ -583,8 +583,8 @@ class ProcessFedaPayWebhook implements ShouldQueue
                             if ($referral && $alreadyEarned <= 0.0) {
                                 $referrer = User::where('id', $referral->referrer_id)->first();
                                 $isVip = $referrer && (bool) $referrer->is_premium && in_array((string) $referrer->premium_level, ['bronze', 'platine'], true);
-                                if ($referrer && $isVip) {
-                                    $rate = 0.03;
+                                if ($referrer) {
+                                    $rate = $isVip ? 0.03 : 0.01;
                                     $baseAmount = (float) $payment->amount;
                                     $commission = round($baseAmount * $rate, 2);
 
@@ -640,7 +640,7 @@ class ProcessFedaPayWebhook implements ShouldQueue
 
                         if ($gameId > 0 && $gameUsername !== '') {
                             $levels = [
-                                'bronze' => ['duration' => 30],
+                                'bronze' => ['duration' => 7],
                                 'platine' => ['duration' => 30],
                             ];
                             $duration = $levels[$level]['duration'] ?? 30;

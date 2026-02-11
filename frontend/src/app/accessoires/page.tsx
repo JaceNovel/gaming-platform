@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
 
@@ -149,6 +150,10 @@ function HeroBackdrop() {
 }
 
 export default function AccessoiresPage() {
+  const { user } = useAuth();
+  const vipLevel = String(user?.premium_level ?? "").trim().toLowerCase();
+  const vipActive = Boolean(user?.is_premium) && vipLevel !== "";
+  const vipPercent = vipActive && vipLevel === "bronze" ? 10 : vipActive && vipLevel === "platine" ? 10 : 0;
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -480,6 +485,11 @@ export default function AccessoiresPage() {
                                     <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass}`}>
                                       {badge.label}
                                     </span>
+                                    {vipPercent > 0 ? (
+                                      <span className="inline-flex items-center rounded-full border border-fuchsia-200/20 bg-fuchsia-400/10 px-3 py-1 text-xs font-semibold text-fuchsia-100">
+                                        VIP -{vipPercent}%
+                                      </span>
+                                    ) : null}
                                     <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
                                       Délai: {defaultDeliveryEstimate(p)}
                                     </span>

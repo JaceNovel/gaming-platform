@@ -147,7 +147,7 @@ class PaymentWebhookController extends Controller
 
                     if ($gameId > 0 && $gameUsername !== '') {
                         $levels = [
-                            'bronze' => ['duration' => 30],
+                            'bronze' => ['duration' => 7],
                             'platine' => ['duration' => 30],
                         ];
                         $duration = $levels[$level]['duration'] ?? 30;

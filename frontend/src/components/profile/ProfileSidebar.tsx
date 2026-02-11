@@ -27,8 +27,18 @@ export default function ProfileSidebar({
       <div className="flex items-center gap-3 p-2">
         <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-500/40 to-cyan-400/20 border border-white/15" />
         <div>
-          <div className={isVip ? "font-extrabold bg-gradient-to-r from-cyan-200 via-fuchsia-200 to-violet-200 bg-clip-text text-transparent" : "font-bold"}>
-            {username}
+          <div className="inline-flex rounded-2xl border border-white/10 bg-gradient-to-r from-white/10 via-white/5 to-transparent p-[1px]">
+            <div className="rounded-2xl bg-black/40 px-3 py-1.5">
+              <div
+                className={
+                  isVip
+                    ? "font-extrabold tracking-tight bg-gradient-to-r from-cyan-200 via-fuchsia-200 to-violet-200 bg-clip-text text-transparent"
+                    : "font-extrabold tracking-tight bg-gradient-to-r from-emerald-200 via-cyan-200 to-fuchsia-200 bg-clip-text text-transparent"
+                }
+              >
+                {username}
+              </div>
+            </div>
           </div>
           <div className="text-xs opacity-70">PRIME {premiumTier}</div>
         </div>

@@ -116,7 +116,21 @@ export default function ProductsCatalogPage({
 
   const vipLevel = String(user?.premium_level ?? "").trim().toLowerCase();
   const vipActive = Boolean(user?.is_premium) && vipLevel !== "";
-  const vipPercent = vipLevel === "platine" ? 10 : vipLevel === "or" ? 7 : vipLevel === "bronze" ? 5 : vipActive ? 3 : 0;
+  const vipPercentForType = (productType?: string | null) => {
+    if (!vipActive) return 0;
+    const type = String(productType ?? "").trim().toLowerCase();
+
+    if (vipLevel === "bronze") {
+      if (type === "item") return 10;
+      if (type === "recharge" || type === "subscription") return 5;
+      return 0;
+    }
+
+    if (vipLevel === "platine") return 10;
+    if (vipLevel === "or") return 7;
+
+    return 3;
+  };
 
   const gameSlug = useMemo(() => {
     const raw = gameSlugParam ?? (params?.gameSlug as string | undefined);
@@ -391,6 +405,7 @@ export default function ProductsCatalogPage({
                   const isTop = String(p.display_section ?? "").toLowerCase() === "popular" || likes >= 1000;
                   const isInstant = delivery?.tone === "bolt";
 
+                  const vipPercent = vipPercentForType(p.type ?? null);
                   const vipPrice = vipActive && vipPercent > 0 ? Math.max(0, Math.round(safePrice * (1 - vipPercent / 100))) : null;
 
                   return (

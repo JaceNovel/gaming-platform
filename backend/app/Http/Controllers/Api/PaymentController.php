@@ -436,7 +436,7 @@ class PaymentController extends Controller
                         $gameUsername = (string) ($orderMeta['game_username'] ?? '');
 
                         $levels = [
-                            'bronze' => ['duration' => 30],
+                            'bronze' => ['duration' => 7],
                             'platine' => ['duration' => 30],
                         ];
                         $duration = (int) ($levels[$level]['duration'] ?? 30);

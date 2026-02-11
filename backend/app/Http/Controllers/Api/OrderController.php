@@ -368,7 +368,7 @@ class OrderController extends Controller
         }
 
         $order = DB::transaction(function () use ($data, $user, $validatedItems, $totalAmount, $requiresRedeemFulfillment, $hasPhysicalItems) {
-            $promotionSummary = $this->buildPromotionSummary($user, $totalAmount);
+            $promotionSummary = $this->buildPromotionSummary($user, $totalAmount, $validatedItems);
             $finalTotal = max(0, $totalAmount - $promotionSummary['total_discount']);
 
             $payload = [
@@ -426,9 +426,9 @@ class OrderController extends Controller
         ], 201);
     }
 
-    private function buildPromotionSummary($user, float $totalAmount): array
+    private function buildPromotionSummary($user, float $totalAmount, array $items): array
     {
-        $vipPercent = $this->vipDiscountPercent($user);
+        $vipDiscountAmount = $this->vipDiscountAmountForItems($user, $items);
 
         $promotions = Coupon::query()
             ->where('is_active', true)
@@ -466,16 +466,16 @@ class OrderController extends Controller
             }
         }
 
-        $totalPercent = $promoPercent + $vipPercent;
-        $percentDiscount = $totalAmount * ($totalPercent / 100);
-        $totalDiscount = min($totalAmount, $percentDiscount + $promoFixed);
+        $promoPercentDiscount = $totalAmount * ($promoPercent / 100);
+        $totalDiscount = min($totalAmount, $vipDiscountAmount + $promoPercentDiscount + $promoFixed);
 
         return [
             'total_discount' => $totalDiscount,
             'applied_ids' => $appliedIds,
             'meta' => [
                 'promotion' => [
-                    'vip_percent' => $vipPercent,
+                    'vip_discount_amount' => round($vipDiscountAmount, 2),
+                    'vip_percent_by_type' => $this->vipPercentMapForUser($user),
                     'promo_percent' => $promoPercent,
                     'promo_fixed' => $promoFixed,
                     'total_discount' => round($totalDiscount, 2),
@@ -485,18 +485,86 @@ class OrderController extends Controller
         ];
     }
 
-    private function vipDiscountPercent($user): float
+    private function vipDiscountAmountForItems($user, array $items): float
+    {
+        if (!$user?->is_premium || empty($items)) {
+            return 0.0;
+        }
+
+        $total = 0.0;
+        foreach ($items as $item) {
+            $type = strtolower(trim((string) ($item['type'] ?? '')));
+            $qty = max(1, (int) ($item['quantity'] ?? 1));
+            $unit = (float) ($item['price'] ?? 0);
+            $line = $unit * $qty;
+            if (!is_finite($line) || $line <= 0) {
+                continue;
+            }
+            $percent = $this->vipDiscountPercentForProductType($user, $type);
+            if ($percent <= 0) {
+                continue;
+            }
+            $total += $line * ($percent / 100);
+        }
+
+        return max(0.0, $total);
+    }
+
+    private function vipPercentMapForUser($user): array
+    {
+        if (!$user?->is_premium) {
+            return [];
+        }
+
+        $level = strtolower(trim((string) ($user->premium_level ?? '')));
+        if ($level === 'bronze') {
+            return [
+                'recharge' => 5.0,
+                'subscription' => 5.0,
+                'item' => 10.0,
+            ];
+        }
+
+        if ($level !== '') {
+            $percent = match ($level) {
+                'platine' => 10.0,
+                'or' => 7.0,
+                default => 3.0,
+            };
+
+            return [
+                'recharge' => $percent,
+                'subscription' => $percent,
+                'item' => $percent,
+            ];
+        }
+
+        return [];
+    }
+
+    private function vipDiscountPercentForProductType($user, string $productType): float
     {
         if (!$user?->is_premium) {
             return 0.0;
         }
 
         $level = strtolower(trim((string) ($user->premium_level ?? '')));
+        $type = strtolower(trim($productType));
+
+        if ($level === 'bronze') {
+            if (in_array($type, ['recharge', 'subscription'], true)) {
+                return 5.0;
+            }
+            if ($type === 'item') {
+                return 10.0;
+            }
+            return 0.0;
+        }
+
         if ($level !== '') {
             return match ($level) {
                 'platine' => 10.0,
                 'or' => 7.0,
-                'bronze' => 5.0,
                 default => 3.0,
             };
         }

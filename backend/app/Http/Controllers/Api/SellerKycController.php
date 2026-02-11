@@ -14,6 +14,12 @@ class SellerKycController extends Controller
     {
         $user = $request->user();
 
+        if (!$user?->is_premium) {
+            return response()->json([
+                'message' => 'Accès réservé aux VIP (marché partenaire).',
+            ], 403);
+        }
+
         $seller = Seller::query()
             ->with('kycFiles')
             ->where('user_id', $user->id)
@@ -58,6 +64,12 @@ class SellerKycController extends Controller
     public function apply(Request $request)
     {
         $user = $request->user();
+
+        if (!$user?->is_premium) {
+            return response()->json([
+                'message' => 'Accès réservé aux VIP (marché partenaire).',
+            ], 403);
+        }
 
         $data = $request->validate([
             'fullName' => ['required', 'string', 'max:120'],
@@ -108,6 +120,12 @@ class SellerKycController extends Controller
     public function uploadIdFront(Request $request)
     {
         $user = $request->user();
+
+        if (!$user?->is_premium) {
+            return response()->json([
+                'message' => 'Accès réservé aux VIP (marché partenaire).',
+            ], 403);
+        }
         $seller = Seller::query()->where('user_id', $user->id)->firstOrFail();
 
         if (in_array($seller->status, ['suspended', 'banned'], true)) {
@@ -143,6 +161,12 @@ class SellerKycController extends Controller
     public function captureSelfie(Request $request)
     {
         $user = $request->user();
+
+        if (!$user?->is_premium) {
+            return response()->json([
+                'message' => 'Accès réservé aux VIP (marché partenaire).',
+            ], 403);
+        }
         $seller = Seller::query()->where('user_id', $user->id)->firstOrFail();
 
         if (in_array($seller->status, ['suspended', 'banned'], true)) {

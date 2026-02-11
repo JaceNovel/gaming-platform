@@ -87,6 +87,11 @@ class MarketplaceListingController extends Controller
 
     public function mine(Request $request)
     {
+        if (!$request->user()?->is_premium) {
+            return response()->json([
+                'message' => 'Accès réservé aux VIP (marché partenaire).',
+            ], 403);
+        }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
         $listings = SellerListing::query()
@@ -100,6 +105,11 @@ class MarketplaceListingController extends Controller
 
     public function store(Request $request)
     {
+        if (!$request->user()?->is_premium) {
+            return response()->json([
+                'message' => 'Accès réservé aux VIP (marché partenaire).',
+            ], 403);
+        }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
         if (!$seller->canSell()) {
@@ -166,6 +176,11 @@ class MarketplaceListingController extends Controller
 
     public function update(Request $request, SellerListing $sellerListing)
     {
+        if (!$request->user()?->is_premium) {
+            return response()->json([
+                'message' => 'Accès réservé aux VIP (marché partenaire).',
+            ], 403);
+        }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
         if ((int) $sellerListing->seller_id !== (int) $seller->id) {
@@ -268,6 +283,11 @@ class MarketplaceListingController extends Controller
 
     public function setStatus(Request $request, SellerListing $sellerListing)
     {
+        if (!$request->user()?->is_premium) {
+            return response()->json([
+                'message' => 'Accès réservé aux VIP (marché partenaire).',
+            ], 403);
+        }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
         if ((int) $sellerListing->seller_id !== (int) $seller->id) {
