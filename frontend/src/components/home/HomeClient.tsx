@@ -12,7 +12,6 @@ import { toDisplayImageSrc } from "../../lib/imageProxy";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
 import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
-import HomeLogoIntro from "@/components/home/HomeLogoIntro";
 
 type ProductCard = {
   id: number;
@@ -351,7 +350,14 @@ export default function HomeClient() {
       <section className="mx-auto w-full max-w-6xl px-4 pt-6 sm:pt-10">
         <div className="relative z-10 text-center drop-shadow-[0_2px_18px_rgba(0,0,0,0.65)]">
           <h1 className="bb-hero-title text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
-            <HomeLogoIntro />
+            <Image
+              src="/images/Capture_d_écran_2026-02-10_114839-removebg-preview.png"
+              alt="PRIME Gaming"
+              width={900}
+              height={260}
+              className="mx-auto h-auto w-[260px] sm:w-[360px] lg:w-[440px]"
+              priority
+            />
           </h1>
 
           {!authLoading && user ? (
