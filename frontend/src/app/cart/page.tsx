@@ -13,7 +13,6 @@ import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { emitWalletUpdated } from "@/lib/walletEvents";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
-import { isVipActive, vipDiscountAmount, vipDiscountPercentForProductType } from "@/lib/vipPricing";
 
 type CartItem = {
   id: number;
@@ -261,29 +260,12 @@ function CartScreen() {
     [cartItems],
   );
 
-  const vipActive = useMemo(() => isVipActive(user), [user]);
-  const vipDiscount = useMemo(() => {
-    if (!vipActive) return 0;
-    let totalDiscount = 0;
-    for (const item of cartItems) {
-      const qty = Math.max(1, Number(item.quantity ?? 1));
-      const unit = Number(item.price ?? 0);
-      const line = (Number.isFinite(unit) ? unit : 0) * qty;
-      if (!Number.isFinite(line) || line <= 0) continue;
-      const percent = vipDiscountPercentForProductType(user, item.type ?? null);
-      if (percent <= 0) continue;
-      totalDiscount += vipDiscountAmount(line, percent);
-    }
-    return Math.round(totalDiscount);
-  }, [cartItems, user, vipActive]);
-
-  const productsSubtotalAfterVip = useMemo(() => Math.max(0, productsSubtotal - vipDiscount), [productsSubtotal, vipDiscount]);
   const shippingTotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + (Number(item.shippingFee ?? 0) || 0) * (Number(item.quantity ?? 0) || 0), 0),
     [cartItems],
   );
-  const fees = Math.round((productsSubtotalAfterVip + shippingTotal) * 0.02);
-  const total = productsSubtotalAfterVip + shippingTotal + fees;
+  const fees = Math.round((productsSubtotal + shippingTotal) * 0.02);
+  const total = productsSubtotal + shippingTotal + fees;
 
   const hasPhysicalItems = useMemo(() => {
     return cartItems.some((it: any) => {
@@ -571,14 +553,8 @@ function CartScreen() {
               <div className="space-y-3 text-sm text-white/70">
                 <div className="flex items-center justify-between">
                   <span>Sous-total</span>
-                  <span className={vipDiscount > 0 ? "text-white/55 line-through" : undefined}>{productsSubtotal.toLocaleString()} FCFA</span>
+                  <span>{productsSubtotal.toLocaleString()} FCFA</span>
                 </div>
-                {vipDiscount > 0 ? (
-                  <div className="flex items-center justify-between">
-                    <span>Réduction VIP</span>
-                    <span className="font-semibold text-fuchsia-200">- {vipDiscount.toLocaleString()} FCFA</span>
-                  </div>
-                ) : null}
                 <div className="flex items-center justify-between">
                   <span>Livraison</span>
                   <span>{shippingTotal.toLocaleString()} FCFA</span>
@@ -589,8 +565,8 @@ function CartScreen() {
                 </div>
                 <div className="h-px bg-white/10" />
                 <div className="flex items-center justify-between text-base font-bold text-white">
-                  <span>{vipDiscount > 0 ? "Total VIP" : "Total"}</span>
-                  <span className={vipDiscount > 0 ? "text-fuchsia-200" : undefined}>{total.toLocaleString()} FCFA</span>
+                  <span>Total</span>
+                  <span>{total.toLocaleString()} FCFA</span>
                 </div>
               </div>
 

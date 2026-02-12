@@ -13,7 +13,6 @@ import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { isVipActive, vipDiscountPercentForProductType, vipPriceFromUnitPrice } from "@/lib/vipPricing";
 
 type ApiProduct = {
   id: number | string;
@@ -301,12 +300,6 @@ export default function ProductDetailsPage() {
     [product]
   );
 
-  const vipActive = isVipActive(user);
-  const vipPercent = useMemo(() => vipDiscountPercentForProductType(user, product?.type ?? null), [user, product?.type]);
-  const vipPriceValue = useMemo(() => {
-    if (!vipActive || vipPercent <= 0) return null;
-    return Math.round(vipPriceFromUnitPrice(priceValue, vipPercent));
-  }, [priceValue, vipActive, vipPercent]);
   const description =
     product?.description ?? product?.details?.description ??
     "Offre spéciale disponible dans la boutique PRIME Gaming.";
@@ -501,14 +494,7 @@ export default function ProductDetailsPage() {
                 <div className="space-y-2">
                   <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">{categoryLabel}</p>
                   <h1 className="text-2xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
-                  {vipPriceValue !== null ? (
-                    <div className="mt-1">
-                      <p className="text-sm font-bold text-white/55 line-through">{formatPrice(priceValue)}</p>
-                      <p className="mt-1 text-3xl font-black tracking-tight text-fuchsia-200">Prix VIP: {formatPrice(vipPriceValue)}</p>
-                    </div>
-                  ) : (
-                    <p className="text-2xl font-black text-[#ff4b63]">{formatPrice(priceValue)}</p>
-                  )}
+                  <p className="text-2xl font-black text-[#ff4b63]">{formatPrice(priceValue)}</p>
                 </div>
                 <p className="text-sm text-white/70">{description}</p>
 
@@ -566,14 +552,7 @@ export default function ProductDetailsPage() {
               <div className="space-y-6">
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
                   <h1 className="text-3xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
-                  {vipPriceValue !== null ? (
-                    <div className="mt-3">
-                      <p className="text-base font-bold text-white/55 line-through">{formatPrice(priceValue)}</p>
-                      <p className="mt-1 text-4xl font-black tracking-tight text-fuchsia-200">Prix VIP: {formatPrice(vipPriceValue)}</p>
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-3xl font-bold text-[#ff4b63]">{formatPrice(priceValue)}</p>
-                  )}
+                  <p className="mt-3 text-3xl font-bold text-[#ff4b63]">{formatPrice(priceValue)}</p>
                   <p className="mt-4 text-base text-white/70">{description}</p>
 
                   <div className="mt-6">

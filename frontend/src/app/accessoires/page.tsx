@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
-import { isVipActive, vipDiscountPercentForProductType, vipPriceFromUnitPrice } from "@/lib/vipPricing";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
@@ -152,8 +151,6 @@ function HeroBackdrop() {
 
 export default function AccessoiresPage() {
   const { user } = useAuth();
-  const vipActive = isVipActive(user);
-  const vipPercent = vipDiscountPercentForProductType(user, "item");
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -457,7 +454,6 @@ export default function AccessoiresPage() {
                           const price = parseNumber(p.discount_price ?? p.price);
                           const fee = parseNumber(p.shipping_fee);
                           const total = price + fee;
-                          const vipTotal = vipActive && vipPercent > 0 ? Math.round(vipPriceFromUnitPrice(price, vipPercent)) + fee : null;
                           const badge = logisticsBadge(p.accessory_stock_mode);
                           const badgeClass =
                             badge.tone === "green"
@@ -486,11 +482,6 @@ export default function AccessoiresPage() {
                                     <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass}`}>
                                       {badge.label}
                                     </span>
-                                    {vipPercent > 0 ? (
-                                      <span className="inline-flex items-center rounded-full border border-fuchsia-200/20 bg-fuchsia-400/10 px-3 py-1 text-xs font-semibold text-fuchsia-100">
-                                        VIP -{vipPercent}%
-                                      </span>
-                                    ) : null}
                                     <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
                                       Délai: {defaultDeliveryEstimate(p)}
                                     </span>
@@ -508,16 +499,8 @@ export default function AccessoiresPage() {
                                     <div className="h-px bg-white/10 my-1" />
                                     <div className="flex items-center justify-between">
                                       <span className="text-white/80 font-semibold">Total</span>
-                                      <span className={vipTotal !== null ? "text-white/55 font-bold line-through" : "text-cyan-200 font-extrabold"}>
-                                        {formatFcfa(total)}
-                                      </span>
+                                      <span className="text-cyan-200 font-extrabold">{formatFcfa(total)}</span>
                                     </div>
-                                    {vipTotal !== null ? (
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-fuchsia-200/90 font-semibold">Total VIP</span>
-                                        <span className="text-fuchsia-200 font-black text-lg tracking-tight">{formatFcfa(vipTotal)}</span>
-                                      </div>
-                                    ) : null}
                                   </div>
 
                                   <div className="mt-4 flex gap-2">

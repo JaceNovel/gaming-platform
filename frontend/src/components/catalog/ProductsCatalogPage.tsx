@@ -54,7 +54,6 @@ type Paginated<T> = {
   prev_page_url?: string | null;
 };
 
-import { isVipActive, vipDiscountPercentForProductType, vipPriceFromUnitPrice } from "@/lib/vipPricing";
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
@@ -116,8 +115,6 @@ export default function ProductsCatalogPage({
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
-
-  const vipActive = isVipActive(user);
 
   const gameSlug = useMemo(() => {
     const raw = gameSlugParam ?? (params?.gameSlug as string | undefined);
@@ -392,19 +389,14 @@ export default function ProductsCatalogPage({
                   const isTop = String(p.display_section ?? "").toLowerCase() === "popular" || likes >= 1000;
                   const isInstant = delivery?.tone === "bolt";
 
-                  const vipPercent = vipDiscountPercentForProductType(user, p.type ?? null);
-                  const vipPrice = vipActive && vipPercent > 0 ? Math.max(0, Math.round(vipPriceFromUnitPrice(safePrice, vipPercent))) : null;
-
                   return (
                     <div key={p.id} className="min-w-0">
                       <ProductCard
                         title={displayTitle}
                         subtitle={displaySubtitle}
                         price={`${formatNumber(safePrice)} FCFA`}
-                        tag={vipActive && vipPercent > 0 ? `VIP -${vipPercent}%` : undefined}
                         likes={likes}
                         delivery={delivery}
-                        vipPrice={vipPrice !== null ? `${formatNumber(vipPrice)} FCFA` : undefined}
                         onAction={() => router.push(`/produits/${p.id}`)}
                         onDoubleClick={() => router.push(`/produits/${p.id}`)}
                         imageSlot={
