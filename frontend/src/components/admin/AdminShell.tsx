@@ -23,6 +23,7 @@ import {
   Users,
   ChevronDown,
 } from "lucide-react";
+import AdminActivityBell from "@/components/admin/AdminActivityBell";
 
 const MENU_ITEMS = [
   { label: "Tableau de bord", icon: LayoutDashboard, href: "/admin/dashboard" },
@@ -216,9 +217,7 @@ export default function AdminShell({
                 <Search className="h-4 w-4" />
                 Rechercher...
               </div>
-              <button className="rounded-full border border-slate-200 p-2 text-slate-500">
-                <Bell className="h-4 w-4" />
-              </button>
+              <AdminActivityBell />
               <button className="rounded-full border border-slate-200 p-2 text-slate-500">
                 <Heart className="h-4 w-4" />
               </button>

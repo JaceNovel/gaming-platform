@@ -20,6 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('payments:resync-stuck --minutes=5 --limit=50')
             ->everyFiveMinutes()
             ->withoutOverlapping();
+
+        // Persistent admin notifications (Web Push) when new activity appears.
+        $schedule->command('admin:activity-push --minutes=2 --limit=10')
+            ->everyMinute()
+            ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);

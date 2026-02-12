@@ -141,6 +141,11 @@ class User extends Authenticatable
         return $this->hasMany(Notification::class);
     }
 
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
     public function emailLogs(): HasMany
     {
         return $this->hasMany(EmailLog::class);

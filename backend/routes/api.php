@@ -271,6 +271,8 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manager,admin_support,admin_marketing,viewer,admin,staff,admin_article,admin_client'])->prefix('admin')->group(function () {
     Route::get('/me', AdminMeController::class);
     Route::get('/dashboard', [AdminDashboardController::class, 'overview']);
+    Route::get('/activity/recent', [\App\Http\Controllers\Api\AdminActivityController::class, 'recent'])
+        ->middleware('permission:dashboard.view');
     Route::get('/stats/overview', [AdminDashboardController::class, 'statsOverview'])->middleware('permission:stats.view');
     Route::get('/stats/revenue', [AdminDashboardController::class, 'revenue'])->middleware('permission:stats.view');
     Route::get('/dashboard/tables', [AdminDashboardController::class, 'tables']);
