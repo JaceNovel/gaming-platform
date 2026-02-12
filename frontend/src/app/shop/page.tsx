@@ -24,15 +24,21 @@ const FIXED_BG = "/images/WhatsApp%20Image%202026-02-06%20at%2003.44.47.jpeg";
 const CATEGORIES: Array<{
   key: CategoryKey;
   title: string;
-  subtitle: string;
   emoji: string;
   needsGame: boolean;
 }> = [
-  { key: "recharges", title: "Recharges", subtitle: "Choisis ton jeu", emoji: "🎮", needsGame: true },
-  { key: "abonnements", title: "Abonnements", subtitle: "Choisis ton jeu", emoji: "👑", needsGame: true },
-  { key: "accounts", title: "Comptes Gaming", subtitle: "Choisis ton jeu", emoji: "🧩", needsGame: true },
-  { key: "accessoires", title: "Accessoires", subtitle: "Catalogue", emoji: "🛒", needsGame: false },
+  { key: "recharges", title: "Recharges", emoji: "🎮", needsGame: true },
+  { key: "abonnements", title: "Abonnements", emoji: "👑", needsGame: true },
+  { key: "accounts", title: "Comptes Gaming", emoji: "🧩", needsGame: true },
+  { key: "accessoires", title: "Accessoires", emoji: "🛒", needsGame: false },
 ];
+
+const emojiForGame = (g: MenuGame): string | null => {
+  const name = String(g?.name ?? "").toLowerCase();
+  const slug = String(g?.slug ?? "").toLowerCase();
+  if (name.includes("free fire") || slug.includes("free-fire") || slug === "freefire") return "🔥";
+  return null;
+};
 
 const parseGamesPayload = (payload: any): MenuGame[] => {
   if (!payload) return [];
@@ -60,12 +66,35 @@ const hrefForSelection = (key: CategoryKey, gameSlug?: string) => {
 
 export default function ShopPage() {
   const router = useRouter();
+  const [isDesktop, setIsDesktop] = useState(false);
   const [activeCategory, setActiveCategory] = useState<CategoryKey | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<MenuGame[]>([]);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const apply = () => setIsDesktop(Boolean(mq.matches));
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktop) return;
+    router.replace("/recharges");
+  }, [isDesktop, router]);
+
+  if (isDesktop) {
+    return (
+      <main className="min-h-[100dvh] bg-[#04020c] text-white grid place-items-center px-6">
+        <p className="text-sm text-white/70">Redirection…</p>
+      </main>
+    );
+  }
 
   const openCategory = (key: CategoryKey) => {
     if (key === "accessoires") {
@@ -136,19 +165,18 @@ export default function ShopPage() {
               key={c.key}
               type="button"
               onClick={() => openCategory(c.key)}
-              className="group text-left overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur transition hover:border-cyan-300/30"
+              className="group text-left overflow-hidden rounded-[28px] border border-white/10 bg-black/40 p-5 transition hover:border-cyan-300/30"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-lg font-black text-white">{c.title}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.28em] text-white/55">{c.subtitle}</p>
-                </div>
-                <div className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-black/30 text-2xl">
-                  {c.emoji}
-                </div>
+              <div className="min-w-0">
+                <p className="text-lg font-black text-white">{c.title}</p>
               </div>
 
-              <div className="mt-6 h-28 rounded-2xl border border-white/10 bg-black/30" />
+              <div className="relative mt-6 h-28 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                <div className="absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 text-2xl">
+                  {c.emoji}
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent" />
+              </div>
             </button>
           ))}
         </div>
@@ -215,6 +243,7 @@ export default function ShopPage() {
                   : filtered.map((g) => {
                       const img = g.image ?? g.icon ?? null;
                       const imageSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
+                      const emoji = emojiForGame(g);
                       return (
                         <button
                           key={g.id}
@@ -232,7 +261,9 @@ export default function ShopPage() {
                             {imageSrc ? (
                               <Image src={imageSrc} alt={g.name} fill className="object-cover" sizes="44px" />
                             ) : (
-                              <div className="h-full w-full bg-white/10" />
+                              <div className="grid h-full w-full place-items-center bg-white/10 text-lg text-white/80">
+                                {emoji ?? "🎮"}
+                              </div>
                             )}
                           </div>
                           <div className="min-w-0">

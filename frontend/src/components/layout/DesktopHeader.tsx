@@ -24,7 +24,7 @@ export default function DesktopHeader() {
 
         <div className="flex flex-1 items-center justify-between gap-6">
           <nav className="flex-1 flex items-center justify-center gap-4 text-[13px] tracking-[0.2em] uppercase text-white/60">
-            <Link className="px-2 py-2 rounded-lg hover:text-white transition" href="/shop">
+            <Link className="px-2 py-2 rounded-lg hover:text-white transition" href="/recharges">
               Boutique
             </Link>
             <Link className="px-2 py-2 rounded-lg hover:text-white transition" href="/premium">

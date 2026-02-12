@@ -8,8 +8,6 @@ import { ChevronRight, Search } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 
-const MOBILE_LISTING_IMAGE = "https://images.hdqwalls.com/wallpapers/garena-free-fire-4k-v8.jpg";
-
 type MenuGame = { id: number; name: string; slug: string; image?: string | null; icon?: string | null };
 
 type ListingRow = {
@@ -61,7 +59,7 @@ export default function GamingAccountsByGamePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [game, setGame] = useState<MenuGame | null>(null);
-  const [items, setItems] = useState<ListingRow[]>([]);
+  const [rows, setRows] = useState<ListingRow[]>([]);
   const [meta, setMeta] = useState<Paginated<ListingRow> | null>(null);
   const [query, setQuery] = useState("");
   const debounceRef = useRef<number | null>(null);
@@ -80,7 +78,7 @@ export default function GamingAccountsByGamePage() {
     const load = async () => {
       setLoading(true);
       setError(null);
-      setItems([]);
+      setRows([]);
       setMeta(null);
       setGame(null);
 
@@ -94,7 +92,7 @@ export default function GamingAccountsByGamePage() {
         if (!active) return;
         setGame(found);
         if (!found) {
-          setItems([]);
+          setRows([]);
           setMeta(null);
           return;
         }
@@ -104,12 +102,7 @@ export default function GamingAccountsByGamePage() {
         if (!active) return;
         if (!listRes.ok) throw new Error(listPayload?.message ?? "Impossible de charger les annonces");
         const parsed = parsePaginator<ListingRow>(listPayload);
-        const filtered = parsed.items.filter((row) => {
-          if (!query.trim()) return true;
-          const needle = query.trim().toLowerCase();
-          return String(row?.title ?? "").toLowerCase().includes(needle) || String(row?.description ?? "").toLowerCase().includes(needle);
-        });
-        setItems(filtered);
+        setRows(parsed.items);
         setMeta(parsed.meta);
       } catch (e: any) {
         if (!active) return;
@@ -125,21 +118,15 @@ export default function GamingAccountsByGamePage() {
     };
   }, [gameSlug]);
 
-  useEffect(() => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
-      // Client-side filtering only (API doesn't support q here).
-      setItems((prev) => {
-        if (!query.trim()) return prev;
-        const needle = query.trim().toLowerCase();
-        return prev.filter(
-          (row) =>
-            String(row?.title ?? "").toLowerCase().includes(needle) ||
-            String(row?.description ?? "").toLowerCase().includes(needle)
-        );
-      });
-    }, 250);
-  }, [query]);
+  const items = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter(
+      (row) =>
+        String(row?.title ?? "").toLowerCase().includes(needle) ||
+        String(row?.description ?? "").toLowerCase().includes(needle),
+    );
+  }, [rows, query]);
 
   const loadMore = async () => {
     if (!game) return;
@@ -154,7 +141,7 @@ export default function GamingAccountsByGamePage() {
       if (!res.ok) throw new Error(payload?.message ?? "Impossible de charger la suite");
       const parsed = parsePaginator<ListingRow>(payload);
       setMeta(parsed.meta);
-      setItems((prev) => [...prev, ...parsed.items]);
+      setRows((prev) => [...prev, ...parsed.items]);
     } catch (e: any) {
       setError(e?.message ?? "Impossible de charger la suite");
     } finally {
@@ -211,14 +198,98 @@ export default function GamingAccountsByGamePage() {
           </div>
         ) : (
           <>
-            <div className="mt-8 grid grid-cols-2 gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Mobile: single horizontal row with scroll */}
+            <div className="mt-8 sm:hidden">
+              {loading ? (
+                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-soft">
+                  {Array.from({ length: 6 }).map((_, idx) => (
+                    <div
+                      key={idx}
+                      className="flex-none w-[240px] overflow-hidden rounded-[26px] border border-white/10 bg-white/5"
+                    >
+                      <div className="h-32 bg-white/10" />
+                      <div className="p-4">
+                        <div className="h-4 w-3/4 rounded bg-white/10" />
+                        <div className="mt-2 h-3 w-5/6 rounded bg-white/10" />
+                        <div className="mt-4 h-4 w-1/2 rounded bg-white/10" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : items.length ? (
+                <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-soft">
+                  {items.map((row) => {
+                    const rawId = (row as any)?.id;
+                    const listingId = String(rawId ?? "").trim();
+                    const priceValue = Number(row?.price ?? 0);
+                    const safePrice = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
+                    const title = String(row?.title ?? "Annonce").trim() || "Annonce";
+                    const desc = String(row?.description ?? "").trim();
+                    const imgRaw = String(row?.image_url ?? "").trim() || String(row?.game?.image ?? game?.image ?? "").trim();
+                    const img = imgRaw ? (toDisplayImageSrc(imgRaw) ?? imgRaw) : null;
+                    const badges = Array.isArray(row?.seller_trust?.badges) ? row.seller_trust.badges : [];
+                    const server = String((row as any)?.account_region ?? "").trim();
+
+                    return (
+                      <Link
+                        key={listingId || title}
+                        href={`/comptes-gaming/${encodeURIComponent(listingId)}`}
+                        className="snap-start group flex-none w-[240px] overflow-hidden rounded-[26px] border border-white/10 bg-black/40 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition hover:border-fuchsia-300/40"
+                      >
+                        <div className="relative aspect-[16/10] w-full overflow-hidden bg-white/5">
+                          {img ? (
+                            <Image
+                              src={img}
+                              alt={title}
+                              fill
+                              className="object-cover"
+                              sizes="240px"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="h-full w-full bg-white/10" />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
+                          <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold text-white">
+                              {server ? `🌍 ${server}` : "🎮 Compte"}
+                            </span>
+                            {badges.includes("verified") ? (
+                              <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
+                                ✅ Vérifié
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="p-4">
+                          <p className="text-xs font-medium text-white/60">{String(row?.game?.name ?? game?.name ?? "Compte Gaming")}</p>
+                          <h3 className="mt-1 text-base font-semibold leading-tight text-white line-clamp-2">{title}</h3>
+                          {desc ? <p className="mt-1 text-xs text-white/70 line-clamp-2">{desc}</p> : null}
+                          <div className="mt-3">
+                            <p className="text-lg font-black text-fuchsia-200">{formatNumber(safePrice)} FCFA</p>
+                            <p className="text-[11px] text-white/50">⏱ Livraison sous 24h</p>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-[28px] border border-white/10 bg-white/5 p-10 text-center text-white/70">
+                  Aucune annonce pour le moment.
+                </div>
+              )}
+            </div>
+
+            {/* Tablet/Desktop: keep grid */}
+            <div className="mt-8 hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {loading ? (
                 Array.from({ length: 9 }).map((_, idx) => (
-                  <div key={idx} className="rounded-2xl sm:rounded-[28px] border border-white/10 bg-white/5 p-3 sm:p-5">
-                    <div className="aspect-square sm:aspect-auto sm:h-40 rounded-2xl bg-white/10" />
+                  <div key={idx} className="rounded-[28px] border border-white/10 bg-white/5 p-5">
+                    <div className="h-40 rounded-2xl bg-white/10" />
                     <div className="mt-4 h-4 w-3/4 rounded bg-white/10" />
                     <div className="mt-2 h-3 w-5/6 rounded bg-white/10" />
-                    <div className="mt-6 h-10 w-full rounded-xl bg-white/10" />
                   </div>
                 ))
               ) : items.length ? (
@@ -238,27 +309,21 @@ export default function GamingAccountsByGamePage() {
                     <Link
                       key={listingId || title}
                       href={`/comptes-gaming/${encodeURIComponent(listingId)}`}
-                      className="group overflow-hidden rounded-2xl sm:rounded-[28px] border border-white/10 bg-black/40 p-3 sm:p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-fuchsia-300/40"
+                      className="group overflow-hidden rounded-[28px] border border-white/10 bg-black/40 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-fuchsia-300/40"
                     >
-                      <div className="relative aspect-square sm:aspect-auto sm:h-40 w-full overflow-hidden rounded-2xl">
-                        {/* Mobile: always show a fixed wallpaper. */}
-                        <img src={MOBILE_LISTING_IMAGE} alt={title} className="h-full w-full object-cover sm:hidden" loading="lazy" />
-
-                        {/* Tablet/Desktop: keep existing image behaviour. */}
-                        <div className="hidden sm:block absolute inset-0">
-                          {img ? (
-                            <Image
-                              src={img}
-                              alt={title}
-                              fill
-                              className="object-cover"
-                              sizes="(min-width: 1024px) 360px, 90vw"
-                              unoptimized
-                            />
-                          ) : (
-                            <div className="h-full w-full bg-white/10" />
-                          )}
-                        </div>
+                      <div className="relative h-40 w-full overflow-hidden rounded-2xl">
+                        {img ? (
+                          <Image
+                            src={img}
+                            alt={title}
+                            fill
+                            className="object-cover"
+                            sizes="(min-width: 1024px) 360px, 90vw"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-white/10" />
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
                         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                           <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
@@ -278,17 +343,9 @@ export default function GamingAccountsByGamePage() {
                         {desc ? <p className="text-sm text-white/70 line-clamp-2">{desc}</p> : null}
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between">
-                        <div>
-                          <p className="text-xl font-black text-fuchsia-200">{formatNumber(safePrice)} FCFA</p>
-                          <p className="text-xs text-white/50">⏱ Livraison sous 24h</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-5">
-                        <span className="inline-flex w-full items-center justify-center rounded-full border border-white/20 bg-white/5 px-5 py-2 text-sm font-medium text-white/80 transition group-hover:border-fuchsia-300/40 group-hover:bg-white/10">
-                          ⚡ Voir l'annonce
-                        </span>
+                      <div className="mt-4">
+                        <p className="text-xl font-black text-fuchsia-200">{formatNumber(safePrice)} FCFA</p>
+                        <p className="text-xs text-white/50">⏱ Livraison sous 24h</p>
                       </div>
                     </Link>
                   );
