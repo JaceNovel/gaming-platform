@@ -93,10 +93,26 @@ class SellerListing extends Model
 
     public function getImageUrlAttribute(): ?string
     {
-        $path = (string) ($this->image_path ?? '');
-        if (!$path) return null;
-        // Always serve through the API route to avoid relying on APP_URL/public symlink.
-        return '/api/storage/' . ltrim($path, '/');
+        $raw = trim((string) ($this->image_path ?? ''));
+        if ($raw === '') return null;
+
+        // Already a full URL (legacy data or external hosting)
+        if (preg_match('/^https?:\/\//i', $raw)) {
+            return $raw;
+        }
+
+        // Already normalized API path
+        if (str_starts_with($raw, '/api/storage/')) {
+            return $raw;
+        }
+
+        // Legacy public path
+        if (str_starts_with($raw, '/storage/')) {
+            return '/api' . $raw;
+        }
+
+        // Relative disk path
+        return '/api/storage/' . ltrim($raw, '/');
     }
 
     public function getGalleryImageUrlsAttribute(): array
@@ -111,7 +127,24 @@ class SellerListing extends Model
             if (!is_string($path) || !$path) {
                 continue;
             }
-            $urls[] = '/api/storage/' . ltrim($path, '/');
+
+            $raw = trim($path);
+            if ($raw === '') continue;
+
+            if (preg_match('/^https?:\/\//i', $raw)) {
+                $urls[] = $raw;
+                continue;
+            }
+            if (str_starts_with($raw, '/api/storage/')) {
+                $urls[] = $raw;
+                continue;
+            }
+            if (str_starts_with($raw, '/storage/')) {
+                $urls[] = '/api' . $raw;
+                continue;
+            }
+
+            $urls[] = '/api/storage/' . ltrim($raw, '/');
         }
 
         return array_values(array_unique(array_filter($urls)));

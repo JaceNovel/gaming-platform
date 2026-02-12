@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Crown, ShieldCheck, ShoppingCart, Wallet } from "lucide-react";
+import { Crown, ShieldCheck, Wallet } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
@@ -279,51 +279,6 @@ function MarketplaceListingClient({ id }: { id: number }) {
     }
   };
 
-  const handleAddToCart = async () => {
-    if (!listing) return;
-
-    if (!user) {
-      const next = `/comptes-gaming/${id}`;
-      router.push(`/auth/login?next=${encodeURIComponent(next)}`);
-      return;
-    }
-
-    setStatus(null);
-    if (!isValidBuyerPhone) {
-      setStatus("Veuillez entrer un numéro de téléphone valide.");
-      return;
-    }
-
-    await persistBuyerPhone(buyerPhone);
-
-    setSubmitting(true);
-    try {
-      const checkoutRes = await authFetch(`${API_BASE}/gaming-accounts/listings/${id}/checkout`, {
-        method: "POST",
-        body: JSON.stringify({ buyer_phone: buyerPhone.trim() }),
-      });
-      const checkoutPayload = await checkoutRes.json().catch(() => null);
-      if (!checkoutRes.ok) {
-        setStatus(checkoutPayload?.message ?? "Impossible de réserver l'annonce.");
-        return;
-      }
-
-      const order = checkoutPayload?.order;
-      const orderId = Number(order?.id ?? 0);
-      if (!Number.isFinite(orderId) || orderId <= 0) {
-        setStatus("Commande invalide.");
-        return;
-      }
-
-      setStatus("Ajouté au panier (réservé 20 minutes). Tu peux payer depuis la page commande.");
-      router.push(`/orders/${orderId}`);
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Connexion au serveur impossible.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   if (loading) {
     return (
       <main className="min-h-[100dvh] bg-black text-white">
@@ -514,16 +469,6 @@ function MarketplaceListingClient({ id }: { id: number }) {
               </div>
 
               <div className="mt-5 space-y-3">
-                <button
-                  type="button"
-                  onClick={handleAddToCart}
-                  disabled={submitting}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/10 disabled:opacity-60"
-                >
-                  <ShoppingCart className="h-4 w-4" />
-                  {submitting ? "Traitement..." : "🛒 Ajouter au panier"}
-                </button>
-
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -535,7 +480,6 @@ function MarketplaceListingClient({ id }: { id: number }) {
                     }`}
                   >
                     <span className="inline-flex items-center justify-center gap-2">
-                      <ShoppingCart className="h-4 w-4" />
                       📲 Mobile Money
                     </span>
                   </button>
@@ -550,7 +494,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
                   >
                     <span className="inline-flex items-center justify-center gap-2">
                       <Wallet className="h-4 w-4" />
-                      💰 Wallet
+                      Wallet
                     </span>
                   </button>
                 </div>
