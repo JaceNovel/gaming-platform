@@ -24,8 +24,8 @@ class PublicStorageController extends Controller
             return response()->json(['message' => 'Invalid path.'], 400);
         }
 
-    $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
-    $disk = Storage::disk($diskName);
+        $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+        $disk = Storage::disk($diskName);
 
         if (!$disk->exists($path)) {
             // Legacy fallback: older deployments stored some public assets on the local disk.
@@ -43,9 +43,9 @@ class PublicStorageController extends Controller
                     }
 
                     $resp = $local->response($path);
-                    return $resp
-                        ->header('Cache-Control', 'public, max-age=86400')
-                        ->header('X-Storage-Source', 'local');
+                    $resp->headers->set('Cache-Control', 'public, max-age=86400');
+                    $resp->headers->set('X-Storage-Source', 'local');
+                    return $resp;
                 }
             }
 
@@ -56,12 +56,15 @@ class PublicStorageController extends Controller
         $driver = (string) (config("filesystems.disks.{$diskName}.driver") ?? '');
         if ($driver === 's3') {
             $url = $disk->url($path);
-            return redirect()->away($url)->header('Cache-Control', 'public, max-age=86400');
+            $redirect = redirect()->away($url);
+            $redirect->headers->set('Cache-Control', 'public, max-age=86400');
+            return $redirect;
         }
 
         // Storage::response sets content-type based on file extension.
         $resp = $disk->response($path);
 
-        return $resp->header('Cache-Control', 'public, max-age=86400');
+        $resp->headers->set('Cache-Control', 'public, max-age=86400');
+        return $resp;
     }
 }
