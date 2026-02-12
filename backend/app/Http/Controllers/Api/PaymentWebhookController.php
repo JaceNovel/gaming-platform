@@ -152,6 +152,19 @@ class PaymentWebhookController extends Controller
                         ];
                         $duration = $levels[$level]['duration'] ?? 30;
 
+                        $base = Carbon::now();
+                        $currentExpiration = $order->user?->premium_expiration;
+                        if ($currentExpiration) {
+                            $current = $currentExpiration instanceof Carbon
+                                ? $currentExpiration
+                                : Carbon::parse((string) $currentExpiration);
+                            if ($current->greaterThan($base)) {
+                                $base = $current;
+                            }
+                        }
+
+                        $expiresAt = $base->copy()->addDays((int) $duration);
+
                         $membership = PremiumMembership::updateOrCreate(
                             [
                                 'user_id' => $order->user_id,
@@ -160,7 +173,7 @@ class PaymentWebhookController extends Controller
                             [
                                 'level' => $level,
                                 'game_username' => $gameUsername,
-                                'expiration_date' => Carbon::now()->addDays($duration),
+                                'expiration_date' => $expiresAt,
                                 'is_active' => true,
                                 'renewal_count' => DB::raw('renewal_count + 1'),
                             ]
@@ -169,7 +182,7 @@ class PaymentWebhookController extends Controller
                         $order->user?->update([
                             'is_premium' => true,
                             'premium_level' => $level,
-                            'premium_expiration' => $membership->expiration_date,
+                            'premium_expiration' => $expiresAt,
                         ]);
 
                         $orderMeta['premium_activated_at'] = now()->toIso8601String();

@@ -25,6 +25,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('admin:activity-push --minutes=2 --limit=10')
             ->everyMinute()
             ->withoutOverlapping();
+
+        // Automatically revoke VIP when premium expiration is reached.
+        $schedule->command('premium:expire --limit=500')
+            ->everyMinute()
+            ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);

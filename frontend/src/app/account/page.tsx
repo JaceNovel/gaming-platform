@@ -794,11 +794,33 @@ function AccountClient() {
     router.push("/auth/login");
   };
 
-  const handleVipEntry = () => {
-    if (isDesktop) {
+  const handleVipEntry = async () => {
+    const userAny = user as any;
+    const userSaysVip = Boolean(userAny?.is_premium || userAny?.premium_level || userAny?.premiumLevel);
+
+    if (userSaysVip) {
+      setVipModalOpen(true);
+      return;
+    }
+
+    if (isDesktop && HAS_API_ENV) {
+      try {
+        const res = await authFetch(`${API_BASE}/premium/status`);
+        const payload = await res.json().catch(() => null);
+        const isVip = Boolean(payload?.is_premium);
+        if (isVip) {
+          setPremiumStatus((payload ?? null) as PremiumStatus | null);
+          setVipModalOpen(true);
+          return;
+        }
+      } catch {
+        // fall back to plans page
+      }
+
       router.push("/premium");
       return;
     }
+
     setVipModalOpen(true);
   };
 
@@ -1827,7 +1849,7 @@ function AccountClient() {
       )}
       {null}
 
-      {vipModalOpen && !isDesktop && (
+      {vipModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeVipModal} />
           <div className="relative z-10 w-full max-w-md rounded-[28px] border border-white/15 bg-black/90 p-6 text-white shadow-[0_30px_120px_rgba(0,0,0,0.8)]">
@@ -1854,7 +1876,17 @@ function AccountClient() {
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Plan actuel</p>
-                <p className="mt-2 text-lg font-semibold text-white">{tierLabel}</p>
+                {(() => {
+                  const statusLevelRaw = String(
+                    premiumStatus?.level ?? premiumStatus?.membership?.level ?? "",
+                  ).toLowerCase();
+                  const statusPlan = VIP_PLANS.find(
+                    (plan) => plan.level === statusLevelRaw || plan.label.toLowerCase() === statusLevelRaw,
+                  );
+                  const label = statusPlan?.label ?? tierLabel;
+
+                  return <p className="mt-2 text-lg font-semibold text-white">{label}</p>;
+                })()}
                 <p className="mt-1 text-xs text-white/60">
                   {vipStatusLoading ? "Chargement..." : premiumStatus?.expiration ? `Expiration: ${premiumStatus.expiration}` : "Expiration: —"}
                 </p>
@@ -1863,9 +1895,23 @@ function AccountClient() {
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Avantages</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/70">
-                  {(currentPlan?.perks?.length ? currentPlan.perks : ["Réductions VIP", "Support prioritaire", "Parrainage VIP"]).map((perk) => (
-                    <span key={perk} className="rounded-full border border-white/10 bg-black/30 px-3 py-1">{perk}</span>
-                  ))}
+                  {(() => {
+                    const statusLevelRaw = String(
+                      premiumStatus?.level ?? premiumStatus?.membership?.level ?? "",
+                    ).toLowerCase();
+                    const statusPlan = VIP_PLANS.find(
+                      (plan) => plan.level === statusLevelRaw || plan.label.toLowerCase() === statusLevelRaw,
+                    );
+                    const perks = statusPlan?.perks?.length
+                      ? statusPlan.perks
+                      : currentPlan?.perks?.length
+                        ? currentPlan.perks
+                        : ["Réductions VIP", "Support prioritaire", "Parrainage VIP"];
+
+                    return perks.map((perk) => (
+                      <span key={perk} className="rounded-full border border-white/10 bg-black/30 px-3 py-1">{perk}</span>
+                    ));
+                  })()}
                 </div>
               </div>
 

@@ -440,7 +440,18 @@ class PaymentController extends Controller
                             'platine' => ['duration' => 30],
                         ];
                         $duration = (int) ($levels[$level]['duration'] ?? 30);
-                        $expiresAt = Carbon::now()->addDays(max(1, $duration));
+                        $base = Carbon::now();
+                        $currentExpiration = $order->user?->premium_expiration;
+                        if ($currentExpiration) {
+                            $current = $currentExpiration instanceof Carbon
+                                ? $currentExpiration
+                                : Carbon::parse((string) $currentExpiration);
+                            if ($current->greaterThan($base)) {
+                                $base = $current;
+                            }
+                        }
+
+                        $expiresAt = $base->copy()->addDays(max(1, $duration));
 
                         // Always activate VIP at user level (membership is optional).
                         $order->user?->update([
