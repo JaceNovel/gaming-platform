@@ -245,6 +245,7 @@ class OrderController extends Controller
 
         $user = $request->user();
         $totalAmount = 0;
+        $shippingAmount = 0;
         $validatedItems = [];
         $requiresRedeemFulfillment = false;
         $hasPhysicalItems = false;
@@ -336,9 +337,18 @@ class OrderController extends Controller
             $lineTotal = $unitPrice * $quantity;
             $totalAmount += $lineTotal;
 
-            $isPhysical = (bool) ($product->shipping_required ?? false);
+            $unitShippingFee = (float) ($product->shipping_fee ?? 0);
+            if (!is_finite($unitShippingFee) || $unitShippingFee < 0) {
+                $unitShippingFee = 0;
+            }
+
+            // Accessories and any product with a shipping fee is considered physical.
+            $isPhysical = (bool) ($product->shipping_required ?? false)
+                || $unitShippingFee > 0
+                || !empty($product->accessory_category);
             if ($isPhysical) {
                 $hasPhysicalItems = true;
+                $shippingAmount += $unitShippingFee * $quantity;
             }
 
             $deliveryType = $product->delivery_type;
@@ -359,6 +369,7 @@ class OrderController extends Controller
                 'redeem_denomination_id' => $redeemDenomination->id ?? null,
                 'quantity' => $quantity,
                 'price' => $unitPrice,
+                'shipping_fee' => $unitShippingFee,
                 'game_id' => $item['game_id'] ?? null,
                 'type' => $product->type,
                 'is_physical' => $isPhysical,
@@ -367,9 +378,10 @@ class OrderController extends Controller
             ];
         }
 
-        $order = DB::transaction(function () use ($data, $user, $validatedItems, $totalAmount, $requiresRedeemFulfillment, $hasPhysicalItems) {
+        $order = DB::transaction(function () use ($data, $user, $validatedItems, $totalAmount, $shippingAmount, $requiresRedeemFulfillment, $hasPhysicalItems) {
             $promotionSummary = $this->buildPromotionSummary($user, $totalAmount, $validatedItems);
-            $finalTotal = max(0, $totalAmount - $promotionSummary['total_discount']);
+            // VIP/coupons apply only to product amounts (not shipping).
+            $finalTotal = max(0, $totalAmount - $promotionSummary['total_discount']) + max(0, $shippingAmount);
 
             $payload = [
                 'user_id' => $user->id,
@@ -400,6 +412,7 @@ class OrderController extends Controller
                     'redeem_denomination_id' => $item['redeem_denomination_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
+                    'shipping_fee' => (float) ($item['shipping_fee'] ?? 0),
                     'game_user_id' => $item['game_id'],
                     'delivery_status' => 'pending',
                     'is_physical' => $item['is_physical'] ?? false,

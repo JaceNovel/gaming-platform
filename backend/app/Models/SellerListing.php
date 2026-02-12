@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 class SellerListing extends Model
 {
@@ -96,7 +95,8 @@ class SellerListing extends Model
     {
         $path = (string) ($this->image_path ?? '');
         if (!$path) return null;
-        return Storage::disk('public')->url($path);
+        // Always serve through the API route to avoid relying on APP_URL/public symlink.
+        return '/api/storage/' . ltrim($path, '/');
     }
 
     public function getGalleryImageUrlsAttribute(): array
@@ -111,10 +111,7 @@ class SellerListing extends Model
             if (!is_string($path) || !$path) {
                 continue;
             }
-            try {
-                $urls[] = Storage::disk('public')->url($path);
-            } catch (\Throwable $e) {
-            }
+            $urls[] = '/api/storage/' . ltrim($path, '/');
         }
 
         return array_values(array_unique(array_filter($urls)));

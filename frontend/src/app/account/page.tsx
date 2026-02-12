@@ -413,8 +413,8 @@ function AccountClient() {
 
         if (!active) return;
 
-        // Free Fire recharge (not direct) -> redirect to Mes codes
-        if (isFreeFire && hasRedeemItems) {
+        // Redeem-code orders -> redirect to Mes codes
+        if (hasRedeemItems) {
           const params = new URLSearchParams();
           params.set('payment_status', status);
           params.set('order', orderId);

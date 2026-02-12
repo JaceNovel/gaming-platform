@@ -12,6 +12,7 @@ import { openTidioChat } from "@/lib/tidioChat";
 
 const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
 const REDEEM_GUIDE_PDF_PATH = "/images/badboy.pdf";
+const CODES_LAST_SEEN_AT_KEY = "bb_codes_last_seen_at";
 
 type OrderRow = {
   id: number;
@@ -105,6 +106,25 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 };
 
+const parseDateSafe = (value?: string | null): Date | null => {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+};
+
+const formatDeliveryDateTime = (value?: string | null): string => {
+  const d = parseDateSafe(value);
+  if (!d) return "—";
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+};
+
 const isRedeemOrder = (order: OrderRow): boolean => {
   if (order.has_redeem_items === true) return true;
   const type = String(order.type ?? "").toLowerCase();
@@ -132,11 +152,25 @@ function CodesClient() {
   const [deliveriesPage, setDeliveriesPage] = useState(1);
   const [deliveriesLastPage, setDeliveriesLastPage] = useState(1);
   const [deliveriesLoading, setDeliveriesLoading] = useState(false);
+  const [redeemsLoadedOnce, setRedeemsLoadedOnce] = useState(false);
+
+  const [initialLastSeenAt, setInitialLastSeenAt] = useState<Date | null>(null);
+  const hasStoredLastSeenForSession = useRef(false);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const [banner, setBanner] = useState<string | null>(null);
   const loadSeq = useRef(0);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CODES_LAST_SEEN_AT_KEY);
+      const parsed = raw ? parseDateSafe(raw) : null;
+      setInitialLastSeenAt(parsed);
+    } catch {
+      setInitialLastSeenAt(null);
+    }
+  }, []);
 
   useEffect(() => {
     const status = String(searchParams.get("payment_status") ?? "").toLowerCase();
@@ -173,6 +207,16 @@ function CodesClient() {
     return Array.from(map.entries())
       .map(([orderId, value]) => ({ orderId, order: value.order, items: value.items }))
       .sort((a, b) => (b.orderId ?? 0) - (a.orderId ?? 0));
+  }, [deliveries]);
+
+  const last5DeliveredCodes = useMemo(() => {
+    const rows = deliveries
+      .filter((x) => Boolean(x.code))
+      .map((x) => ({ row: x, deliveredAt: parseDateSafe(x.created_at) }))
+      .sort((a, b) => (b.deliveredAt?.getTime() ?? 0) - (a.deliveredAt?.getTime() ?? 0))
+      .slice(0, 5)
+      .map((x) => x.row);
+    return rows;
   }, [deliveries]);
 
   const loadOrders = async () => {
@@ -242,8 +286,31 @@ function CodesClient() {
       }
     } finally {
       setDeliveriesLoading(false);
+      if (page === 1 && mode === "replace") setRedeemsLoadedOnce(true);
     }
   };
+
+  useEffect(() => {
+    if (!redeemsLoadedOnce) return;
+    if (deliveriesLoading) return;
+    if (hasStoredLastSeenForSession.current) return;
+    hasStoredLastSeenForSession.current = true;
+
+    try {
+      const deliveredDates = deliveries
+        .filter((x) => Boolean(x.code))
+        .map((x) => parseDateSafe(x.created_at))
+        .filter((d): d is Date => Boolean(d));
+
+      const maxDeliveredAt = deliveredDates.length
+        ? new Date(Math.max(...deliveredDates.map((d) => d.getTime())))
+        : new Date();
+
+      localStorage.setItem(CODES_LAST_SEEN_AT_KEY, maxDeliveredAt.toISOString());
+    } catch {
+      // ignore
+    }
+  }, [deliveries, deliveriesLoading, redeemsLoadedOnce]);
 
   const resendCodes = async (orderId: number) => {
     if (!HAS_API_ENV) return;
@@ -422,6 +489,44 @@ function CodesClient() {
               </div>
             ) : (
               <div className="space-y-3">
+                {last5DeliveredCodes.length > 0 && (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-xs uppercase tracking-[0.35em] text-white/50">Historique (5 derniers)</div>
+                    <div className="mt-3 space-y-2">
+                      {last5DeliveredCodes.map((row) => {
+                        const deliveredAt = parseDateSafe(row.created_at);
+                        const isNew = Boolean(
+                          deliveredAt && initialLastSeenAt && deliveredAt.getTime() > initialLastSeenAt.getTime()
+                        );
+
+                        const label =
+                          row.denomination?.label ?? row.product?.name ?? (row.quantity_index ? `Code #${row.quantity_index}` : "Code");
+
+                        return (
+                          <div
+                            key={`history-${row.id}`}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <div className="truncate text-sm font-semibold">{label}</div>
+                                {isNew && (
+                                  <span className="relative inline-flex h-2.5 w-2.5 shrink-0">
+                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-white/60">Livré: {formatDeliveryDateTime(row.created_at)}</div>
+                            </div>
+                            <div className="shrink-0 text-xs text-white/60">{row.code ? "Obtenu" : "—"}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {deliveriesByOrder.map((group) => {
                   const orderStatus = prettyOrderStatus(group.order?.status);
                   const badgeClass = statusBadgeClass(group.order?.status);
@@ -430,6 +535,10 @@ function CodesClient() {
 
                   const title = group.items?.[0]?.product?.name ?? `Commande ${orderRef}`;
                   const deliveredItems = group.items.filter((x) => Boolean(x.code));
+                  const lastDeliveredAt = deliveredItems
+                    .map((x) => parseDateSafe(x.created_at)?.getTime() ?? 0)
+                    .reduce((max, t) => (t > max ? t : max), 0);
+                  const lastDeliveredAtLabel = lastDeliveredAt ? formatDeliveryDateTime(new Date(lastDeliveredAt).toISOString()) : "—";
 
                   return (
                     <div key={group.orderId} className="rounded-2xl border border-white/10 bg-white/5">
@@ -445,6 +554,9 @@ function CodesClient() {
                               {orderStatus}
                             </span>
                             <span className="truncate">{orderRef}</span>
+                            {deliveredItems.length > 0 && (
+                              <span className="truncate">• Livré: {lastDeliveredAtLabel}</span>
+                            )}
                           </div>
                         </div>
                         <div className="shrink-0 text-sm text-white/60">{isOpen ? "Fermer" : "Voir"}</div>
