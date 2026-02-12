@@ -24,7 +24,8 @@ class PublicStorageController extends Controller
             return response()->json(['message' => 'Invalid path.'], 400);
         }
 
-        $disk = Storage::disk('public');
+    $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+    $disk = Storage::disk($diskName);
 
         if (!$disk->exists($path)) {
             // Legacy fallback: older deployments stored some public assets on the local disk.
@@ -33,6 +34,7 @@ class PublicStorageController extends Controller
                 $local = Storage::disk('local');
                 if ($local->exists($path)) {
                     try {
+                        // Best-effort migrate into the configured public disk (local or S3).
                         if (!$disk->exists($path)) {
                             $disk->put($path, $local->get($path));
                         }
@@ -48,6 +50,13 @@ class PublicStorageController extends Controller
             }
 
             return response()->json(['message' => 'File not found.'], 404);
+        }
+
+        // If the public uploads disk is S3, redirect to the object URL.
+        $driver = (string) (config("filesystems.disks.{$diskName}.driver") ?? '');
+        if ($driver === 's3') {
+            $url = $disk->url($path);
+            return redirect()->away($url)->header('Cache-Control', 'public, max-age=86400');
         }
 
         // Storage::response sets content-type based on file extension.

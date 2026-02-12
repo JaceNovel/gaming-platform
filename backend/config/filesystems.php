@@ -15,6 +15,10 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    // Disk used for publicly visible uploads (marketplace listing photos, dispute evidence, etc.).
+    // Keep default as 'public' (local) but allow switching to 's3' in production.
+    'public_uploads_disk' => env('PUBLIC_UPLOADS_DISK', 'public'),
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks

@@ -238,7 +238,14 @@ export default function GamingAccountsByGamePage() {
                     >
                       <div className="relative h-40 w-full overflow-hidden rounded-2xl">
                         {img ? (
-                          <Image src={img} alt={title} fill className="object-cover" sizes="(min-width: 1024px) 360px, 90vw" />
+                          <Image
+                            src={img}
+                            alt={title}
+                            fill
+                            className="object-cover"
+                            sizes="(min-width: 1024px) 360px, 90vw"
+                            unoptimized
+                          />
                         ) : (
                           <div className="h-full w-full bg-white/10" />
                         )}
