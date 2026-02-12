@@ -55,7 +55,7 @@ class AdminActivityService
                 ->where('created_at', '>', $since)
                 ->orderByDesc('created_at')
                 ->limit($limit)
-                ->get(['id', 'reference', 'status', 'total_price', 'currency', 'created_at']);
+                ->get(['id', 'reference', 'status', 'total_price', 'created_at']);
 
             $counts['orders'] = Order::query()->where('created_at', '>', $since)->count();
 
@@ -71,7 +71,7 @@ class AdminActivityService
                     'meta' => [
                         'status' => $o->status,
                         'amount' => (float) ($o->total_price ?? 0),
-                        'currency' => (string) ($o->currency ?? 'XOF'),
+                        'currency' => strtoupper((string) config('fedapay.default_currency', 'XOF')),
                     ],
                 ]);
             }
