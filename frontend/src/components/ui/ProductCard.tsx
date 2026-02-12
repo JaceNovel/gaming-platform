@@ -105,7 +105,7 @@ export default function ProductCard({
               <p className="text-sm font-bold text-white/55 line-through">{price}</p>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-fuchsia-200/80">Prix VIP</span>
-                <span className="text-3xl font-black tracking-tight text-fuchsia-200">{vipPrice}</span>
+                <span className="text-2xl font-black tracking-tight text-fuchsia-200">{vipPrice}</span>
               </div>
             </div>
           ) : (
