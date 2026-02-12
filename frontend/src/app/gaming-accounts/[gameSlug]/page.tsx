@@ -8,6 +8,8 @@ import { ChevronRight, Search } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 
+const MOBILE_LISTING_IMAGE = "https://images.hdqwalls.com/wallpapers/garena-free-fire-4k-v8.jpg";
+
 type MenuGame = { id: number; name: string; slug: string; image?: string | null; icon?: string | null };
 
 type ListingRow = {
@@ -209,11 +211,11 @@ export default function GamingAccountsByGamePage() {
           </div>
         ) : (
           <>
-            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-8 grid grid-cols-2 gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {loading ? (
                 Array.from({ length: 9 }).map((_, idx) => (
-                  <div key={idx} className="rounded-[28px] border border-white/10 bg-white/5 p-5">
-                    <div className="h-40 rounded-2xl bg-white/10" />
+                  <div key={idx} className="rounded-2xl sm:rounded-[28px] border border-white/10 bg-white/5 p-3 sm:p-5">
+                    <div className="aspect-square sm:aspect-auto sm:h-40 rounded-2xl bg-white/10" />
                     <div className="mt-4 h-4 w-3/4 rounded bg-white/10" />
                     <div className="mt-2 h-3 w-5/6 rounded bg-white/10" />
                     <div className="mt-6 h-10 w-full rounded-xl bg-white/10" />
@@ -236,21 +238,27 @@ export default function GamingAccountsByGamePage() {
                     <Link
                       key={listingId || title}
                       href={`/comptes-gaming/${encodeURIComponent(listingId)}`}
-                      className="group overflow-hidden rounded-[28px] border border-white/10 bg-black/40 p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-fuchsia-300/40"
+                      className="group overflow-hidden rounded-2xl sm:rounded-[28px] border border-white/10 bg-black/40 p-3 sm:p-5 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition duration-300 hover:-translate-y-1 hover:border-fuchsia-300/40"
                     >
-                      <div className="relative h-40 w-full overflow-hidden rounded-2xl">
-                        {img ? (
-                          <Image
-                            src={img}
-                            alt={title}
-                            fill
-                            className="object-cover"
-                            sizes="(min-width: 1024px) 360px, 90vw"
-                            unoptimized
-                          />
-                        ) : (
-                          <div className="h-full w-full bg-white/10" />
-                        )}
+                      <div className="relative aspect-square sm:aspect-auto sm:h-40 w-full overflow-hidden rounded-2xl">
+                        {/* Mobile: always show a fixed wallpaper. */}
+                        <img src={MOBILE_LISTING_IMAGE} alt={title} className="h-full w-full object-cover sm:hidden" loading="lazy" />
+
+                        {/* Tablet/Desktop: keep existing image behaviour. */}
+                        <div className="hidden sm:block absolute inset-0">
+                          {img ? (
+                            <Image
+                              src={img}
+                              alt={title}
+                              fill
+                              className="object-cover"
+                              sizes="(min-width: 1024px) 360px, 90vw"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="h-full w-full bg-white/10" />
+                          )}
+                        </div>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
                         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                           <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">

@@ -11,6 +11,7 @@ import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { isVipActive } from "@/lib/vipPricing";
 
 type MenuKey = "recharge" | "subscription";
 
@@ -56,6 +57,12 @@ type Paginated<T> = {
 
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
+
+const isPromoFromPrices = (price: number, discountPrice: number) => {
+  if (!Number.isFinite(price) || price <= 0) return false;
+  if (!Number.isFinite(discountPrice) || discountPrice <= 0) return false;
+  return discountPrice < price;
+};
 
 const parseGamesPayload = (payload: any): MenuGame[] => {
   const boxed = payload?.data ?? payload;
@@ -341,7 +348,113 @@ export default function ProductsCatalogPage({
           </div>
         ) : (
           <>
-            <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Mobile: 2 products per row + price + tags */}
+            <div className="mt-8 grid grid-cols-2 gap-4 sm:hidden">
+              {loading
+                ? Array.from({ length: 10 }).map((_, idx) => (
+                    <div key={idx} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+                      <div className="aspect-square w-full rounded-xl bg-white/10" />
+                      <div className="mt-3 h-3 w-5/6 rounded bg-white/10" />
+                      <div className="mt-2 h-4 w-2/3 rounded bg-white/10" />
+                    </div>
+                  ))
+                : items.map((p) => {
+                    const priceValue = Number(p.discount_price ?? p.price ?? 0);
+                    const safePrice = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
+                    const likesValue = Number(p.likes_count ?? 0);
+                    const likes = Number.isFinite(likesValue) ? likesValue : 0;
+
+                    const displayTitle = String(p.name ?? p.title ?? "Produit").trim() || "Produit";
+
+                    const img =
+                      p.image_url ??
+                      p?.images?.[0]?.url ??
+                      p?.images?.[0]?.path ??
+                      p?.details?.image ??
+                      p.cover ??
+                      p.banner ??
+                      p?.details?.cover ??
+                      p?.details?.banner ??
+                      p.banner_url ??
+                      p?.game?.image ??
+                      p?.game?.cover ??
+                      null;
+                    const imageSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
+
+                    const delivery = getDeliveryBadgeDisplay({
+                      type: p.type ?? null,
+                      display_section: p.display_section ?? null,
+                      delivery_estimate_label: p.delivery_estimate_label ?? null,
+                    });
+
+                    const basePrice = Number(p.price ?? 0);
+                    const discountPrice = Number(p.discount_price ?? NaN);
+                    const isPromo = isPromoFromPrices(basePrice, discountPrice);
+                    const isTop = String(p.display_section ?? "").toLowerCase() === "popular" || likes >= 1000;
+                    const isInstant = delivery?.tone === "bolt";
+                    const showVip = isVipActive(user);
+
+                    return (
+                      <Link
+                        key={p.id}
+                        href={`/produits/${encodeURIComponent(String(p.id))}`}
+                        className="group block overflow-hidden rounded-2xl border border-white/10 bg-black/40 p-3 shadow-[0_25px_80px_rgba(4,6,35,0.55)] transition hover:border-cyan-300/30"
+                      >
+                        <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-white/10 bg-black/30">
+                          <div className="absolute left-2 top-2 z-10 flex flex-wrap gap-1.5">
+                            {isInstant ? (
+                              <span className="rounded-full border border-amber-200/20 bg-amber-400/10 px-2 py-1 text-[10px] font-semibold text-amber-100 backdrop-blur">
+                                Instant
+                              </span>
+                            ) : null}
+                            {isPromo ? (
+                              <span className="rounded-full border border-rose-200/20 bg-rose-400/10 px-2 py-1 text-[10px] font-semibold text-rose-100 backdrop-blur">
+                                Promo
+                              </span>
+                            ) : null}
+                            {showVip ? (
+                              <span className="rounded-full border border-purple-200/20 bg-purple-400/10 px-2 py-1 text-[10px] font-semibold text-purple-100 backdrop-blur">
+                                VIP
+                              </span>
+                            ) : null}
+                            {isTop ? (
+                              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold text-emerald-100 backdrop-blur">
+                                Top
+                              </span>
+                            ) : null}
+                          </div>
+
+                          {imageSrc ? (
+                            <Image
+                              src={imageSrc}
+                              alt={displayTitle}
+                              fill
+                              className="object-cover opacity-95 transition group-hover:scale-[1.02]"
+                              sizes="50vw"
+                            />
+                          ) : (
+                            <div className="h-full w-full bg-gradient-to-br from-cyan-400/10 via-fuchsia-400/10 to-transparent" />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent" />
+                        </div>
+
+                        <div className="mt-3">
+                          <p className="text-[13px] font-semibold leading-snug text-white line-clamp-2">{displayTitle}</p>
+                          <p className="mt-1 text-base font-black text-cyan-200">{formatNumber(safePrice)} FCFA</p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+
+              {!loading && !error && items.length === 0 ? (
+                <div className="col-span-2 rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-sm text-white/70">
+                  Aucun produit pour le moment.
+                </div>
+              ) : null}
+            </div>
+
+            {/* Desktop/tablet: existing richer cards */}
+            <div className="mt-8 hidden grid-cols-1 gap-5 sm:grid sm:grid-cols-2 lg:grid-cols-3">
               {loading ? (
                 Array.from({ length: 9 }).map((_, idx) => (
                   <div key={idx} className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -385,7 +498,7 @@ export default function ProductsCatalogPage({
 
                   const basePrice = Number(p.price ?? 0);
                   const discountPrice = Number(p.discount_price ?? NaN);
-                  const isPromo = Number.isFinite(basePrice) && Number.isFinite(discountPrice) && discountPrice > 0 && discountPrice < basePrice;
+                  const isPromo = isPromoFromPrices(basePrice, discountPrice);
                   const isTop = String(p.display_section ?? "").toLowerCase() === "popular" || likes >= 1000;
                   const isInstant = delivery?.tone === "bolt";
 

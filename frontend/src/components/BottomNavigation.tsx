@@ -1,13 +1,23 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Home, ShoppingBag, Crown, LifeBuoy, User } from "lucide-react";
+import { Crown, Home, LayoutGrid, LifeBuoy, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const navigation = [
+const navigation: Array<{
+  name: string;
+  href: string;
+  icon: any;
+  activePrefixes?: string[];
+}> = [
   { name: "Accueil", href: "/", icon: Home },
-  { name: "Boutique", href: "/shop", icon: ShoppingBag },
+  {
+    name: "Catégorie",
+    href: "/shop",
+    icon: LayoutGrid,
+    activePrefixes: ["/shop", "/recharges", "/abonnements", "/gaming-accounts", "/accessoires", "/categorie", "/produits"],
+  },
   { name: "Premium", href: "/premium", icon: Crown },
   { name: "Aide", href: "/help", icon: LifeBuoy },
   { name: "Profil", href: "/account", icon: User },
@@ -47,7 +57,8 @@ export default function BottomNavigation() {
     <nav ref={navRef} className="fixed bottom-0 left-0 right-0 z-50 h-16 pb-[env(safe-area-inset-bottom)] lg:hidden">
       <div className="mobile-shell glass-card h-16 rounded-2xl border border-white/10 backdrop-blur flex gap-1 overflow-x-auto px-2 py-1 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
         {navigation.map((item) => {
-          const isActive = pathname === item.href;
+          const prefixes = item.activePrefixes?.length ? item.activePrefixes : [item.href];
+          const isActive = prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
           return (
             <Link
               key={item.name}
