@@ -17,6 +17,7 @@ type ListingRow = {
   price?: number | string | null;
   delivery_window_hours?: number | string | null;
   image_url?: string | null;
+  account_region?: string | null;
   game?: { id: number; name?: string | null; image?: string | null } | null;
   category?: { id: number; name?: string | null } | null;
   seller_trust?: { badges?: string[]; successRate?: number; totalSales?: number } | null;
@@ -229,6 +230,7 @@ export default function GamingAccountsByGamePage() {
                   const imgRaw = String(row?.image_url ?? "").trim() || String(row?.game?.image ?? game?.image ?? "").trim();
                   const img = imgRaw ? (toDisplayImageSrc(imgRaw) ?? imgRaw) : null;
                   const badges = Array.isArray(row?.seller_trust?.badges) ? row.seller_trust.badges : [];
+                  const server = String((row as any)?.account_region ?? "").trim();
 
                   return (
                     <Link
@@ -252,7 +254,7 @@ export default function GamingAccountsByGamePage() {
                         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
                         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                           <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-                            🎮 Compte Gaming
+                            {server ? `🌍 Serveur ${server}` : "🎮 Compte Gaming"}
                           </span>
                           {badges.includes("verified") ? (
                             <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">
