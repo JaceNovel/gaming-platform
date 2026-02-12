@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminShell from "@/components/admin/AdminShell";
 import DetailsDrawer from "@/components/admin/DetailsDrawer";
 import { API_BASE } from "@/lib/config";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type DisputeRow = {
   id: number;
@@ -160,17 +161,22 @@ export default function AdminMarketplaceDisputesPage() {
                     {Array.isArray(d.evidence_urls) && d.evidence_urls.length > 0 ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {d.evidence_urls.slice(0, 6).map((u) => (
+                          (() => {
+                            const safe = toDisplayImageSrc(u) ?? u;
+                            return (
                           <a
                             key={u}
-                            href={u}
+                            href={safe}
                             target="_blank"
                             rel="noreferrer"
                             className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
                             title="Ouvrir preuve"
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={u} alt="preuve" className="h-12 w-12 object-cover" />
+                            <img src={safe} alt="preuve" className="h-12 w-12 object-cover" />
                           </a>
+                            );
+                          })()
                         ))}
                       </div>
                     ) : null}
@@ -264,14 +270,17 @@ export default function AdminMarketplaceDisputesPage() {
               {Array.isArray(selected.evidence_urls) && selected.evidence_urls.length > 0 ? (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {selected.evidence_urls.map((u) => (
+                    (() => {
+                      const safe = toDisplayImageSrc(u) ?? u;
+                      return (
                     <div key={u} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                      <a href={u} target="_blank" rel="noreferrer" className="block">
+                      <a href={safe} target="_blank" rel="noreferrer" className="block">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={u} alt="preuve" className="h-28 w-full object-cover" />
+                        <img src={safe} alt="preuve" className="h-28 w-full object-cover" />
                       </a>
                       <div className="flex items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-2">
                         <a
-                          href={u}
+                          href={safe}
                           target="_blank"
                           rel="noreferrer"
                           className="text-xs font-semibold text-slate-700 hover:underline"
@@ -279,7 +288,7 @@ export default function AdminMarketplaceDisputesPage() {
                           Ouvrir
                         </a>
                         <a
-                          href={u}
+                          href={safe}
                           download
                           className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
                         >
@@ -287,6 +296,8 @@ export default function AdminMarketplaceDisputesPage() {
                         </a>
                       </div>
                     </div>
+                      );
+                    })()
                   ))}
                 </div>
               ) : (

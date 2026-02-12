@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { API_BASE } from "@/lib/config";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type Dispute = {
   id: number;
@@ -240,18 +241,21 @@ function LitigeClient() {
 
                     {urls.length > 0 ? (
                       <div className="mt-4 flex flex-wrap gap-3">
-                        {urls.map((u) => (
-                          <a
-                            key={u}
-                            href={u}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block overflow-hidden rounded-2xl border border-white/10 bg-black/30"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={u} alt="preuve" className="h-20 w-20 object-cover" />
-                          </a>
-                        ))}
+                        {urls.map((u) => {
+                          const safe = toDisplayImageSrc(u) ?? u;
+                          return (
+                            <a
+                              key={u}
+                              href={safe}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block overflow-hidden rounded-2xl border border-white/10 bg-black/30"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={safe} alt="preuve" className="h-20 w-20 object-cover" />
+                            </a>
+                          );
+                        })}
                       </div>
                     ) : null}
 

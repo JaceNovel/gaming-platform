@@ -33,7 +33,12 @@ class AdminMarketplaceDisputeController extends Controller
             $d->setAttribute('evidence_urls', array_values(array_filter(array_map(function ($path) {
                 if (!is_string($path) || !$path) return null;
                 try {
-                    return Storage::disk('public')->url($path);
+                    $raw = trim((string) $path);
+                    if ($raw === '') return null;
+                    if (preg_match('/^https?:\/\//i', $raw)) return $raw;
+                    if (str_starts_with($raw, '/api/storage/')) return $raw;
+                    if (str_starts_with($raw, '/storage/')) return '/api' . $raw;
+                    return '/api/storage/' . ltrim($raw, '/');
                 } catch (\Throwable $e) {
                     return null;
                 }

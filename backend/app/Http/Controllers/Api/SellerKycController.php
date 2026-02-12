@@ -8,6 +8,7 @@ use App\Models\SellerKycFile;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class SellerKycController extends Controller
 {
@@ -139,27 +140,41 @@ class SellerKycController extends Controller
         }
 
         $data = $request->validate([
-            'file' => ['required', 'file', 'image', 'max:5120'],
+            'file' => ['required', 'file', 'max:5120', 'mimes:jpg,jpeg,png,webp,gif,bmp,avif,heic,heif'],
         ]);
 
         $file = $data['file'];
         $dir = "kyc/seller_{$seller->id}";
-        $name = 'id_front_' . now()->format('Ymd_His') . '.' . $file->getClientOriginalExtension();
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        if ($ext === '') {
+            $ext = 'jpg';
+        }
+        $name = 'id_front_' . now()->format('Ymd_His') . '_' . Str::random(32) . '.' . $ext;
 
-        $path = $file->storeAs($dir, $name, ['disk' => 'local']);
+        $previous = SellerKycFile::query()->where('seller_id', $seller->id)->where('type', 'id_front')->first();
+
+        $path = $file->storeAs($dir, $name, 'public');
         $sha256 = @hash_file('sha256', $file->getRealPath()) ?: null;
 
         SellerKycFile::query()->updateOrCreate(
             ['seller_id' => $seller->id, 'type' => 'id_front'],
             [
                 'source' => 'upload',
-                'disk' => 'local',
+                'disk' => 'public',
                 'path' => $path,
                 'mime' => $file->getMimeType(),
                 'size' => $file->getSize(),
                 'sha256' => $sha256,
             ]
         );
+
+        if ($previous && $previous->path && $previous->path !== $path) {
+            try {
+                Storage::disk($previous->disk ?: 'public')->delete($previous->path);
+            } catch (\Throwable $e) {
+                // best-effort
+            }
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -180,27 +195,41 @@ class SellerKycController extends Controller
         }
 
         $data = $request->validate([
-            'image' => ['required', 'file', 'image', 'max:5120'],
+            'image' => ['required', 'file', 'max:5120', 'mimes:jpg,jpeg,png,webp,gif,bmp,avif,heic,heif'],
         ]);
 
         $file = $data['image'];
         $dir = "kyc/seller_{$seller->id}";
-        $name = 'selfie_' . now()->format('Ymd_His') . '.' . $file->getClientOriginalExtension();
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        if ($ext === '') {
+            $ext = 'jpg';
+        }
+        $name = 'selfie_' . now()->format('Ymd_His') . '_' . Str::random(32) . '.' . $ext;
 
-        $path = $file->storeAs($dir, $name, ['disk' => 'local']);
+        $previous = SellerKycFile::query()->where('seller_id', $seller->id)->where('type', 'selfie')->first();
+
+        $path = $file->storeAs($dir, $name, 'public');
         $sha256 = @hash_file('sha256', $file->getRealPath()) ?: null;
 
         SellerKycFile::query()->updateOrCreate(
             ['seller_id' => $seller->id, 'type' => 'selfie'],
             [
                 'source' => 'camera',
-                'disk' => 'local',
+                'disk' => 'public',
                 'path' => $path,
                 'mime' => $file->getMimeType(),
                 'size' => $file->getSize(),
                 'sha256' => $sha256,
             ]
         );
+
+        if ($previous && $previous->path && $previous->path !== $path) {
+            try {
+                Storage::disk($previous->disk ?: 'public')->delete($previous->path);
+            } catch (\Throwable $e) {
+                // best-effort
+            }
+        }
 
         return response()->json(['ok' => true]);
     }
