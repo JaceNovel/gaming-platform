@@ -172,10 +172,10 @@ export default function ShopPage() {
               </div>
 
               <div className="relative mt-6 h-28 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-                <div className="absolute right-4 top-4 grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/5 text-2xl">
-                  {c.emoji}
+                <div className="absolute inset-0 grid place-items-center text-6xl leading-none text-white/90">
+                  <span className="select-none">{c.emoji}</span>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent" />
               </div>
             </button>
           ))}

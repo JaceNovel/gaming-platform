@@ -457,8 +457,8 @@ function CartScreen() {
               <div className="space-y-4">
                 {cartItems.length ? cartItems.map((item) => (
                   <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
                         <p className="text-base font-semibold text-white">{item.name}</p>
 
                         {(() => {
@@ -493,7 +493,7 @@ function CartScreen() {
                           <div className="inline-flex items-center overflow-hidden rounded-xl border border-white/10 bg-white/5">
                             <button
                               type="button"
-                              className="px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                              className="px-2 sm:px-3 py-2 text-sm text-white/80 hover:bg-white/10"
                               onClick={() => updateQuantity(item.id, item.quantity - 1)}
                               aria-label="Diminuer la quantité"
                             >
@@ -504,11 +504,11 @@ function CartScreen() {
                               min={1}
                               value={item.quantity}
                               onChange={(e) => updateQuantity(item.id, Number(e.target.value))}
-                              className="w-16 bg-transparent px-2 py-2 text-center text-sm text-white outline-none"
+                              className="w-12 sm:w-16 bg-transparent px-2 py-2 text-center text-sm text-white outline-none"
                             />
                             <button
                               type="button"
-                              className="px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+                              className="px-2 sm:px-3 py-2 text-sm text-white/80 hover:bg-white/10"
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
                               aria-label="Augmenter la quantité"
                             >
@@ -517,13 +517,13 @@ function CartScreen() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className="text-base font-bold text-cyan-200">
+                      <div className="flex items-start justify-between gap-3 sm:justify-end sm:shrink-0">
+                        <div className="min-w-0 text-left sm:text-right">
+                          <p className="text-sm sm:text-base font-bold text-cyan-200 break-words">
                             {((item.price + (item.shippingFee ?? 0)) * item.quantity).toLocaleString()} FCFA
                           </p>
                           {Number(item.shippingFee ?? 0) > 0 ? (
-                            <p className="mt-0.5 text-xs text-white/55">
+                            <p className="mt-0.5 text-xs text-white/55 break-words">
                               Prix: {(item.price * item.quantity).toLocaleString()} • Livraison: {((item.shippingFee ?? 0) * item.quantity).toLocaleString()} FCFA
                             </p>
                           ) : null}
