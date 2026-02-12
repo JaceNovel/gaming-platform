@@ -1,27 +1,27 @@
 services:
   - type: web
-    name: badboyshop-frontend
+    name: primegaming-frontend
     runtime: node
     rootDir: frontend
     buildCommand: npm install && npm run build
     startCommand: npm run start
     envVars:
       - key: NEXT_PUBLIC_SITE_URL
-        value: https://badboyshop.online
+        value: https://primegaming.space
       - key: NEXT_PUBLIC_API_URL
-        value: https://api.badboyshop.online/api
+        value: https://api.primegaming.space/api
       - key: NEXT_PUBLIC_CINETPAY_API_KEY
         sync: false
       - key: NEXT_PUBLIC_CINETPAY_SITE_ID
         sync: false
 
   - type: web
-    name: badboyshop-backend
+    name: primegaming-backend
     runtime: docker
     rootDir: backend
     dockerfilePath: Dockerfile
     disk:
-      name: badboyshop-backend-storage
+      name: primegaming-backend-storage
       mountPath: /app/storage
       sizeGB: 1
     envVars:
@@ -34,15 +34,19 @@ services:
       - key: APP_DEBUG
         value: "false"
       - key: APP_URL
-        value: https://api.badboyshop.online
+        value: https://api.primegaming.space
       - key: FRONTEND_URL
-        value: https://badboyshop.online
+        value: https://primegaming.space
+      - key: FRONTEND_URL_WWW
+        value: https://www.primegaming.space
       - key: CORS_SUPPORTS_CREDENTIALS
         value: "true"
       - key: SANCTUM_STATEFUL_DOMAINS
-        value: badboyshop.online
+        value: primegaming.space,www.primegaming.space
       - key: SESSION_DOMAIN
-        value: .badboyshop.online
+        value: .primegaming.space
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
 
       - key: QUEUE_CONNECTION
         value: database
@@ -62,7 +66,7 @@ services:
         value: https://api-checkout.cinetpay.com/v2
 
   - type: worker
-    name: badboyshop-backend-worker
+    name: primegaming-backend-worker
     runtime: docker
     rootDir: backend
     dockerfilePath: Dockerfile
@@ -76,15 +80,19 @@ services:
       - key: APP_DEBUG
         value: "false"
       - key: APP_URL
-        value: https://api.badboyshop.online
+        value: https://api.primegaming.space
       - key: FRONTEND_URL
-        value: https://badboyshop.online
+        value: https://primegaming.space
+      - key: FRONTEND_URL_WWW
+        value: https://www.primegaming.space
       - key: CORS_SUPPORTS_CREDENTIALS
         value: "true"
       - key: SANCTUM_STATEFUL_DOMAINS
-        value: badboyshop.online
+        value: primegaming.space,www.primegaming.space
       - key: SESSION_DOMAIN
-        value: .badboyshop.online
+        value: .primegaming.space
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
       - key: QUEUE_CONNECTION
         value: database
 
