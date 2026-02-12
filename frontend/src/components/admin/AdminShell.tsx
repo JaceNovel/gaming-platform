@@ -78,7 +78,7 @@ const MENU_ITEMS = [
   { label: "Offres", icon: Heart, href: "/admin/offers" },
   { label: "Email", icon: Mail, href: "/admin/email" },
   { label: "Notifications", icon: Bell, href: "/admin/notifications" },
-  { label: "Demandes d’importation", icon: Boxes, href: "/admin/redeem" },
+  { label: "Demandes d’importation", icon: Boxes, href: "/admin/redeem-lots" },
   { label: "Avis Clients", icon: Star, href: "/admin/reviews" },
   { label: "Paramètres", icon: Settings, href: "/admin/settings" },
   {
