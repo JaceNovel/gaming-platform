@@ -139,8 +139,10 @@ class AdminActivityService
                 ->withCount(['messages as unread_count' => function ($q) {
                     $q->where('from_admin', false)->where('is_read', false);
                 }])
+                ->whereHas('messages', function ($q) {
+                    $q->where('from_admin', false)->where('is_read', false);
+                })
                 ->where('last_message_at', '>', $since)
-                ->having('unread_count', '>', 0)
                 ->orderByDesc('last_message_at')
                 ->limit($limit)
                 ->get(['id', 'subject', 'status', 'priority', 'last_message_at', 'created_at']);
