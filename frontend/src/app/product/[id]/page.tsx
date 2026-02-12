@@ -48,6 +48,7 @@ export default function ProductPage() {
   const [activeImage, setActiveImage] = useState(0);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -76,6 +77,16 @@ export default function ProductPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!lightboxSrc) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxSrc(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxSrc]);
 
   const images = useMemo(() => {
     if (product?.images && product.images.length > 0) return product.images;
@@ -268,6 +279,12 @@ export default function ProductPage() {
         <div className="mt-8 grid gap-8 lg:grid-cols-[1.1fr,0.9fr]">
           <section className="space-y-6">
             <div className="relative overflow-hidden rounded-[40px] border border-white/10 bg-white/5 shadow-[0_35px_140px_rgba(4,6,35,0.65)]">
+              <button
+                type="button"
+                onClick={() => setLightboxSrc(coverImage)}
+                className="absolute inset-0 z-10 cursor-zoom-in"
+                aria-label="Agrandir la photo"
+              />
               <Image
                 src={coverImage}
                 alt={product?.name ?? "Produit"}
@@ -447,6 +464,26 @@ export default function ProductPage() {
           </div>
         </div>
       )}
+
+      {lightboxSrc ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <div className="relative max-h-[90vh] max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
+            <Image
+              src={lightboxSrc}
+              alt="Aperçu"
+              width={1600}
+              height={900}
+              className="h-auto max-h-[90vh] w-auto max-w-[95vw] rounded-2xl object-contain"
+              unoptimized
+            />
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

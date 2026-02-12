@@ -126,12 +126,14 @@ function ImageCarousel({
   activeIndex,
   onActiveIndex,
   aspectClass,
+  onOpenLightbox,
 }: {
   images: string[];
   name: string;
   activeIndex: number;
   onActiveIndex: (idx: number) => void;
   aspectClass: string;
+  onOpenLightbox?: (src: string) => void;
 }) {
   const railRef = useRef<HTMLDivElement | null>(null);
 
@@ -169,10 +171,16 @@ function ImageCarousel({
         {images.map((url, idx) => {
           const display = toDisplayImageSrc(url) ?? url;
           return (
-            <div key={`${url}-${idx}`} className={`relative ${aspectClass} w-full flex-none snap-center overflow-hidden`}>
+            <button
+              key={`${url}-${idx}`}
+              type="button"
+              className={`relative ${aspectClass} w-full flex-none snap-center overflow-hidden ${onOpenLightbox ? "cursor-zoom-in" : ""}`}
+              onClick={() => onOpenLightbox?.(display)}
+              aria-label="Agrandir l'image"
+            >
               <img src={display} alt={name} className="h-full w-full object-cover" loading={idx === 0 ? "eager" : "lazy"} />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent" />
-            </div>
+            </button>
           );
         })}
       </div>
@@ -230,6 +238,7 @@ export default function ProductDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const id = params?.id;
 
   useEffect(() => {
@@ -278,6 +287,16 @@ export default function ProductDetailsPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!lightboxSrc) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxSrc(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxSrc]);
 
   const mainImage = useMemo(() => extractImage(product), [product]);
   const carouselImages = useMemo(() => extractImages(product), [product]);
@@ -389,7 +408,7 @@ export default function ProductDetailsPage() {
     triggerFlight(event.currentTarget);
   };
 
-  const handleBuyNow = (event: MouseEvent<HTMLButtonElement>) => {
+  const handleBuyNow = (_event: MouseEvent<HTMLButtonElement>) => {
     if (isRechargeDirect) {
       const qs = new URLSearchParams({
         intent: "recharge_direct",
@@ -401,8 +420,6 @@ export default function ProductDetailsPage() {
       });
       return;
     }
-    persistToCart();
-    triggerFlight(event.currentTarget);
     const rawId = product?.id ?? id;
     const checkoutProductId = Number(rawId);
 
@@ -488,6 +505,7 @@ export default function ProductDetailsPage() {
                   activeIndex={activeImageIndex}
                   onActiveIndex={setActiveImageIndex}
                   aspectClass="aspect-square"
+                  onOpenLightbox={setLightboxSrc}
                 />
               </div>
               <div className="space-y-4 rounded-[32px] border border-white/10 bg-black/40 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
@@ -547,6 +565,7 @@ export default function ProductDetailsPage() {
                 activeIndex={activeImageIndex}
                 onActiveIndex={setActiveImageIndex}
                 aspectClass="aspect-[4/3]"
+                onOpenLightbox={setLightboxSrc}
               />
 
               <div className="space-y-6">
@@ -597,6 +616,23 @@ export default function ProductDetailsPage() {
           </>
         )}
       </div>
+
+      {lightboxSrc ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightboxSrc(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt="Aperçu"
+            className="max-h-[90vh] max-w-[95vw] rounded-2xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -134,10 +134,23 @@ function MarketplaceListingClient({ id }: { id: number }) {
   }, [listing?.gallery_image_urls]);
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedImage(imageUrl);
   }, [imageUrl, id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!lightboxSrc) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxSrc(null);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxSrc]);
 
   const mainImageSrc = selectedImage || imageUrl;
 
@@ -353,11 +366,18 @@ function MarketplaceListingClient({ id }: { id: number }) {
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
             <div className="relative w-full overflow-hidden aspect-[1242/552]">
-              <img
-                src={mainImageSrc}
-                alt={listing.title}
-                className="h-full w-full object-cover"
-              />
+              <button
+                type="button"
+                onClick={() => setLightboxSrc(mainImageSrc)}
+                className="group absolute inset-0"
+                aria-label="Agrandir la photo"
+              >
+                <img
+                  src={mainImageSrc}
+                  alt={listing.title}
+                  className="h-full w-full object-cover transition group-hover:scale-[1.01] cursor-zoom-in"
+                />
+              </button>
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent" />
               <div className="absolute left-5 top-5 flex flex-wrap gap-2">
                 <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
@@ -367,16 +387,6 @@ function MarketplaceListingClient({ id }: { id: number }) {
                   <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">
                     <ShieldCheck className="h-4 w-4" />
                     Vendeur vérifié ✅
-                  </span>
-                )}
-                {badges.includes("new") && (
-                  <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
-                    🆕 Nouveau
-                  </span>
-                )}
-                {badges.includes("under_surveillance") && (
-                  <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-100">
-                    ⚠️ Sous surveillance
                   </span>
                 )}
               </div>
@@ -474,7 +484,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
                   <p className="mt-1 text-sm font-semibold text-white/85">
                     {Math.round(successRate * 100)}% succès • {totalSales} vente{totalSales > 1 ? "s" : ""}
                   </p>
-                  <p className="mt-1 text-xs text-white/55">✅ Vérifié = vendeur approuvé • ⚠️ Sous surveillance = prudence</p>
+                  <p className="mt-1 text-xs text-white/55">✅ Vérifié = vendeur approuvé</p>
                 </div>
               ) : null}
 
@@ -550,6 +560,23 @@ function MarketplaceListingClient({ id }: { id: number }) {
           </aside>
         </div>
       </div>
+
+      {lightboxSrc ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightboxSrc(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt="Aperçu"
+            className="max-h-[90vh] max-w-[95vw] rounded-2xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </main>
   );
 }
