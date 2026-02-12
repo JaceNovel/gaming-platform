@@ -121,6 +121,26 @@ function MarketplaceListingClient({ id }: { id: number }) {
     return rawGame ? (toDisplayImageSrc(rawGame) ?? rawGame) : FALLBACK_IMAGE;
   }, [listing?.game?.image, listing?.image_url]);
 
+  const gallery = useMemo(() => {
+    const urls = Array.isArray(listing?.gallery_image_urls) ? listing.gallery_image_urls : [];
+    return urls
+      .map((src, idx) => {
+        const raw = String(src ?? "").trim();
+        if (!raw) return null;
+        const safe = toDisplayImageSrc(raw) ?? raw;
+        return safe ? { raw, safe, idx } : null;
+      })
+      .filter(Boolean) as Array<{ raw: string; safe: string; idx: number }>;
+  }, [listing?.gallery_image_urls]);
+
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedImage(imageUrl);
+  }, [imageUrl, id]);
+
+  const mainImageSrc = selectedImage || imageUrl;
+
   const badges = useMemo(() => {
     const b = listing?.seller_trust?.badges;
     return Array.isArray(b) ? b.filter(Boolean) : [];
@@ -334,7 +354,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5">
             <div className="relative w-full overflow-hidden aspect-[1242/552]">
               <img
-                src={toDisplayImageSrc(imageUrl) ?? imageUrl}
+                src={mainImageSrc}
                 alt={listing.title}
                 className="h-full w-full object-cover"
               />
@@ -363,23 +383,27 @@ function MarketplaceListingClient({ id }: { id: number }) {
             </div>
 
             <div className="p-6">
-              {Array.isArray(listing.gallery_image_urls) && listing.gallery_image_urls.length ? (
+              {gallery.length ? (
                 <div className="mb-5">
                   <p className="text-xs uppercase tracking-[0.25em] text-white/50">🖼️ Photos</p>
                   <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
-                    {listing.gallery_image_urls
-                      .slice(0, 4)
-                      .map((src, idx) => ({ src, idx, safe: toDisplayImageSrc(String(src ?? "").trim()) ?? String(src ?? "").trim() }))
-                      .filter((row) => Boolean(row.safe))
-                      .map((row) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={`${row.src}_${row.idx}`}
-                          src={row.safe}
-                          alt={`photo ${row.idx + 1}`}
-                          className="h-24 w-36 flex-none rounded-2xl border border-white/10 object-cover"
-                        />
-                      ))}
+                    {gallery.slice(0, 4).map((row) => {
+                      const active = row.safe === mainImageSrc;
+                      return (
+                        <button
+                          key={`${row.raw}_${row.idx}`}
+                          type="button"
+                          onClick={() => setSelectedImage(row.safe)}
+                          className={`h-24 w-36 flex-none overflow-hidden rounded-2xl border object-cover transition ${
+                            active ? "border-cyan-300/40" : "border-white/10 hover:border-white/25"
+                          }`}
+                          aria-label={`Afficher la photo ${row.idx + 1}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={row.safe} alt={`photo ${row.idx + 1}`} className="h-full w-full object-cover" />
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ) : null}
