@@ -106,7 +106,7 @@ class FedaPayService
 
         $amount = (float) ($meta['amount'] ?? $order->total_price);
         $amountInt = (int) round($amount);
-        $currency = strtoupper((string) ($meta['currency'] ?? $this->defaultCurrency));
+        $currency = $this->sanitizeCurrency($meta['currency'] ?? $this->defaultCurrency);
 
         $description = (string) ($meta['description'] ?? sprintf('PRIME Gaming Order #%s', $order->reference ?? $order->id));
         $callbackUrl = (string) ($meta['callback_url'] ?? $this->defaultCallbackUrl ?? '');
@@ -131,10 +131,16 @@ class FedaPayService
                 // FedaPay examples accept phone_number.number and phone_number.country.
                 // If you already store international format (+229...), pass it in number.
                 $customer['phone_number'] = [
-                    'number' => $phone,
+                    // FedaPay is strict about formatting; send digits only.
+                    'number' => $digits,
                     'country' => strtolower((string) ($meta['customer_country'] ?? 'BJ')),
                 ];
             }
+        }
+
+        $customerNoPhone = $customer;
+        if (is_array($customerNoPhone)) {
+            unset($customerNoPhone['phone_number']);
         }
 
         $basePayload = [
@@ -163,6 +169,14 @@ class FedaPayService
             'currency' => ['iso' => (string) $currency],
         ], static fn ($v) => $v !== null);
 
+        // Fallbacks without phone_number (some FedaPay accounts enforce strict phone formats).
+        $payloadPrimaryNoPhone = $payloadPrimary;
+        $payloadCurrencyStringNoPhone = $payloadCurrencyString;
+        $payloadCurrencyIsoStringNoPhone = $payloadCurrencyIsoString;
+        $payloadPrimaryNoPhone['customer'] = $customerNoPhone;
+        $payloadCurrencyStringNoPhone['customer'] = $customerNoPhone;
+        $payloadCurrencyIsoStringNoPhone['customer'] = $customerNoPhone;
+
         Log::info('fedapay:init', [
             'order_id' => $order->id,
             'amount' => $amountInt,
@@ -174,13 +188,23 @@ class FedaPayService
             // Some JSON APIs expect a root "transaction" object.
             ['transaction' => $payloadPrimary],
 
+            // If phone validation fails, retry without phone.
+            $payloadPrimaryNoPhone,
+            ['transaction' => $payloadPrimaryNoPhone],
+
             // Currency as plain string.
             $payloadCurrencyString,
             ['transaction' => $payloadCurrencyString],
 
+            $payloadCurrencyStringNoPhone,
+            ['transaction' => $payloadCurrencyStringNoPhone],
+
             // Some APIs accept currency as {iso: "XOF"} but are picky about type.
             $payloadCurrencyIsoString,
             ['transaction' => $payloadCurrencyIsoString],
+
+            $payloadCurrencyIsoStringNoPhone,
+            ['transaction' => $payloadCurrencyIsoStringNoPhone],
         ]);
 
         $transactionId = Arr::get($created, 'id')
@@ -360,5 +384,16 @@ class FedaPayService
         }
 
         return null;
+    }
+
+    private function sanitizeCurrency(mixed $currency): string
+    {
+        $value = strtoupper(trim((string) ($currency ?? '')));
+        if ($value !== '' && preg_match('/^[A-Z]{3}$/', $value)) {
+            return $value;
+        }
+
+        $fallback = strtoupper(trim((string) ($this->defaultCurrency ?? 'XOF')));
+        return ($fallback !== '' && preg_match('/^[A-Z]{3}$/', $fallback)) ? $fallback : 'XOF';
     }
 }

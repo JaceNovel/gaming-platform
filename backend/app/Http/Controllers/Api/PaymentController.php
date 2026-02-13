@@ -93,7 +93,8 @@ class PaymentController extends Controller
         $rawPhone = trim((string) ($validated['customer_phone'] ?? ''));
         $digits = preg_replace('/\D+/', '', $rawPhone) ?? '';
         $allZeros = $digits !== '' && preg_match('/^0+$/', $digits);
-        $resolvedPhone = ($digits !== '' && !$allZeros && strlen($digits) >= 6) ? $rawPhone : null;
+        // FedaPay is strict about the format; send digits-only when available.
+        $resolvedPhone = ($digits !== '' && !$allZeros && strlen($digits) >= 6) ? $digits : null;
 
         // Persist customer's phone on the order so it can be used for SMS after payment.
         if ($digits !== '' && !$allZeros && strlen($digits) >= 6) {
