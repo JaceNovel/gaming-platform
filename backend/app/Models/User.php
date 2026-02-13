@@ -48,6 +48,8 @@ class User extends Authenticatable
         'premium_level',
         'premium_expiration',
         'referral_code',
+        'last_seen_at',
+        'reengagement_push_sent_at',
     ];
 
     /**
@@ -71,6 +73,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'premium_expiration' => 'datetime',
+            'last_seen_at' => 'datetime',
+            'reengagement_push_sent_at' => 'datetime',
         ];
     }
 

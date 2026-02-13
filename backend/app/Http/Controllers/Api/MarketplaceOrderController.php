@@ -201,6 +201,8 @@ class MarketplaceOrderController extends Controller
             'photos.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
         ]);
 
+        $uploadsDisk = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+
         $marketplaceOrder = MarketplaceOrder::query()->where('order_id', $orderModel->id)->with(['listing', 'seller'])->first();
         if (!$marketplaceOrder) {
             return response()->json(['message' => 'Marketplace order not found.'], 404);
@@ -221,7 +223,7 @@ class MarketplaceOrderController extends Controller
                 if ($request->hasFile('photos')) {
                     $paths = is_array($existing->evidence) ? $existing->evidence : [];
                     foreach ($request->file('photos', []) as $file) {
-                        $paths[] = $file->store('disputes/' . $existing->id, 'public');
+                        $paths[] = $file->store('disputes/' . $existing->id, $uploadsDisk);
                     }
                     $existing->evidence = array_values(array_unique(array_filter($paths)));
                 }
@@ -244,7 +246,7 @@ class MarketplaceOrderController extends Controller
             if ($request->hasFile('photos')) {
                 $paths = [];
                 foreach ($request->file('photos', []) as $file) {
-                    $paths[] = $file->store('disputes/' . $dispute->id, 'public');
+                    $paths[] = $file->store('disputes/' . $dispute->id, $uploadsDisk);
                 }
                 $dispute->evidence = array_values(array_unique(array_filter($paths)));
                 $dispute->save();

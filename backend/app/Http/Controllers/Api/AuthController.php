@@ -58,6 +58,7 @@ class AuthController extends Controller
             'avatar_id' => 'shadow_default',
             'premium_tier' => 'Bronze',
             'is_premium' => false,
+            'last_seen_at' => now(),
         ]);
 
         // Ensure every user can share a code (growth / viral loops).
@@ -117,6 +118,12 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('api-token')->plainTextToken;
+
+        try {
+            $user->forceFill(['last_seen_at' => now()])->save();
+        } catch (\Throwable) {
+            // best-effort
+        }
 
         return response()->json([
             'user' => $this->transformUser($user),

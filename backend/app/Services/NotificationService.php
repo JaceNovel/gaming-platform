@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendUsersWebPushMessage;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -9,6 +10,11 @@ class NotificationService
 {
     public function broadcast(string $type, string $message): void
     {
+        $message = trim($message);
+        if ($message === '') {
+            return;
+        }
+
         $now = now();
         User::query()->select('id')->chunkById(500, function ($users) use ($type, $message, $now) {
             $rows = [];
@@ -24,6 +30,18 @@ class NotificationService
             }
             if (!empty($rows)) {
                 Notification::insert($rows);
+
+                try {
+                    $userIds = $users->pluck('id')->map(fn ($id) => (int) $id)->all();
+                    SendUsersWebPushMessage::dispatch(
+                        userIds: $userIds,
+                        title: 'PRIME Gaming',
+                        body: $message,
+                        url: '/notifications'
+                    )->afterCommit();
+                } catch (\Throwable) {
+                    // best-effort
+                }
             }
         });
     }

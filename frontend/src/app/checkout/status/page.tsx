@@ -30,30 +30,8 @@ function CheckoutStatusRedirect() {
       return;
     }
 
-    let active = true;
-    (async () => {
-      try {
-        const redeemRes = await authFetch(`${API_BASE}/orders/${encodeURIComponent(order)}/redeem-codes`);
-        const redeemPayload = await redeemRes.json().catch(() => null);
-        const hasRedeemItems = redeemRes.ok ? Boolean(redeemPayload?.has_redeem_items) : false;
-
-        if (!active) return;
-        if (hasRedeemItems) {
-          router.replace(`/codes?${params.toString()}`);
-          return;
-        }
-      } catch {
-        // ignore
-      }
-
-      if (!active) return;
-      const target = params.toString() ? `/account?${params.toString()}` : "/account";
-      router.replace(target);
-    })();
-
-    return () => {
-      active = false;
-    };
+    const target = params.toString() ? `/account?${params.toString()}` : "/account";
+    router.replace(target);
   }, [authFetch, router, searchParams]);
 
   return null;

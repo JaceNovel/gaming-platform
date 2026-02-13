@@ -8,11 +8,20 @@ use Illuminate\Support\Facades\Storage;
 
 class PublicStorageController extends Controller
 {
-    private function isAllowedLegacyFallbackPath(string $path): bool
+    /**
+     * @return array<int, string>
+     */
+    private function legacyFallbackDisksForPath(string $path): array
     {
-        // Only allow fallbacks for assets that are meant to be publicly visible.
-        // Do NOT add sensitive prefixes here (e.g. KYC).
-        return str_starts_with($path, 'seller-listings/');
+        // NOTE: Keep this list intentionally small; this controller serves public files.
+        // Dispute evidence is displayed in the UI, so it must remain publicly fetchable.
+        if (str_starts_with($path, 'seller-listings/') || str_starts_with($path, 'disputes/')) {
+            // Older deployments stored files in the local "public" disk (storage/app/public).
+            // Some older jobs stored in the local disk (storage/app).
+            return ['public', 'local'];
+        }
+
+        return [];
     }
 
     public function show(Request $request, string $path)
@@ -28,25 +37,26 @@ class PublicStorageController extends Controller
         $disk = Storage::disk($diskName);
 
         if (!$disk->exists($path)) {
-            // Legacy fallback: older deployments stored some public assets on the local disk.
-            // If we find them, we stream them and best-effort migrate to the public disk.
-            if ($this->isAllowedLegacyFallbackPath($path)) {
-                $local = Storage::disk('local');
-                if ($local->exists($path)) {
-                    try {
-                        // Best-effort migrate into the configured public disk (local or S3).
-                        if (!$disk->exists($path)) {
-                            $disk->put($path, $local->get($path));
-                        }
-                    } catch (\Throwable $e) {
-                        // Best-effort: still serve from local.
-                    }
-
-                    $resp = $local->response($path);
-                    $resp->headers->set('Cache-Control', 'public, max-age=86400');
-                    $resp->headers->set('X-Storage-Source', 'local');
-                    return $resp;
+            // Legacy fallback: older deployments stored some public assets on other disks.
+            // If we find them, we stream them and best-effort migrate to the configured disk.
+            foreach ($this->legacyFallbackDisksForPath($path) as $fallbackDiskName) {
+                $fallbackDisk = Storage::disk($fallbackDiskName);
+                if (!$fallbackDisk->exists($path)) {
+                    continue;
                 }
+
+                try {
+                    if (!$disk->exists($path)) {
+                        $disk->put($path, $fallbackDisk->get($path));
+                    }
+                } catch (\Throwable $e) {
+                    // Best-effort: still serve from fallback.
+                }
+
+                $resp = $fallbackDisk->response($path);
+                $resp->headers->set('Cache-Control', 'public, max-age=86400');
+                $resp->headers->set('X-Storage-Source', $fallbackDiskName);
+                return $resp;
             }
 
             return response()->json(['message' => 'File not found.'], 404);

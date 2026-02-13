@@ -7,6 +7,7 @@ import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
 import { onNotificationsPrefChanged, readNotificationsEnabled, writeNotificationsEnabled } from "@/lib/notificationPrefs";
+import { canUseWebPush, urlBase64ToUint8Array } from "@/lib/webPush";
 
 type NotificationItem = {
   id: number;
@@ -24,6 +25,12 @@ function NotificationsClient() {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
+
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
 
   const stateLabel = useMemo(() => (enabled ? "Activées ✅" : "Désactivées"), [enabled]);
 
@@ -52,6 +59,136 @@ function NotificationsClient() {
     void load();
     return off;
   }, []);
+
+  const refreshPushState = async () => {
+    if (typeof window === "undefined") return;
+
+    const supported = canUseWebPush() && "Notification" in window;
+    setPushSupported(supported);
+    setPushPermission(supported ? Notification.permission : "unsupported");
+
+    if (!supported) {
+      setPushSubscribed(false);
+      return;
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      setPushSubscribed(Boolean(sub));
+    } catch {
+      setPushSubscribed(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshPushState();
+  }, []);
+
+  const subscribePush = async () => {
+    if (typeof window === "undefined") return;
+    setPushBusy(true);
+    setPushError(null);
+    try {
+      if (!canUseWebPush() || !("Notification" in window)) {
+        setPushError("Notifications push non supportées sur ce navigateur.");
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      setPushPermission(permission);
+      if (permission !== "granted") {
+        setPushError("Autorisation refusée. Active les notifications dans le navigateur.");
+        return;
+      }
+
+      const keyRes = await fetch(`${API_BASE}/push/vapid-public-key`, { cache: "no-store" });
+      const keyPayload = await keyRes.json().catch(() => null);
+      const publicKey = String(keyPayload?.publicKey ?? "").trim();
+      if (!keyRes.ok || !publicKey) {
+        setPushError("Push non configuré côté serveur (VAPID public key manquante).");
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+
+      const subJson = (subscription as any).toJSON?.() ?? {};
+      const endpoint = String(subJson?.endpoint ?? subscription.endpoint ?? "").trim();
+      const keys = subJson?.keys ?? {};
+
+      const res = await authFetch(`${API_BASE}/push/subscribe`, {
+        method: "POST",
+        body: JSON.stringify({
+          endpoint,
+          keys,
+          contentEncoding: "aesgcm",
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Impossible d'activer les notifications push.");
+      }
+
+      setPushSubscribed(true);
+    } catch (e: any) {
+      setPushError(e?.message ?? "Erreur lors de l'activation push");
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const unsubscribePush = async () => {
+    if (typeof window === "undefined") return;
+    setPushBusy(true);
+    setPushError(null);
+    try {
+      if (!canUseWebPush()) {
+        setPushSubscribed(false);
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        setPushSubscribed(false);
+        return;
+      }
+
+      const endpoint = String((sub as any)?.endpoint ?? "").trim();
+      if (endpoint) {
+        await authFetch(`${API_BASE}/push/unsubscribe`, {
+          method: "POST",
+          body: JSON.stringify({ endpoint }),
+        }).catch(() => null);
+      }
+
+      await sub.unsubscribe().catch(() => null);
+      setPushSubscribed(false);
+    } catch (e: any) {
+      setPushError(e?.message ?? "Erreur lors de la désactivation push");
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const testPush = async () => {
+    setPushBusy(true);
+    setPushError(null);
+    try {
+      const res = await authFetch(`${API_BASE}/push/test`, { method: "POST" });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Test push impossible");
+      }
+    } catch (e: any) {
+      setPushError(e?.message ?? "Test push impossible");
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const toggle = async () => {
     setBusy(true);
@@ -104,6 +241,54 @@ function NotificationsClient() {
             </GlowButton>
             <GlowButton variant="secondary" className="flex-1 justify-center" onClick={() => void load()} disabled={busy}>
               Rafraîchir
+            </GlowButton>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-5">
+          <p className="text-sm font-semibold">Notifications téléphone (push)</p>
+          <p className="mt-1 text-sm text-white/70">
+            {pushSupported ? (
+              pushSubscribed ? "Activées ✅ (elles apparaîtront dans les notifications du téléphone)" : "Désactivées"
+            ) : (
+              "Non supporté sur ce navigateur"
+            )}
+          </p>
+          <p className="mt-2 text-xs text-white/55">
+            Sur iPhone, ça marche surtout après "Ajouter à l'écran d'accueil" (PWA) et avec l'autorisation activée.
+          </p>
+
+          {pushError ? (
+            <div className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              {pushError}
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            {pushSubscribed ? (
+              <GlowButton className="flex-1 justify-center" onClick={unsubscribePush} disabled={pushBusy}>
+                Désactiver push
+              </GlowButton>
+            ) : (
+              <GlowButton className="flex-1 justify-center" onClick={subscribePush} disabled={pushBusy || !pushSupported}>
+                Activer push
+              </GlowButton>
+            )}
+            <GlowButton
+              variant="secondary"
+              className="flex-1 justify-center"
+              onClick={() => void refreshPushState()}
+              disabled={pushBusy}
+            >
+              Vérifier
+            </GlowButton>
+            <GlowButton
+              variant="secondary"
+              className="flex-1 justify-center"
+              onClick={testPush}
+              disabled={pushBusy || !pushSubscribed}
+            >
+              Tester
             </GlowButton>
           </div>
         </div>

@@ -30,6 +30,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('premium:expire --limit=500')
             ->everyMinute()
             ->withoutOverlapping();
+
+        // Re-engagement push for users inactive for 2 days.
+        $schedule->command('notifications:reengage-inactive-users --days=2 --limit=5000')
+            ->dailyAt('10:00')
+            ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
@@ -38,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'requireRole' => \App\Http\Middleware\RoleMiddleware::class,
             'permission' => \App\Http\Middleware\PermissionMiddleware::class,
+            'lastSeen' => \App\Http\Middleware\UpdateLastSeenAt::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

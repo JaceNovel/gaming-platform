@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductTag;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -103,6 +104,24 @@ class AdminProductController extends Controller
         }
 
         $product = Product::create($data);
+
+        try {
+            $isActive = (bool) ($product->is_active ?? false);
+            $type = strtolower((string) ($product->type ?? ''));
+            // Notify only for new active "item" products (articles) to avoid spamming for internal catalog changes.
+            if ($isActive && $type === 'item') {
+                $title = (string) ($product->title ?? $product->name ?? '');
+                $title = trim($title);
+                if ($title !== '') {
+                    app(NotificationService::class)->broadcast(
+                        type: 'new_product',
+                        message: "Nouveau produit ajouté : {$title}",
+                    );
+                }
+            }
+        } catch (\Throwable) {
+            // best-effort
+        }
 
         $this->syncServerTags($product, $request->input('server_tags'));
 

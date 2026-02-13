@@ -155,7 +155,7 @@ Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFree
 Route::get('/push/vapid-public-key', [PushController::class, 'vapidPublicKey']);
 
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
 
     // Products actions
     Route::post('products/{product}/like', [ProductController::class, 'like']);
@@ -268,7 +268,7 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Admin routes
-Route::middleware(['auth:sanctum', 'admin', 'requireRole:admin_super,admin_manager,admin_support,admin_marketing,viewer,admin,staff,admin_article,admin_client'])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super,admin_manager,admin_support,admin_marketing,viewer,admin,staff,admin_article,admin_client'])->prefix('admin')->group(function () {
     Route::get('/me', AdminMeController::class);
     Route::get('/dashboard', [AdminDashboardController::class, 'overview']);
     Route::get('/activity/recent', [\App\Http\Controllers\Api\AdminActivityController::class, 'recent'])

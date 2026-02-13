@@ -291,6 +291,7 @@ function AccountClient() {
   const [thankYouTitle, setThankYouTitle] = useState<string>("Paiement confirmé");
   const [thankYouMessage, setThankYouMessage] = useState<string>("Ton achat est confirmé.");
   const [thankYouTrackTarget, setThankYouTrackTarget] = useState<string | null>(null);
+  const [thankYouRedeemOrderId, setThankYouRedeemOrderId] = useState<string | null>(null);
 
   const [phoneOld, setPhoneOld] = useState<string>("");
   const [phoneNew, setPhoneNew] = useState<string>("");
@@ -347,6 +348,7 @@ function AccountClient() {
     setThankYouOpen(false);
     setPaymentBanner(null);
     setThankYouTrackTarget(null);
+    setThankYouRedeemOrderId(null);
     router.replace('/account');
   };
 
@@ -372,6 +374,7 @@ function AccountClient() {
     setThankYouTitle('Paiement confirmé');
     setThankYouMessage('Ton achat est confirmé.');
     setThankYouTrackTarget(null);
+    setThankYouRedeemOrderId(null);
     setThankYouOpen(true);
 
     if (!HAS_API_ENV || !orderId) return;
@@ -413,12 +416,12 @@ function AccountClient() {
 
         if (!active) return;
 
-        // Redeem-code orders -> redirect to Mes codes
+        // Redeem-code orders -> show action button to Mes codes
         if (hasRedeemItems) {
-          const params = new URLSearchParams();
-          params.set('payment_status', status);
-          params.set('order', orderId);
-          router.replace(`/codes?${params.toString()}`);
+          setThankYouTitle('Merci pour ton achat');
+          setThankYouMessage('Ton paiement est confirmé. Clique sur Recharger pour voir tes codes.');
+          setThankYouTrackTarget(null);
+          setThankYouRedeemOrderId(orderId);
           return;
         }
 
@@ -1048,6 +1051,19 @@ function AccountClient() {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/15 transition"
                 >
                   Suivre
+                </button>
+              ) : null}
+
+              {thankYouRedeemOrderId ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeThankYou();
+                    router.push("/codes");
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/15 transition"
+                >
+                  Recharger
                 </button>
               ) : null}
 
