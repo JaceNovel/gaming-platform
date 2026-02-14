@@ -134,12 +134,12 @@ export default function RootLayout({
   }
 })();`}
         </Script>
-        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-66BKKJ3F7B" />
+        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-57FLWN4ZND" />
         <Script id="gtag-init">
           {`window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
-gtag('config', 'G-66BKKJ3F7B');`}
+      gtag('config', 'G-57FLWN4ZND');`}
         </Script>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       </head>
