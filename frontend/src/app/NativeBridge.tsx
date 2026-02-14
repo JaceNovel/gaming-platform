@@ -65,7 +65,7 @@ const toIntegrityNonce = () => {
   }
 
   const bytes = new Uint8Array(16);
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
     crypto.getRandomValues(bytes);
   } else {
     for (let i = 0; i < bytes.length; i += 1) {
