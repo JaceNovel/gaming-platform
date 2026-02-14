@@ -679,8 +679,8 @@ function SellerPageClient() {
     const goNext = () => setStep((p) => Math.min(steps.length, p + 1));
 
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-4 backdrop-blur sm:items-center">
-        <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl">
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 px-4 pb-[calc(96px+env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:items-center sm:p-4">
+        <div className="flex max-h-[calc(100dvh-6.5rem-env(safe-area-inset-bottom))] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
           <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
             <div>
               <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Annonces</p>
