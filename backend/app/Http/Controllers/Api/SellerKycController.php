@@ -86,6 +86,26 @@ class SellerKycController extends Controller
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
+        $seller = Seller::query()->where('user_id', $user->id)->first();
+
+        $acceptTermsInput = $request->input('acceptTerms', $request->input('accept_terms'));
+        if ($acceptTermsInput === null && $seller?->terms_accepted_at) {
+            $acceptTermsInput = true;
+        }
+
+        $request->merge([
+            'fullName' => $request->input('fullName', $request->input('full_name')),
+            'companyName' => $request->input('companyName', $request->input('company_name')),
+            'whatsappNumber' => $request->input('whatsappNumber', $request->input('whatsapp_number')),
+            'dob' => $request->input('dob', $request->input('date_of_birth')),
+            'country' => $request->input('country', $request->input('kyc_country')),
+            'city' => $request->input('city', $request->input('kyc_city')),
+            'address' => $request->input('address', $request->input('kyc_address')),
+            'idType' => $request->input('idType', $request->input('id_type')),
+            'idNumber' => $request->input('idNumber', $request->input('id_number')),
+            'acceptTerms' => $acceptTermsInput,
+        ]);
+
         $data = $request->validate([
             'fullName' => ['required', 'string', 'max:120'],
             'companyName' => ['required', 'string', 'max:120'],
@@ -98,8 +118,6 @@ class SellerKycController extends Controller
             'idNumber' => ['required', 'string', 'max:64'],
             'acceptTerms' => ['required', 'accepted'],
         ]);
-
-        $seller = Seller::query()->where('user_id', $user->id)->first();
 
         if ($seller && in_array($seller->status, ['suspended', 'banned'], true)) {
             throw ValidationException::withMessages([
