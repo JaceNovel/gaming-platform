@@ -41,6 +41,8 @@ use App\Http\Controllers\Api\ImageProxyController;
 use App\Http\Controllers\Api\MeRedeemController;
 use App\Http\Controllers\Api\SellerKycController;
 use App\Http\Controllers\Api\PartnerWalletController;
+use App\Http\Controllers\Api\DeviceTokenController;
+use App\Http\Controllers\Api\PlayIntegrityController;
 use App\Http\Controllers\Api\AdminMarketplaceWithdrawController;
 use App\Http\Controllers\Api\AdminMarketplaceOrderController;
 use App\Http\Controllers\Api\MarketplaceListingController;
@@ -157,12 +159,15 @@ Route::get('/push/vapid-public-key', [PushController::class, 'vapidPublicKey']);
 // Protected routes
 Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
 
+    // Play Integrity verification (soft gate for sensitive actions)
+    Route::post('/play-integrity/verify', [PlayIntegrityController::class, 'verify']);
+
     // Products actions
     Route::post('products/{product}/like', [ProductController::class, 'like']);
         Route::post('likes/toggle', [LikeController::class, 'toggle']);
 
     // Orders
-    Route::apiResource('orders', OrderController::class)->only(['index', 'show', 'store']);
+    Route::apiResource('orders', OrderController::class)->only(['index', 'show']);
     Route::get('/orders/{order}/redeem-codes', [OrderController::class, 'redeemCodes']);
     Route::post('/orders/{order}/redeem-codes/resend', [OrderController::class, 'resendRedeemCodes']);
 
@@ -171,20 +176,11 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     Route::post('/cart/add', [CartController::class, 'add']);
 
     // Payments
-    Route::post('/payments/cinetpay/init', [PaymentController::class, 'init'])->name('api.payments.cinetpay.init');
     Route::get('/payments/cinetpay/status', [PaymentController::class, 'status'])->name('api.payments.cinetpay.status');
-
-    Route::post('/payments/fedapay/init', [PaymentController::class, 'initFedapay'])->name('api.payments.fedapay.init');
     Route::get('/payments/fedapay/status', [PaymentController::class, 'statusFedapay'])->name('api.payments.fedapay.status');
-
-    Route::post('/payments/wallet/pay', [PaymentController::class, 'payWithWallet'])->name('api.payments.wallet.pay');
 
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);
-    Route::post('/premium/init', [PremiumController::class, 'init']);
-    Route::post('/premium/init-wallet', [PremiumController::class, 'initWallet']);
-    Route::post('/premium/subscribe', [PremiumController::class, 'subscribe']);
-    Route::post('/premium/cancel', [PremiumController::class, 'cancel']);
 
     // Chat
     Route::get('/chat/rooms', [ChatController::class, 'rooms']);
@@ -201,6 +197,23 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     Route::get('/wallet', [WalletController::class, 'show']);
     Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
 
+    // Sensitive actions (Play Integrity required)
+    Route::middleware('playIntegrity')->group(function () {
+        // Orders
+        Route::post('orders', [OrderController::class, 'store']);
+
+        // Payments
+        Route::post('/payments/cinetpay/init', [PaymentController::class, 'init'])->name('api.payments.cinetpay.init');
+        Route::post('/payments/fedapay/init', [PaymentController::class, 'initFedapay'])->name('api.payments.fedapay.init');
+        Route::post('/payments/wallet/pay', [PaymentController::class, 'payWithWallet'])->name('api.payments.wallet.pay');
+
+        // Premium
+        Route::post('/premium/init', [PremiumController::class, 'init']);
+        Route::post('/premium/init-wallet', [PremiumController::class, 'initWallet']);
+        Route::post('/premium/subscribe', [PremiumController::class, 'subscribe']);
+        Route::post('/premium/cancel', [PremiumController::class, 'cancel']);
+    });
+
     // Referrals
     Route::get('/referrals/me', [ReferralController::class, 'me']);
     Route::post('/referrals/generate', [ReferralController::class, 'generate']);
@@ -209,6 +222,10 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     Route::post('/push/subscribe', [PushController::class, 'subscribe']);
     Route::post('/push/unsubscribe', [PushController::class, 'unsubscribe']);
     Route::post('/push/test', [PushController::class, 'test']);
+
+    // Native Push (FCM/APNS tokens)
+    Route::post('/device-tokens', [DeviceTokenController::class, 'store']);
+    Route::delete('/device-tokens', [DeviceTokenController::class, 'destroy']);
 
     // Profile
     Route::get('/me/profile', [UserProfileController::class, 'show']);
@@ -240,7 +257,8 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
 
         // DB Partner wallet
         Route::get('/partner-wallet', [PartnerWalletController::class, 'show']);
-        Route::post('/partner-wallet/withdraw', [PartnerWalletController::class, 'requestWithdraw']);
+        Route::post('/partner-wallet/withdraw', [PartnerWalletController::class, 'requestWithdraw'])
+            ->middleware('playIntegrity');
 
         // Seller listings
         Route::get('/listings/mine', [MarketplaceListingController::class, 'mine']);
@@ -249,7 +267,8 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
         Route::patch('/listings/{sellerListing}/status', [MarketplaceListingController::class, 'setStatus']);
 
         // Buyer checkout + post-payment WhatsApp reveal
-        Route::post('/listings/{sellerListing}/checkout', [MarketplaceCheckoutController::class, 'checkout']);
+        Route::post('/listings/{sellerListing}/checkout', [MarketplaceCheckoutController::class, 'checkout'])
+            ->middleware('playIntegrity');
         Route::get('/orders/{order}/whatsapp', [MarketplaceOrderController::class, 'whatsapp']);
 
         // Buyer delivery tracking

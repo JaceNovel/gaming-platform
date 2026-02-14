@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "742521755072",
+    "project_id": "primegaming-3ebb6",
+    "storage_bucket": "primegaming-3ebb6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:742521755072:android:cbdb82e0f73d1ae3b42425",
+        "android_client_info": {
+          "package_name": "space.primegaming.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCev7OIRVl_3xMtjY_EjA_wrqKJvuwZHJo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

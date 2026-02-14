@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { API_BASE } from "@/lib/config";
 const STORAGE_KEY = "bbshop_token";
 const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
@@ -145,6 +146,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Force JSON behavior on Laravel (prevents 302 redirects on validation/auth errors).
     headers.set("Accept", "application/json");
     headers.set("X-Requested-With", "XMLHttpRequest");
+    try {
+      if (typeof window !== "undefined") {
+        const platform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : "web";
+        headers.set("X-Client-Platform", platform);
+      }
+    } catch {
+      // ignore
+    }
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
@@ -156,6 +165,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const parseErrorMessage = async (res: Response) => {
     const payload = await res.clone().json().catch(() => null);
+    if (payload?.code === "INTEGRITY_BLOCK") {
+      return payload?.message || "Verification de securite requise";
+    }
     if (payload?.message) {
       return payload.message;
     }

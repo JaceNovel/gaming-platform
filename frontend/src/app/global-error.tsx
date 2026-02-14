@@ -2,8 +2,10 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { Capacitor } from "@capacitor/core";
 import { API_BASE } from "@/lib/config";
 import { openTidioChat } from "@/lib/tidioChat";
+import { FirebaseBridge } from "@/lib/native/firebaseBridge";
 
 export default function GlobalError({
   error,
@@ -32,6 +34,14 @@ export default function GlobalError({
           },
         }),
       }).catch(() => null);
+    } catch {
+      // ignore
+    }
+
+    try {
+      if (Capacitor.isNativePlatform()) {
+        FirebaseBridge.recordException({ message: error?.message || "Unknown client error" }).catch(() => null);
+      }
     } catch {
       // ignore
     }

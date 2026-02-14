@@ -10,6 +10,7 @@ import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { onWalletUpdated } from "@/lib/walletEvents";
 import { onNotificationsPrefChanged, readNotificationsEnabled } from "@/lib/notificationPrefs";
+import { getCachedRemoteConfig } from "@/lib/remoteConfig";
 
 type NotificationItem = {
   id: number;
@@ -55,6 +56,8 @@ export default function AppHeader() {
   const [showInbox, setShowInbox] = useState(false);
 
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
+  const [remoteConfig, setRemoteConfig] = useState(getCachedRemoteConfig());
+  const [countdownLabel, setCountdownLabel] = useState<string | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const menuButtonRefs = useRef<Record<MenuKey, HTMLButtonElement | null>>({
     recharge: null,
@@ -86,6 +89,48 @@ export default function AppHeader() {
     mq.addListener(update);
     return () => mq.removeListener(update);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncRemoteConfig = () => setRemoteConfig(getCachedRemoteConfig());
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") syncRemoteConfig();
+    };
+
+    syncRemoteConfig();
+    window.addEventListener("storage", syncRemoteConfig);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.removeEventListener("storage", syncRemoteConfig);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
+    const deadline = remoteConfig.promoDeadlineIso ? new Date(remoteConfig.promoDeadlineIso) : null;
+    if (!remoteConfig.countdownEnabled || !deadline || Number.isNaN(deadline.getTime())) {
+      setCountdownLabel(null);
+      return;
+    }
+
+    const compute = () => {
+      const diff = deadline.getTime() - Date.now();
+      if (diff <= 0) {
+        setCountdownLabel(null);
+        return;
+      }
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      setCountdownLabel(hours > 0 ? `${hours}h ${mins}m` : `${mins}m`);
+    };
+
+    compute();
+    const timer = window.setInterval(compute, 60000);
+    return () => window.clearInterval(timer);
+  }, [remoteConfig.countdownEnabled, remoteConfig.promoDeadlineIso]);
 
   const loadWallet = useCallback(async () => {
     if (!token) {
@@ -354,6 +399,9 @@ export default function AppHeader() {
     return "VIP Bronze 🥉";
   }, [user?.is_premium, user?.premium_level]);
 
+  const promoActive =
+    remoteConfig.marketingEnabled && remoteConfig.promoEnabled && remoteConfig.promoBannerText.trim() !== "";
+
   return (
     <>
       <header
@@ -362,6 +410,23 @@ export default function AppHeader() {
         }}
         className="fixed top-0 z-50 hidden w-full border-b border-white/10 bg-gradient-to-r from-[#0b0214]/85 via-[#22063d]/75 to-[#0b0214]/85 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur lg:block"
       >
+        {promoActive ? (
+          <div className="border-b border-white/10 bg-white/5">
+            <div className="mx-auto flex max-w-7xl items-center justify-center gap-3 px-6 py-2 text-xs font-semibold text-white/85">
+              <span>🎯 {remoteConfig.promoBannerText}</span>
+              {countdownLabel ? (
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] uppercase tracking-wide text-cyan-200">
+                  {countdownLabel}
+                </span>
+              ) : null}
+              {remoteConfig.promoCtaUrl ? (
+                <Link href={remoteConfig.promoCtaUrl} className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] text-white/90">
+                  Voir l'offre
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <div className="mx-auto w-full max-w-7xl px-6">
           <div className="flex h-[64px] w-full items-center justify-between gap-6 whitespace-nowrap">
             <Link href="/" className="flex items-center gap-3">

@@ -41,6 +41,13 @@ Si usage de cookies/Sanctum:
 
 - `CORS_SUPPORTS_CREDENTIALS=true`
 
+### Play Integrity (Android)
+
+- `PLAY_INTEGRITY_PACKAGE_NAME=space.primegaming.app`
+- `PLAY_INTEGRITY_SERVICE_ACCOUNT_JSON=` (contenu JSON complet, optionnel)
+- `PLAY_INTEGRITY_SERVICE_ACCOUNT_PATH=/path/to/service-account.json` (optionnel)
+- `SUPPORT_URL=https://space.primegaming.app/support`
+
 ## Endpoints requis par le frontend
 
 - `POST /api/register`
@@ -71,6 +78,25 @@ Si usage de cookies/Sanctum:
 3) Configurer l’URL front dans `FRONTEND_URL`
 
 URL base API en prod: `https://TON_BACKEND_URL/api`
+
+## App Links
+
+Le fichier App Links doit etre servi par le backend:
+
+- `backend/public/.well-known/assetlinks.json`
+
+## Push segmentation (FCM/Web)
+
+Commandes utiles:
+
+- `php artisan notifications:send-segment new_users_24h --body="Bienvenue sur PRIME Gaming" --url=/shop`
+- `php artisan notifications:send-segment inactive_7d --body="Tu nous manques" --url=/shop`
+- `php artisan notifications:send-segment free_fire_buyers --body="Promo Free Fire" --url=/recharges/free-fire`
+- `php artisan notifications:send-segment premium --body="Avantages VIP" --url=/account`
+
+Panier abandonne:
+
+- `php artisan notifications:cart-abandoned --hours=6 --order-hours=24`
 
 ## Checklist rapide
 

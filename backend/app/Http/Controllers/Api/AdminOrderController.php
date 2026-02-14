@@ -13,6 +13,7 @@ use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
 use App\Jobs\ProcessMarketplaceOrder;
 use App\Models\MarketplaceOrder;
+use App\Models\Notification;
 use App\Services\AdminAuditLogger;
 use App\Services\WalletService;
 use App\Services\ShippingService;
@@ -115,6 +116,23 @@ class AdminOrderController extends Controller
 
         $order->status = strtoupper($data['status']);
         $order->save();
+
+        if ($order->user_id) {
+            $label = strtolower((string) $order->status);
+            $message = match ($label) {
+                'payment_success' => 'Paiement confirme. Nous preparons ta commande.',
+                'payment_failed' => 'Paiement echoue. Verifie tes moyens de paiement.',
+                'payment_processing' => 'Paiement en cours de verification.',
+                default => 'Mise a jour du statut de commande: ' . strtoupper($label),
+            };
+
+            Notification::create([
+                'user_id' => $order->user_id,
+                'type' => 'order_status',
+                'message' => $message,
+                'is_read' => false,
+            ]);
+        }
 
         return response()->json(['order' => $order]);
     }

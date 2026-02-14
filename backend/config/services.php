@@ -48,4 +48,10 @@ return [
         'webhook' => env('DISCORD_WEBHOOK_URL'),
     ],
 
+    'play_integrity' => [
+        'package_name' => env('PLAY_INTEGRITY_PACKAGE_NAME', 'space.primegaming.app'),
+        'service_account_json' => env('PLAY_INTEGRITY_SERVICE_ACCOUNT_JSON'),
+        'service_account_path' => env('PLAY_INTEGRITY_SERVICE_ACCOUNT_PATH'),
+    ],
+
 ];

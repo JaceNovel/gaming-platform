@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\SendUsersFcmPushMessage;
 use App\Jobs\SendUsersWebPushMessage;
 use App\Models\Notification;
 use App\Models\User;
@@ -84,6 +85,17 @@ class SendInactiveUsersPushNotifications extends Command
 
             try {
                 SendUsersWebPushMessage::dispatch(
+                    userIds: $userIds,
+                    title: 'PRIME Gaming',
+                    body: $message,
+                    url: '/shop'
+                );
+            } catch (\Throwable) {
+                // best-effort
+            }
+
+            try {
+                SendUsersFcmPushMessage::dispatch(
                     userIds: $userIds,
                     title: 'PRIME Gaming',
                     body: $message,

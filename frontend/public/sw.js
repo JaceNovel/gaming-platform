@@ -1,12 +1,25 @@
 /* global self */
 
+const RUNTIME_CACHE = "prime-runtime-v1";
+const OFFLINE_URL = "/offline.html";
+
 // Take over ASAP and purge any legacy caches from previous SW versions.
-self.addEventListener("install", function () {
-  try {
-    self.skipWaiting();
-  } catch (e) {
-    // ignore
-  }
+self.addEventListener("install", function (event) {
+  event.waitUntil(
+    (async () => {
+      try {
+        const cache = await caches.open(RUNTIME_CACHE);
+        await cache.addAll([OFFLINE_URL]);
+      } catch (e) {
+        // ignore
+      }
+      try {
+        self.skipWaiting();
+      } catch (e) {
+        // ignore
+      }
+    })()
+  );
 });
 
 self.addEventListener("activate", function (event) {
@@ -73,4 +86,35 @@ self.addEventListener("notificationclick", function (event) {
       return undefined;
     })
   );
+});
+
+self.addEventListener("fetch", function (event) {
+  const req = event.request;
+  if (req.method !== "GET") return;
+
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req).catch(async () => {
+        const cached = await caches.match(OFFLINE_URL);
+        return cached || Response.error();
+      })
+    );
+    return;
+  }
+
+  if (req.destination === "image") {
+    event.respondWith(
+      caches.open(RUNTIME_CACHE).then(async (cache) => {
+        const cached = await cache.match(req);
+        const fetchPromise = fetch(req)
+          .then((res) => {
+            if (res && res.ok) cache.put(req, res.clone());
+            return res;
+          })
+          .catch(() => null);
+
+        return cached || (await fetchPromise) || Response.error();
+      })
+    );
+  }
 });

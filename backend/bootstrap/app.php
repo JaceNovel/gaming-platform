@@ -35,6 +35,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('notifications:reengage-inactive-users --days=2 --limit=5000')
             ->dailyAt('10:00')
             ->withoutOverlapping();
+
+        // Abandoned cart reminders (every 2 hours).
+        $schedule->command('notifications:cart-abandoned --hours=6 --order-hours=24 --limit=3000')
+            ->everyTwoHours()
+            ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
@@ -44,6 +49,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'requireRole' => \App\Http\Middleware\RoleMiddleware::class,
             'permission' => \App\Http\Middleware\PermissionMiddleware::class,
             'lastSeen' => \App\Http\Middleware\UpdateLastSeenAt::class,
+            'playIntegrity' => \App\Http\Middleware\EnsurePlayIntegrity::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

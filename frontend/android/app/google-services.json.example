@@ -1,0 +1,8 @@
+{
+  "_note": "Place your real google-services.json here (same folder) to enable Firebase/FCM push.",
+  "_how": [
+    "Firebase Console → Project settings → Your apps → Android → Download google-services.json",
+    "Package name must be: space.primegaming.app",
+    "Then run: npx cap sync android"
+  ]
+}

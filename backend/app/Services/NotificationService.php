@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendUsersFcmPushMessage;
 use App\Jobs\SendUsersWebPushMessage;
 use App\Models\Notification;
 use App\Models\User;
@@ -34,6 +35,18 @@ class NotificationService
                 try {
                     $userIds = $users->pluck('id')->map(fn ($id) => (int) $id)->all();
                     SendUsersWebPushMessage::dispatch(
+                        userIds: $userIds,
+                        title: 'PRIME Gaming',
+                        body: $message,
+                        url: '/notifications'
+                    )->afterCommit();
+                } catch (\Throwable) {
+                    // best-effort
+                }
+
+                try {
+                    $userIds = $users->pluck('id')->map(fn ($id) => (int) $id)->all();
+                    SendUsersFcmPushMessage::dispatch(
                         userIds: $userIds,
                         title: 'PRIME Gaming',
                         body: $message,

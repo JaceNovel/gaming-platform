@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Jobs\SendUserFcmPushNotification;
 use App\Jobs\SendUserWebPushNotification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,6 +26,12 @@ class Notification extends Model
         static::created(function (self $notification) {
             try {
                 SendUserWebPushNotification::dispatch(notificationId: (int) $notification->id)->afterCommit();
+            } catch (\Throwable) {
+                // best-effort
+            }
+
+            try {
+                SendUserFcmPushNotification::dispatch(notificationId: (int) $notification->id)->afterCommit();
             } catch (\Throwable) {
                 // best-effort
             }

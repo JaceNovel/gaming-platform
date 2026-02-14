@@ -128,7 +128,24 @@ function ReferralClient() {
       </div>
 
       <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        {/* Mobile header */}
+        <div className="sm:hidden space-y-3">
+          <div>
+            <SectionTitle eyebrow="Compte" label="Parrainage" />
+            <p className="mt-1 text-sm text-white/60">
+              Partage ton lien et gagne une commission.
+            </p>
+          </div>
+          <GlowButton variant="secondary" onClick={load} disabled={loading} className="w-full justify-center">
+            <span className="inline-flex items-center gap-2">
+              <RefreshCcw className="h-4 w-4" />
+              Rafraîchir
+            </span>
+          </GlowButton>
+        </div>
+
+        {/* Desktop/tablet header */}
+        <div className="hidden sm:flex sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <SectionTitle eyebrow="Compte" label="Parrainage" />
             <p className="mt-1 text-sm text-white/60">
@@ -155,7 +172,113 @@ function ReferralClient() {
           </div>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
+        {/* Mobile layout (clean + no overflow) */}
+        <div className="sm:hidden space-y-5">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Ton code</p>
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 px-4 py-4">
+              <p className="text-center text-2xl font-black tracking-[0.15em] text-cyan-200">
+                {loading ? "…" : data?.referral.code ?? "—"}
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <GlowButton
+                variant="secondary"
+                className="w-full justify-center"
+                onClick={() => data?.referral.code && handleCopy(data.referral.code, "Code")}
+                disabled={loading || !data?.referral.code}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Copy className="h-4 w-4" />
+                  Copier
+                </span>
+              </GlowButton>
+              <GlowButton className="w-full justify-center" onClick={handleShare} disabled={loading || !data?.referral.link}>
+                <span className="inline-flex items-center gap-2">
+                  <Share2 className="h-4 w-4" />
+                  Partager
+                </span>
+              </GlowButton>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Lien de parrainage</p>
+            <div className="mt-3 rounded-2xl border border-white/15 bg-black/30 px-3 py-3">
+              <div className="flex items-start gap-2">
+                <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-white/60" />
+                <p className="min-w-0 flex-1 break-all text-xs leading-relaxed text-white/80">
+                  {loading ? "Chargement…" : data?.referral.link ?? "—"}
+                </p>
+              </div>
+            </div>
+            <GlowButton
+              variant="secondary"
+              className="mt-3 w-full justify-center"
+              onClick={() => data?.referral.link && handleCopy(data.referral.link, "Lien")}
+              disabled={loading || !data?.referral.link}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Copy className="h-4 w-4" />
+                Copier le lien
+              </span>
+            </GlowButton>
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/60">
+              Commission sur le <b>premier dépôt wallet</b> du filleul. VIP: 3% • Standard: 1%.
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <p className="text-xs uppercase tracking-[0.3em] text-white/50">Tes stats</p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                <p className="text-[11px] text-white/55">Filleuls</p>
+                <p className="mt-1 text-lg font-semibold">{loading ? "…" : data?.referral.referred_count ?? 0}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                <p className="text-[11px] text-white/55">Commissions</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-200">
+                  {loading ? "…" : formatMoney(data?.referral.commission_total ?? 0)}
+                </p>
+              </div>
+            </div>
+            {lastReferredLabel && <div className="mt-3 text-xs text-white/50">Dernier filleul: {lastReferredLabel}</div>}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+            <p className="text-sm font-semibold">Historique des filleuls</p>
+            <p className="mt-1 text-xs text-white/60">Inscriptions + commissions quand elles sont déclenchées.</p>
+
+            {loading ? (
+              <div className="mt-4 text-sm text-white/60">Chargement…</div>
+            ) : items.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-5 text-sm text-white/70">
+                Aucun filleul pour l’instant. Partage ton lien pour démarrer.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {items.map((it) => (
+                  <div key={it.id} className="rounded-2xl border border-white/10 bg-black/30 p-4">
+                    <p className="truncate text-sm font-semibold text-white">{it.referred?.name ?? "Utilisateur"}</p>
+                    <p className="mt-1 text-xs text-white/55">
+                      {it.rewarded_at ? "Commission versée" : "En attente du premier dépôt"}
+                      {it.commission_rate ? ` • ${(it.commission_rate * 100).toFixed(0)}%` : ""}
+                    </p>
+                    <div className="mt-3 flex items-baseline justify-between gap-3">
+                      <p className="text-sm font-semibold text-emerald-200">{formatMoney(it.commission_earned ?? 0)}</p>
+                      <p className="text-[11px] text-white/50">
+                        {it.rewarded_at ? new Date(it.rewarded_at).toLocaleString("fr-FR") : "—"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Desktop/tablet layout (existing) */}
+        <div className="hidden sm:grid gap-6 lg:grid-cols-[420px_1fr]">
           <div className="space-y-4">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <p className="text-xs uppercase tracking-[0.3em] text-white/50">Ton code</p>

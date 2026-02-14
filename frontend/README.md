@@ -39,3 +39,31 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 - Local: `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api`
 - Prod: `NEXT_PUBLIC_API_URL=https://api.badboyshop.online/api`
+
+## Release Play Store (AAB)
+
+Depuis la racine du repo:
+
+```bash
+cd frontend/android
+./gradlew clean
+./gradlew bundleRelease
+```
+
+Le bundle est généré ici:
+
+`frontend/android/app/build/outputs/bundle/release/app-release.aab`
+
+### SHA-256 release (App Links)
+
+```bash
+keytool -list -v -keystore ../primegaming-release.jks -alias YOUR_ALIAS
+```
+
+Copier la valeur `SHA-256` dans le fichier:
+
+`backend/public/.well-known/assetlinks.json`
+
+### Play Integrity (app)
+
+- `NEXT_PUBLIC_PLAY_INTEGRITY_PROJECT_NUMBER=XXXXXXXXXXXX`

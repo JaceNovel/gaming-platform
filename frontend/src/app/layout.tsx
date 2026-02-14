@@ -60,9 +60,11 @@ export const viewport = {
 
 import BottomNavigation from "@/components/BottomNavigation";
 import AppHeader from "@/components/layout/AppHeader";
+import Footer from "@/components/layout/Footer";
 import ChunkErrorReload from "@/components/system/ChunkErrorReload";
 import CartDrawer from "@/components/cart/CartDrawer";
 import ServiceWorkerBootstrap from "@/components/system/ServiceWorkerBootstrap";
+import NativeBridge from "./NativeBridge";
 
 export default function RootLayout({
   children,
@@ -149,9 +151,11 @@ gtag('js', new Date());
       >
         <ChunkErrorReload />
         <ServiceWorkerBootstrap />
+        <NativeBridge />
         <AuthProvider>
           <AppHeader />
           {children}
+          <Footer />
           <BottomNavigation />
           <CartDrawer />
         </AuthProvider>
