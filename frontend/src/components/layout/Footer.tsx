@@ -98,25 +98,54 @@ export default function Footer() {
             </h3>
             <div className="flex flex-wrap gap-3">
               <a
-                href="#"
-                aria-label="Twitter"
-                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs"
+                href="https://x.com"
+                aria-label="Twitter/X"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
+                title="Twitter - Bientôt disponible"
               >
                 𝕏
               </a>
               <a
-                href="#"
+                href="https://discord.com"
                 aria-label="Discord"
-                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
+                title="Discord - Bientôt disponible"
               >
                 D
               </a>
               <a
-                href="#"
+                href="https://instagram.com"
                 aria-label="Instagram"
-                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
+                title="Instagram - Bientôt disponible"
               >
-                IG
+                📷
+              </a>
+              <a
+                href="https://tiktok.com"
+                aria-label="TikTok"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
+                title="TikTok - Bientôt disponible"
+              >
+                🎵
+              </a>
+              <a
+                href="https://youtube.com"
+                aria-label="YouTube"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
+                title="YouTube - Bientôt disponible"
+              >
+                ▶
               </a>
             </div>
           </div>
