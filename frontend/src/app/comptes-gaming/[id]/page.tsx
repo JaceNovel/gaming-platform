@@ -413,7 +413,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
                           key={`${row.raw}_${row.idx}`}
                           type="button"
                           onClick={() => setSelectedImage(row.safe)}
-                          className={`h-24 w-36 flex-none overflow-hidden rounded-2xl border object-cover transition ${
+                          className={`h-28 w-44 flex-none overflow-hidden rounded-2xl border object-cover transition sm:h-32 sm:w-52 ${
                             active ? "border-cyan-300/40" : "border-white/10 hover:border-white/25"
                           }`}
                           aria-label={`Afficher la photo ${row.idx + 1}`}
