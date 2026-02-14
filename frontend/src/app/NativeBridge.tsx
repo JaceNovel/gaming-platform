@@ -61,12 +61,12 @@ const getAuthToken = (): string | null => {
 
 const toIntegrityNonce = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
+    return (crypto as any).randomUUID();
   }
 
   const bytes = new Uint8Array(16);
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
-    crypto.getRandomValues(bytes);
+    (crypto as any).getRandomValues(bytes);
   } else {
     for (let i = 0; i < bytes.length; i += 1) {
       bytes[i] = Math.floor(Math.random() * 256);
