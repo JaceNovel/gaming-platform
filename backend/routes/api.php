@@ -66,6 +66,7 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     Route::post('/password/update', [AuthController::class, 'updatePassword'])->middleware('auth:sanctum');
+    Route::delete('/delete', [AuthController::class, 'deleteAccount'])->middleware('auth:sanctum');
 });
 
 Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);

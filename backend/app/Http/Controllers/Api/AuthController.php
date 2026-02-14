@@ -7,6 +7,7 @@ use App\Models\Referral;
 use App\Models\User;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
@@ -165,6 +166,69 @@ class AuthController extends Controller
         ])->save();
 
         return response()->json(['message' => 'Mot de passe mis à jour']);
+    }
+
+    public function deleteAccount(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Non authentifié'], 401);
+        }
+
+        $validated = $request->validate([
+            'password' => ['required', 'string'],
+        ]);
+
+        if (!Hash::check($validated['password'], $user->password)) {
+            return response()->json([
+                'message' => 'Mot de passe incorrect',
+                'errors' => ['password' => ['Mot de passe incorrect']],
+            ], 422);
+        }
+
+        DB::transaction(function () use ($user) {
+            $user->tokens()->delete();
+            $user->notifications()->delete();
+            $user->pushSubscriptions()->delete();
+            $user->deviceTokens()->delete();
+            $user->likes()->delete();
+            $user->reviews()->delete();
+            $user->cartItems()->delete();
+            $user->supportTickets()->delete();
+            $user->emailLogs()->delete();
+            $user->adminLogs()->delete();
+            $user->chatMessages()->delete();
+            $user->chatMemberships()->delete();
+            $user->chatRooms()->detach();
+            $user->premiumMemberships()->delete();
+            $user->referrals()->delete();
+            $user->referredBy()->delete();
+            $user->payouts()->delete();
+
+            $orders = $user->orders()->get();
+            foreach ($orders as $order) {
+                $order->redeemCodeDeliveries()->delete();
+                $order->refunds()->delete();
+                $order->orderItems()->delete();
+                $order->delete();
+            }
+
+            $walletAccount = $user->walletAccount;
+            if ($walletAccount) {
+                $walletAccount->transactions()->delete();
+                $walletAccount->payouts()->delete();
+                $walletAccount->delete();
+            }
+
+            $walletBd = $user->walletBd;
+            if ($walletBd) {
+                $walletBd->delete();
+            }
+
+            $user->delete();
+        });
+
+        return response()->json(['message' => 'Compte supprimé']);
     }
 
     public function me(Request $request)

@@ -269,6 +269,7 @@ function AccountClient() {
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const disablePasswordForm = !HAS_API_ENV;
   const disableCountryForm = !HAS_API_ENV;
+  const disableDeleteAccount = !HAS_API_ENV;
   const [vipModalOpen, setVipModalOpen] = useState(false);
   const [premiumStatus, setPremiumStatus] = useState<PremiumStatus | null>(null);
   const [vipStatusLoading, setVipStatusLoading] = useState(false);
@@ -300,6 +301,11 @@ function AccountClient() {
   const [phoneSubmitting, setPhoneSubmitting] = useState(false);
   const [phoneStatus, setPhoneStatus] = useState<string>("");
   const [phoneError, setPhoneError] = useState<string>("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
   const [marketplaceSellerContactEligible, setMarketplaceSellerContactEligible] = useState(false);
   const [marketplaceSellerWhatsappUrl, setMarketplaceSellerWhatsappUrl] = useState<string | null>(null);
   const [marketplaceSellerWhatsappLoading, setMarketplaceSellerWhatsappLoading] = useState(false);
@@ -795,6 +801,49 @@ function AccountClient() {
   const handleLogout = async () => {
     await logout();
     router.push("/auth/login");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (disableDeleteAccount) {
+      setDeleteError("API non configurée, suppression désactivée en local.");
+      return;
+    }
+    if (deleteSubmitting) return;
+    setDeleteError(null);
+    setDeleteSuccess(false);
+
+    if (!deletePassword.trim()) {
+      setDeleteError("Mot de passe requis.");
+      return;
+    }
+    if (deleteConfirm.trim().toUpperCase() !== "SUPPRIMER") {
+      setDeleteError('Tape "SUPPRIMER" pour confirmer.');
+      return;
+    }
+
+    if (!window.confirm("Cette action est definitive. Voulez-vous supprimer votre compte ?")) {
+      return;
+    }
+
+    setDeleteSubmitting(true);
+    try {
+      const res = await authFetch(`${API_BASE}/auth/delete`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: deletePassword }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.message ?? "Impossible de supprimer le compte.");
+      }
+      setDeleteSuccess(true);
+      await logout();
+      router.replace("/");
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Erreur inattendue");
+    } finally {
+      setDeleteSubmitting(false);
+    }
   };
 
   const handleVipEntry = async () => {
@@ -1383,6 +1432,43 @@ function AccountClient() {
                   >
                     Se déconnecter
                   </button>
+
+                  <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-white/80">
+                    <p className="font-semibold text-rose-200">Supprimer mon compte</p>
+                    <p className="mt-1 text-xs text-rose-100/70">
+                      Cette action est irréversible. Toutes vos données seront supprimées.
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      <input
+                        type="password"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        placeholder="Mot de passe"
+                        className="w-full rounded-2xl border border-rose-400/30 bg-black/40 px-4 py-2 text-sm focus:border-rose-300 focus:outline-none"
+                        autoComplete="current-password"
+                      />
+                      <input
+                        type="text"
+                        value={deleteConfirm}
+                        onChange={(e) => setDeleteConfirm(e.target.value)}
+                        placeholder='Tape "SUPPRIMER"'
+                        className="w-full rounded-2xl border border-rose-400/30 bg-black/40 px-4 py-2 text-sm focus:border-rose-300 focus:outline-none"
+                      />
+                    </div>
+                    {deleteError && <p className="mt-2 text-xs text-rose-200">{deleteError}</p>}
+                    {deleteSuccess && <p className="mt-2 text-xs text-emerald-300">Compte supprimé.</p>}
+                    {disableDeleteAccount && (
+                      <p className="mt-2 text-xs text-amber-200">API non configurée, suppression désactivée en local.</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleDeleteAccount}
+                      disabled={deleteSubmitting || disableDeleteAccount}
+                      className="mt-3 w-full rounded-2xl bg-rose-500/80 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:opacity-50"
+                    >
+                      {deleteSubmitting ? "Suppression..." : "Supprimer mon compte"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-6 hidden grid-cols-2 gap-5 md:grid">
@@ -1560,6 +1646,42 @@ function AccountClient() {
                     <LogOut className="h-4 w-4" />
                     Se déconnecter
                   </button>
+                  <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-white/80">
+                    <p className="font-semibold text-rose-200">Supprimer mon compte</p>
+                    <p className="mt-1 text-xs text-rose-100/70">
+                      Action définitive. Entrez votre mot de passe et confirmez.
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      <input
+                        type="password"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        placeholder="Mot de passe"
+                        className="w-full rounded-2xl border border-rose-400/30 bg-black/40 px-4 py-2 text-sm focus:border-rose-300 focus:outline-none"
+                        autoComplete="current-password"
+                      />
+                      <input
+                        type="text"
+                        value={deleteConfirm}
+                        onChange={(e) => setDeleteConfirm(e.target.value)}
+                        placeholder='Tape "SUPPRIMER"'
+                        className="w-full rounded-2xl border border-rose-400/30 bg-black/40 px-4 py-2 text-sm focus:border-rose-300 focus:outline-none"
+                      />
+                    </div>
+                    {deleteError && <p className="mt-2 text-xs text-rose-200">{deleteError}</p>}
+                    {deleteSuccess && <p className="mt-2 text-xs text-emerald-300">Compte supprimé.</p>}
+                    {disableDeleteAccount && (
+                      <p className="mt-2 text-xs text-amber-200">API non configurée, suppression désactivée en local.</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleDeleteAccount}
+                      disabled={deleteSubmitting || disableDeleteAccount}
+                      className="mt-3 w-full rounded-2xl bg-rose-500/80 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-500 disabled:opacity-50"
+                    >
+                      {deleteSubmitting ? "Suppression..." : "Supprimer mon compte"}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
