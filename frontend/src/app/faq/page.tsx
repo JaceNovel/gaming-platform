@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "next";
+import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
 type FAQItem = {
