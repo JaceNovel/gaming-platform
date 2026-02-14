@@ -18,10 +18,8 @@ class PartnerWalletController extends Controller
     {
         $user = $request->user();
 
-        if (!$user?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $user->id)->first();
 
@@ -49,10 +47,8 @@ class PartnerWalletController extends Controller
     {
         $user = $request->user();
 
-        if (!$user?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $user->id)->firstOrFail();
 

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
-const INPUT = "public/images/Capture_d_écran_2026-01-27_001718-removebg-preview.png";
+const INPUT = "public/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png";
 
 const root = process.cwd();
 const inputPath = path.join(root, INPUT);

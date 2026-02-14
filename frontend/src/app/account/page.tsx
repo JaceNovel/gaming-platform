@@ -84,17 +84,17 @@ const AVATARS: Avatar[] = [
   {
     id: "nova_ghost",
     name: "Nova Ghost",
-    src: "/images/Capture_d_écran_2026-01-27_001718-removebg-preview.png",
+    src: "/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png",
   },
   {
     id: "stellar_viper",
     name: "Stellar Viper",
-    src: "/images/Capture_d_écran_2026-01-27_001718-removebg-preview.png",
+    src: "/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png",
   },
   {
     id: "neon_rider",
     name: "Neon Rider",
-    src: "/images/Capture_d_écran_2026-01-27_001718-removebg-preview.png",
+    src: "/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png",
   },
 ];
 

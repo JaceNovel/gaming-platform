@@ -29,6 +29,7 @@ type Seller = {
   status: "pending_verification" | "approved" | "suspended" | "banned";
   statusReason?: string | null;
   whatsappNumber?: string | null;
+  companyName?: string | null;
   kycFullName?: string | null;
   kycDob?: string | null;
   kycCountry?: string | null;
@@ -37,6 +38,7 @@ type Seller = {
   kycIdType?: string | null;
   kycIdNumber?: string | null;
   kycSubmittedAt?: string | null;
+  termsAcceptedAt?: string | null;
   approvedAt?: string | null;
   rejectedAt?: string | null;
   suspendedAt?: string | null;
@@ -45,6 +47,9 @@ type Seller = {
   partnerWalletFrozenAt?: string | null;
   agreementPdfUrl?: string | null;
   agreementPdfGeneratedAt?: string | null;
+  monthlySales?: number;
+  nonVipMonthlyLimit?: number;
+  requiresVipUpgradeForSales?: boolean;
   kycFiles?: { idFront: boolean; selfie: boolean };
 };
 
@@ -195,6 +200,7 @@ function SellerPageClient() {
 
   const [form, setForm] = useState({
     fullName: "",
+    companyName: "",
     whatsappNumber: "",
     dob: "",
     country: "",
@@ -202,6 +208,7 @@ function SellerPageClient() {
     address: "",
     idType: "CNI",
     idNumber: "",
+    acceptTerms: false,
   });
 
   useEffect(() => {
@@ -209,6 +216,7 @@ function SellerPageClient() {
     setForm((prev) => ({
       ...prev,
       fullName: prev.fullName || user.name || "",
+      companyName: prev.companyName || "",
     }));
   }, [user]);
 
@@ -257,6 +265,20 @@ function SellerPageClient() {
     try {
       const payload = await fetchJson<SellerMeResponse>("/gaming-accounts/seller/me");
       setSeller(payload?.seller ?? null);
+      if (payload?.seller) {
+        setForm((prev) => ({
+          ...prev,
+          fullName: prev.fullName || String(payload.seller?.kycFullName ?? "").trim(),
+          companyName: prev.companyName || String(payload.seller?.companyName ?? "").trim(),
+          whatsappNumber: prev.whatsappNumber || String(payload.seller?.whatsappNumber ?? "").trim(),
+          country: prev.country || String(payload.seller?.kycCountry ?? "").trim(),
+          city: prev.city || String(payload.seller?.kycCity ?? "").trim(),
+          address: prev.address || String(payload.seller?.kycAddress ?? "").trim(),
+          idType: prev.idType || String(payload.seller?.kycIdType ?? "").trim(),
+          idNumber: prev.idNumber || String(payload.seller?.kycIdNumber ?? "").trim(),
+          acceptTerms: prev.acceptTerms || Boolean(payload.seller?.termsAcceptedAt),
+        }));
+      }
 
       // Load partner wallet when a seller exists (any status)
       if (payload?.seller) {
@@ -344,9 +366,16 @@ function SellerPageClient() {
   const submitApply = async () => {
     setError(null);
     setToast(null);
+    if (!form.acceptTerms) {
+      const message = "Tu dois accepter les conditions vendeur pour continuer.";
+      setError(message);
+      pushToast(message, "error");
+      return;
+    }
     try {
       const payload = {
         fullName: form.fullName.trim(),
+        companyName: form.companyName.trim(),
         whatsappNumber: form.whatsappNumber.trim(),
         dob: form.dob || null,
         country: form.country.trim(),
@@ -354,6 +383,7 @@ function SellerPageClient() {
         address: form.address.trim(),
         idType: form.idType.trim(),
         idNumber: form.idNumber.trim(),
+        acceptTerms: form.acceptTerms,
       };
 
       const res = await authFetch(`${API_BASE}/gaming-accounts/seller/apply`, {
@@ -1298,6 +1328,16 @@ function SellerPageClient() {
                   />
                 </label>
                 <label className="text-sm text-white/70">
+                  Nom de l'entreprise
+                  <input
+                    value={form.companyName}
+                    onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))}
+                    className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                    placeholder="Ex: House Of Gamers"
+                    disabled={!canApply}
+                  />
+                </label>
+                <label className="text-sm text-white/70">
                   WhatsApp
                   <input
                     value={form.whatsappNumber}
@@ -1357,12 +1397,31 @@ function SellerPageClient() {
                     disabled={!canApply}
                   />
                 </label>
+                <div className="md:col-span-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">Conditions vendeur</p>
+                  <ul className="mt-3 space-y-1 text-sm text-white/70">
+                    <li>• Publier uniquement des annonces réelles et conformes.</li>
+                    <li>• Livraison sous 24h et preuve de livraison obligatoire.</li>
+                    <li>• Aucun paiement hors plateforme PRIME Gaming.</li>
+                    <li>• Non-VIP: ventes mensuelles limitées à 80 000 FCFA puis passage VIP requis.</li>
+                  </ul>
+                  <label className="mt-4 inline-flex items-start gap-3 text-sm text-white/80">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form.acceptTerms)}
+                      onChange={(e) => setForm((p) => ({ ...p, acceptTerms: e.target.checked }))}
+                      className="mt-0.5 h-4 w-4 rounded border-white/20 bg-black/30"
+                      disabled={!canApply}
+                    />
+                    <span>J’accepte les conditions vendeur PRIME Gaming.</span>
+                  </label>
+                </div>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => void submitApply()}
-                      disabled={!canApply}
+                      disabled={!canApply || !form.acceptTerms}
                       className="mt-5 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
                     >
                       Envoyer la demande
@@ -1432,6 +1491,10 @@ function SellerPageClient() {
                             {statusLabel(seller.status)}
                           </Badge>
                         </div>
+                        <div className="flex items-center justify-between gap-3 text-sm text-white/70">
+                          <span>Entreprise</span>
+                          <span className="text-white/85">{seller.companyName || "—"}</span>
+                        </div>
                         <div className="space-y-1 text-sm text-white/70">
                           <div className="flex items-center justify-between gap-3">
                             <span>KYC ID recto</span>
@@ -1467,6 +1530,20 @@ function SellerPageClient() {
                             >
                               <ClipboardList className="h-4 w-4" /> Télécharger
                             </a>
+                          </div>
+                        ) : null}
+
+                        {typeof seller.monthlySales === "number" && typeof seller.nonVipMonthlyLimit === "number" ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                            <p className="font-semibold text-white/85">Plafond ventes mensuel (non-VIP)</p>
+                            <p className="mt-1 text-white/60">
+                              {formatMoney(seller.monthlySales)} / {formatMoney(seller.nonVipMonthlyLimit)}
+                            </p>
+                            {seller.requiresVipUpgradeForSales ? (
+                              <p className="mt-2 text-amber-200">Plafond atteint: passe VIP pour continuer à vendre.</p>
+                            ) : (
+                              <p className="mt-2 text-emerald-200">Ventes autorisées.</p>
+                            )}
                           </div>
                         ) : null}
 

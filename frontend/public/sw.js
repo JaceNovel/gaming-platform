@@ -53,7 +53,7 @@ self.addEventListener("message", function (event) {
 self.addEventListener("push", function (event) {
   try {
     const data = event.data ? event.data.json() : {};
-    const title = data.title || "BADBOYSHOP";
+    const title = data.title || "PRIME Gaming";
     const options = {
       body: data.body || "Nouvelle notification",
       data: { url: data.url || "/" },

@@ -14,6 +14,7 @@ use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class AdminMarketplaceSellerController extends Controller
 {
@@ -29,6 +30,7 @@ class AdminMarketplaceSellerController extends Controller
             $search = '%' . $request->string('search')->toString() . '%';
             $q->where(function ($sub) use ($search) {
                 $sub->where('kyc_full_name', 'like', $search)
+                    ->orWhere('company_name', 'like', $search)
                     ->orWhere('whatsapp_number', 'like', $search)
                     ->orWhereHas('user', function ($uq) use ($search) {
                         $uq->where('email', 'like', $search)->orWhere('name', 'like', $search);
@@ -112,8 +114,24 @@ class AdminMarketplaceSellerController extends Controller
         // Generate the seller agreement PDF (best-effort).
         try {
             $seller->loadMissing('user');
+            $issuedAt = now();
+            $certificateCode = sprintf(
+                'PG-SLR-%06d-%s',
+                (int) $seller->id,
+                strtoupper(Str::random(6))
+            );
+            $watermarkText = sprintf(
+                'PRIME GAMING • %s • %s • %s',
+                (string) ($seller->company_name ?: $seller->kyc_full_name ?: 'SELLER'),
+                $certificateCode,
+                $issuedAt->format('Y-m-d H:i')
+            );
+
             $html = view('seller-agreement', [
                 'seller' => $seller,
+                'issuedAt' => $issuedAt,
+                'certificateCode' => $certificateCode,
+                'watermarkText' => $watermarkText,
             ])->render();
 
             $options = new Options();

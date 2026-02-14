@@ -13,6 +13,7 @@ class Seller extends Model
         'user_id',
         'status',
         'whatsapp_number',
+        'company_name',
         'kyc_full_name',
         'kyc_dob',
         'kyc_country',
@@ -21,6 +22,7 @@ class Seller extends Model
         'kyc_id_type',
         'kyc_id_number',
         'kyc_submitted_at',
+        'terms_accepted_at',
         'approved_at',
         'rejected_at',
         'suspended_at',
@@ -35,6 +37,7 @@ class Seller extends Model
     protected $casts = [
         'kyc_dob' => 'date',
         'kyc_submitted_at' => 'datetime',
+        'terms_accepted_at' => 'datetime',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
         'suspended_at' => 'datetime',

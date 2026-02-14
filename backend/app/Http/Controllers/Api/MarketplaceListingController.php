@@ -5,12 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Seller;
 use App\Models\SellerListing;
+use App\Services\SellerSalesLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class MarketplaceListingController extends Controller
 {
+    public function __construct(private readonly SellerSalesLimitService $salesLimitService)
+    {
+    }
+
     private function trustForListing(SellerListing $listing): array
     {
         $seller = $listing->seller;
@@ -66,6 +71,7 @@ class MarketplaceListingController extends Controller
 
         $listings->getCollection()->transform(function (SellerListing $listing) {
             $listing->setAttribute('seller_trust', $this->trustForListing($listing));
+            $listing->setAttribute('seller_company_name', (string) ($listing->seller?->company_name ?? ''));
             return $listing;
         });
 
@@ -81,16 +87,15 @@ class MarketplaceListingController extends Controller
         }
 
         $sellerListing->setAttribute('seller_trust', $this->trustForListing($sellerListing));
+        $sellerListing->setAttribute('seller_company_name', (string) ($sellerListing->seller?->company_name ?? ''));
 
         return response()->json(['data' => $sellerListing]);
     }
 
     public function mine(Request $request)
     {
-        if (!$request->user()?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$request->user()) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
@@ -105,15 +110,17 @@ class MarketplaceListingController extends Controller
 
     public function store(Request $request)
     {
-        if (!$request->user()?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$request->user()) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
         if (!$seller->canSell()) {
             return response()->json(['message' => 'Seller is not allowed to create listings.'], 403);
+        }
+
+        if ($this->salesLimitService->requiresVipUpgrade($seller)) {
+            return response()->json(['message' => $this->salesLimitService->limitMessage()], 403);
         }
 
         $data = $request->validate([
@@ -176,10 +183,8 @@ class MarketplaceListingController extends Controller
 
     public function update(Request $request, SellerListing $sellerListing)
     {
-        if (!$request->user()?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$request->user()) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
@@ -283,10 +288,8 @@ class MarketplaceListingController extends Controller
 
     public function setStatus(Request $request, SellerListing $sellerListing)
     {
-        if (!$request->user()?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$request->user()) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
@@ -309,6 +312,10 @@ class MarketplaceListingController extends Controller
         if ($data['status'] === 'active') {
             if (!$seller->canSell()) {
                 return response()->json(['message' => 'Seller is not allowed to submit listings.'], 403);
+            }
+
+            if ($this->salesLimitService->requiresVipUpgrade($seller)) {
+                return response()->json(['message' => $this->salesLimitService->limitMessage()], 403);
             }
 
             $price = (float) ($sellerListing->price ?? 0);

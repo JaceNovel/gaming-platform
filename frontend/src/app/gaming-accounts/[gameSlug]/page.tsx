@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Image from "next/image";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, House, Search } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 
@@ -21,6 +21,7 @@ type ListingRow = {
   game?: { id: number; name?: string | null; image?: string | null } | null;
   category?: { id: number; name?: string | null } | null;
   seller_trust?: { badges?: string[]; successRate?: number; totalSales?: number } | null;
+  seller_company_name?: string | null;
 };
 
 type Paginated<T> = {
@@ -229,6 +230,7 @@ export default function GamingAccountsByGamePage() {
                     const img = imgRaw ? (toDisplayImageSrc(imgRaw) ?? imgRaw) : null;
                     const badges = Array.isArray(row?.seller_trust?.badges) ? row.seller_trust.badges : [];
                     const server = String((row as any)?.account_region ?? "").trim();
+                    const sellerCompany = String((row as any)?.seller_company_name ?? "").trim();
 
                     return (
                       <Link
@@ -266,6 +268,12 @@ export default function GamingAccountsByGamePage() {
                           <p className="text-xs font-medium text-white/60">{String(row?.game?.name ?? game?.name ?? "Compte Gaming")}</p>
                           <h3 className="mt-1 text-base font-semibold leading-tight text-white line-clamp-2">{title}</h3>
                           {desc ? <p className="mt-1 text-xs text-white/70 line-clamp-2">{desc}</p> : null}
+                          {sellerCompany ? (
+                            <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-xl border border-fuchsia-300/35 bg-gradient-to-r from-fuchsia-500/20 via-violet-500/20 to-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-fuchsia-100">
+                              <House className="h-3.5 w-3.5 shrink-0 text-cyan-200" />
+                              <span className="truncate">{sellerCompany}</span>
+                            </div>
+                          ) : null}
                           {server ? <p className="mt-1 text-[11px] text-white/55">🌍 Serveur : {server}</p> : null}
                           <div className="mt-3">
                             <p className="text-lg font-black text-fuchsia-200">{formatNumber(safePrice)} FCFA</p>
@@ -305,6 +313,7 @@ export default function GamingAccountsByGamePage() {
                   const img = imgRaw ? (toDisplayImageSrc(imgRaw) ?? imgRaw) : null;
                   const badges = Array.isArray(row?.seller_trust?.badges) ? row.seller_trust.badges : [];
                   const server = String((row as any)?.account_region ?? "").trim();
+                  const sellerCompany = String((row as any)?.seller_company_name ?? "").trim();
 
                   return (
                     <Link
@@ -342,6 +351,12 @@ export default function GamingAccountsByGamePage() {
                         <p className="text-xs font-medium text-white/60">{String(row?.game?.name ?? game?.name ?? "Compte Gaming")}</p>
                         <h3 className="text-lg font-semibold leading-tight text-white line-clamp-2">{title}</h3>
                         {desc ? <p className="text-sm text-white/70 line-clamp-2">{desc}</p> : null}
+                        {sellerCompany ? (
+                          <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-fuchsia-300/35 bg-gradient-to-r from-fuchsia-500/20 via-violet-500/20 to-cyan-500/20 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
+                            <House className="h-4 w-4 shrink-0 text-cyan-200" />
+                            <span className="truncate">{sellerCompany}</span>
+                          </div>
+                        ) : null}
                         {server ? <p className="text-xs text-white/55">🌍 Serveur : {server}</p> : null}
                       </div>
 

@@ -9,17 +9,20 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\SellerSalesLimitService;
 
 class SellerKycController extends Controller
 {
+    public function __construct(private readonly SellerSalesLimitService $salesLimitService)
+    {
+    }
+
     public function me(Request $request)
     {
         $user = $request->user();
 
-        if (!$user?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
         $seller = Seller::query()
@@ -37,6 +40,8 @@ class SellerKycController extends Controller
 
         $publicDisk = Storage::disk('public');
         $agreementUrl = $seller->agreement_pdf_path ? $publicDisk->url($seller->agreement_pdf_path) : null;
+        $monthlySales = $this->salesLimitService->monthlySalesForSeller($seller);
+        $requiresVipUpgrade = $this->salesLimitService->requiresVipUpgrade($seller);
 
         return response()->json([
             'seller' => [
@@ -44,6 +49,7 @@ class SellerKycController extends Controller
                 'status' => $seller->status,
                 'statusReason' => $seller->status_reason,
                 'whatsappNumber' => $seller->whatsapp_number,
+            'companyName' => $seller->company_name,
                 'kycFullName' => $seller->kyc_full_name,
                 'kycDob' => $seller->kyc_dob?->toDateString(),
                 'kycCountry' => $seller->kyc_country,
@@ -52,6 +58,7 @@ class SellerKycController extends Controller
                 'kycIdType' => $seller->kyc_id_type,
                 'kycIdNumber' => $seller->kyc_id_number,
                 'kycSubmittedAt' => $seller->kyc_submitted_at?->toIso8601String(),
+                'termsAcceptedAt' => $seller->terms_accepted_at?->toIso8601String(),
                 'approvedAt' => $seller->approved_at?->toIso8601String(),
                 'rejectedAt' => $seller->rejected_at?->toIso8601String(),
                 'suspendedAt' => $seller->suspended_at?->toIso8601String(),
@@ -60,6 +67,9 @@ class SellerKycController extends Controller
                 'partnerWalletFrozenAt' => $seller->partner_wallet_frozen_at?->toIso8601String(),
                 'agreementPdfUrl' => $agreementUrl,
                 'agreementPdfGeneratedAt' => $seller->agreement_pdf_generated_at?->toIso8601String(),
+                'monthlySales' => $monthlySales,
+                'nonVipMonthlyLimit' => SellerSalesLimitService::NON_VIP_MONTHLY_LIMIT,
+                'requiresVipUpgradeForSales' => $requiresVipUpgrade,
                 'kycFiles' => [
                     'idFront' => $filesByType->has('id_front'),
                     'selfie' => $filesByType->has('selfie'),
@@ -72,14 +82,13 @@ class SellerKycController extends Controller
     {
         $user = $request->user();
 
-        if (!$user?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
         $data = $request->validate([
             'fullName' => ['required', 'string', 'max:120'],
+            'companyName' => ['required', 'string', 'max:120'],
             'whatsappNumber' => ['required', 'string', 'max:32'],
             'dob' => ['nullable', 'date'],
             'country' => ['required', 'string', 'max:64'],
@@ -87,6 +96,7 @@ class SellerKycController extends Controller
             'address' => ['required', 'string', 'max:2000'],
             'idType' => ['required', 'string', 'max:32'],
             'idNumber' => ['required', 'string', 'max:64'],
+            'acceptTerms' => ['required', 'accepted'],
         ]);
 
         $seller = Seller::query()->where('user_id', $user->id)->first();
@@ -104,6 +114,7 @@ class SellerKycController extends Controller
         }
 
         $seller->whatsapp_number = $data['whatsappNumber'];
+        $seller->company_name = $data['companyName'];
         $seller->kyc_full_name = $data['fullName'];
         $seller->kyc_dob = $data['dob'] ?? null;
         $seller->kyc_country = $data['country'] ?? null;
@@ -111,6 +122,7 @@ class SellerKycController extends Controller
         $seller->kyc_address = $data['address'] ?? null;
         $seller->kyc_id_type = $data['idType'] ?? null;
         $seller->kyc_id_number = $data['idNumber'] ?? null;
+        $seller->terms_accepted_at = now();
 
         if ($seller->status !== 'approved') {
             $seller->status = 'pending_verification';
@@ -128,10 +140,8 @@ class SellerKycController extends Controller
     {
         $user = $request->user();
 
-        if (!$user?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $user->id)->firstOrFail();
 
@@ -183,10 +193,8 @@ class SellerKycController extends Controller
     {
         $user = $request->user();
 
-        if (!$user?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $user->id)->firstOrFail();
 

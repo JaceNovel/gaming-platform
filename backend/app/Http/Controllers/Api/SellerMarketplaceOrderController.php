@@ -14,10 +14,8 @@ class SellerMarketplaceOrderController extends Controller
 {
     public function index(Request $request)
     {
-        if (!$request->user()?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$request->user()) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 
@@ -43,10 +41,8 @@ class SellerMarketplaceOrderController extends Controller
 
     public function markDelivered(Request $request, MarketplaceOrder $marketplaceOrder)
     {
-        if (!$request->user()?->is_premium) {
-            return response()->json([
-                'message' => 'Accès réservé aux VIP (marché partenaire).',
-            ], 403);
+        if (!$request->user()) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
         $seller = Seller::query()->where('user_id', $request->user()->id)->firstOrFail();
 

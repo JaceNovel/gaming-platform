@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Crown, ShieldCheck, Wallet } from "lucide-react";
+import { Crown, House, ShieldCheck, Wallet } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
@@ -22,6 +22,7 @@ type ListingDetail = {
   account_rank?: string | null;
   account_region?: string | null;
   has_email_access?: boolean | null;
+  seller_company_name?: string | null;
   game?: { id: number; name: string; image?: string | null } | null;
   seller_trust?: { totalSales?: number; successRate?: number; badges?: string[] } | null;
 };
@@ -170,6 +171,8 @@ function MarketplaceListingClient({ id }: { id: number }) {
     const n = typeof t === "number" ? t : Number(t ?? NaN);
     return Number.isFinite(n) ? n : null;
   }, [listing?.seller_trust?.totalSales]);
+
+  const sellerCompany = useMemo(() => String(listing?.seller_company_name ?? "").trim(), [listing?.seller_company_name]);
 
   const buildCustomerPayload = () => {
     const rawUser: any = user ?? {};
@@ -357,6 +360,12 @@ function MarketplaceListingClient({ id }: { id: number }) {
               {listing.game?.name ? `${listing.game.name} • ` : ""}
               Compte Gaming ✨
             </p>
+            {sellerCompany ? (
+              <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-xl border border-fuchsia-300/35 bg-gradient-to-r from-fuchsia-500/20 via-violet-500/20 to-cyan-500/20 px-3 py-1.5 text-xs font-semibold text-fuchsia-100">
+                <House className="h-4 w-4 shrink-0 text-cyan-200" />
+                <span className="truncate">{sellerCompany}</span>
+              </div>
+            ) : null}
           </div>
           <Link href="/shop" className="text-sm text-white/70 hover:text-white">
             ⬅ Retour

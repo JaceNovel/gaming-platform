@@ -8,6 +8,7 @@ use App\Models\PartnerWallet;
 use App\Models\PartnerWalletTransaction;
 use App\Models\SellerListing;
 use App\Models\SellerStat;
+use App\Services\SellerSalesLimitService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -162,6 +163,35 @@ class ProcessMarketplaceOrder implements ShouldQueue
             $orderMeta['delivery_state'] = 'marketplace_paid';
             $this->order->meta = $orderMeta;
             $this->order->save();
+
+            $salesLimitService = app(SellerSalesLimitService::class);
+            $seller->loadMissing('user');
+
+            if (!$salesLimitService->isVipSeller($seller)) {
+                $monthlySales = $salesLimitService->monthlySalesForSeller($seller);
+                if ($monthlySales >= SellerSalesLimitService::NON_VIP_MONTHLY_LIMIT) {
+                    $seller->partner_wallet_frozen = true;
+                    $seller->partner_wallet_frozen_at = now();
+                    $seller->status_reason = $salesLimitService->limitMessage();
+                    $seller->save();
+
+                    SellerListing::query()
+                        ->where('seller_id', $seller->id)
+                        ->whereNull('order_id')
+                        ->whereNull('sold_at')
+                        ->whereIn('status', ['approved', 'pending_review', 'pending_review_update'])
+                        ->update([
+                            'status' => 'suspended',
+                            'status_reason' => $salesLimitService->limitMessage(),
+                        ]);
+
+                    PartnerWallet::query()->where('seller_id', $seller->id)->update([
+                        'status' => 'frozen',
+                        'status_reason' => $salesLimitService->limitMessage(),
+                        'frozen_at' => now(),
+                    ]);
+                }
+            }
         });
     }
 }

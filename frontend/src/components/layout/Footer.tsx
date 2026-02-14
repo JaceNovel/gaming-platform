@@ -98,50 +98,45 @@ export default function Footer() {
             </h3>
             <div className="flex flex-wrap gap-3">
               <a
-                href="https://x.com"
+                href="#"
                 aria-label="Twitter/X"
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
                 title="Twitter - Bientôt disponible"
               >
                 𝕏
               </a>
               <a
-                href="https://discord.com"
+                href="#"
                 aria-label="Discord"
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
                 title="Discord - Bientôt disponible"
               >
                 D
               </a>
               <a
-                href="https://instagram.com"
+                href="#"
                 aria-label="Instagram"
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
                 title="Instagram - Bientôt disponible"
               >
                 📷
               </a>
               <a
-                href="https://tiktok.com"
+                href="#"
                 aria-label="TikTok"
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
                 title="TikTok - Bientôt disponible"
               >
                 🎵
               </a>
               <a
-                href="https://youtube.com"
+                href="#"
                 aria-label="YouTube"
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
                 title="YouTube - Bientôt disponible"
               >
