@@ -170,11 +170,26 @@ export default function GamingAccountsByGamePage() {
   const items = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return rows;
+
+    const needleDigits = needle.replace(/\D+/g, "");
     return rows.filter(
-      (row) =>
-        String(row?.title ?? "").toLowerCase().includes(needle) ||
-        String(row?.description ?? "").toLowerCase().includes(needle) ||
-        String(row?.seller_company_name ?? "").toLowerCase().includes(needle),
+      (row) => {
+        const matchesText =
+          String(row?.title ?? "").toLowerCase().includes(needle) ||
+          String(row?.description ?? "").toLowerCase().includes(needle) ||
+          String(row?.seller_company_name ?? "").toLowerCase().includes(needle);
+
+        if (matchesText) return true;
+
+        if (!needleDigits) return false;
+
+        const rawPriceDigits = String(row?.price ?? "").replace(/\D+/g, "");
+        if (rawPriceDigits && rawPriceDigits.includes(needleDigits)) return true;
+
+        const n = Number(row?.price ?? NaN);
+        const formattedDigits = Number.isFinite(n) ? formatNumber(Math.max(0, Math.round(n))).replace(/\D+/g, "") : "";
+        return Boolean(formattedDigits && formattedDigits.includes(needleDigits));
+      },
     );
   }, [rows, query]);
 
