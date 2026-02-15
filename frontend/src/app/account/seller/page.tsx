@@ -178,7 +178,7 @@ const statusLabel = (status: Seller["status"]) => {
 function SellerPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { authFetch, user } = useAuth();
+  const { authFetch, user, token } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [seller, setSeller] = useState<Seller | null>(null);
@@ -298,6 +298,50 @@ function SellerPageClient() {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), tone === "error" ? 4200 : 2600);
   }, []);
+
+  const downloadSellerAgreementPdf = useCallback(async () => {
+    if (!token) {
+      const next = "/account/seller";
+      router.push(`/auth/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/gaming-accounts/seller/agreement-pdf", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/pdf,application/json;q=0.9,*/*;q=0.8",
+        },
+        cache: "no-store",
+      });
+
+      const contentType = String(res.headers.get("content-type") ?? "");
+      if (!res.ok) {
+        const payload = contentType.includes("application/json") ? await res.json().catch(() => null) : null;
+        const message = payload?.message ? String(payload.message) : `Erreur ${res.status}`;
+        pushToast(message, "error");
+        return;
+      }
+
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+
+      const cd = String(res.headers.get("content-disposition") ?? "");
+      const match = cd.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+      const filename = decodeURIComponent((match?.[1] || match?.[2] || "document-vendeur.pdf").trim());
+
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename || "document-vendeur.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+    } catch {
+      pushToast("Téléchargement impossible.", "error");
+    }
+  }, [pushToast, router, token]);
 
   const fetchJson = useCallback(
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
@@ -1678,14 +1722,13 @@ function SellerPageClient() {
                             <p className="mt-1 text-white/60">
                               Conditions et règles applicables. Généré le {formatDateTime(seller.agreementPdfGeneratedAt)}.
                             </p>
-                            <a
-                              href="/api/gaming-accounts/seller/agreement-pdf"
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => void downloadSellerAgreementPdf()}
                               className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-4 py-2 text-sm font-semibold text-white/85 hover:bg-black/40"
                             >
                               <ClipboardList className="h-4 w-4" /> Télécharger
-                            </a>
+                            </button>
                           </div>
                         ) : null}
 
