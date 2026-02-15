@@ -33,6 +33,15 @@ type Paginated<T> = {
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  if (!Array.isArray(arr) || size <= 0) return [];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+}
+
 const parseGamesPayload = (payload: any): MenuGame[] => {
   if (!payload) return [];
   if (Array.isArray(payload)) return payload as MenuGame[];
@@ -164,9 +173,12 @@ export default function GamingAccountsByGamePage() {
     return rows.filter(
       (row) =>
         String(row?.title ?? "").toLowerCase().includes(needle) ||
-        String(row?.description ?? "").toLowerCase().includes(needle),
+        String(row?.description ?? "").toLowerCase().includes(needle) ||
+        String(row?.seller_company_name ?? "").toLowerCase().includes(needle),
     );
   }, [rows, query]);
+
+  const mobileRows = useMemo(() => chunkArray(items, 5), [items]);
 
   const loadMore = async () => {
     if (!game) return;
@@ -241,81 +253,89 @@ export default function GamingAccountsByGamePage() {
             {/* Mobile: single horizontal row with scroll */}
             <div className="mt-8 sm:hidden">
               {loading ? (
-                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-soft">
-                  {Array.from({ length: 6 }).map((_, idx) => (
-                    <div
-                      key={idx}
-                      className="flex-none w-[240px] overflow-hidden rounded-[26px] border border-white/10 bg-white/5"
-                    >
-                      <div className="h-32 bg-white/10" />
-                      <div className="p-4">
-                        <div className="h-4 w-3/4 rounded bg-white/10" />
-                        <div className="mt-2 h-3 w-5/6 rounded bg-white/10" />
-                        <div className="mt-4 h-4 w-1/2 rounded bg-white/10" />
-                      </div>
+                <div className="space-y-4">
+                  {Array.from({ length: 2 }).map((_, rowIdx) => (
+                    <div key={rowIdx} className="flex gap-4 overflow-x-auto pb-2 scrollbar-soft">
+                      {Array.from({ length: 5 }).map((__, idx) => (
+                        <div
+                          key={`${rowIdx}_${idx}`}
+                          className="flex-none w-[240px] overflow-hidden rounded-[26px] border border-white/10 bg-white/5"
+                        >
+                          <div className="h-32 bg-white/10" />
+                          <div className="p-4">
+                            <div className="h-4 w-3/4 rounded bg-white/10" />
+                            <div className="mt-2 h-3 w-5/6 rounded bg-white/10" />
+                            <div className="mt-4 h-4 w-1/2 rounded bg-white/10" />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
               ) : items.length ? (
-                <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-soft">
-                  {items.map((row) => {
-                    const rawId = (row as any)?.id;
-                    const listingId = String(rawId ?? "").trim();
-                    const priceValue = Number(row?.price ?? 0);
-                    const safePrice = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
-                    const title = String(row?.title ?? "Annonce").trim() || "Annonce";
-                    const desc = String(row?.description ?? "").trim();
-                    const imgCandidates = [
-                      String(row?.image_url ?? "").trim(),
-                      String(row?.game?.image ?? "").trim(),
-                      String(game?.image ?? "").trim(),
-                    ]
-                      .map((raw) => (raw ? (toDisplayImageSrc(raw) ?? raw) : ""))
-                      .filter(Boolean);
-                    const badges = Array.isArray(row?.seller_trust?.badges) ? row.seller_trust.badges : [];
-                    const server = String((row as any)?.account_region ?? "").trim();
-                    const sellerCompany = String((row as any)?.seller_company_name ?? "").trim();
+                <div className="space-y-4">
+                  {mobileRows.map((rowItems, rowIdx) => (
+                    <div key={rowIdx} className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-soft">
+                      {rowItems.map((row) => {
+                        const rawId = (row as any)?.id;
+                        const listingId = String(rawId ?? "").trim();
+                        const priceValue = Number(row?.price ?? 0);
+                        const safePrice = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
+                        const title = String(row?.title ?? "Annonce").trim() || "Annonce";
+                        const desc = String(row?.description ?? "").trim();
+                        const imgCandidates = [
+                          String(row?.image_url ?? "").trim(),
+                          String(row?.game?.image ?? "").trim(),
+                          String(game?.image ?? "").trim(),
+                        ]
+                          .map((raw) => (raw ? (toDisplayImageSrc(raw) ?? raw) : ""))
+                          .filter(Boolean);
+                        const badges = Array.isArray(row?.seller_trust?.badges) ? row.seller_trust.badges : [];
+                        const server = String((row as any)?.account_region ?? "").trim();
+                        const sellerCompany = String((row as any)?.seller_company_name ?? "").trim();
 
-                    return (
-                      <Link
-                        key={listingId || title}
-                        href={`/comptes-gaming/${encodeURIComponent(listingId)}`}
-                        className="snap-start group flex-none w-[240px] overflow-hidden rounded-[26px] border border-white/10 bg-black/40 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition hover:border-fuchsia-300/40"
-                      >
-                        <div className="relative aspect-[16/10] w-full overflow-hidden bg-white/5">
-                          <MobileListingThumb title={title} candidates={imgCandidates} />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
-                          <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-                            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold text-white">
-                              ⏱ Livraison 24H
-                            </span>
-                            {badges.includes("verified") ? (
-                              <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
-                                ✅ Vérifié
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="p-4">
-                          <p className="text-xs font-medium text-white/60">{String(row?.game?.name ?? game?.name ?? "Compte Gaming")}</p>
-                          <h3 className="mt-1 text-base font-semibold leading-tight text-white line-clamp-2">{title}</h3>
-                          {desc ? <p className="mt-1 text-xs text-white/70 line-clamp-2">{desc}</p> : null}
-                          {sellerCompany ? (
-                            <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-xl border border-fuchsia-300/35 bg-gradient-to-r from-fuchsia-500/20 via-violet-500/20 to-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-fuchsia-100">
-                              <House className="h-3.5 w-3.5 shrink-0 text-cyan-200" />
-                              <span className="truncate">{sellerCompany}</span>
+                        return (
+                          <Link
+                            key={listingId || title}
+                            href={`/comptes-gaming/${encodeURIComponent(listingId)}`}
+                            className="snap-start group flex-none w-[240px] overflow-hidden rounded-[26px] border border-white/10 bg-black/40 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition hover:border-fuchsia-300/40"
+                          >
+                            <div className="relative aspect-[16/10] w-full overflow-hidden bg-white/5">
+                              <MobileListingThumb title={title} candidates={imgCandidates} />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
+                              <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold text-white">
+                                  ⏱ Livraison 24H
+                                </span>
+                                {badges.includes("verified") ? (
+                                  <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
+                                    ✅ Vérifié
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
-                          ) : null}
-                          {server ? <p className="mt-1 text-[11px] text-white/55">🌍 Serveur : {server}</p> : null}
-                          <div className="mt-3">
-                            <p className="text-lg font-black text-fuchsia-200">{formatNumber(safePrice)} FCFA</p>
-                            <p className="text-[11px] text-white/50">⏱ Livraison sous 24h</p>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
+
+                            <div className="p-4">
+                              <p className="text-xs font-medium text-white/60">{String(row?.game?.name ?? game?.name ?? "Compte Gaming")}</p>
+                              <h3 className="mt-1 text-base font-semibold leading-tight text-white line-clamp-2">{title}</h3>
+                              {desc ? <p className="mt-1 text-xs text-white/70 line-clamp-2">{desc}</p> : null}
+                              {sellerCompany ? (
+                                <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-xl border border-fuchsia-300/35 bg-gradient-to-r from-fuchsia-500/20 via-violet-500/20 to-cyan-500/20 px-2.5 py-1 text-[11px] font-semibold text-fuchsia-100">
+                                  <House className="h-3.5 w-3.5 shrink-0 text-cyan-200" />
+                                  <span className="truncate">{sellerCompany}</span>
+                                </div>
+                              ) : null}
+                              {server ? <p className="mt-1 text-[11px] text-white/55">🌍 Serveur : {server}</p> : null}
+                              <div className="mt-3">
+                                <p className="text-lg font-black text-fuchsia-200">{formatNumber(safePrice)} FCFA</p>
+                                <p className="text-[11px] text-white/50">⏱ Livraison sous 24h</p>
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="rounded-[28px] border border-white/10 bg-white/5 p-10 text-center text-white/70">

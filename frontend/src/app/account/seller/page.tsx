@@ -1217,7 +1217,7 @@ function SellerPageClient() {
     };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-4 backdrop-blur sm:items-center">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur">
         <div className="w-full max-w-xl overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl">
           <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
             <div>
