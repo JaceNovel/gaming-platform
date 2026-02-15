@@ -31,6 +31,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyMinute()
             ->withoutOverlapping();
 
+        // Auto refund overdue marketplace orders (>24h delivery window) and flag as admin issue.
+        $schedule->command('marketplace:auto-refund-overdue --limit=200')
+            ->everyMinute()
+            ->withoutOverlapping();
+
         // Re-engagement push for users inactive for 2 days.
         $schedule->command('notifications:reengage-inactive-users --days=2 --limit=5000')
             ->dailyAt('10:00')

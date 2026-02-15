@@ -38,6 +38,7 @@ class WalletController extends Controller
             $typeHint = strtolower((string) ($meta['type'] ?? $meta['reason'] ?? ''));
 
             $label = match (true) {
+                $typeHint === 'marketplace_account_refund' => 'Remboursement Account',
                 $typeHint === 'order_refund' => 'Remboursement commande',
                 $typeHint === 'admin_wallet_credit' => 'Crédit wallet (admin)',
                 default => 'Transaction wallet',

@@ -9,6 +9,11 @@ type MarketplaceOrderRow = {
   id: number;
   status?: string | null;
   created_at?: string | null;
+  delivery_deadline_at?: string | null;
+  admin_issue_flag?: boolean;
+  admin_issue_reason?: string | null;
+  auto_refunded_at?: string | null;
+  auto_refund_reference?: string | null;
   price?: number | string | null;
   order?: {
     id?: number;
@@ -254,7 +259,18 @@ export default function AdminMarketplaceOrdersPage() {
                   </td>
                   <td className="py-3 pr-4">{phoneFor(o)}</td>
                   <td className="py-3 pr-4">{o.listing?.title ?? "—"}</td>
-                  <td className="py-3 pr-4">{o.status ?? "—"}</td>
+                  <td className="py-3 pr-4">
+                    <div className="inline-flex items-center gap-2">
+                      {o.admin_issue_flag ? <span className="h-2.5 w-2.5 rounded-full bg-rose-500" aria-label="Commande en problème" /> : null}
+                      <span>{o.status ?? "—"}</span>
+                    </div>
+                    {o.admin_issue_reason ? (
+                      <div className="mt-1 text-[11px] text-rose-600">{o.admin_issue_reason}</div>
+                    ) : null}
+                    {o.auto_refunded_at ? (
+                      <div className="mt-1 text-[11px] text-emerald-700">Remboursement initié</div>
+                    ) : null}
+                  </td>
                   <td className="py-3 pr-4">
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -313,13 +329,23 @@ export default function AdminMarketplaceOrdersPage() {
                   <div className="mt-1 text-xs text-slate-600">Statut: {detail.marketplaceOrder.status ?? "—"}</div>
                   <div className="text-xs text-slate-600">Créée: {detail.marketplaceOrder.created_at ?? "—"}</div>
                   <div className="text-xs text-slate-600">Livrée: {detail.marketplaceOrder.delivered_at ?? "—"}</div>
+                  <div className="text-xs text-slate-600">Deadline: {detail.marketplaceOrder.delivery_deadline_at ?? "—"}</div>
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500">Montants</div>
                   <div className="mt-1 text-sm font-extrabold text-slate-900">{formatAmount(detail.marketplaceOrder.price)}</div>
                   <div className="mt-1 text-xs text-slate-600">Commission: {formatAmount(detail.marketplaceOrder.commission_amount)}</div>
                   <div className="text-xs text-slate-600">Gain vendeur: {formatAmount(detail.marketplaceOrder.seller_earnings)}</div>
-                  <div className="mt-2 text-xs text-slate-600">Deadline: {detail.marketplaceOrder.delivery_deadline_at ?? "—"}</div>
+                  <div className="mt-2 text-xs text-slate-600">Issue admin: {detail.marketplaceOrder.admin_issue_flag ? "Oui" : "Non"}</div>
+                  {detail.marketplaceOrder.admin_issue_reason ? (
+                    <div className="text-xs text-rose-700">Motif: {detail.marketplaceOrder.admin_issue_reason}</div>
+                  ) : null}
+                  {detail.marketplaceOrder.auto_refunded_at ? (
+                    <div className="text-xs text-emerald-700">
+                      Remboursement initié: {detail.marketplaceOrder.auto_refunded_at}
+                      {detail.marketplaceOrder.auto_refund_reference ? ` • Ref: ${detail.marketplaceOrder.auto_refund_reference}` : ""}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

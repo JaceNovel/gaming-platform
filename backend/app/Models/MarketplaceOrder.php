@@ -21,6 +21,10 @@ class MarketplaceOrder extends Model
         'delivered_at',
         'delivery_proof',
         'dispute_id',
+        'admin_issue_flag',
+        'admin_issue_reason',
+        'auto_refunded_at',
+        'auto_refund_reference',
     ];
 
     protected $casts = [
@@ -31,6 +35,8 @@ class MarketplaceOrder extends Model
         'whatsapp_revealed_at' => 'datetime',
         'delivered_at' => 'datetime',
         'delivery_proof' => 'array',
+        'admin_issue_flag' => 'boolean',
+        'auto_refunded_at' => 'datetime',
     ];
 
     public function order(): BelongsTo

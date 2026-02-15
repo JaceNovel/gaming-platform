@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowLeft,
   AlertTriangle,
   BadgeCheck,
   Banknote,
@@ -279,6 +280,19 @@ function SellerPageClient() {
 
     setListingModal(null);
   }, [isMobileViewport, listingModal?.mode, router, searchParams]);
+
+  const goBackFromListingPage = useCallback(() => {
+    if (isMobileViewport && listingModal?.mode === "create") {
+      if (typeof window !== "undefined" && window.history.length > 1) {
+        router.back();
+        return;
+      }
+      closeListingModal();
+      return;
+    }
+
+    closeListingModal();
+  }, [closeListingModal, isMobileViewport, listingModal?.mode, router]);
 
   const pushToast = useCallback((message: string, tone: ToastTone = "info") => {
     setToast({ message, tone });
@@ -772,13 +786,25 @@ function SellerPageClient() {
                 })}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={closeListingModal}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
-            >
-              {isMobileCreatePage ? "Retour" : "Fermer"}
-            </button>
+            <div className="flex items-center gap-2">
+              {isMobileCreatePage ? (
+                <button
+                  type="button"
+                  onClick={goBackFromListingPage}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Arrière
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={closeListingModal}
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
+              >
+                {isMobileCreatePage ? "Retour" : "Fermer"}
+              </button>
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
