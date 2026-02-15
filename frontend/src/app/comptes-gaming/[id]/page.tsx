@@ -36,6 +36,14 @@ function MarketplaceListingClient({ id }: { id: number }) {
   const router = useRouter();
   const { user, authFetch } = useAuth();
 
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/gaming-accounts");
+  };
+
   const [loading, setLoading] = useState(true);
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -335,9 +343,9 @@ function MarketplaceListingClient({ id }: { id: number }) {
         <div className="mx-auto w-full max-w-3xl px-6 py-12">
           <p className="text-sm text-white/60">😵‍💫 Annonce introuvable ou indisponible.</p>
           <div className="mt-6">
-            <Link href="/shop" className="text-cyan-300">
-              ⬅ Retour à la boutique
-            </Link>
+            <button type="button" onClick={handleBack} className="text-cyan-300">
+              ⬅ Retour
+            </button>
           </div>
         </div>
       </main>
@@ -367,9 +375,9 @@ function MarketplaceListingClient({ id }: { id: number }) {
               </div>
             ) : null}
           </div>
-          <Link href="/shop" className="text-sm text-white/70 hover:text-white">
+          <button type="button" onClick={handleBack} className="text-sm text-white/70 hover:text-white">
             ⬅ Retour
-          </Link>
+          </button>
         </div>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
