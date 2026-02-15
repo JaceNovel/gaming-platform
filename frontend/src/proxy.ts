@@ -12,6 +12,16 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(target, 308);
   }
 
+  // Mitigation for noisy production logs after deploys:
+  // old clients (or scanners) can send Server Action requests from a different deployment.
+  // If we don't use Server Actions, stripping this header avoids Next throwing
+  // "Failed to find Server Action".
+  if (request.method !== "GET" && request.headers.has("next-action")) {
+    const headers = new Headers(request.headers);
+    headers.delete("next-action");
+    return NextResponse.next({ request: { headers } });
+  }
+
   return NextResponse.next();
 }
 

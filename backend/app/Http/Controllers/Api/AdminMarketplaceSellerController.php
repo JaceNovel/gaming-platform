@@ -141,7 +141,8 @@ class AdminMarketplaceSellerController extends Controller
             $dompdf->setPaper('A4');
             $dompdf->render();
 
-            $disk = Storage::disk('public');
+            $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+            $disk = Storage::disk($diskName);
             $pdfPath = 'seller-agreements/seller-' . $seller->id . '-agreement.pdf';
             $disk->put($pdfPath, $dompdf->output());
 

@@ -1464,13 +1464,14 @@ function SellerPageClient() {
 
             {activeTab === "kyc" && (
               <div className="mt-6 grid gap-6 lg:grid-cols-3">
-                <div className="lg:col-span-2">
-                  <div className="rounded-[32px] border border-white/10 bg-black/40 p-6">
-                    <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Inscription</p>
-                    <h3 className="mt-1 text-2xl font-semibold">Formulaire vendeur</h3>
-                    <p className="mt-2 text-sm text-white/60">Ces infos servent à la conformité et au contact WhatsApp après paiement.</p>
+                {seller?.status !== "approved" ? (
+                  <div className="lg:col-span-2">
+                    <div className="rounded-[32px] border border-white/10 bg-black/40 p-6">
+                      <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Inscription</p>
+                      <h3 className="mt-1 text-2xl font-semibold">Formulaire vendeur</h3>
+                      <p className="mt-2 text-sm text-white/60">Ces infos servent à la conformité et au contact WhatsApp après paiement.</p>
 
-                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      <div className="mt-6 grid gap-4 md:grid-cols-2">
                 <label className="text-sm text-white/70">
                   Nom complet
                   <input
@@ -1572,17 +1573,17 @@ function SellerPageClient() {
                 </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => void submitApply()}
-                      disabled={!canApply || !form.acceptTerms}
-                      className="mt-5 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
-                    >
-                      Envoyer la demande
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => void submitApply()}
+                        disabled={!canApply || !form.acceptTerms}
+                        className="mt-5 w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                      >
+                        Envoyer la demande
+                      </button>
 
-                    {seller && (
-                      <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      {seller && (
+                        <div className="mt-6 grid gap-4 md:grid-cols-2">
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                           <p className="text-xs uppercase tracking-[0.3em] text-white/50">CNI recto</p>
                           <p className="mt-2 text-sm text-white/60">Fichier image (max 5MB).</p>
@@ -1624,11 +1625,12 @@ function SellerPageClient() {
                           </label>
                         </div>
                       </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
-                <div>
+                <div className={seller?.status === "approved" ? "lg:col-span-3" : ""}>
                   <Card>
                     <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Statut</p>
                     {!seller ? (

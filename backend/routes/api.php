@@ -252,6 +252,7 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     // Gaming Account Marketplace (Seller KYC)
     Route::prefix('gaming-accounts')->group(function () {
         Route::get('/seller/me', [SellerKycController::class, 'me']);
+        Route::get('/seller/agreement-pdf', [SellerKycController::class, 'downloadAgreementPdf']);
         Route::post('/seller/apply', [SellerKycController::class, 'apply']);
         Route::post('/seller/kyc/id-front', [SellerKycController::class, 'uploadIdFront']);
         Route::post('/seller/kyc/selfie', [SellerKycController::class, 'captureSelfie']);

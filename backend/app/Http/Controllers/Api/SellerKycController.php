@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Seller;
 use App\Models\SellerKycFile;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +17,97 @@ class SellerKycController extends Controller
 {
     public function __construct(private readonly SellerSalesLimitService $salesLimitService)
     {
+    }
+
+    private function ensureAgreementPdfExists(Seller $seller): ?string
+    {
+        if ($seller->status !== 'approved') {
+            return null;
+        }
+
+        $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+        $disk = Storage::disk($diskName);
+        $existing = $seller->agreement_pdf_path ? (string) $seller->agreement_pdf_path : '';
+        if ($existing !== '' && $disk->exists($existing)) {
+            return $existing;
+        }
+
+        $seller->loadMissing('user');
+        $issuedAt = now();
+        $certificateCode = sprintf(
+            'PG-SLR-%06d-%s',
+            (int) $seller->id,
+            strtoupper(Str::random(6))
+        );
+        $watermarkText = sprintf(
+            'PRIME GAMING • %s • %s • %s',
+            (string) ($seller->company_name ?: $seller->kyc_full_name ?: 'SELLER'),
+            $certificateCode,
+            $issuedAt->format('Y-m-d H:i')
+        );
+
+        $html = view('seller-agreement', [
+            'seller' => $seller,
+            'issuedAt' => $issuedAt,
+            'certificateCode' => $certificateCode,
+            'watermarkText' => $watermarkText,
+        ])->render();
+
+        $options = new Options();
+        $options->set('isRemoteEnabled', false);
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4');
+        $dompdf->render();
+
+        $pdfPath = 'seller-agreements/seller-' . $seller->id . '-agreement.pdf';
+        $disk->put($pdfPath, $dompdf->output());
+
+        $seller->agreement_pdf_path = $pdfPath;
+        $seller->agreement_pdf_generated_at = now();
+        $seller->save();
+
+        return $pdfPath;
+    }
+
+    public function downloadAgreementPdf(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        $seller = Seller::query()
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$seller) {
+            return response()->json(['message' => 'Seller not found.'], 404);
+        }
+
+        if ($seller->status !== 'approved') {
+            return response()->json(['message' => 'Seller agreement is only available for approved sellers.'], 403);
+        }
+
+        try {
+            $path = $this->ensureAgreementPdfExists($seller);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Unable to generate agreement PDF.'], 500);
+        }
+
+        if (!$path) {
+            return response()->json(['message' => 'File not found.'], 404);
+        }
+
+        $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+        $disk = Storage::disk($diskName);
+        if (!$disk->exists($path)) {
+            return response()->json(['message' => 'File not found.'], 404);
+        }
+
+        $downloadName = 'document-vendeur-primegaming-' . $seller->id . '.pdf';
+        return $disk->download($path, $downloadName);
     }
 
     public function me(Request $request)
@@ -38,8 +131,7 @@ class SellerKycController extends Controller
 
         $filesByType = $seller->kycFiles->keyBy('type');
 
-        $publicDisk = Storage::disk('public');
-        $agreementUrl = $seller->agreement_pdf_path ? $publicDisk->url($seller->agreement_pdf_path) : null;
+        $agreementUrl = $seller->status === 'approved' ? url('/api/seller/agreement-pdf') : null;
         $monthlySales = $this->salesLimitService->monthlySalesForSeller($seller);
         $requiresVipUpgrade = $this->salesLimitService->requiresVipUpgrade($seller);
 
