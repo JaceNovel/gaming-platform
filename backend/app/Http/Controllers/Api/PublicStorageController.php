@@ -17,8 +17,8 @@ class PublicStorageController extends Controller
         // Dispute evidence is displayed in the UI, so it must remain publicly fetchable.
         if (str_starts_with($path, 'seller-listings/') || str_starts_with($path, 'disputes/') || str_starts_with($path, 'seller-agreements/')) {
             // Older deployments stored files in the local "public" disk (storage/app/public).
-            // Some older jobs stored in the local disk (storage/app).
-            return ['public', 'local'];
+            // Some older jobs stored in storage/app (legacy_app) or the current private local disk (storage/app/private).
+            return ['public', 'legacy_app', 'local'];
         }
 
         return [];

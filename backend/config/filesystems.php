@@ -42,6 +42,16 @@ return [
             'report' => false,
         ],
 
+        // Legacy fallback for older deployments that wrote files directly under storage/app.
+        // This disk should not be used for new writes.
+        'legacy_app' => [
+            'driver' => 'local',
+            'root' => storage_path('app'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

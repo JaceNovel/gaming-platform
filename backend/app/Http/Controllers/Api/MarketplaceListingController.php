@@ -16,6 +16,38 @@ class MarketplaceListingController extends Controller
     {
     }
 
+    private function publicUploadsDiskName(): string
+    {
+        $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+        return $diskName !== '' ? $diskName : 'public';
+    }
+
+    private function putPublicUpload(string $dir, $file): string
+    {
+        return Storage::disk($this->publicUploadsDiskName())->putFile($dir, $file);
+    }
+
+    private function deletePublicUploadBestEffort(string $path): void
+    {
+        if (!is_string($path) || $path === '') {
+            return;
+        }
+
+        $diskNames = array_values(array_unique([
+            $this->publicUploadsDiskName(),
+            'public',
+            'legacy_app',
+            'local',
+        ]));
+
+        foreach ($diskNames as $diskName) {
+            try {
+                Storage::disk($diskName)->delete($path);
+            } catch (\Throwable $e) {
+            }
+        }
+    }
+
     private function trustForListing(SellerListing $listing): array
     {
         $seller = $listing->seller;
@@ -146,14 +178,14 @@ class MarketplaceListingController extends Controller
 
         $imagePath = null;
         if ($request->hasFile('image')) {
-            $imagePath = Storage::disk('public')->putFile('seller-listings', $request->file('image'));
+            $imagePath = $this->putPublicUpload('seller-listings', $request->file('image'));
         }
 
         $galleryPaths = [];
         if ($request->hasFile('galleryImages')) {
             foreach ($request->file('galleryImages', []) as $file) {
                 if (!$file) continue;
-                $galleryPaths[] = Storage::disk('public')->putFile('seller-listings', $file);
+                $galleryPaths[] = $this->putPublicUpload('seller-listings', $file);
             }
         }
 
@@ -236,12 +268,9 @@ class MarketplaceListingController extends Controller
 
         if ($request->hasFile('image')) {
             $old = $sellerListing->image_path;
-            $map['image_path'] = Storage::disk('public')->putFile('seller-listings', $request->file('image'));
+            $map['image_path'] = $this->putPublicUpload('seller-listings', $request->file('image'));
             if ($old) {
-                try {
-                    Storage::disk('public')->delete($old);
-                } catch (\Throwable $e) {
-                }
+                $this->deletePublicUploadBestEffort((string) $old);
             }
         }
 
@@ -250,7 +279,7 @@ class MarketplaceListingController extends Controller
             $next = [];
             foreach ($request->file('galleryImages', []) as $file) {
                 if (!$file) continue;
-                $next[] = Storage::disk('public')->putFile('seller-listings', $file);
+                $next[] = $this->putPublicUpload('seller-listings', $file);
             }
 
             $oldPaths = $sellerListing->gallery_image_paths;
@@ -259,10 +288,7 @@ class MarketplaceListingController extends Controller
             }
             foreach ($oldPaths as $oldPath) {
                 if (!is_string($oldPath) || !$oldPath) continue;
-                try {
-                    Storage::disk('public')->delete($oldPath);
-                } catch (\Throwable $e) {
-                }
+                $this->deletePublicUploadBestEffort($oldPath);
             }
 
             $map['gallery_image_paths'] = $next;
@@ -334,10 +360,7 @@ class MarketplaceListingController extends Controller
                     }
                 }
                 foreach (array_values(array_unique($paths)) as $p) {
-                    try {
-                        Storage::disk('public')->delete($p);
-                    } catch (\Throwable $e) {
-                    }
+                    $this->deletePublicUploadBestEffort($p);
                 }
 
                 try {
