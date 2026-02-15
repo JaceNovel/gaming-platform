@@ -14,19 +14,21 @@ class PublicStatsController extends Controller
 {
     public function home()
     {
-        $baseAccountsSold = 67;
-        $baseRechargesDone = 40;
-        $basePremiumMembers = 6;
-        $baseGuidesActive = 25;
-
         $paidStatus = Order::STATUS_PAYMENT_SUCCESS;
 
-        $accountsSold = (int) DB::table('order_items')
+        $catalogAccountsSold = (int) DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->where('orders.status', $paidStatus)
             ->where('products.type', 'account')
             ->sum('order_items.quantity');
+
+        $marketplaceAccountsSold = (int) Order::query()
+            ->where('status', $paidStatus)
+            ->where('type', 'marketplace_gaming_account')
+            ->count();
+
+        $accountsSold = $catalogAccountsSold + $marketplaceAccountsSold;
 
         $rechargesDone = (int) DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
@@ -40,11 +42,6 @@ class PublicStatsController extends Controller
             ->count();
 
         $guidesActive = (int) User::count();
-
-        $accountsSold += $baseAccountsSold;
-        $rechargesDone += $baseRechargesDone;
-        $premiumMembers += $basePremiumMembers;
-        $guidesActive += $baseGuidesActive;
 
         return response()->json([
             'accounts_sold' => $accountsSold,

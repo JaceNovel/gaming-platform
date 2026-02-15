@@ -52,6 +52,45 @@ const parsePaginator = <T,>(payload: any): { items: T[]; meta: Paginated<T> | nu
   return { items: [], meta: null };
 };
 
+function MobileListingThumb({
+  title,
+  candidates,
+}: {
+  title: string;
+  candidates: string[];
+}) {
+  const normalized = useMemo(
+    () => candidates.map((src) => String(src ?? "").trim()).filter(Boolean),
+    [candidates],
+  );
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    setIdx(0);
+  }, [normalized.join("|")]);
+
+  const current = normalized[idx] ?? null;
+
+  if (!current) {
+    return <div className="h-full w-full bg-white/10" />;
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={current}
+      alt={title}
+      className="h-full w-full object-cover"
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => {
+        setIdx((prev) => (prev + 1 < normalized.length ? prev + 1 : prev));
+      }}
+    />
+  );
+}
+
 export default function GamingAccountsByGamePage() {
   const params = useParams();
   const gameSlug = String((params?.gameSlug as string) ?? "").trim();
@@ -226,8 +265,13 @@ export default function GamingAccountsByGamePage() {
                     const safePrice = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
                     const title = String(row?.title ?? "Annonce").trim() || "Annonce";
                     const desc = String(row?.description ?? "").trim();
-                    const imgRaw = String(row?.image_url ?? "").trim() || String(row?.game?.image ?? game?.image ?? "").trim();
-                    const img = imgRaw ? (toDisplayImageSrc(imgRaw) ?? imgRaw) : null;
+                    const imgCandidates = [
+                      String(row?.image_url ?? "").trim(),
+                      String(row?.game?.image ?? "").trim(),
+                      String(game?.image ?? "").trim(),
+                    ]
+                      .map((raw) => (raw ? (toDisplayImageSrc(raw) ?? raw) : ""))
+                      .filter(Boolean);
                     const badges = Array.isArray(row?.seller_trust?.badges) ? row.seller_trust.badges : [];
                     const server = String((row as any)?.account_region ?? "").trim();
                     const sellerCompany = String((row as any)?.seller_company_name ?? "").trim();
@@ -239,18 +283,7 @@ export default function GamingAccountsByGamePage() {
                         className="snap-start group flex-none w-[240px] overflow-hidden rounded-[26px] border border-white/10 bg-black/40 shadow-[0_25px_80px_rgba(4,6,35,0.6)] transition hover:border-fuchsia-300/40"
                       >
                         <div className="relative aspect-[16/10] w-full overflow-hidden bg-white/5">
-                          {img ? (
-                            <Image
-                              src={img}
-                              alt={title}
-                              fill
-                              className="object-cover"
-                              sizes="240px"
-                              unoptimized
-                            />
-                          ) : (
-                            <div className="h-full w-full bg-white/10" />
-                          )}
+                          <MobileListingThumb title={title} candidates={imgCandidates} />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent" />
                           <div className="absolute left-3 top-3 flex flex-wrap gap-2">
                             <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold text-white">
