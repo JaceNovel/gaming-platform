@@ -65,14 +65,6 @@ export default function Footer() {
             </h3>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="mailto:support@primegaming.space"
-                  className="text-xs sm:text-sm text-slate-400 hover:text-fuchsia-500 transition-colors duration-200 break-all"
-                >
-                  support@primegaming.space
-                </a>
-              </li>
-              <li>
                 <Link
                   href="/contact"
                   className="text-xs sm:text-sm text-slate-400 hover:text-fuchsia-500 transition-colors duration-200"
