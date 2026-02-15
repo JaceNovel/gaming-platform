@@ -5,6 +5,29 @@ export function proxy(request: NextRequest) {
   const url = request.nextUrl;
   const hostname = url.hostname;
 
+  // Block common WordPress probe URLs (bots) early.
+  // This site is not WordPress; returning a fast 404 reduces noise.
+  const path = url.pathname.toLowerCase();
+  const isWpProbe =
+    path === "/wp-admin" ||
+    path.startsWith("/wp-admin/") ||
+    path === "/wp-login.php" ||
+    path === "/xmlrpc.php" ||
+    path === "/wordpress" ||
+    path.startsWith("/wordpress/") ||
+    path.includes("/wp-admin/") ||
+    path.includes("/wp-login.php");
+
+  if (isWpProbe) {
+    return new NextResponse("Not Found", {
+      status: 404,
+      headers: {
+        "Cache-Control": "public, max-age=3600",
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    });
+  }
+
   // Force a single canonical host to avoid split caches/service-workers between www and apex.
   if (hostname === "www.primegaming.space") {
     const target = new URL(request.url);
