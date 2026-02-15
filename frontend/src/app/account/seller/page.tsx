@@ -743,6 +743,8 @@ function SellerPageClient() {
       return !disable;
     };
 
+    const sellerCompanyName = String(seller?.companyName ?? form.companyName ?? "").trim();
+
     const goPrev = () => setStep((p) => Math.max(1, p - 1));
     const goNext = () => setStep((p) => Math.min(steps.length, p + 1));
 
@@ -829,6 +831,27 @@ function SellerPageClient() {
 
             {step === 1 ? (
               <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
+                  <p className="text-xs uppercase tracking-[0.25em] text-white/50">Entreprise vendeur</p>
+                  {sellerCompanyName ? (
+                    <p className="mt-1 font-semibold text-white/90">{sellerCompanyName}</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="text-amber-200">Nom d'entreprise non renseigné.</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeListingModal();
+                          setActiveTab("kyc");
+                        }}
+                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/85 hover:bg-white/10"
+                      >
+                        Remplir maintenant
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <label className="text-sm text-white/70">
                   Jeu (optionnel)
                   <select
@@ -1096,7 +1119,7 @@ function SellerPageClient() {
               </div>
             ) : null}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {step > 1 ? (
+              {!isMobileCreatePage && step > 1 ? (
                 <button
                   type="button"
                   onClick={goPrev}
@@ -1106,7 +1129,7 @@ function SellerPageClient() {
                 </button>
               ) : null}
 
-              {step < steps.length ? (
+              {!isMobileCreatePage && step < steps.length ? (
                 <button
                   type="button"
                   disabled={!canGoNext(step)}
@@ -1115,7 +1138,7 @@ function SellerPageClient() {
                 >
                   Suivant
                 </button>
-              ) : (
+              ) : step >= steps.length ? (
                 <button
                   type="button"
                   disabled={submitDisabled}
@@ -1147,7 +1170,7 @@ function SellerPageClient() {
                   <CheckCircle2 className="h-4 w-4" />
                   {isEdit ? "Enregistrer" : "Créer"}
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
