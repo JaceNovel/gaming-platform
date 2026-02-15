@@ -131,7 +131,7 @@ class SellerKycController extends Controller
 
         $filesByType = $seller->kycFiles->keyBy('type');
 
-        $agreementUrl = $seller->status === 'approved' ? url('/api/seller/agreement-pdf') : null;
+        $agreementUrl = $seller->status === 'approved' ? url('/api/gaming-accounts/seller/agreement-pdf') : null;
         $monthlySales = $this->salesLimitService->monthlySalesForSeller($seller);
         $requiresVipUpgrade = $this->salesLimitService->requiresVipUpgrade($seller);
 

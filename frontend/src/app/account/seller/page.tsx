@@ -1672,14 +1672,14 @@ function SellerPageClient() {
                           </div>
                         </div>
 
-                        {seller.status === "approved" && seller.agreementPdfUrl ? (
+                        {seller.status === "approved" ? (
                           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
                             <p className="font-semibold text-white/85">Document vendeur (PDF)</p>
                             <p className="mt-1 text-white/60">
                               Conditions et règles applicables. Généré le {formatDateTime(seller.agreementPdfGeneratedAt)}.
                             </p>
                             <a
-                              href={seller.agreementPdfUrl}
+                              href="/api/gaming-accounts/seller/agreement-pdf"
                               target="_blank"
                               rel="noreferrer"
                               className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-black/30 px-4 py-2 text-sm font-semibold text-white/85 hover:bg-black/40"
