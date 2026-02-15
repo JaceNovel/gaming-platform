@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -175,6 +176,8 @@ const statusLabel = (status: Seller["status"]) => {
 };
 
 function SellerPageClient() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { authFetch, user } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -196,6 +199,7 @@ function SellerPageClient() {
 
   const [listingModal, setListingModal] = useState<null | { mode: "create" | "edit"; listing?: Listing }>(null);
   const [deliveryModal, setDeliveryModal] = useState<null | { order: MarketplaceOrderRow }>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const toastTimer = useRef<number | null>(null);
 
   const [form, setForm] = useState({
@@ -225,6 +229,56 @@ function SellerPageClient() {
       if (toastTimer.current) window.clearTimeout(toastTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobileViewport(media.matches);
+    sync();
+
+    const onChange = () => sync();
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport) return;
+    const wantsCreatePage = searchParams.get("createListing") === "1";
+
+    if (wantsCreatePage && (!listingModal || listingModal.mode !== "create")) {
+      setListingModal({ mode: "create" });
+      return;
+    }
+
+    if (!wantsCreatePage && listingModal?.mode === "create") {
+      setListingModal(null);
+    }
+  }, [isMobileViewport, listingModal, searchParams]);
+
+  const openCreateListing = useCallback(() => {
+    if (isMobileViewport) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("createListing", "1");
+      router.push(`/account/seller?${params.toString()}`, { scroll: false });
+      return;
+    }
+
+    setListingModal({ mode: "create" });
+  }, [isMobileViewport, router, searchParams]);
+
+  const closeListingModal = useCallback(() => {
+    const closingCreateOnMobile = isMobileViewport && listingModal?.mode === "create";
+
+    if (closingCreateOnMobile) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("createListing");
+      const nextQuery = params.toString();
+      router.replace(nextQuery ? `/account/seller?${nextQuery}` : "/account/seller", { scroll: false });
+    }
+
+    setListingModal(null);
+  }, [isMobileViewport, listingModal?.mode, router, searchParams]);
 
   const pushToast = useCallback((message: string, tone: ToastTone = "info") => {
     setToast({ message, tone });
@@ -426,7 +480,7 @@ function SellerPageClient() {
     }
   };
 
-  const saveListing = async (payload: {
+  const saveListing = useCallback(async (payload: {
     mode: "create" | "edit";
     id?: number;
     image?: File | null;
@@ -483,12 +537,12 @@ function SellerPageClient() {
           pushToast("Annonce mise à jour (revalidation si nécessaire).", "success");
         }
       }
-      setListingModal(null);
+      closeListingModal();
       await loadListings();
     } catch (e: any) {
       pushToast(e?.message ?? "Impossible d'enregistrer", "error");
     }
-  };
+  }, [authFetch, closeListingModal, fetchJson, loadListings, pushToast]);
 
   const setListingStatus = async (listingId: number, next: "active" | "disabled", reason?: string) => {
     try {
@@ -599,6 +653,7 @@ function SellerPageClient() {
   const ListingModal = () => {
     const isOpen = Boolean(listingModal);
     const isEdit = listingModal?.mode === "edit";
+    const isMobileCreatePage = isMobileViewport && listingModal?.mode === "create";
     const base = listingModal?.listing;
 
     const steps = ["Informations", "Détails compte", "Images", "Vérification"] as const;
@@ -679,8 +734,20 @@ function SellerPageClient() {
     const goNext = () => setStep((p) => Math.min(steps.length, p + 1));
 
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 px-4 pb-[calc(96px+env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:items-center sm:p-4">
-        <div className="flex max-h-[calc(100dvh-6.5rem-env(safe-area-inset-bottom))] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
+      <div
+        className={
+          isMobileCreatePage
+            ? "fixed inset-0 z-50 bg-[#05020f]"
+            : "fixed inset-0 z-50 flex items-end justify-center bg-black/65 px-4 pb-[calc(96px+env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:items-center sm:p-4"
+        }
+      >
+        <div
+          className={
+            isMobileCreatePage
+              ? "flex h-[100dvh] w-full flex-col overflow-hidden"
+              : "flex max-h-[calc(100dvh-6.5rem-env(safe-area-inset-bottom))] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
+          }
+        >
           <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
             <div>
               <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">Annonces</p>
@@ -707,10 +774,10 @@ function SellerPageClient() {
             </div>
             <button
               type="button"
-              onClick={() => setListingModal(null)}
+              onClick={closeListingModal}
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
             >
-              Fermer
+              {isMobileCreatePage ? "Retour" : "Fermer"}
             </button>
           </div>
 
@@ -1568,7 +1635,7 @@ function SellerPageClient() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setListingModal({ mode: "create" })}
+                    onClick={openCreateListing}
                     className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black"
                   >
                     <Plus className="h-4 w-4" />
