@@ -1204,6 +1204,18 @@ function SellerPageClient() {
     const hasExistingProofFile = Boolean(existingPath);
     const proofRequired = !hasExistingProofFile;
 
+    const canConfirm = !(busy || (proofRequired && !file));
+
+    const confirmDelivered = async () => {
+      if (proofRequired && !file) {
+        pushToast("Ajoute une preuve (image) avant de confirmer.", "error");
+        return;
+      }
+      setBusy(true);
+      await markDelivered(dm.order.id, note, file);
+      setBusy(false);
+    };
+
     return (
       <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-4 backdrop-blur sm:items-center">
         <div className="w-full max-w-xl overflow-hidden rounded-[32px] border border-white/10 bg-[#05020f] shadow-2xl">
@@ -1216,13 +1228,25 @@ function SellerPageClient() {
                 {ref ? <span className="text-white/50"> · Ref {ref}</span> : null}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setDeliveryModal(null)}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
-            >
-              Fermer
-            </button>
+            <div className="flex flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeliveryModal(null)}
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
+              >
+                Fermer
+              </button>
+
+              <button
+                type="button"
+                disabled={!canConfirm}
+                onClick={confirmDelivered}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50 sm:hidden"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Confirmer livré
+              </button>
+            </div>
           </div>
 
           <div className="px-6 py-6">
@@ -1262,19 +1286,11 @@ function SellerPageClient() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-5">
+          <div className="hidden items-center justify-end gap-3 border-t border-white/10 px-6 py-5 sm:flex">
             <button
               type="button"
-              disabled={busy || (proofRequired && !file)}
-              onClick={async () => {
-                if (proofRequired && !file) {
-                  pushToast("Ajoute une preuve (image) avant de confirmer.", "error");
-                  return;
-                }
-                setBusy(true);
-                await markDelivered(dm.order.id, note, file);
-                setBusy(false);
-              }}
+              disabled={!canConfirm}
+              onClick={confirmDelivered}
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
