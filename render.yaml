@@ -51,6 +51,23 @@ services:
       - key: QUEUE_CONNECTION
         value: database
 
+      # Mail (Brevo SMTP) - set these in Render dashboard
+      - key: MAIL_MAILER
+        value: smtp
+      - key: MAIL_HOST
+        value: smtp-relay.brevo.com
+      - key: MAIL_PORT
+        value: "587"
+      # Brevo typically uses username 'apikey' + an SMTP key as password
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: "PRIME Gaming"
+
       # CinetPay (set these in Render dashboard)
       - key: CINETPAY_API_KEY
         sync: false
@@ -95,6 +112,22 @@ services:
         value: "true"
       - key: QUEUE_CONNECTION
         value: database
+
+      # Mail (Brevo SMTP) - set these in Render dashboard
+      - key: MAIL_MAILER
+        value: smtp
+      - key: MAIL_HOST
+        value: smtp-relay.brevo.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: "PRIME Gaming"
 
       # CinetPay (set these in Render dashboard)
       - key: CINETPAY_API_KEY

@@ -9,6 +9,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Throwable;
 
 class SendEmailJob implements ShouldQueue
@@ -45,7 +46,13 @@ class SendEmailJob implements ShouldQueue
                 'error' => $e->getMessage(),
             ]);
 
-            throw $e; // Re-throw to trigger retry
+            // If credentials are wrong (SMTP 535), retries will never help and can
+            // cause noisy logs / queue backlogs. Mark failed and stop retrying.
+            if ($e instanceof TransportExceptionInterface && str_contains($e->getMessage(), '535')) {
+                return;
+            }
+
+            throw $e; // Re-throw to trigger retry for transient errors
         }
     }
 
