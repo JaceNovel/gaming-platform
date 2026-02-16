@@ -432,10 +432,9 @@ function AccountClient() {
 
         // Redeem-code orders -> show action button to Mes codes
         if (hasRedeemItems) {
-          setThankYouTitle('Merci pour ton achat');
-          setThankYouMessage('Ton paiement est confirmé. Clique sur Recharger pour voir tes codes. Vérifie impérativement ton mail (boîte de réception / spams) pour la confirmation et les détails.');
-          setThankYouTrackTarget(null);
-          setThankYouRedeemOrderId(orderId);
+          // Requirement: redeem-code buyers should land on "Mes codes" after payment.
+          setThankYouOpen(false);
+          router.replace(`/codes?payment_status=${encodeURIComponent(resolvedStatus)}`);
           return;
         }
 

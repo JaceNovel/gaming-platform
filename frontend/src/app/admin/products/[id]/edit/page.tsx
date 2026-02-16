@@ -252,7 +252,14 @@ export default function AdminProductsEditPage() {
       if (!productId) return;
       setLoadingProduct(true);
       try {
-        const res = await fetch(`${API_BASE}/products/${productId}`);
+        const res = await fetch(`${API_BASE}/products/${productId}`, {
+          cache: "no-store",
+          headers: {
+            Accept: "application/json",
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        });
         if (!res.ok) return;
         const product = (await res.json()) as ApiProduct;
         if (!active) return;
@@ -269,10 +276,10 @@ export default function AdminProductsEditPage() {
             .map((t) => t.trim())
             .filter(Boolean);
         setServerTags(tagNames.join(", "));
-        setPrice(product?.price ? String(product.price) : "");
+        setPrice(product?.price !== null && product?.price !== undefined ? String(product.price) : "");
         setShippingFee(product?.shipping_fee !== null && product?.shipping_fee !== undefined ? String(product.shipping_fee) : "");
-        setDiscountPrice(product?.discount_price ? String(product.discount_price) : "");
-        setStock(product?.stock ? String(product.stock) : "0");
+        setDiscountPrice(product?.discount_price !== null && product?.discount_price !== undefined ? String(product.discount_price) : "");
+        setStock(product?.stock !== null && product?.stock !== undefined ? String(product.stock) : "0");
         setCategoryId(product?.category_id ? String(product.category_id) : "");
         setGameId(product?.game_id ? String(product.game_id) : "");
         setType(product?.type ?? "account");
@@ -450,8 +457,9 @@ export default function AdminProductsEditPage() {
         description: description.trim() || undefined,
         server_tags: serverTags.trim() || undefined,
         price: Number(price),
-        shipping_fee: shippingFee.trim() ? Number(shippingFee) : undefined,
-        discount_price: discountPrice ? Number(discountPrice) : undefined,
+        shipping_fee: shippingFee.trim() ? Number(shippingFee) : null,
+        // Important: allow clearing discount_price so storefront shows the updated base price.
+        discount_price: discountPrice.trim() ? Number(discountPrice) : null,
         stock: Number(stock),
         category_id: categoryId ? Number(categoryId) : undefined,
         game_id: gameId ? Number(gameId) : undefined,
@@ -474,13 +482,8 @@ export default function AdminProductsEditPage() {
         banner_url: bannerUrl.trim() || undefined,
         images: type === "account" ? cleanedAccountImages : undefined,
         stock_mode:
-          selectedCatalogKind === "recharge"
-            ? rechargeKind === "codes"
-              ? "redeem_pool"
-              : null
-            : undefined,
-        redeem_code_delivery:
-          selectedCatalogKind === "recharge" ? (rechargeKind === "codes" ? true : false) : undefined,
+          selectedCatalogKind === "recharge" ? (rechargeKind === "codes" ? "redeem_pool" : "manual") : undefined,
+        redeem_code_delivery: selectedCatalogKind === "recharge" ? rechargeKind === "codes" : undefined,
       };
 
       const res = await fetch(`${API_BASE}/admin/products/${productId}`, {

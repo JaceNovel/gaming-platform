@@ -101,7 +101,15 @@ export default function AdminProductsListPage() {
           per_page: "100",
           q: term,
           category: category === "all" ? "" : category,
-        })
+        }),
+        {
+          cache: "no-store",
+          headers: {
+            Accept: "application/json",
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        }
       );
       if (!res.ok) {
         throw new Error("Impossible de charger les produits");

@@ -168,7 +168,8 @@ export default function HomeClient() {
 
     const loadProducts = async () => {
       try {
-        const popularRes = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=9`, {
+        const ts = Date.now();
+        const popularRes = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=9&_ts=${ts}`, {
           cache: "no-store",
           headers: {
             Accept: "application/json",

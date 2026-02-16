@@ -238,7 +238,8 @@ export default function AdminProductsAddPage() {
         description: description.trim() || undefined,
         server_tags: serverTags.trim() || undefined,
         price: Number(price),
-        discount_price: discountPrice ? Number(discountPrice) : undefined,
+        // Allow explicitly clearing discount_price by sending null when the field is blank.
+        discount_price: discountPrice.trim() ? Number(discountPrice) : null,
         stock: Number(stock),
         category_id: categoryId ? Number(categoryId) : undefined,
         game_id: Number(gameId),
