@@ -60,6 +60,15 @@ class AdminProductController extends Controller
             'images.*' => 'nullable|string|max:2048',
         ]);
 
+        // shipping_fee is NOT NULL in DB. Some admin UIs may send it as null/"".
+        // Persist 0 instead of NULL so updates/creates never violate constraints.
+        if (array_key_exists('shipping_fee', $data)) {
+            $fee = $data['shipping_fee'];
+            if ($fee === null || (is_string($fee) && trim($fee) === '')) {
+                $data['shipping_fee'] = 0;
+            }
+        }
+
         // Avoid persisting NULL into non-null DB columns when the frontend sends empty values.
         if (array_key_exists('stock_mode', $data)) {
             $stockMode = $data['stock_mode'];
@@ -244,6 +253,15 @@ class AdminProductController extends Controller
             'images' => 'nullable|array|max:10',
             'images.*' => 'nullable|string|max:2048',
         ]);
+
+        // shipping_fee is NOT NULL in DB. ConvertEmptyStringsToNull can turn "" into null.
+        // Coerce null/empty into 0 so admins can clear it safely.
+        if (array_key_exists('shipping_fee', $data)) {
+            $fee = $data['shipping_fee'];
+            if ($fee === null || (is_string($fee) && trim($fee) === '')) {
+                $data['shipping_fee'] = 0;
+            }
+        }
 
         // Double safety: if stock_mode somehow slips through as null, never persist it.
         if (array_key_exists('stock_mode', $data)) {

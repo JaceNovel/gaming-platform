@@ -457,7 +457,8 @@ export default function AdminProductsEditPage() {
         description: description.trim() || undefined,
         server_tags: serverTags.trim() || undefined,
         price: Number(price),
-        shipping_fee: shippingFee.trim() ? Number(shippingFee) : null,
+        // shipping_fee is NOT NULL in DB; use 0 to clear.
+        shipping_fee: shippingFee.trim() ? Number(shippingFee) : 0,
         // Important: allow clearing discount_price so storefront shows the updated base price.
         discount_price: discountPrice.trim() ? Number(discountPrice) : null,
         stock: Number(stock),
