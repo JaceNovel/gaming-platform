@@ -107,23 +107,54 @@ class AdminProductController extends Controller
             $data['display_section'] = 'popular';
         }
 
-        try {
-            $product = Product::create($data);
-        } catch (QueryException $e) {
-            Log::error('Admin product create failed', [
-                'path' => $request->path(),
-                'method' => $request->method(),
-                'user_id' => $request->user()?->id,
-                'request_id' => $request->headers->get('X-Request-ID')
-                    ?? $request->headers->get('X-Request-Id')
-                    ?? $request->headers->get('X-Correlation-ID')
-                    ?? null,
-                'error' => $e->getMessage(),
-                'sql_state' => $e->errorInfo[0] ?? null,
-            ]);
+        $product = null;
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            try {
+                $product = Product::create($data);
+                break;
+            } catch (QueryException $e) {
+                $message = $e->getMessage();
+                $sqlState = $e->errorInfo[0] ?? null;
 
+                // Postgres: 23505 = unique_violation. MySQL: 23000.
+                $isUniqueViolation = in_array($sqlState, ['23505', '23000'], true)
+                    || str_contains($message, 'duplicate key')
+                    || str_contains($message, 'Duplicate entry');
+
+                $isSkuCollision = str_contains($message, 'products_sku_unique') || str_contains($message, 'sku');
+                $isSlugCollision = str_contains($message, 'products_slug_unique') || str_contains($message, 'slug');
+
+                if ($attempt < 3 && $isUniqueViolation && ($isSkuCollision || $isSlugCollision)) {
+                    if ($isSkuCollision) {
+                        $data['sku'] = $this->generateSku();
+                    }
+                    if ($isSlugCollision) {
+                        $data['slug'] = $this->generateUniqueProductSlug((string) ($data['slug'] ?? 'product'));
+                    }
+                    continue;
+                }
+
+                Log::error('Admin product create failed', [
+                    'path' => $request->path(),
+                    'method' => $request->method(),
+                    'user_id' => $request->user()?->id,
+                    'request_id' => $request->headers->get('X-Request-ID')
+                        ?? $request->headers->get('X-Request-Id')
+                        ?? $request->headers->get('X-Correlation-ID')
+                        ?? null,
+                    'error' => $message,
+                    'sql_state' => $sqlState,
+                ]);
+
+                throw ValidationException::withMessages([
+                    'product' => 'Impossible de créer le produit (données invalides ou base non à jour).',
+                ]);
+            }
+        }
+
+        if (!$product) {
             throw ValidationException::withMessages([
-                'product' => 'Impossible de créer le produit (données invalides ou base non à jour).',
+                'product' => 'Impossible de créer le produit (réessayez).',
             ]);
         }
 
@@ -292,8 +323,42 @@ class AdminProductController extends Controller
 
     private function generateSku(): string
     {
-        $next = Product::count() + 1;
-        return sprintf('BBS-%06d', $next);
+        // Previous implementation used Product::count()+1, which can collide when rows are deleted
+        // or when multiple admins create products concurrently.
+        $max = 0;
+
+        // Scan a window of recent SKUs to infer the current max.
+        // Keeps this DB-agnostic (pgsql/mysql) and avoids slow full-table scans.
+        $recentSkus = Product::query()
+            ->whereNotNull('sku')
+            ->orderByDesc('id')
+            ->limit(2000)
+            ->pluck('sku');
+
+        foreach ($recentSkus as $sku) {
+            $sku = (string) $sku;
+            if (!str_starts_with($sku, 'BBS-')) {
+                continue;
+            }
+            $num = (int) ltrim(substr($sku, 4), '0');
+            if ($num > $max) {
+                $max = $num;
+            }
+        }
+
+        $next = max(1, $max + 1);
+
+        // Guarantee uniqueness in-process.
+        // Still not a perfect lock for concurrency, but drastically reduces collisions.
+        for ($i = 0; $i < 50; $i++) {
+            $candidate = sprintf('BBS-%06d', $next + $i);
+            if (!Product::query()->where('sku', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        // Last resort: time-based suffix.
+        return 'BBS-' . now()->format('YmdHis');
     }
 
     private function generateUniqueProductSlug(string $desiredSlug, ?int $ignoreProductId = null): string
