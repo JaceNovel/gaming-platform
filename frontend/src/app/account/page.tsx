@@ -399,6 +399,7 @@ function AccountClient() {
           .filter(Boolean)
           .join(' | ');
         const isFreeFire = /free\s*fire/i.test(nameBlob);
+        const isBooyahPass = items.some((it: any) => String(it?.product?.name ?? '').trim().toLowerCase() === 'booyah pass');
         const isSubscription = items.some(
           (it: any) => String(it?.product?.type ?? '').trim().toLowerCase() === 'subscription',
         ) || String(orderPayload?.type ?? '').toLowerCase().includes('subscription');
@@ -428,6 +429,15 @@ function AccountClient() {
           setThankYouMessage('Ton paiement est confirmé. Clique sur Recharger pour voir tes codes.');
           setThankYouTrackTarget(null);
           setThankYouRedeemOrderId(orderId);
+          return;
+        }
+
+        // BOOYAH PASS -> show 30min + add friend instructions
+        if (isBooyahPass) {
+          setThankYouTitle('BOOYAH PASS');
+          setThankYouMessage('Merci pour ton achat. Vous devez ajouter en amis cet ID Free Fire: 2272704178. Vous recevrez votre achat dans un délai de 30min.');
+          setPaymentBanner('Paiement confirmé. BOOYAH PASS en cours de traitement (≤ 30min). Ajoute en ami: 2272704178.');
+          setThankYouTrackTarget(null);
           return;
         }
 

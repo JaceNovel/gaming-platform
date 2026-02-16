@@ -229,7 +229,7 @@ class ProcessMarketplaceOrder implements ShouldQueue
                         $gameName = strtolower((string) ($mp->listing?->game?->name ?? ''));
                         $isFreeFire = $gameName !== '' && str_contains($gameName, 'free fire');
                         $freeFireGuideUrl = $isFreeFire
-                            ? ($front . '/images/' . rawurlencode('🔐 Procédure de liaison du compte Free Fire.pdf'))
+                            ? ($front . '/images/' . rawurlencode('🔐 Procédure de liaison du compte Free Fir1.pdf'))
                             : null;
                         $chatUrl = $isFreeFire
                             ? ($front . '/chat?intent=free_fire_security&order_ref=' . rawurlencode($orderRef))

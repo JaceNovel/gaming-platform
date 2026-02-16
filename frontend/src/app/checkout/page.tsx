@@ -17,6 +17,7 @@ function CheckoutScreen() {
   const productId = Number(searchParams.get("product"));
   const [quantity, setQuantity] = useState(1);
   const [productType, setProductType] = useState<string | null>(null);
+  const [productName, setProductName] = useState<string>("");
   const [productPrice, setProductPrice] = useState<number>(0);
   const [shippingRequired, setShippingRequired] = useState(false);
   const [gameId, setGameId] = useState<string>("");
@@ -44,6 +45,7 @@ function CheckoutScreen() {
       const data = await res.json();
       if (!active) return;
       setProductType(data?.type ?? null);
+      setProductName(String(data?.name ?? data?.title ?? "").trim());
       setShippingRequired(Boolean(data?.shipping_required ?? false));
 
       const discountPrice = typeof data?.discount_price === "number" ? data.discount_price : Number(data?.discount_price ?? NaN);
@@ -56,6 +58,13 @@ function CheckoutScreen() {
       active = false;
     };
   }, [isValidProduct, productId]);
+
+  const requiresGameId = useMemo(() => {
+    const t = String(productType ?? "").toLowerCase();
+    if (t === "subscription") return true;
+    const normalizedName = String(productName ?? "").trim().toLowerCase();
+    return normalizedName === "booyah pass";
+  }, [productName, productType]);
 
   useEffect(() => {
     const existing = readShippingInfo();
@@ -172,9 +181,9 @@ function CheckoutScreen() {
       persistShipping();
     }
 
-        emitWalletUpdated({ source: "checkout_wallet_pay" });
-    if (String(productType ?? "").toLowerCase() === "subscription" && !gameId.trim()) {
-      setStatus("Veuillez renseigner votre ID (obligatoire pour l'abonnement).");
+    emitWalletUpdated({ source: "checkout_wallet_pay" });
+    if (requiresGameId && !gameId.trim()) {
+      setStatus("Veuillez renseigner votre ID (obligatoire pour ce produit).");
       return;
     }
 
@@ -187,7 +196,7 @@ function CheckoutScreen() {
             {
               product_id: productId,
               quantity,
-              ...(String(productType ?? "").toLowerCase() === "subscription" ? { game_id: gameId.trim() } : {}),
+              ...(requiresGameId ? { game_id: gameId.trim() } : {}),
             },
           ],
           ...(shippingRequired
@@ -448,6 +457,20 @@ function CheckoutScreen() {
               <p className="text-xs text-white/50">Cet ID est requis pour activer l'abonnement.</p>
             </div>
           )}
+
+          {!String(productType ?? "").toLowerCase().includes("subscription") && String(productName ?? "").trim().toLowerCase() === "booyah pass" ? (
+            <div className="space-y-2">
+              <label className="text-sm text-white/70">ID Free Fire (obligatoire)</label>
+              <input
+                type="text"
+                value={gameId}
+                onChange={(e) => setGameId(e.target.value)}
+                placeholder="Ex: votre ID Free Fire"
+                className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
+              />
+              <p className="text-xs text-white/50">Cet ID est requis pour traiter le BOOYAH PASS.</p>
+            </div>
+          ) : null}
 
           <GlowButton onClick={handleCreateOrder} disabled={loading} className="w-full justify-center">
             {loading ? "Création..." : "Confirmer la commande"}

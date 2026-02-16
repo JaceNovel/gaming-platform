@@ -305,11 +305,16 @@ function CartScreen() {
         persistShipping();
       }
 
-      const missingSubscriptionId = cartItems.find(
-        (item) => String(item.type ?? "").toLowerCase() === "subscription" && !String(item.gameId ?? "").trim(),
-      );
-      if (missingSubscriptionId) {
-        setStatus(`Veuillez renseigner l'ID pour: ${missingSubscriptionId.name}`);
+      const requiresGameIdForItem = (item: any) => {
+        const t = String(item?.type ?? "").trim().toLowerCase();
+        if (t === "subscription") return true;
+        const n = String(item?.name ?? "").trim().toLowerCase();
+        return n === "booyah pass";
+      };
+
+      const missingGameId = cartItems.find((item) => requiresGameIdForItem(item) && !String(item.gameId ?? "").trim());
+      if (missingGameId) {
+        setStatus(`Veuillez renseigner l'ID pour: ${missingGameId.name}`);
         return;
       }
 
@@ -319,7 +324,7 @@ function CartScreen() {
           items: cartItems.map((item) => ({
             product_id: item.id,
             quantity: item.quantity,
-            ...(String(item.type ?? "").toLowerCase() === "subscription" ? { game_id: String(item.gameId ?? "").trim() } : {}),
+            ...(requiresGameIdForItem(item) ? { game_id: String(item.gameId ?? "").trim() } : {}),
           })),
           ...(hasPhysicalItems
             ? {
@@ -475,7 +480,7 @@ function CartScreen() {
                           ) : null;
                         })()}
 
-                        {String(item.type ?? "").toLowerCase() === "subscription" && (
+                        {(String(item.type ?? "").toLowerCase() === "subscription" || String(item.name ?? "").trim().toLowerCase() === "booyah pass") && (
                           <div className="mt-3 space-y-2">
                             <label className="text-xs text-white/60">ID (obligatoire)</label>
                             <input

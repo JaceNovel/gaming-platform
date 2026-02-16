@@ -25,7 +25,7 @@ class TopupConfirmation extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Confirmation de recharge PRIME Gaming'
+            subject: 'Paiement confirmé - Traitement'
         );
     }
 

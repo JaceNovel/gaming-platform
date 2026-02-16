@@ -12,7 +12,7 @@ class DeliveryService
         $details = json_decode($account->account_details, true);
 
         $front = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
-        $freeFireGuideFilename = '🔐 Procédure de liaison du compte Free Fire.pdf';
+        $freeFireGuideFilename = '🔐 Procédure de liaison du compte Free Fir1.pdf';
         $freeFireGuideUrl = $front !== ''
             ? $front . '/images/' . rawurlencode($freeFireGuideFilename)
             : null;

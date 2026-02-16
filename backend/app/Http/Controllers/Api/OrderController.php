@@ -15,10 +15,48 @@ use App\Services\ShippingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Carbon\CarbonImmutable;
 
 use App\Support\FrontendUrls;
 class OrderController extends Controller
 {
+    private function isBooyahPassProduct(Product $product): bool
+    {
+        $name = strtolower(trim((string) ($product->name ?? '')));
+        return $name === 'booyah pass';
+    }
+
+    private function isFreeFireGameForProduct(Product $product): bool
+    {
+        try {
+            $game = $product->game;
+        } catch (\Throwable) {
+            $game = null;
+        }
+
+        $slug = strtolower(trim((string) ($game?->slug ?? '')));
+        $name = strtolower(trim((string) ($game?->name ?? '')));
+
+        if ($slug !== '') {
+            return $slug === 'freefire' || $slug === 'free-fire' || str_contains($slug, 'freefire') || str_contains($slug, 'free-fire');
+        }
+
+        return $name !== '' && preg_match('/free\s*fire/i', $name) === 1;
+    }
+
+    private function assertFreeFireSubscriptionWindowOrFail(): void
+    {
+        $now = CarbonImmutable::now('UTC');
+        $minutes = ((int) $now->hour) * 60 + (int) $now->minute;
+        $start = 9 * 60;
+        $end = 23 * 60;
+
+        if ($minutes < $start || $minutes >= $end) {
+            throw ValidationException::withMessages([
+                'items' => 'Les abonnements Free Fire sont disponibles uniquement de 09h à 23h (GMT).',
+            ]);
+        }
+    }
     private function resolveOrderForUser(Request $request, string $orderIdOrReference): Order
     {
         $needle = urldecode($orderIdOrReference);
@@ -263,10 +301,14 @@ class OrderController extends Controller
             $redeemDenomination = null;
 
             $gameId = trim((string) ($item['game_id'] ?? ''));
-            if ($product->type === 'subscription' && $gameId === '') {
+            if (($product->type === 'subscription' || $this->isBooyahPassProduct($product)) && $gameId === '') {
                 throw ValidationException::withMessages([
                     'items' => "Game ID is required for {$product->name}",
                 ]);
+            }
+
+            if ($product->type === 'subscription' && $this->isFreeFireGameForProduct($product)) {
+                $this->assertFreeFireSubscriptionWindowOrFail();
             }
 
             if (!$product->is_active) {
