@@ -4,10 +4,10 @@ namespace App\Jobs;
 
 use App\Models\Order;
 use App\Models\GameAccount;
-use App\Models\EmailLog;
 use App\Models\Refund;
 use App\Mail\RefundIssued;
 use App\Services\DeliveryService;
+use App\Services\LoggedEmailService;
 use App\Services\WalletService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,7 +15,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class ProcessOrderDelivery implements ShouldQueue
 {
@@ -34,7 +33,7 @@ class ProcessOrderDelivery implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(DeliveryService $deliveryService, WalletService $walletService): void
+    public function handle(DeliveryService $deliveryService, WalletService $walletService, LoggedEmailService $loggedEmailService): void
     {
         try {
             // Marketplace gaming account orders have their own workflow (seller delivery proof + admin release).
@@ -60,19 +59,19 @@ class ProcessOrderDelivery implements ShouldQueue
                 $product = $orderItem->product;
 
                 if ($product->type === 'account') {
-                    $result = $this->deliverAccount($deliveryService, $walletService, $orderItem);
+                    $result = $this->deliverAccount($deliveryService, $walletService, $loggedEmailService, $orderItem);
                     if ($result === 'refunded') {
                         $hasRefund = true;
                     }
                 } elseif (in_array($product->type, ['recharge', 'subscription', 'item', 'topup', 'pass'])) {
-                    $this->deliverTopup($orderItem);
+                    $this->deliverTopup($loggedEmailService, $orderItem);
                     $hasProcessing = true;
                 } else {
                     $isPhysical = (bool) ($orderItem->is_physical ?? false) || (bool) ($product->shipping_required ?? false);
                     if ($isPhysical) {
                         $hasPhysical = true;
                     }
-                    $this->deliverArticle($orderItem, $isPhysical);
+                    $this->deliverArticle($loggedEmailService, $orderItem, $isPhysical);
                 }
             }
 
@@ -118,7 +117,7 @@ class ProcessOrderDelivery implements ShouldQueue
         }
     }
 
-    protected function deliverAccount(DeliveryService $deliveryService, WalletService $walletService, $orderItem): string
+    protected function deliverAccount(DeliveryService $deliveryService, WalletService $walletService, LoggedEmailService $loggedEmailService, $orderItem): string
     {
         // Find available account
         $account = GameAccount::where('game_id', $orderItem->product->game_id)
@@ -159,15 +158,14 @@ class ProcessOrderDelivery implements ShouldQueue
                 ],
             ]);
 
-            Mail::to($user->email)->send(new RefundIssued($this->order, $refund));
-            EmailLog::create([
-                'user_id' => $user->id,
-                'to' => $user->email,
-                'type' => 'refund_issued',
-                'subject' => 'Remboursement crédité sur votre wallet - PRIME Gaming',
-                'status' => 'sent',
-                'sent_at' => now(),
-            ]);
+            $loggedEmailService->queue(
+                userId: (int) $user->id,
+                to: (string) $user->email,
+                type: 'refund_issued',
+                subject: 'Remboursement crédité sur votre wallet - PRIME Gaming',
+                mailable: new RefundIssued($this->order, $refund),
+                meta: ['order_id' => $this->order->id, 'order_item_id' => $orderItem->id]
+            );
 
             return 'refunded';
         }
@@ -191,20 +189,10 @@ class ProcessOrderDelivery implements ShouldQueue
 
         $deliveryService->sendAccountDeliveryEmail($this->order, $account);
 
-        // Log email
-        EmailLog::create([
-            'user_id' => $this->order->user_id,
-            'to' => $this->order->user->email,
-            'type' => 'account_delivery',
-            'subject' => 'Vos identifiants de jeu PRIME Gaming',
-            'status' => 'sent',
-            'sent_at' => now(),
-        ]);
-
         return 'delivered';
     }
 
-    protected function deliverTopup($orderItem)
+    protected function deliverTopup(LoggedEmailService $loggedEmailService, $orderItem)
     {
         // For top-ups, subscriptions, passes - store for admin validation
         // Admin will manually process these
@@ -215,34 +203,30 @@ class ProcessOrderDelivery implements ShouldQueue
             'delivery_payload' => $orderItem->game_user_id,
         ]);
 
-        Mail::to($this->order->user->email)->send(new \App\Mail\TopupConfirmation($this->order, $orderItem));
-
-        EmailLog::create([
-            'user_id' => $this->order->user_id,
-            'to' => $this->order->user->email,
-            'type' => 'topup_confirmation',
-            'subject' => 'Paiement confirmé - Traitement',
-            'status' => 'sent',
-            'sent_at' => now(),
-        ]);
+        $loggedEmailService->queue(
+            userId: (int) $this->order->user_id,
+            to: (string) ($this->order->user?->email ?? ''),
+            type: 'topup_confirmation',
+            subject: 'Paiement confirmé - Traitement',
+            mailable: new \App\Mail\TopupConfirmation($this->order, $orderItem),
+            meta: ['order_id' => $this->order->id, 'order_item_id' => $orderItem->id]
+        );
     }
 
-    protected function deliverArticle($orderItem, bool $isPhysical)
+    protected function deliverArticle(LoggedEmailService $loggedEmailService, $orderItem, bool $isPhysical)
     {
         // For physical/digital articles - send confirmation
         $orderItem->update([
             'delivery_status' => $isPhysical ? 'shipping_pending' : 'delivered',
         ]);
 
-        Mail::to($this->order->user->email)->send(new \App\Mail\ArticleConfirmation($this->order, $orderItem));
-
-        EmailLog::create([
-            'user_id' => $this->order->user_id,
-            'to' => $this->order->user->email,
-            'type' => 'article_confirmation',
-            'subject' => 'Commande confirmée - Livraison',
-            'status' => 'sent',
-            'sent_at' => now(),
-        ]);
+        $loggedEmailService->queue(
+            userId: (int) $this->order->user_id,
+            to: (string) ($this->order->user?->email ?? ''),
+            type: 'article_confirmation',
+            subject: 'Commande confirmée - Livraison',
+            mailable: new \App\Mail\ArticleConfirmation($this->order, $orderItem),
+            meta: ['order_id' => $this->order->id, 'order_item_id' => $orderItem->id]
+        );
     }
 }

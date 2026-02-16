@@ -10,6 +10,7 @@ use App\Models\RedeemCode;
 use App\Models\RedeemCodeDelivery;
 use App\Models\RedeemDenomination;
 use App\Services\RedeemCodeAllocator;
+use App\Services\LoggedEmailService;
 use App\Services\RedeemStockAlertService;
 use App\Services\NotificationService;
 use App\Support\FrontendUrls;
@@ -19,7 +20,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class ProcessRedeemFulfillment implements ShouldQueue
 {
@@ -30,7 +30,7 @@ class ProcessRedeemFulfillment implements ShouldQueue
         $this->onQueue('redeem-fulfillment');
     }
 
-    public function handle(RedeemCodeAllocator $allocator, RedeemStockAlertService $alertService, NotificationService $notificationService): void
+    public function handle(RedeemCodeAllocator $allocator, RedeemStockAlertService $alertService, NotificationService $notificationService, LoggedEmailService $loggedEmailService): void
     {
         $order = Order::with(['user', 'orderItems.redeemDenomination', 'orderItems.redeemCode', 'orderItems.product'])
             ->find($this->orderId);
@@ -94,7 +94,14 @@ class ProcessRedeemFulfillment implements ShouldQueue
                 $orderMeta['fulfillment_status_set_at'] = now()->toIso8601String();
                 $order->update(['meta' => $orderMeta]);
 
-                Mail::to($order->user->email)->queue(new OutOfStockMail($order));
+                $loggedEmailService->queue(
+                    userId: $order->user_id ? (int) $order->user_id : null,
+                    to: (string) ($order->user?->email ?? ''),
+                    type: 'redeem_out_of_stock',
+                    subject: 'Rupture de stock - PRIME Gaming',
+                    mailable: new OutOfStockMail($order),
+                    meta: ['order_id' => $order->id]
+                );
 
                 return;
             }
@@ -136,8 +143,20 @@ class ProcessRedeemFulfillment implements ShouldQueue
         }
 
         if (empty($orderMeta['redeem_email_sent_at'])) {
-            Mail::to($order->user->email)->queue(new RedeemCodeDeliveryMail($order->loadMissing('user'), $allCodes));
-            $orderMeta['redeem_email_sent_at'] = now()->toIso8601String();
+            $reference = trim((string) ($order->reference ?? ''));
+            $subject = 'Vos codes recharge' . ($reference !== '' ? ' - ' . $reference : '');
+
+            $emailLog = $loggedEmailService->queue(
+                userId: $order->user_id ? (int) $order->user_id : null,
+                to: (string) ($order->user?->email ?? ''),
+                type: 'redeem_code_delivery',
+                subject: $subject,
+                mailable: new RedeemCodeDeliveryMail($order->loadMissing('user'), $allCodes),
+                meta: ['order_id' => $order->id, 'codes_count' => count($allCodes)]
+            );
+            if ($emailLog) {
+                $orderMeta['redeem_email_sent_at'] = now()->toIso8601String();
+            }
         }
 
         $order->update(['meta' => $orderMeta]);

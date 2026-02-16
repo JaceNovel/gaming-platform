@@ -119,6 +119,7 @@ export default function AdminProductsEditPage() {
   const [gameId, setGameId] = useState("");
   const [type, setType] = useState("account");
   const [rechargeKind, setRechargeKind] = useState<RechargeKind>("codes");
+  const [subscriptionDirectChat, setSubscriptionDirectChat] = useState(false);
   const [accessoryCategory, setAccessoryCategory] = useState("");
   const [accessorySubcategory, setAccessorySubcategory] = useState("");
   const [accessoryStockMode, setAccessoryStockMode] = useState<"local" | "air" | "sea">("local");
@@ -294,6 +295,9 @@ export default function AdminProductsEditPage() {
         if (String(product?.type ?? "").toLowerCase() === "recharge") {
           setRechargeKind(loadedDisplaySection.toLowerCase() === "recharge_direct" ? "direct" : "codes");
         }
+        if (String(product?.type ?? "").toLowerCase() === "subscription") {
+          setSubscriptionDirectChat(loadedDisplaySection.toLowerCase() === "recharge_direct");
+        }
         setImageUrl(product?.details?.image ?? "");
         setBannerUrl(product?.details?.banner ?? "");
 
@@ -325,7 +329,7 @@ export default function AdminProductsEditPage() {
 
     if (selectedCatalogKind === "subscription") {
       if (type !== "subscription") setType("subscription");
-      if (displaySection === "recharge_direct") setDisplaySection("none");
+      if (!subscriptionDirectChat && displaySection === "recharge_direct") setDisplaySection("none");
     }
 
     if (selectedCatalogKind === "accessory") {
@@ -335,9 +339,22 @@ export default function AdminProductsEditPage() {
 
     if (selectedCatalogKind === "recharge") {
       if (type !== "recharge") setType("recharge");
+      if (subscriptionDirectChat) setSubscriptionDirectChat(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCatalogKind]);
+
+  useEffect(() => {
+    if (selectedCatalogKind !== "subscription") return;
+
+    if (subscriptionDirectChat) {
+      if (displaySection !== "recharge_direct") setDisplaySection("recharge_direct");
+      if (redeemCodesText) setRedeemCodesText("");
+      return;
+    }
+
+    if (displaySection === "recharge_direct") setDisplaySection("none");
+  }, [displaySection, redeemCodesText, selectedCatalogKind, subscriptionDirectChat]);
 
   useEffect(() => {
     if (selectedCatalogKind !== "recharge") return;
@@ -895,10 +912,17 @@ export default function AdminProductsEditPage() {
                   value={displaySection}
                   onChange={(e) => setDisplaySection(e.target.value)}
                   className={SELECT}
-                  disabled={loadingProduct || (selectedCatalogKind === "recharge" && rechargeKind === "direct")}
+                  disabled={
+                    loadingProduct ||
+                    (selectedCatalogKind === "recharge" && rechargeKind === "direct") ||
+                    (selectedCatalogKind === "subscription" && subscriptionDirectChat)
+                  }
                 >
                   <option value="none">Aucune</option>
                   {selectedCatalogKind === "recharge" && rechargeKind === "direct" ? (
+                    <option value="recharge_direct">Recharge Direct</option>
+                  ) : null}
+                  {selectedCatalogKind === "subscription" && subscriptionDirectChat ? (
                     <option value="recharge_direct">Recharge Direct</option>
                   ) : null}
                   <option value="popular">Produits populaires</option>
@@ -909,6 +933,21 @@ export default function AdminProductsEditPage() {
                 </select>
                 {selectedCatalogKind === "recharge" && rechargeKind === "direct" ? (
                   <p className={HELP}>Recharge direct ouvre le chat (section fixée automatiquement).</p>
+                ) : null}
+                {selectedCatalogKind === "subscription" ? (
+                  <label className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={subscriptionDirectChat}
+                      onChange={(e) => setSubscriptionDirectChat(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300"
+                      disabled={loadingProduct}
+                    />
+                    Recharge direct (chat)
+                  </label>
+                ) : null}
+                {selectedCatalogKind === "subscription" && subscriptionDirectChat ? (
+                  <p className={HELP}>Si coché, la fiche produit ouvre le chat au lieu de l'achat normal.</p>
                 ) : null}
               </div>
 
