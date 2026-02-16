@@ -36,7 +36,7 @@ class AdminProductController extends Controller
             'old_price' => 'nullable|numeric|min:0',
             'deal_type' => 'nullable|string|max:16',
             'stock_type' => 'nullable|string|max:16',
-            'stock_mode' => 'nullable|string|max:32',
+            'stock_mode' => 'sometimes|string|max:32',
             'redeem_sku' => 'nullable|string|max:64',
             'redeem_code_delivery' => 'nullable|boolean',
             'stock_low_threshold' => 'nullable|integer|min:0',
@@ -59,6 +59,14 @@ class AdminProductController extends Controller
             'images' => 'nullable|array|max:10',
             'images.*' => 'nullable|string|max:2048',
         ]);
+
+        // Avoid persisting NULL into non-null DB columns when the frontend sends empty values.
+        if (array_key_exists('stock_mode', $data)) {
+            $stockMode = $data['stock_mode'];
+            if ($stockMode === null || (is_string($stockMode) && trim($stockMode) === '')) {
+                unset($data['stock_mode']);
+            }
+        }
 
         $data['sku'] = $data['sku'] ?? $this->generateSku();
         $data['title'] = $data['title'] ?? $data['name'];
@@ -187,6 +195,15 @@ class AdminProductController extends Controller
 
     public function update(Request $request, Product $product)
     {
+        // Some admin UIs send all fields, including empty strings.
+        // ConvertEmptyStringsToNull middleware turns "" into null, which can violate NOT NULL columns.
+        if ($request->exists('stock_mode')) {
+            $stockMode = $request->input('stock_mode');
+            if ($stockMode === null || (is_string($stockMode) && trim($stockMode) === '')) {
+                $request->request->remove('stock_mode');
+            }
+        }
+
         $data = $request->validate([
             'game_id' => 'sometimes|nullable|exists:games,id',
             'name' => 'sometimes|string|max:255',
@@ -204,7 +221,7 @@ class AdminProductController extends Controller
             'old_price' => 'nullable|numeric|min:0',
             'deal_type' => 'nullable|string|max:16',
             'stock_type' => 'nullable|string|max:16',
-            'stock_mode' => 'nullable|string|max:32',
+            'stock_mode' => 'sometimes|string|max:32',
             'redeem_sku' => 'nullable|string|max:64',
             'redeem_code_delivery' => 'nullable|boolean',
             'stock_low_threshold' => 'nullable|integer|min:0',
@@ -227,6 +244,14 @@ class AdminProductController extends Controller
             'images' => 'nullable|array|max:10',
             'images.*' => 'nullable|string|max:2048',
         ]);
+
+        // Double safety: if stock_mode somehow slips through as null, never persist it.
+        if (array_key_exists('stock_mode', $data)) {
+            $stockMode = $data['stock_mode'];
+            if ($stockMode === null || (is_string($stockMode) && trim($stockMode) === '')) {
+                unset($data['stock_mode']);
+            }
+        }
 
         if (array_key_exists('slug', $data) && $data['slug'] !== null) {
             $data['slug'] = $this->generateUniqueProductSlug((string) $data['slug'], $product->id);
