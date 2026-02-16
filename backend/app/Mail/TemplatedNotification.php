@@ -15,21 +15,22 @@ class TemplatedNotification extends Mailable
     public string $templateKey;
     public string $fallbackSubject;
     public array $context;
-    public array $viewData;
+    public array $templateViewData;
 
     public function __construct(string $templateKey, string $fallbackSubject, array $context, array $viewData)
     {
         $this->templateKey = $templateKey;
         $this->fallbackSubject = $fallbackSubject;
         $this->context = $context;
-        $this->viewData = $viewData;
+        // Don't redeclare/override Mailable::$viewData (Laravel core).
+        $this->templateViewData = $viewData;
     }
 
     public function build(): self
     {
         $logo = SiteSetting::where('key', 'logo')->value('value');
 
-        $fallbackHtml = view('emails.templated_notification', array_merge($this->viewData, [
+        $fallbackHtml = view('emails.templated_notification', array_merge($this->templateViewData, [
             'logo' => $logo,
         ]))->render();
 
