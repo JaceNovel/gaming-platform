@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <meta name="supported-color-schemes" content="dark light">
     <title>{{ $title ?? 'PRIME Gaming' }}</title>
     <style>
         body {
@@ -70,19 +72,21 @@
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
+<body style="margin:0;padding:0;font-family:Arial, sans-serif;background-color:#121212;color:#ffffff;line-height:1.6;">
+    <div class="container" style="max-width:600px;margin:0 auto;background-color:#1e1e1e;border-radius:10px;overflow:hidden;">
+        <div class="header" style="background:linear-gradient(135deg,#ff0000,#000000);padding:20px;text-align:center;">
             @if(!empty($logo))
-                <img src="{{ $logo }}" alt="PRIME Gaming Logo" class="logo">
+                <img src="{{ $logo }}" alt="PRIME Gaming Logo" class="logo" style="max-width:150px;height:auto;">
             @else
                 <h1 style="color: #ffffff; margin: 0;">PRIME Gaming</h1>
             @endif
         </div>
-        <div class="content">
-            {{ $slot }}
+        <div class="content" style="padding:30px;color:#ffffff;">
+            <div style="color:#ffffff;">
+                {{ $slot }}
+            </div>
         </div>
-        <div class="footer">
+        <div class="footer" style="background-color:#2a2a2a;padding:20px;text-align:center;font-size:12px;color:#cccccc;">
             <p>© 2026 PRIME Gaming. Tous droits réservés.</p>
             <p>Si vous avez des questions, contactez-nous sur WhatsApp : +228 93 97 06 11</p>
         </div>
