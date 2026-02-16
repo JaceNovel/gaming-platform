@@ -5,6 +5,9 @@ import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 
+type CatalogCategoryKind = "subscription" | "accessory" | "recharge";
+type RechargeKind = "codes" | "direct";
+
 type Category = {
   id: number;
   name: string;
@@ -39,6 +42,21 @@ const buildUrl = (path: string, params: Record<string, string> = {}) => {
   return url.toString();
 };
 
+const normalizeText = (value: string) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const classifyCatalogCategory = (name: string): CatalogCategoryKind | null => {
+  const n = normalizeText(name);
+  if (n.includes("abonn")) return "subscription";
+  if (n.includes("accessoire")) return "accessory";
+  if (n.includes("recharge")) return "recharge";
+  return null;
+};
+
 export default function AdminProductsAddPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -48,7 +66,11 @@ export default function AdminProductsAddPage() {
   const [stock, setStock] = useState("0");
   const [categoryId, setCategoryId] = useState("");
   const [gameId, setGameId] = useState("");
-  const [type, setType] = useState("account");
+  const [type, setType] = useState("recharge");
+  const [rechargeKind, setRechargeKind] = useState<RechargeKind>("codes");
+  const [accessoryCategory, setAccessoryCategory] = useState("setup_comfort");
+  const [accessorySubcategory, setAccessorySubcategory] = useState("");
+  const [accessoryStockMode, setAccessoryStockMode] = useState<"local" | "air" | "sea">("local");
   const [shippingRequired, setShippingRequired] = useState(false);
   const [deliveryType, setDeliveryType] = useState("in_stock");
   const [deliveryEtaDays, setDeliveryEtaDays] = useState("2");
@@ -74,6 +96,10 @@ export default function AdminProductsAddPage() {
 
   const [redeemEnabled, setRedeemEnabled] = useState(false);
   const [redeemCodesText, setRedeemCodesText] = useState("");
+
+  const allowedCategories = categories.filter((category) => classifyCatalogCategory(category.name) !== null);
+  const selectedCategory = categories.find((category) => String(category.id) === String(categoryId)) ?? null;
+  const selectedCatalogKind = selectedCategory ? classifyCatalogCategory(selectedCategory.name) : null;
 
   const loadCategories = useCallback(async () => {
     try {
@@ -107,6 +133,50 @@ export default function AdminProductsAddPage() {
     loadCategories();
     loadGames();
   }, [loadCategories, loadGames]);
+
+  useEffect(() => {
+    // Keep the selection constrained to the 3 allowed categories.
+    if (!categoryId) return;
+    const allowedIds = new Set(allowedCategories.map((c) => String(c.id)));
+    if (!allowedIds.has(String(categoryId))) setCategoryId("");
+  }, [allowedCategories, categoryId]);
+
+  useEffect(() => {
+    if (!selectedCatalogKind) return;
+
+    if (selectedCatalogKind === "subscription") {
+      if (type !== "subscription") setType("subscription");
+      if (displaySection === "recharge_direct") setDisplaySection("none");
+      if (redeemEnabled) setRedeemEnabled(false);
+    }
+
+    if (selectedCatalogKind === "accessory") {
+      if (type !== "item") setType("item");
+      if (!accessoryCategory) setAccessoryCategory("setup_comfort");
+      if (displaySection === "recharge_direct") setDisplaySection("none");
+      if (redeemEnabled) setRedeemEnabled(false);
+    }
+
+    if (selectedCatalogKind === "recharge") {
+      if (type !== "recharge") setType("recharge");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCatalogKind]);
+
+  useEffect(() => {
+    if (selectedCatalogKind !== "recharge") return;
+
+    if (rechargeKind === "direct") {
+      if (displaySection !== "recharge_direct") setDisplaySection("recharge_direct");
+      if (redeemEnabled) setRedeemEnabled(false);
+      if (redeemCodesText) setRedeemCodesText("");
+      return;
+    }
+
+    // Recharge by codes
+    if (displaySection === "recharge_direct") setDisplaySection("none");
+    if (!redeemEnabled) setRedeemEnabled(true);
+  }, [displaySection, rechargeKind, redeemCodesText, redeemEnabled, selectedCatalogKind]);
 
   useEffect(() => {
     if (gameId) return;
@@ -157,6 +227,10 @@ export default function AdminProductsAddPage() {
         category_id: categoryId ? Number(categoryId) : undefined,
         game_id: Number(gameId),
         type,
+        accessory_category: selectedCatalogKind === "accessory" ? accessoryCategory : undefined,
+        accessory_subcategory:
+          selectedCatalogKind === "accessory" && accessorySubcategory.trim() ? accessorySubcategory.trim() : undefined,
+        accessory_stock_mode: selectedCatalogKind === "accessory" ? accessoryStockMode : undefined,
         is_active: isActive,
         shipping_required: shippingRequired,
         delivery_type: shippingRequired ? deliveryType : undefined,
@@ -272,7 +346,11 @@ export default function AdminProductsAddPage() {
       setStock("0");
       setCategoryId("");
       setGameId("");
-      setType("account");
+      setType("recharge");
+      setRechargeKind("codes");
+      setAccessoryCategory("setup_comfort");
+      setAccessorySubcategory("");
+      setAccessoryStockMode("local");
       setShippingRequired(false);
       setDeliveryType("in_stock");
       setDeliveryEtaDays("2");
@@ -464,25 +542,16 @@ export default function AdminProductsAddPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-base font-semibold">Redeem Codes</h3>
-            <div className="mt-6 space-y-4">
-              <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={redeemEnabled}
-                  onChange={(e) => setRedeemEnabled(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-slate-300"
-                />
-                <span>
-                  <span className="block text-sm font-medium">Livraison par Redeem Codes</span>
-                  <span className="block text-xs text-slate-500">
+          {selectedCatalogKind === "recharge" && rechargeKind === "codes" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="text-base font-semibold">Redeem Codes</h3>
+              <div className="mt-6 space-y-4">
+                <div>
+                  <p className="text-sm font-medium">Livraison par Redeem Codes</p>
+                  <p className="mt-1 text-xs text-slate-500">
                     À l’ajout du produit, tu peux importer tous les codes. Après paiement, le client verra son code dans Profil → Mes codes.
-                  </span>
-                </span>
-              </label>
-
-              {redeemEnabled && (
+                  </p>
+                </div>
                 <div>
                   <label className="text-sm font-medium">Codes (1 par ligne ou séparés par virgule) *</label>
                   <textarea
@@ -493,13 +562,11 @@ export default function AdminProductsAddPage() {
                     className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-mono"
                     placeholder={`ABC-123\nDEF-456\nGHI-789`}
                   />
-                  <p className="mt-2 text-xs text-slate-500">
-                    Les doublons (déjà présents dans la base) seront ignorés automatiquement.
-                  </p>
+                  <p className="mt-2 text-xs text-slate-500">Les doublons (déjà présents dans la base) seront ignorés automatiquement.</p>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -588,7 +655,7 @@ export default function AdminProductsAddPage() {
                   required
                 >
                   <option value="">Sélectionner une catégorie</option>
-                  {categories.map((category) => (
+                  {allowedCategories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
                     </option>
@@ -612,16 +679,23 @@ export default function AdminProductsAddPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Type</label>
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
-                >
-                  <option value="account">account</option>
-                  <option value="recharge">recharge</option>
-                  <option value="item">item</option>
-                  <option value="subscription">subscription</option>
-                </select>
+                {selectedCatalogKind === "recharge" ? (
+                  <select
+                    value={rechargeKind}
+                    onChange={(e) => setRechargeKind(e.target.value as RechargeKind)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  >
+                    <option value="codes">Recharge (codes)</option>
+                    <option value="direct">Recharge direct (chat)</option>
+                  </select>
+                ) : (
+                  <input
+                    value={selectedCatalogKind === "subscription" ? "Abonnement" : selectedCatalogKind === "accessory" ? "Accessoire gaming" : "—"}
+                    readOnly
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm"
+                    placeholder="—"
+                  />
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium">Section boutique (optionnel)</label>
@@ -629,15 +703,21 @@ export default function AdminProductsAddPage() {
                   value={displaySection}
                   onChange={(e) => setDisplaySection(e.target.value)}
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  disabled={selectedCatalogKind === "recharge" && rechargeKind === "direct"}
                 >
                   <option value="none">Aucune</option>
-                  <option value="recharge_direct">Recharge Direct</option>
+                  {selectedCatalogKind === "recharge" && rechargeKind === "direct" ? (
+                    <option value="recharge_direct">Recharge Direct</option>
+                  ) : null}
                   <option value="popular">Produits populaires</option>
                   <option value="emote_skin">Emote && Skin</option>
                   <option value="cosmic_promo">Promotions cosmiques</option>
                   <option value="latest">Derniers ajouts</option>
                   <option value="gaming_accounts">Compte Gaming</option>
                 </select>
+                {selectedCatalogKind === "recharge" && rechargeKind === "direct" && (
+                  <p className="mt-2 text-xs text-slate-500">Recharge direct ouvre le chat (section fixée automatiquement).</p>
+                )}
               </div>
 
               {type === "item" && displaySection !== "emote_skin" && (

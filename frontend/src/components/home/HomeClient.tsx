@@ -168,7 +168,14 @@ export default function HomeClient() {
 
     const loadProducts = async () => {
       try {
-        const popularRes = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=9`);
+        const popularRes = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=9`, {
+          cache: "no-store",
+          headers: {
+            Accept: "application/json",
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        });
 
         const popularData = popularRes.ok ? await popularRes.json().catch(() => null) : null;
 
@@ -216,8 +223,25 @@ export default function HomeClient() {
     };
 
     loadProducts();
+
+    // When navigating away and back (client-side), Next can keep the page mounted.
+    // Refresh the list on focus/visibility so prices stay in sync after admin edits.
+    const onFocus = () => {
+      void loadProducts();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void loadProducts();
+      }
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       active = false;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 

@@ -7,6 +7,9 @@ import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 
+type CatalogCategoryKind = "subscription" | "accessory" | "recharge";
+type RechargeKind = "codes" | "direct";
+
 type Category = {
   id: number;
   name: string;
@@ -45,6 +48,8 @@ type ApiProduct = {
   delivery_eta_days?: number | null;
   delivery_estimate_label?: string | null;
   display_section?: string | null;
+  redeem_code_delivery?: boolean | null;
+  stock_mode?: string | null;
   images?: Array<{ url?: string | null; path?: string | null; position?: number | null } | string> | null;
   details?: {
     image?: string | null;
@@ -52,6 +57,21 @@ type ApiProduct = {
     mobile_section?: string | null;
   } | null;
   tags?: Array<{ name?: string | null } | string> | string[] | string | null;
+};
+
+const normalizeText = (value: string) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const classifyCatalogCategory = (name: string): CatalogCategoryKind | null => {
+  const n = normalizeText(name);
+  if (n.includes("abonn")) return "subscription";
+  if (n.includes("accessoire")) return "accessory";
+  if (n.includes("recharge")) return "recharge";
+  return null;
 };
 
 const getAuthHeaders = (): Record<string, string> => {
@@ -98,6 +118,7 @@ export default function AdminProductsEditPage() {
   const [categoryId, setCategoryId] = useState("");
   const [gameId, setGameId] = useState("");
   const [type, setType] = useState("account");
+  const [rechargeKind, setRechargeKind] = useState<RechargeKind>("codes");
   const [accessoryCategory, setAccessoryCategory] = useState("");
   const [accessorySubcategory, setAccessorySubcategory] = useState("");
   const [accessoryStockMode, setAccessoryStockMode] = useState<"local" | "air" | "sea">("local");
@@ -122,6 +143,28 @@ export default function AdminProductsEditPage() {
   const [redeemCodesText, setRedeemCodesText] = useState("");
   const [redeemImportStatus, setRedeemImportStatus] = useState<string>("");
   const [redeemImporting, setRedeemImporting] = useState(false);
+
+  const allowedCategories = useMemo(
+    () => categories.filter((category) => classifyCatalogCategory(category.name) !== null),
+    [categories]
+  );
+
+  const selectedCategory = useMemo(
+    () => categories.find((category) => String(category.id) === String(categoryId)) ?? null,
+    [categories, categoryId]
+  );
+
+  const selectedCatalogKind = useMemo(
+    () => (selectedCategory ? classifyCatalogCategory(selectedCategory.name) : null),
+    [selectedCategory]
+  );
+
+  const categoriesForSelect = useMemo(() => {
+    if (selectedCategory && classifyCatalogCategory(selectedCategory.name) === null) {
+      return [selectedCategory, ...allowedCategories.filter((c) => c.id !== selectedCategory.id)];
+    }
+    return allowedCategories;
+  }, [allowedCategories, selectedCategory]);
 
   const importRedeemCodes = useCallback(async () => {
     if (!productId) return;
@@ -246,7 +289,11 @@ export default function AdminProductsEditPage() {
         setDeliveryType(product?.delivery_type ?? "in_stock");
         setDeliveryEtaDays(product?.delivery_eta_days ? String(product.delivery_eta_days) : "2");
         setDeliveryEstimateLabel(String(product?.delivery_estimate_label ?? ""));
-        setDisplaySection(product?.display_section ?? "none");
+        const loadedDisplaySection = String(product?.display_section ?? "none");
+        setDisplaySection(loadedDisplaySection);
+        if (String(product?.type ?? "").toLowerCase() === "recharge") {
+          setRechargeKind(loadedDisplaySection.toLowerCase() === "recharge_direct" ? "direct" : "codes");
+        }
         setImageUrl(product?.details?.image ?? "");
         setBannerUrl(product?.details?.banner ?? "");
 
@@ -272,6 +319,37 @@ export default function AdminProductsEditPage() {
       active = false;
     };
   }, [productId]);
+
+  useEffect(() => {
+    if (!selectedCatalogKind) return;
+
+    if (selectedCatalogKind === "subscription") {
+      if (type !== "subscription") setType("subscription");
+      if (displaySection === "recharge_direct") setDisplaySection("none");
+    }
+
+    if (selectedCatalogKind === "accessory") {
+      if (type !== "item") setType("item");
+      if (displaySection === "recharge_direct") setDisplaySection("none");
+    }
+
+    if (selectedCatalogKind === "recharge") {
+      if (type !== "recharge") setType("recharge");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCatalogKind]);
+
+  useEffect(() => {
+    if (selectedCatalogKind !== "recharge") return;
+
+    if (rechargeKind === "direct") {
+      if (displaySection !== "recharge_direct") setDisplaySection("recharge_direct");
+      if (redeemCodesText) setRedeemCodesText("");
+      return;
+    }
+
+    if (displaySection === "recharge_direct") setDisplaySection("none");
+  }, [displaySection, rechargeKind, redeemCodesText, selectedCatalogKind]);
 
   useEffect(() => {
     // Only accessories (type=item and not emote_skin) can have a custom delivery estimate label.
@@ -378,6 +456,14 @@ export default function AdminProductsEditPage() {
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
         images: type === "account" ? cleanedAccountImages : undefined,
+        stock_mode:
+          selectedCatalogKind === "recharge"
+            ? rechargeKind === "codes"
+              ? "redeem_pool"
+              : null
+            : undefined,
+        redeem_code_delivery:
+          selectedCatalogKind === "recharge" ? (rechargeKind === "codes" ? true : false) : undefined,
       };
 
       const res = await fetch(`${API_BASE}/admin/products/${productId}`, {
@@ -642,29 +728,31 @@ export default function AdminProductsEditPage() {
             </div>
           </div>
 
-          <div className={CARD}>
-            <h3 className="text-base font-semibold">Redeem Codes</h3>
-            <p className="mt-2 text-xs text-slate-500">
-              Ajoutez du stock après création du produit. Un code par ligne (ou séparés par virgules).
-            </p>
-            <textarea
-              value={redeemCodesText}
-              onChange={(e) => setRedeemCodesText(e.target.value)}
-              rows={6}
-              className={TEXTAREA}
-              placeholder="CODE1\nCODE2\nCODE3"
-              disabled={loadingProduct || redeemImporting}
-            />
-            <button
-              type="button"
-              onClick={() => void importRedeemCodes()}
-              disabled={loadingProduct || redeemImporting}
-              className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
-            >
-              {redeemImporting ? "Import..." : "Importer des codes"}
-            </button>
-            {redeemImportStatus && <p className="mt-3 text-center text-sm text-slate-600">{redeemImportStatus}</p>}
-          </div>
+          {selectedCatalogKind === "recharge" && rechargeKind === "codes" && (
+            <div className={CARD}>
+              <h3 className="text-base font-semibold">Redeem Codes</h3>
+              <p className="mt-2 text-xs text-slate-500">
+                Ajoutez du stock après création du produit. Un code par ligne (ou séparés par virgules).
+              </p>
+              <textarea
+                value={redeemCodesText}
+                onChange={(e) => setRedeemCodesText(e.target.value)}
+                rows={6}
+                className={TEXTAREA}
+                placeholder="CODE1\nCODE2\nCODE3"
+                disabled={loadingProduct || redeemImporting}
+              />
+              <button
+                type="button"
+                onClick={() => void importRedeemCodes()}
+                disabled={loadingProduct || redeemImporting}
+                className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+              >
+                {redeemImporting ? "Import..." : "Importer des codes"}
+              </button>
+              {redeemImportStatus && <p className="mt-3 text-center text-sm text-slate-600">{redeemImportStatus}</p>}
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -756,7 +844,7 @@ export default function AdminProductsEditPage() {
                   disabled={loadingProduct}
                 >
                   <option value="">Sélectionner une catégorie</option>
-                  {categories.map((category) => (
+                  {categoriesForSelect.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
                     </option>
@@ -781,17 +869,25 @@ export default function AdminProductsEditPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Type</label>
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  className={SELECT}
-                  disabled={loadingProduct}
-                >
-                  <option value="account">account</option>
-                  <option value="recharge">recharge</option>
-                  <option value="item">item</option>
-                  <option value="subscription">subscription</option>
-                </select>
+                {selectedCatalogKind === "recharge" ? (
+                  <select
+                    value={rechargeKind}
+                    onChange={(e) => setRechargeKind(e.target.value as RechargeKind)}
+                    className={SELECT}
+                    disabled={loadingProduct}
+                  >
+                    <option value="codes">Recharge (codes)</option>
+                    <option value="direct">Recharge direct (chat)</option>
+                  </select>
+                ) : (
+                  <input
+                    value={selectedCatalogKind === "subscription" ? "Abonnement" : selectedCatalogKind === "accessory" ? "Accessoire gaming" : "—"}
+                    readOnly
+                    className={`${INPUT} bg-slate-50`}
+                    placeholder="—"
+                    disabled={loadingProduct}
+                  />
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium">Section boutique (optionnel)</label>
@@ -799,16 +895,21 @@ export default function AdminProductsEditPage() {
                   value={displaySection}
                   onChange={(e) => setDisplaySection(e.target.value)}
                   className={SELECT}
-                  disabled={loadingProduct}
+                  disabled={loadingProduct || (selectedCatalogKind === "recharge" && rechargeKind === "direct")}
                 >
                   <option value="none">Aucune</option>
-                   <option value="recharge_direct">Recharge Direct</option>
+                  {selectedCatalogKind === "recharge" && rechargeKind === "direct" ? (
+                    <option value="recharge_direct">Recharge Direct</option>
+                  ) : null}
                   <option value="popular">Produits populaires</option>
                   <option value="emote_skin">Emote && Skin</option>
                   <option value="cosmic_promo">Promotions cosmiques</option>
                   <option value="latest">Derniers ajouts</option>
                   <option value="gaming_accounts">Compte Gaming</option>
                 </select>
+                {selectedCatalogKind === "recharge" && rechargeKind === "direct" ? (
+                  <p className={HELP}>Recharge direct ouvre le chat (section fixée automatiquement).</p>
+                ) : null}
               </div>
 
               {type === "item" && displaySection !== "emote_skin" && (
