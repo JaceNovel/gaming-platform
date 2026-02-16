@@ -359,14 +359,16 @@ function AccountClient() {
   };
 
   useEffect(() => {
+    const walletPaid = (searchParams.get('wallet_paid') ?? '').toLowerCase();
     const status = (searchParams.get('payment_status') ?? '').toLowerCase();
-    if (!status) return;
+    const resolvedStatus = status || (walletPaid === 'success' ? 'success' : '');
+    if (!resolvedStatus) return;
 
     const orderId = String(searchParams.get('order') ?? '').trim();
-    const isSuccess = status === 'success' || status === 'paid' || status === 'completed';
+    const isSuccess = resolvedStatus === 'success' || resolvedStatus === 'paid' || resolvedStatus === 'completed';
 
     if (!isSuccess) {
-      if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
+      if (resolvedStatus === 'failed' || resolvedStatus === 'cancelled' || resolvedStatus === 'canceled') {
         setPaymentBanner('Paiement échoué ou annulé. Merci de réessayer.');
       } else {
         setPaymentBanner('Paiement en attente de confirmation.');
@@ -378,12 +380,17 @@ function AccountClient() {
     // Defaults (will be refined by order inspection)
     setPaymentBanner('Paiement confirmé.');
     setThankYouTitle('Paiement confirmé');
-    setThankYouMessage('Ton achat est confirmé.');
+    setThankYouMessage('Ton achat est confirmé. Vérifie impérativement ton mail (boîte de réception / spams) pour la confirmation et les détails.');
     setThankYouTrackTarget(null);
     setThankYouRedeemOrderId(null);
     setThankYouOpen(true);
 
-    if (!HAS_API_ENV || !orderId) return;
+    if (!HAS_API_ENV || !orderId) {
+      // Legacy wallet redirect had no order id; keep a clear instruction.
+      setThankYouTitle('Merci pour ton achat');
+      setThankYouMessage('Ton paiement est confirmé. Vérifie impérativement ton mail (boîte de réception / spams) pour la confirmation et les détails.');
+      return;
+    }
 
     let active = true;
     (async () => {
@@ -426,7 +433,7 @@ function AccountClient() {
         // Redeem-code orders -> show action button to Mes codes
         if (hasRedeemItems) {
           setThankYouTitle('Merci pour ton achat');
-          setThankYouMessage('Ton paiement est confirmé. Clique sur Recharger pour voir tes codes.');
+          setThankYouMessage('Ton paiement est confirmé. Clique sur Recharger pour voir tes codes. Vérifie impérativement ton mail (boîte de réception / spams) pour la confirmation et les détails.');
           setThankYouTrackTarget(null);
           setThankYouRedeemOrderId(orderId);
           return;
@@ -435,7 +442,7 @@ function AccountClient() {
         // BOOYAH PASS -> show 30min + add friend instructions
         if (isBooyahPass) {
           setThankYouTitle('BOOYAH PASS');
-          setThankYouMessage('Merci pour ton achat. Vous devez ajouter en amis cet ID Free Fire: 2272704178. Vous recevrez votre achat dans un délai de 30min.');
+          setThankYouMessage('Merci pour ton achat. Vous devez ajouter en amis cet ID Free Fire: 2272704178. Vous recevrez votre achat dans un délai de 30min. Vérifie impérativement ton mail (boîte de réception / spams) pour la confirmation et les détails.');
           setPaymentBanner('Paiement confirmé. BOOYAH PASS en cours de traitement (≤ 30min). Ajoute en ami: 2272704178.');
           setThankYouTrackTarget(null);
           return;
@@ -444,7 +451,7 @@ function AccountClient() {
         // Free Fire subscription -> show 2h waiting message
         if (isFreeFire && isSubscription) {
           setThankYouTitle('Abonnement Free Fire');
-          setThankYouMessage('Les abonnements Free Fire prennent en général ~2H. Veuillez patienter.');
+          setThankYouMessage('Les abonnements Free Fire prennent en général ~2H. Veuillez patienter. Vérifie impérativement ton mail (boîte de réception / spams) pour la confirmation et les détails.');
           setPaymentBanner('Paiement confirmé. Ton abonnement Free Fire est en cours de traitement (~2H).');
           setThankYouTrackTarget(null);
           return;
@@ -453,14 +460,14 @@ function AccountClient() {
         // Accessories / physical items -> show tracking button
         if (hasPhysicalItems) {
           setThankYouTitle('Commande confirmée');
-          setThankYouMessage('Ton achat est confirmé. Tu peux suivre la livraison de l’article.');
+          setThankYouMessage('Ton achat est confirmé. Tu peux suivre la livraison de l’article. Vérifie impérativement ton mail (boîte de réception / spams) pour la confirmation et les détails.');
           setThankYouTrackTarget(orderId);
           return;
         }
 
         // Generic success (remove old thank-you wording)
         setThankYouTitle('Paiement confirmé');
-        setThankYouMessage('Ton achat est confirmé.');
+        setThankYouMessage('Ton achat est confirmé. Vérifie impérativement ton mail (boîte de réception / spams) pour la confirmation et les détails.');
         setThankYouTrackTarget(null);
       } catch {
         // keep defaults

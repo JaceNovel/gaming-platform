@@ -377,7 +377,7 @@ function CartScreen() {
         if (typeof window !== "undefined") {
           localStorage.removeItem("bbshop_cart");
         }
-        window.location.href = "/account?wallet_paid=success";
+        window.location.href = `/account?payment_status=success&order=${encodeURIComponent(String(orderId))}`;
         return;
       }
 

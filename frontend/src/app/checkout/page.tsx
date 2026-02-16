@@ -243,7 +243,7 @@ function CheckoutScreen() {
         }
 
         setStatus("Paiement wallet réussi.");
-        router.replace("/account?wallet_paid=success");
+        router.replace(`/account?payment_status=success&order=${encodeURIComponent(String(orderId))}`);
         return;
       }
 
