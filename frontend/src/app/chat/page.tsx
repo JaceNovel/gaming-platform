@@ -85,6 +85,7 @@ function ChatScreen() {
   const directIntent = (searchParams.get("intent") ?? "").toLowerCase();
   const directProductId = searchParams.get("product_id") ?? "";
   const directProductName = searchParams.get("product_name") ?? "";
+  const directOrderRef = searchParams.get("order_ref") ?? "";
 
   const currentRoom = useMemo(
     () => rooms.find((room) => room.id === currentRoomId) ?? null,
@@ -139,6 +140,24 @@ function ChatScreen() {
     setInput(prefill);
     prefillDoneRef.current = true;
   }, [directIntent, directProductId, directProductName, isAuthenticated, rooms]);
+
+  useEffect(() => {
+    if (prefillDoneRef.current) return;
+    if (!isAuthenticated) return;
+    if (directIntent !== "free_fire_security") return;
+    if (!rooms.length) return;
+
+    const targetRoom = rooms.find((room) => room.type === "support") ?? rooms[0];
+    if (targetRoom?.id) {
+      setCurrentRoomId(targetRoom.id);
+    }
+
+    const ref = String(directOrderRef ?? "").trim();
+    const prefill = `Bonjour, je veux être assisté pour sécuriser mon compte Free Fire${ref ? ` (commande: ${ref})` : ""}. Merci de me proposer un rendez-vous. Tarif: 1000 FCFA / heure.`;
+
+    setInput(prefill);
+    prefillDoneRef.current = true;
+  }, [directIntent, directOrderRef, isAuthenticated, rooms]);
 
   useEffect(() => {
     if (!currentRoomId || !isAuthenticated) return;

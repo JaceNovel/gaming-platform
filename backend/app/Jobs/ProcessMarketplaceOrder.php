@@ -231,7 +231,9 @@ class ProcessMarketplaceOrder implements ShouldQueue
                         $freeFireGuideUrl = $isFreeFire
                             ? ($front . '/images/' . rawurlencode('🔐 Procédure de liaison du compte Free Fire.pdf'))
                             : null;
-                        $chatUrl = $front . '/chat';
+                        $chatUrl = $isFreeFire
+                            ? ($front . '/chat?intent=free_fire_security&order_ref=' . rawurlencode($orderRef))
+                            : ($front . '/chat');
 
                         $subject = 'Achat confirmé - Marketplace';
                         $mailable = new TemplatedNotification(
@@ -257,6 +259,7 @@ class ProcessMarketplaceOrder implements ShouldQueue
                                     ['label' => 'Délai', 'value' => $mp->delivery_deadline_at ? $mp->delivery_deadline_at->toDateTimeString() : '—'],
                                     ['label' => 'WhatsApp vendeur', 'value' => $whatsAppUrl ? $whatsAppUrl : ($sellerPhoneRaw !== '' ? $sellerPhoneRaw : '—')],
                                     ...($freeFireGuideUrl ? [['label' => 'Guide sécurisation Free Fire (PDF)', 'value' => $freeFireGuideUrl]] : []),
+                                    ...($isFreeFire ? [['label' => 'Assistance (Chat Direct)', 'value' => $chatUrl]] : []),
                                 ],
                                 'outro' => $isFreeFire
                                     ? "Sécurise ton compte dès réception : change email et mot de passe, active la double authentification (2FA), et ne partage jamais les identifiants. Besoin d’aide ? Contacte-nous via le Chat en Direct pour prendre un rendez-vous (1000 FCFA / heure)."

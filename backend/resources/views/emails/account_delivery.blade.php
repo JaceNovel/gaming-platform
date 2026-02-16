@@ -36,7 +36,7 @@
 
         @if(!empty($chat_url))
           <p style="margin: 14px 0 0 0;">
-            <a class="button" href="{{ $chat_url }}">Ouvrir le Chat en Direct</a>
+              <a class="button" href="{{ $chat_url }}">Demander une assistance (rendez-vous)</a>
           </p>
         @endif
       </div>

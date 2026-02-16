@@ -17,13 +17,19 @@ class DeliveryService
             ? $front . '/images/' . rawurlencode($freeFireGuideFilename)
             : null;
 
+        $orderRef = (string) ($order->reference ?? $order->id);
+        $chatUrl = null;
+        if ($front !== '') {
+            $chatUrl = $front . '/chat?intent=free_fire_security&order_ref=' . rawurlencode($orderRef);
+        }
+
         $data = [
             'order' => $order,
             'account_details' => $details,
             'game' => $account->game,
             'front_url' => $front,
             'free_fire_guide_url' => $freeFireGuideUrl,
-            'chat_url' => $front !== '' ? ($front . '/chat') : null,
+            'chat_url' => $chatUrl,
             'appointment_rate' => '1000 FCFA / heure',
         ];
 
