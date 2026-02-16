@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class RoleMiddleware
@@ -28,6 +29,20 @@ class RoleMiddleware
 
         if (!in_array($normalizedUserRole, $normalizedAllowedRoles, true)) {
             $payload = ['message' => 'Unauthorized'];
+
+            if (config('admin.log_role_denies', false)) {
+                Log::warning('Role denied', [
+                    'user_id' => $user->id ?? null,
+                    'current_role' => (string) $user->role,
+                    'allowed_roles' => $roles,
+                    'path' => $request->path(),
+                    'method' => $request->method(),
+                    'request_id' => $request->headers->get('X-Request-ID')
+                        ?? $request->headers->get('X-Request-Id')
+                        ?? $request->headers->get('X-Correlation-ID')
+                        ?? null,
+                ]);
+            }
 
             if (config('app.debug')) {
                 $payload['meta'] = [

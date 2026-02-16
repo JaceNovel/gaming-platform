@@ -9,14 +9,18 @@ use App\Models\ProductImage;
 use App\Models\ProductTag;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class AdminProductController extends Controller
 {
     public function store(Request $request)
     {
         $data = $request->validate([
-            'game_id' => 'nullable|exists:games,id',
+            // Most products are tied to a game; allow null only for generic catalog items (e.g. accessories).
+            'game_id' => 'required_unless:type,item|nullable|exists:games,id',
             'name' => 'required|string|max:255',
             'title' => 'nullable|string|max:255',
             'slug' => 'nullable|string|max:255',
@@ -103,7 +107,25 @@ class AdminProductController extends Controller
             $data['display_section'] = 'popular';
         }
 
-        $product = Product::create($data);
+        try {
+            $product = Product::create($data);
+        } catch (QueryException $e) {
+            Log::error('Admin product create failed', [
+                'path' => $request->path(),
+                'method' => $request->method(),
+                'user_id' => $request->user()?->id,
+                'request_id' => $request->headers->get('X-Request-ID')
+                    ?? $request->headers->get('X-Request-Id')
+                    ?? $request->headers->get('X-Correlation-ID')
+                    ?? null,
+                'error' => $e->getMessage(),
+                'sql_state' => $e->errorInfo[0] ?? null,
+            ]);
+
+            throw ValidationException::withMessages([
+                'product' => 'Impossible de créer le produit (données invalides ou base non à jour).',
+            ]);
+        }
 
         try {
             $isActive = (bool) ($product->is_active ?? false);
