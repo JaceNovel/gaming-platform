@@ -226,6 +226,13 @@ class ProcessMarketplaceOrder implements ShouldQueue
                             ? 'https://wa.me/' . $sellerPhoneDigits
                             : null;
 
+                        $gameName = strtolower((string) ($mp->listing?->game?->name ?? ''));
+                        $isFreeFire = $gameName !== '' && str_contains($gameName, 'free fire');
+                        $freeFireGuideUrl = $isFreeFire
+                            ? ($front . '/images/' . rawurlencode('🔐 Procédure de liaison du compte Free Fire.pdf'))
+                            : null;
+                        $chatUrl = $front . '/chat';
+
                         $subject = 'Achat confirmé - Marketplace';
                         $mailable = new TemplatedNotification(
                             'marketplace_order_paid_buyer',
@@ -236,6 +243,8 @@ class ProcessMarketplaceOrder implements ShouldQueue
                                 'user' => $buyer->toArray(),
                                 'seller' => $sellerUser?->toArray() ?? [],
                                 'seller_whatsapp_url' => $whatsAppUrl,
+                                'free_fire_guide_url' => $freeFireGuideUrl,
+                                'chat_url' => $chatUrl,
                             ],
                             [
                                 'title' => $subject,
@@ -247,8 +256,11 @@ class ProcessMarketplaceOrder implements ShouldQueue
                                     ['label' => 'Montant', 'value' => number_format($price, 0, ',', ' ') . ' FCFA'],
                                     ['label' => 'Délai', 'value' => $mp->delivery_deadline_at ? $mp->delivery_deadline_at->toDateTimeString() : '—'],
                                     ['label' => 'WhatsApp vendeur', 'value' => $whatsAppUrl ? $whatsAppUrl : ($sellerPhoneRaw !== '' ? $sellerPhoneRaw : '—')],
+                                    ...($freeFireGuideUrl ? [['label' => 'Guide sécurisation Free Fire (PDF)', 'value' => $freeFireGuideUrl]] : []),
                                 ],
-                                'outro' => "Sécurise ton compte dès réception : change email et mot de passe, active la double authentification (2FA), et ne partage jamais les identifiants. Si tu as un souci, ouvre le chat directement sur PRIME Gaming.",
+                                'outro' => $isFreeFire
+                                    ? "Sécurise ton compte dès réception : change email et mot de passe, active la double authentification (2FA), et ne partage jamais les identifiants. Besoin d’aide ? Contacte-nous via le Chat en Direct pour prendre un rendez-vous (1000 FCFA / heure)."
+                                    : "Sécurise ton compte dès réception : change email et mot de passe, active la double authentification (2FA), et ne partage jamais les identifiants. Si tu as un souci, ouvre le chat directement sur PRIME Gaming.",
                                 'actionUrl' => $front . '/account',
                                 'actionText' => 'Ouvrir mon compte',
                             ]
