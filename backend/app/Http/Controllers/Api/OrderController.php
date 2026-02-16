@@ -10,10 +10,10 @@ use App\Models\RedeemDenomination;
 use App\Models\RedeemCode;
 use App\Models\RedeemCodeDelivery;
 use App\Models\Coupon;
+use App\Services\LoggedEmailService;
 use App\Services\ShippingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 use App\Support\FrontendUrls;
@@ -211,19 +211,18 @@ class OrderController extends Controller
             return response()->json(['message' => 'Email missing'], 422);
         }
 
-        // Send synchronously to avoid relying on queue workers.
-        Mail::to($email)->send(new \App\Mail\RedeemCodeDelivery($orderModel->loadMissing('user'), $redeemCodes->all()));
+        /** @var LoggedEmailService $logged */
+        $logged = app(LoggedEmailService::class);
+        $logged->queue(
+            userId: $orderModel->user_id ? (int) $orderModel->user_id : null,
+            to: $email,
+            type: 'redeem_code_resend',
+            subject: 'Votre recharge Free Fire est prête',
+            mailable: new \App\Mail\RedeemCodeDelivery($orderModel->loadMissing('user'), $redeemCodes->all()),
+            meta: ['order_id' => $orderModel->id, 'codes_count' => $redeemCodes->count()]
+        );
 
         RedeemCode::whereIn('id', $redeemCodes->pluck('id')->all())->update(['last_resend_at' => now()]);
-
-        \App\Models\EmailLog::create([
-            'user_id' => $orderModel->user_id,
-            'to' => $email,
-            'type' => 'redeem_code_resend',
-            'subject' => 'Votre recharge Free Fire est prête',
-            'status' => 'sent',
-            'sent_at' => now(),
-        ]);
 
         return response()->json(['message' => 'Codes envoyés par email.']);
     }

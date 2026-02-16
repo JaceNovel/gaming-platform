@@ -15,12 +15,12 @@ use App\Jobs\ProcessMarketplaceOrder;
 use App\Models\MarketplaceOrder;
 use App\Models\Notification;
 use App\Services\AdminAuditLogger;
+use App\Services\LoggedEmailService;
 use App\Services\WalletService;
 use App\Services\ShippingService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -435,18 +435,18 @@ class AdminOrderController extends Controller
             return response()->json(['message' => 'No codes assigned'], 404);
         }
 
-        Mail::to($order->user->email)->queue(new RedeemCodeDelivery($order, $codes->all()));
+        /** @var LoggedEmailService $logged */
+        $logged = app(LoggedEmailService::class);
+        $logged->queue(
+            userId: $order->user_id ? (int) $order->user_id : null,
+            to: (string) ($order->user?->email ?? ''),
+            type: 'redeem_code_resend',
+            subject: 'Votre code de recharge PRIME Gaming',
+            mailable: new RedeemCodeDelivery($order, $codes->all()),
+            meta: ['order_id' => $order->id, 'codes_count' => $codes->count()]
+        );
 
         RedeemCode::whereIn('id', $codes->pluck('id')->all())->update(['last_resend_at' => now()]);
-
-        \App\Models\EmailLog::create([
-            'user_id' => $order->user_id,
-            'to' => $order->user->email,
-            'type' => 'redeem_code_resend',
-            'subject' => 'Votre code de recharge PRIME Gaming',
-            'status' => 'pending',
-            'sent_at' => now(),
-        ]);
 
         $auditLogger->log(
             $request->user(),

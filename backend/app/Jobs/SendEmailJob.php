@@ -48,8 +48,12 @@ class SendEmailJob implements ShouldQueue
 
             // If credentials are wrong (SMTP 535), retries will never help and can
             // cause noisy logs / queue backlogs. Mark failed and stop retrying.
-            if ($e instanceof TransportExceptionInterface && str_contains($e->getMessage(), '535')) {
-                return;
+            if ($e instanceof TransportExceptionInterface) {
+                $msg = $e->getMessage();
+                if (str_contains($msg, '535') || str_contains($msg, 'HTTP 401') || str_contains($msg, 'HTTP 403')) {
+                    return;
+                }
+                throw $e;
             }
 
             throw $e; // Re-throw to trigger retry for transient errors

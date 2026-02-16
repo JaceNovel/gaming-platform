@@ -54,4 +54,9 @@ return [
         'service_account_path' => env('PLAY_INTEGRITY_SERVICE_ACCOUNT_PATH'),
     ],
 
+    'brevo' => [
+        'api_key' => env('BREVO_API_KEY'),
+        'base_url' => env('BREVO_BASE_URL', 'https://api.brevo.com'),
+    ],
+
 ];

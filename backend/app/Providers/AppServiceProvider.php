@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Mail\Transport\BrevoTransport;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Symfony\Component\Mailer\Transport\TransportInterface;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -14,7 +16,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->afterResolving('mail.manager', function ($manager) {
+            $manager->extend('brevo', function (array $config = []): TransportInterface {
+                $apiKey = (string) (config('services.brevo.api_key') ?? '');
+                $baseUrl = (string) (config('services.brevo.base_url') ?? 'https://api.brevo.com');
+
+                if ($apiKey === '') {
+                    throw new \RuntimeException('BREVO_API_KEY is required when using MAIL_MAILER=brevo');
+                }
+
+                return new BrevoTransport(apiKey: $apiKey, baseUrl: $baseUrl);
+            });
+        });
     }
 
     /**

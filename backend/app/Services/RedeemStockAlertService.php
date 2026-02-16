@@ -5,8 +5,8 @@ namespace App\Services;
 use App\Mail\LowStockAdminMail;
 use App\Models\RedeemDenomination;
 use App\Models\RedeemStockAlert;
+use App\Services\LoggedEmailService;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Mail;
 
 class RedeemStockAlertService
 {
@@ -40,7 +40,20 @@ class RedeemStockAlertService
         if ($channels === 'email' || $channels === 'both') {
             $recipients = $this->resolveEmails($product?->stock_alert_emails);
             foreach ($recipients as $email) {
-                Mail::to($email)->queue(new LowStockAdminMail($denomination, $available, $threshold));
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue(
+                    userId: null,
+                    to: (string) $email,
+                    type: 'redeem_low_stock_admin',
+                    subject: 'Alerte stock bas - PRIME Gaming',
+                    mailable: new LowStockAdminMail($denomination, $available, $threshold),
+                    meta: [
+                        'denomination_id' => $denomination->id,
+                        'available' => $available,
+                        'threshold' => $threshold,
+                    ]
+                );
             }
         }
 
