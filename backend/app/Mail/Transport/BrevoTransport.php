@@ -87,6 +87,11 @@ class BrevoTransport extends AbstractTransport
 
         if (is_string($text) && trim($text) !== '') {
             $payload['textContent'] = $text;
+        } elseif (isset($payload['htmlContent']) && is_string($payload['htmlContent'])) {
+            $fallbackText = $this->htmlToText($payload['htmlContent']);
+            if ($fallbackText !== '') {
+                $payload['textContent'] = $fallbackText;
+            }
         }
 
         if (!isset($payload['htmlContent']) && !isset($payload['textContent'])) {
@@ -142,6 +147,19 @@ class BrevoTransport extends AbstractTransport
             }
         }
         return null;
+    }
+
+    private function htmlToText(string $html): string
+    {
+        $text = preg_replace('/<\s*br\s*\/?\s*>/i', "\n", $html) ?? $html;
+        $text = preg_replace('/<\s*\/\s*p\s*>/i', "\n\n", $text) ?? $text;
+        $text = preg_replace('/<\s*\/\s*div\s*>/i', "\n", $text) ?? $text;
+        $text = strip_tags($text);
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace("/\r\n|\r/", "\n", $text) ?? $text;
+        $text = preg_replace("/[ \t]+/", " ", $text) ?? $text;
+        $text = preg_replace("/\n{3,}/", "\n\n", $text) ?? $text;
+        return trim((string) $text);
     }
 
     /**

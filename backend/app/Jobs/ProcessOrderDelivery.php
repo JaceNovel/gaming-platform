@@ -63,9 +63,20 @@ class ProcessOrderDelivery implements ShouldQueue
                     if ($result === 'refunded') {
                         $hasRefund = true;
                     }
-                } elseif (in_array($product->type, ['recharge', 'subscription', 'item', 'topup', 'pass'])) {
+                } elseif (in_array($product->type, ['recharge', 'subscription', 'topup', 'pass'], true)) {
                     $this->deliverTopup($loggedEmailService, $orderItem);
                     $hasProcessing = true;
+                } elseif ((string) $product->type === 'item') {
+                    // Some "items" are physical accessories and must go through shipping flow.
+                    $isPhysical = (bool) ($orderItem->is_physical ?? false) || (bool) ($product->shipping_required ?? false);
+                    if ($isPhysical) {
+                        $hasPhysical = true;
+                        $this->deliverArticle($loggedEmailService, $orderItem, true);
+                    } else {
+                        // Digital / manual items.
+                        $this->deliverTopup($loggedEmailService, $orderItem);
+                        $hasProcessing = true;
+                    }
                 } else {
                     $isPhysical = (bool) ($orderItem->is_physical ?? false) || (bool) ($product->shipping_required ?? false);
                     if ($isPhysical) {

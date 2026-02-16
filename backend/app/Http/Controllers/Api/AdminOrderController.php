@@ -16,6 +16,7 @@ use App\Models\MarketplaceOrder;
 use App\Models\Notification;
 use App\Services\AdminAuditLogger;
 use App\Services\LoggedEmailService;
+use App\Services\NotificationService;
 use App\Services\WalletService;
 use App\Services\ShippingService;
 use Dompdf\Dompdf;
@@ -411,12 +412,73 @@ class AdminOrderController extends Controller
             'shipping_status' => 'required|string|in:pending,ready_for_pickup,out_for_delivery,delivered,canceled',
         ]);
 
+        $previous = (string) ($order->shipping_status ?? '');
         $updates = ['shipping_status' => $data['shipping_status']];
         if ($data['shipping_status'] === 'delivered') {
             $updates['delivered_at'] = now();
         }
 
         $order->update($updates);
+
+        // Notify user (best-effort)
+        try {
+            $order->loadMissing('user');
+            if ($order->user) {
+                $status = (string) $data['shipping_status'];
+                $labels = [
+                    'pending' => 'En préparation',
+                    'ready_for_pickup' => 'Prête pour retrait',
+                    'out_for_delivery' => 'En cours de livraison',
+                    'delivered' => 'Livrée',
+                    'canceled' => 'Annulée',
+                ];
+                $label = $labels[$status] ?? $status;
+                $message = "Mise à jour livraison ({$order->reference}) : {$label}.";
+
+                /** @var NotificationService $notifier */
+                $notifier = app(NotificationService::class);
+                $notifier->notifyUser((int) $order->user_id, 'shipping_update', $message);
+
+                $front = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+                $subject = 'Mise à jour de votre commande';
+
+                $mailable = new \App\Mail\TemplatedNotification(
+                    'shipping_status_updated',
+                    $subject,
+                    [
+                        'order' => $order->toArray(),
+                        'user' => $order->user->toArray(),
+                        'shipping_status' => $status,
+                        'shipping_status_label' => $label,
+                        'shipping_status_previous' => $previous,
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Statut de livraison mis à jour',
+                        'intro' => "Votre commande a été mise à jour : {$label}.",
+                        'details' => [
+                            ['label' => 'Référence', 'value' => (string) ($order->reference ?? $order->id)],
+                            ['label' => 'Nouveau statut', 'value' => $label],
+                        ],
+                        'actionUrl' => $front . '/account',
+                        'actionText' => 'Voir ma commande',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue(
+                    userId: (int) $order->user_id,
+                    to: (string) ($order->user->email ?? ''),
+                    type: 'shipping_status_updated',
+                    subject: $subject,
+                    mailable: $mailable,
+                    meta: ['order_id' => $order->id, 'shipping_status' => $status]
+                );
+            }
+        } catch (\Throwable) {
+            // best-effort
+        }
 
         return response()->json(['data' => $order->fresh()]);
     }

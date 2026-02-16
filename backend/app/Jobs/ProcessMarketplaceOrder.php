@@ -219,6 +219,13 @@ class ProcessMarketplaceOrder implements ShouldQueue
                     // Buyer
                     $buyer = $mp->buyer;
                     if ($buyer->email) {
+                        $sellerUser = $mp->seller?->user;
+                        $sellerPhoneRaw = (string) ($sellerUser?->phone ?? '');
+                        $sellerPhoneDigits = preg_replace('/\D+/', '', $sellerPhoneRaw) ?? '';
+                        $whatsAppUrl = $sellerPhoneDigits !== ''
+                            ? 'https://wa.me/' . $sellerPhoneDigits
+                            : null;
+
                         $subject = 'Achat confirmé - Marketplace';
                         $mailable = new TemplatedNotification(
                             'marketplace_order_paid_buyer',
@@ -227,17 +234,21 @@ class ProcessMarketplaceOrder implements ShouldQueue
                                 'marketplaceOrder' => $mp->toArray(),
                                 'order' => $mp->order->toArray(),
                                 'user' => $buyer->toArray(),
+                                'seller' => $sellerUser?->toArray() ?? [],
+                                'seller_whatsapp_url' => $whatsAppUrl,
                             ],
                             [
                                 'title' => $subject,
                                 'headline' => 'Paiement confirmé',
-                                'intro' => 'Ton achat marketplace est confirmé. Tu peux contacter le vendeur pour la livraison.',
+                                'intro' => 'Ton achat marketplace est confirmé. Contacte le vendeur pour finaliser la livraison.',
                                 'details' => [
                                     ['label' => 'Référence', 'value' => $orderRef],
                                     ['label' => 'Annonce', 'value' => $listingTitle],
                                     ['label' => 'Montant', 'value' => number_format($price, 0, ',', ' ') . ' FCFA'],
                                     ['label' => 'Délai', 'value' => $mp->delivery_deadline_at ? $mp->delivery_deadline_at->toDateTimeString() : '—'],
+                                    ['label' => 'WhatsApp vendeur', 'value' => $whatsAppUrl ? $whatsAppUrl : ($sellerPhoneRaw !== '' ? $sellerPhoneRaw : '—')],
                                 ],
+                                'outro' => "Sécurise ton compte dès réception : change email et mot de passe, active la double authentification (2FA), et ne partage jamais les identifiants. Si tu as un souci, ouvre le chat directement sur PRIME Gaming.",
                                 'actionUrl' => $front . '/account',
                                 'actionText' => 'Ouvrir mon compte',
                             ]
