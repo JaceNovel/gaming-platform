@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedNotification;
 use App\Models\MarketplaceOrder;
 use App\Models\PartnerWallet;
 use App\Models\PartnerWalletTransaction;
+use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -13,6 +15,13 @@ use Illuminate\Validation\ValidationException;
 
 class AdminMarketplaceOrderController extends Controller
 {
+    private function frontendUrl(string $path = ''): string
+    {
+        $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $p = '/' . ltrim($path, '/');
+        return $base . ($path !== '' ? $p : '');
+    }
+
     public function index(Request $request)
     {
         $q = MarketplaceOrder::query()->with(['order', 'buyer', 'seller.user', 'listing', 'dispute']);
@@ -166,6 +175,48 @@ class AdminMarketplaceOrderController extends Controller
             $mpOrder->status = 'resolved_release';
             $mpOrder->save();
         });
+
+        // Email seller (best-effort)
+        try {
+            $fresh = MarketplaceOrder::query()->with(['order', 'seller.user', 'listing'])->find($marketplaceOrder->id);
+            $sellerUser = $fresh?->seller?->user;
+            if ($fresh && $sellerUser && $sellerUser->email) {
+                $amount = (float) ($fresh->seller_earnings ?? 0);
+                $orderRef = (string) ($fresh->order?->reference ?? $fresh->order_id);
+                $listingTitle = (string) ($fresh->listing?->title ?? 'Compte Gaming');
+
+                $subject = 'Paiement libéré - Marketplace';
+                $mailable = new TemplatedNotification(
+                    'marketplace_release_to_available',
+                    $subject,
+                    [
+                        'marketplaceOrder' => $fresh->toArray(),
+                        'order' => $fresh->order?->toArray() ?? [],
+                        'user' => $sellerUser->toArray(),
+                        'note' => $data['note'] ?? null,
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Paiement libéré',
+                        'intro' => 'Le paiement a été libéré sur ton solde disponible.',
+                        'details' => [
+                            ['label' => 'Référence', 'value' => $orderRef],
+                            ['label' => 'Annonce', 'value' => $listingTitle],
+                            ['label' => 'Montant', 'value' => number_format($amount, 0, ',', ' ') . ' FCFA'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Voir mon wallet',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($sellerUser->id, $sellerUser->email, 'marketplace_release_to_available', $subject, $mailable, [
+                    'marketplace_order_id' => $fresh->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
 
         return response()->json(['ok' => true]);
     }

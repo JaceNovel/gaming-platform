@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedNotification;
 use App\Models\Seller;
 use App\Models\SellerListing;
 use App\Services\SellerSalesLimitService;
+use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -14,6 +16,13 @@ class MarketplaceListingController extends Controller
 {
     public function __construct(private readonly SellerSalesLimitService $salesLimitService)
     {
+    }
+
+    private function frontendUrl(string $path = ''): string
+    {
+        $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $p = '/' . ltrim($path, '/');
+        return $base . ($path !== '' ? $p : '');
     }
 
     private function publicUploadsDiskName(): string
@@ -210,6 +219,42 @@ class MarketplaceListingController extends Controller
             'submitted_at' => now(),
         ]);
 
+        // Email seller confirmation (best-effort)
+        try {
+            $seller->loadMissing('user');
+            $user = $seller->user;
+            if ($user && $user->email) {
+                $subject = 'Annonce soumise - PRIME Gaming';
+                $mailable = new TemplatedNotification(
+                    'marketplace_listing_submitted',
+                    $subject,
+                    [
+                        'listing' => $listing->toArray(),
+                        'seller' => $seller->toArray(),
+                        'user' => $user->toArray(),
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Annonce soumise',
+                        'intro' => 'Ton annonce a été envoyée pour validation par l’admin.',
+                        'details' => [
+                            ['label' => 'Annonce', 'value' => (string) ($listing->title ?? ('#' . $listing->id))],
+                            ['label' => 'Prix', 'value' => number_format((float) ($listing->price ?? 0), 0, ',', ' ') . ' FCFA'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Suivre mon annonce',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'marketplace_listing_submitted', $subject, $mailable, [
+                    'seller_listing_id' => $listing->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
+
         return response()->json(['data' => $listing], 201);
     }
 
@@ -297,6 +342,7 @@ class MarketplaceListingController extends Controller
         $sellerListing->update($map);
 
         // If a previously approved listing is edited, it must go back through review.
+        $resubmitted = false;
         if (in_array($sellerListing->status, ['approved', 'rejected', 'draft'], true)) {
             $sellerListing->status = $sellerListing->status === 'approved' ? 'pending_review_update' : 'pending_review';
             $sellerListing->status_reason = null;
@@ -307,6 +353,44 @@ class MarketplaceListingController extends Controller
             $sellerListing->rejected_at = null;
             $sellerListing->suspended_at = null;
             $sellerListing->save();
+            $resubmitted = true;
+        }
+
+        if ($resubmitted) {
+            // Email seller confirmation (best-effort)
+            try {
+                $seller->loadMissing('user');
+                $user = $seller->user;
+                if ($user && $user->email) {
+                    $subject = 'Annonce mise à jour - En attente de validation';
+                    $mailable = new TemplatedNotification(
+                        'marketplace_listing_resubmitted',
+                        $subject,
+                        [
+                            'listing' => $sellerListing->toArray(),
+                            'seller' => $seller->toArray(),
+                            'user' => $user->toArray(),
+                        ],
+                        [
+                            'title' => $subject,
+                            'headline' => 'Annonce mise à jour',
+                            'intro' => 'Tes modifications ont été enregistrées. L’annonce repasse en validation.',
+                            'details' => [
+                                ['label' => 'Annonce', 'value' => (string) ($sellerListing->title ?? ('#' . $sellerListing->id))],
+                            ],
+                            'actionUrl' => $this->frontendUrl('/account/seller'),
+                            'actionText' => 'Voir mon annonce',
+                        ]
+                    );
+
+                    /** @var LoggedEmailService $logged */
+                    $logged = app(LoggedEmailService::class);
+                    $logged->queue($user->id, $user->email, 'marketplace_listing_resubmitted', $subject, $mailable, [
+                        'seller_listing_id' => $sellerListing->id,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+            }
         }
 
         return response()->json(['data' => $sellerListing]);
@@ -385,6 +469,43 @@ class MarketplaceListingController extends Controller
             $sellerListing->status_reason = $data['reason'] ?? null;
         }
         $sellerListing->save();
+
+        if ($data['status'] === 'active') {
+            // Email seller confirmation (best-effort)
+            try {
+                $seller->loadMissing('user');
+                $user = $seller->user;
+                if ($user && $user->email) {
+                    $subject = 'Annonce soumise - PRIME Gaming';
+                    $mailable = new TemplatedNotification(
+                        'marketplace_listing_submitted',
+                        $subject,
+                        [
+                            'listing' => $sellerListing->toArray(),
+                            'seller' => $seller->toArray(),
+                            'user' => $user->toArray(),
+                        ],
+                        [
+                            'title' => $subject,
+                            'headline' => 'Annonce soumise',
+                            'intro' => 'Ton annonce a été envoyée pour validation.',
+                            'details' => [
+                                ['label' => 'Annonce', 'value' => (string) ($sellerListing->title ?? ('#' . $sellerListing->id))],
+                            ],
+                            'actionUrl' => $this->frontendUrl('/account/seller'),
+                            'actionText' => 'Suivre mon annonce',
+                        ]
+                    );
+
+                    /** @var LoggedEmailService $logged */
+                    $logged = app(LoggedEmailService::class);
+                    $logged->queue($user->id, $user->email, 'marketplace_listing_submitted', $subject, $mailable, [
+                        'seller_listing_id' => $sellerListing->id,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+            }
+        }
 
         return response()->json(['ok' => true, 'data' => $sellerListing]);
     }

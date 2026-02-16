@@ -3,15 +3,24 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedNotification;
 use App\Models\MarketplaceOrder;
 use App\Models\Seller;
 use App\Models\SellerStat;
+use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SellerMarketplaceOrderController extends Controller
 {
+    private function frontendUrl(string $path = ''): string
+    {
+        $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $p = '/' . ltrim($path, '/');
+        return $base . ($path !== '' ? $p : '');
+    }
+
     public function index(Request $request)
     {
         if (!$request->user()) {
@@ -122,6 +131,45 @@ class SellerMarketplaceOrderController extends Controller
                 }
             }
         });
+
+        // Email buyer (best-effort)
+        try {
+            $fresh = MarketplaceOrder::query()->with(['order', 'buyer', 'listing'])->find($marketplaceOrder->id);
+            $buyer = $fresh?->buyer;
+            if ($fresh && $buyer && $buyer->email) {
+                $subject = 'Commande marquée livrée - Marketplace';
+                $orderRef = (string) ($fresh->order?->reference ?? $fresh->order_id);
+                $listingTitle = (string) ($fresh->listing?->title ?? 'Compte Gaming');
+
+                $mailable = new TemplatedNotification(
+                    'marketplace_order_delivered_buyer',
+                    $subject,
+                    [
+                        'marketplaceOrder' => $fresh->toArray(),
+                        'order' => $fresh->order?->toArray() ?? [],
+                        'user' => $buyer->toArray(),
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Livraison annoncée',
+                        'intro' => 'Le vendeur a marqué ta commande comme livrée. Si tout est OK, confirme la livraison.',
+                        'details' => [
+                            ['label' => 'Référence', 'value' => $orderRef],
+                            ['label' => 'Annonce', 'value' => $listingTitle],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account'),
+                        'actionText' => 'Ouvrir mon compte',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($buyer->id, $buyer->email, 'marketplace_order_delivered_buyer', $subject, $mailable, [
+                    'marketplace_order_id' => $fresh->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
 
         return response()->json(['ok' => true]);
     }

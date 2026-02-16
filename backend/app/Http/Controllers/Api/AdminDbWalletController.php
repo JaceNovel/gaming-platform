@@ -116,7 +116,8 @@ class AdminDbWalletController extends Controller
                 'to' => $wallet->user->email,
                 'type' => 'dbwallet_credited',
                 'subject' => 'DBWallet crédité - PRIME Gaming',
-                'status' => 'queued',
+                'status' => 'pending',
+                'sent_at' => now(),
             ]);
 
             SendEmailJob::dispatchSync($mailable, $log);

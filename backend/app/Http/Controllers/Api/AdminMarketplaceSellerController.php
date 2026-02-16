@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedNotification;
 use App\Models\PartnerWallet;
 use App\Models\Seller;
 use App\Models\SellerKycFile;
 use App\Models\SellerListing;
 use App\Models\SellerStat;
 use App\Services\AdminAuditLogger;
+use App\Services\LoggedEmailService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
@@ -18,6 +20,13 @@ use Illuminate\Support\Str;
 
 class AdminMarketplaceSellerController extends Controller
 {
+    private function frontendUrl(string $path = ''): string
+    {
+        $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $p = '/' . ltrim($path, '/');
+        return $base . ($path !== '' ? $p : '');
+    }
+
     public function index(Request $request)
     {
         $q = Seller::query()->with('user');
@@ -153,6 +162,41 @@ class AdminMarketplaceSellerController extends Controller
             // best-effort
         }
 
+        // Email seller (best-effort)
+        try {
+            $seller->loadMissing('user');
+            $user = $seller->user;
+            if ($user && $user->email) {
+                $subject = 'KYC approuvé - PRIME Gaming';
+                $mailable = new TemplatedNotification(
+                    'seller_kyc_approved',
+                    $subject,
+                    [
+                        'seller' => $seller->toArray(),
+                        'user' => $user->toArray(),
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Compte vendeur approuvé',
+                        'intro' => 'Ton profil vendeur a été validé. Tu peux publier tes annonces et recevoir des commandes.',
+                        'details' => [
+                            ['label' => 'Statut', 'value' => (string) ($seller->status ?? 'approved')],
+                            ['label' => 'Entreprise', 'value' => (string) ($seller->company_name ?? $seller->kyc_full_name ?? '—')],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Aller à mon espace vendeur',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'seller_kyc_approved', $subject, $mailable, [
+                    'seller_id' => $seller->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
+
         try {
             /** @var AdminAuditLogger $audit */
             $audit = app(AdminAuditLogger::class);
@@ -182,6 +226,42 @@ class AdminMarketplaceSellerController extends Controller
         $seller->rejected_at = now();
         $seller->status_reason = $data['reason'];
         $seller->save();
+
+        // Email seller (best-effort)
+        try {
+            $seller->loadMissing('user');
+            $user = $seller->user;
+            if ($user && $user->email) {
+                $subject = 'KYC refusé - PRIME Gaming';
+                $reason = (string) ($data['reason'] ?? $seller->status_reason ?? '');
+                $mailable = new TemplatedNotification(
+                    'seller_kyc_refused',
+                    $subject,
+                    [
+                        'seller' => $seller->toArray(),
+                        'user' => $user->toArray(),
+                        'reason' => $reason,
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Vérification vendeur refusée',
+                        'intro' => 'Ton dossier vendeur a été refusé. Merci de corriger et soumettre à nouveau.',
+                        'details' => [
+                            ['label' => 'Raison', 'value' => $reason ?: '—'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Voir mon statut vendeur',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'seller_kyc_refused', $subject, $mailable, [
+                    'seller_id' => $seller->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
 
         try {
             /** @var AdminAuditLogger $audit */
@@ -224,6 +304,42 @@ class AdminMarketplaceSellerController extends Controller
             ]);
         });
 
+        // Email seller (best-effort)
+        try {
+            $seller->loadMissing('user');
+            $user = $seller->user;
+            if ($user && $user->email) {
+                $subject = 'Compte vendeur suspendu - PRIME Gaming';
+                $reason = (string) ($data['reason'] ?? $seller->status_reason ?? '');
+                $mailable = new TemplatedNotification(
+                    'seller_kyc_suspended',
+                    $subject,
+                    [
+                        'seller' => $seller->toArray(),
+                        'user' => $user->toArray(),
+                        'reason' => $reason,
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Compte vendeur suspendu',
+                        'intro' => 'Ton compte vendeur a été suspendu. Tes annonces peuvent être désactivées temporairement.',
+                        'details' => [
+                            ['label' => 'Raison', 'value' => $reason ?: '—'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Voir mon espace vendeur',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'seller_suspended', $subject, $mailable, [
+                    'seller_id' => $seller->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
+
         try {
             /** @var AdminAuditLogger $audit */
             $audit = app(AdminAuditLogger::class);
@@ -264,6 +380,42 @@ class AdminMarketplaceSellerController extends Controller
                 'status_reason' => $data['reason'],
             ]);
         });
+
+        // Email seller (best-effort)
+        try {
+            $seller->loadMissing('user');
+            $user = $seller->user;
+            if ($user && $user->email) {
+                $subject = 'Compte vendeur banni - PRIME Gaming';
+                $reason = (string) ($data['reason'] ?? $seller->status_reason ?? '');
+                $mailable = new TemplatedNotification(
+                    'seller_kyc_banned',
+                    $subject,
+                    [
+                        'seller' => $seller->toArray(),
+                        'user' => $user->toArray(),
+                        'reason' => $reason,
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Compte vendeur banni',
+                        'intro' => 'Ton compte vendeur a été banni.',
+                        'details' => [
+                            ['label' => 'Raison', 'value' => $reason ?: '—'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Voir mon espace vendeur',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'seller_banned', $subject, $mailable, [
+                    'seller_id' => $seller->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
 
         try {
             /** @var AdminAuditLogger $audit */
@@ -308,6 +460,42 @@ class AdminMarketplaceSellerController extends Controller
                 ]);
         });
 
+        // Email seller (best-effort)
+        try {
+            $seller->loadMissing('user');
+            $user = $seller->user;
+            if ($user && $user->email) {
+                $subject = 'Wallet vendeur gelé - PRIME Gaming';
+                $reason = (string) ($data['reason'] ?? 'Wallet frozen by admin');
+                $mailable = new TemplatedNotification(
+                    'seller_wallet_frozen',
+                    $subject,
+                    [
+                        'seller' => $seller->toArray(),
+                        'user' => $user->toArray(),
+                        'reason' => $reason,
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Wallet gelé',
+                        'intro' => 'Ton wallet vendeur a été gelé par l’admin.',
+                        'details' => [
+                            ['label' => 'Raison', 'value' => $reason ?: '—'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Voir mon wallet vendeur',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'seller_wallet_frozen', $subject, $mailable, [
+                    'seller_id' => $seller->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
+
         try {
             /** @var AdminAuditLogger $audit */
             $audit = app(AdminAuditLogger::class);
@@ -338,6 +526,37 @@ class AdminMarketplaceSellerController extends Controller
                 'frozen_at' => null,
             ]);
         });
+
+        // Email seller (best-effort)
+        try {
+            $seller->loadMissing('user');
+            $user = $seller->user;
+            if ($user && $user->email) {
+                $subject = 'Wallet vendeur dégelé - PRIME Gaming';
+                $mailable = new TemplatedNotification(
+                    'seller_wallet_unfrozen',
+                    $subject,
+                    [
+                        'seller' => $seller->toArray(),
+                        'user' => $user->toArray(),
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Wallet dégelé',
+                        'intro' => 'Ton wallet vendeur est de nouveau actif.',
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Ouvrir mon espace vendeur',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'seller_wallet_unfrozen', $subject, $mailable, [
+                    'seller_id' => $seller->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
 
         try {
             /** @var AdminAuditLogger $audit */

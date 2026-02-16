@@ -2155,6 +2155,7 @@ function WithdrawForm({
             <option value="orange_money">Orange Money</option>
             <option value="mtn_mobile_money">MTN MoMo</option>
             <option value="moov_money">Moov Money</option>
+            <option value="mixbyyas">MixBYYas</option>
             <option value="bank">Banque</option>
           </select>
         </label>

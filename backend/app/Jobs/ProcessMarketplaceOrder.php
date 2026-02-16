@@ -2,12 +2,14 @@
 
 namespace App\Jobs;
 
+use App\Mail\TemplatedNotification;
 use App\Models\MarketplaceOrder;
 use App\Models\Order;
 use App\Models\PartnerWallet;
 use App\Models\PartnerWalletTransaction;
 use App\Models\SellerListing;
 use App\Models\SellerStat;
+use App\Services\LoggedEmailService;
 use App\Services\SellerSalesLimitService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -44,7 +46,9 @@ class ProcessMarketplaceOrder implements ShouldQueue
             return;
         }
 
-        DB::transaction(function () use ($listingId) {
+        $createdMarketplaceOrderId = null;
+
+        DB::transaction(function () use ($listingId, $orderMeta, &$createdMarketplaceOrderId) {
             $listing = SellerListing::query()->lockForUpdate()->findOrFail((int) $listingId);
             $listing->loadMissing('seller');
 
@@ -99,6 +103,8 @@ class ProcessMarketplaceOrder implements ShouldQueue
                 'seller_earnings' => $earnings,
                 'delivery_deadline_at' => now()->addHours((int) ($listing->delivery_window_hours ?? 24)),
             ]);
+
+            $createdMarketplaceOrderId = $marketplaceOrder->id;
 
             $wallet = PartnerWallet::query()->firstOrCreate(
                 ['seller_id' => $seller->id],
@@ -193,5 +199,89 @@ class ProcessMarketplaceOrder implements ShouldQueue
                 }
             }
         });
+
+        // Email buyer + seller (best-effort, after transaction)
+        if ($createdMarketplaceOrderId) {
+            try {
+                $mp = MarketplaceOrder::query()
+                    ->with(['order.user', 'buyer', 'seller.user', 'listing.game'])
+                    ->find($createdMarketplaceOrderId);
+
+                if ($mp && $mp->order && $mp->buyer && $mp->seller) {
+                    $front = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+                    $orderRef = (string) ($mp->order->reference ?? $mp->order_id);
+                    $listingTitle = (string) ($mp->listing?->title ?? 'Compte Gaming');
+                    $price = (float) ($mp->price ?? 0);
+
+                    /** @var LoggedEmailService $logged */
+                    $logged = app(LoggedEmailService::class);
+
+                    // Buyer
+                    $buyer = $mp->buyer;
+                    if ($buyer->email) {
+                        $subject = 'Achat confirmé - Marketplace';
+                        $mailable = new TemplatedNotification(
+                            'marketplace_order_paid_buyer',
+                            $subject,
+                            [
+                                'marketplaceOrder' => $mp->toArray(),
+                                'order' => $mp->order->toArray(),
+                                'user' => $buyer->toArray(),
+                            ],
+                            [
+                                'title' => $subject,
+                                'headline' => 'Paiement confirmé',
+                                'intro' => 'Ton achat marketplace est confirmé. Tu peux contacter le vendeur pour la livraison.',
+                                'details' => [
+                                    ['label' => 'Référence', 'value' => $orderRef],
+                                    ['label' => 'Annonce', 'value' => $listingTitle],
+                                    ['label' => 'Montant', 'value' => number_format($price, 0, ',', ' ') . ' FCFA'],
+                                    ['label' => 'Délai', 'value' => $mp->delivery_deadline_at ? $mp->delivery_deadline_at->toDateTimeString() : '—'],
+                                ],
+                                'actionUrl' => $front . '/account',
+                                'actionText' => 'Ouvrir mon compte',
+                            ]
+                        );
+                        $logged->queue($buyer->id, $buyer->email, 'marketplace_order_paid_buyer', $subject, $mailable, [
+                            'marketplace_order_id' => $mp->id,
+                            'order_id' => $mp->order_id,
+                        ]);
+                    }
+
+                    // Seller
+                    $sellerUser = $mp->seller?->user;
+                    if ($sellerUser && $sellerUser->email) {
+                        $subject = 'Nouvelle commande - Marketplace';
+                        $mailable = new TemplatedNotification(
+                            'marketplace_order_paid_seller',
+                            $subject,
+                            [
+                                'marketplaceOrder' => $mp->toArray(),
+                                'order' => $mp->order->toArray(),
+                                'user' => $sellerUser->toArray(),
+                            ],
+                            [
+                                'title' => $subject,
+                                'headline' => 'Nouvelle commande payée',
+                                'intro' => 'Un acheteur vient de payer une commande sur ton annonce. Merci de livrer dans les délais et d’ajouter une preuve.',
+                                'details' => [
+                                    ['label' => 'Référence', 'value' => $orderRef],
+                                    ['label' => 'Annonce', 'value' => $listingTitle],
+                                    ['label' => 'Montant', 'value' => number_format($price, 0, ',', ' ') . ' FCFA'],
+                                    ['label' => 'Deadline', 'value' => $mp->delivery_deadline_at ? $mp->delivery_deadline_at->toDateTimeString() : '—'],
+                                ],
+                                'actionUrl' => $front . '/account/seller',
+                                'actionText' => 'Ouvrir mes commandes',
+                            ]
+                        );
+                        $logged->queue($sellerUser->id, $sellerUser->email, 'marketplace_order_paid_seller', $subject, $mailable, [
+                            'marketplace_order_id' => $mp->id,
+                            'order_id' => $mp->order_id,
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+        }
     }
 }

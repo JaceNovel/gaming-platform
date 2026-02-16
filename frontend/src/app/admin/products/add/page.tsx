@@ -109,6 +109,12 @@ export default function AdminProductsAddPage() {
   }, [loadCategories, loadGames]);
 
   useEffect(() => {
+    if (gameId) return;
+    if (!games.length) return;
+    setGameId(String(games[0]?.id ?? ""));
+  }, [gameId, games]);
+
+  useEffect(() => {
     if (type !== "account") return;
     // If we already have images, keep them.
     if (accountImages.some((v) => v.trim())) return;
@@ -149,7 +155,7 @@ export default function AdminProductsAddPage() {
         discount_price: discountPrice ? Number(discountPrice) : undefined,
         stock: Number(stock),
         category_id: categoryId ? Number(categoryId) : undefined,
-        game_id: gameId ? Number(gameId) : undefined,
+        game_id: Number(gameId),
         type,
         is_active: isActive,
         shipping_required: shippingRequired,
@@ -590,13 +596,13 @@ export default function AdminProductsAddPage() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Jeu (optionnel)</label>
+                <label className="text-sm font-medium">Jeu *</label>
                 <select
                   value={gameId}
                   onChange={(e) => setGameId(e.target.value)}
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
+                  required
                 >
-                  <option value="">Aucun jeu</option>
                   {games.map((game) => (
                     <option key={game.id} value={game.id}>
                       {game.name}

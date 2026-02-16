@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedNotification;
 use App\Models\MarketplaceOrder;
 use App\Models\Order;
 use App\Models\SellerListing;
 use App\Models\Seller;
 use App\Models\Dispute;
 use App\Models\SellerStat;
+use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -17,6 +19,13 @@ use Illuminate\Validation\ValidationException;
 
 class MarketplaceOrderController extends Controller
 {
+    private function frontendUrl(string $path = ''): string
+    {
+        $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $p = '/' . ltrim($path, '/');
+        return $base . ($path !== '' ? $p : '');
+    }
+
     private function resolveMarketplaceOrderForBuyer(Request $request, string $orderIdOrReference): Order
     {
         $needle = urldecode($orderIdOrReference);
@@ -184,6 +193,45 @@ class MarketplaceOrderController extends Controller
             $freshOrder->save();
         });
 
+        // Email seller (best-effort)
+        try {
+            $mp = MarketplaceOrder::query()->with(['order', 'seller.user', 'listing', 'buyer'])->where('order_id', $orderModel->id)->first();
+            $sellerUser = $mp?->seller?->user;
+            if ($mp && $sellerUser && $sellerUser->email) {
+                $subject = 'Livraison confirmée - Marketplace';
+                $orderRef = (string) ($mp->order?->reference ?? $mp->order_id);
+                $listingTitle = (string) ($mp->listing?->title ?? 'Compte Gaming');
+
+                $mailable = new TemplatedNotification(
+                    'marketplace_order_confirmed_seller',
+                    $subject,
+                    [
+                        'marketplaceOrder' => $mp->toArray(),
+                        'order' => $mp->order?->toArray() ?? [],
+                        'user' => $sellerUser->toArray(),
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Acheteur: livraison confirmée',
+                        'intro' => 'L’acheteur a confirmé la livraison de la commande.',
+                        'details' => [
+                            ['label' => 'Référence', 'value' => $orderRef],
+                            ['label' => 'Annonce', 'value' => $listingTitle],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Voir mes commandes',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($sellerUser->id, $sellerUser->email, 'marketplace_order_confirmed_seller', $subject, $mailable, [
+                    'marketplace_order_id' => $mp->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
+
         return response()->json(['ok' => true]);
     }
 
@@ -298,6 +346,87 @@ class MarketplaceOrderController extends Controller
                 return null;
             }
         }, $evidence)));
+
+        // Email buyer + seller (best-effort)
+        try {
+            $mp = MarketplaceOrder::query()
+                ->with(['order', 'buyer', 'seller.user', 'listing'])
+                ->where('order_id', $orderModel->id)
+                ->first();
+
+            if ($mp) {
+                $orderRef = (string) ($mp->order?->reference ?? $mp->order_id);
+                $listingTitle = (string) ($mp->listing?->title ?? 'Compte Gaming');
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+
+                // Buyer confirmation
+                $buyer = $mp->buyer;
+                if ($buyer && $buyer->email) {
+                    $subject = 'Litige ouvert - Marketplace';
+                    $mailable = new TemplatedNotification(
+                        'marketplace_dispute_opened_buyer',
+                        $subject,
+                        [
+                            'dispute' => $dispute->toArray(),
+                            'marketplaceOrder' => $mp->toArray(),
+                            'order' => $mp->order?->toArray() ?? [],
+                            'user' => $buyer->toArray(),
+                        ],
+                        [
+                            'title' => $subject,
+                            'headline' => 'Litige enregistré',
+                            'intro' => 'Ton litige a bien été enregistré. Un agent va analyser ta demande.',
+                            'details' => [
+                                ['label' => 'Référence', 'value' => $orderRef],
+                                ['label' => 'Annonce', 'value' => $listingTitle],
+                                ['label' => 'Raison', 'value' => (string) ($dispute->reason ?? '—')],
+                            ],
+                            'actionUrl' => $this->frontendUrl('/account/litige'),
+                            'actionText' => 'Suivre mon litige',
+                        ]
+                    );
+                    $logged->queue($buyer->id, $buyer->email, 'marketplace_dispute_opened_buyer', $subject, $mailable, [
+                        'dispute_id' => $dispute->id,
+                        'marketplace_order_id' => $mp->id,
+                    ]);
+                }
+
+                // Seller notification
+                $sellerUser = $mp->seller?->user;
+                if ($sellerUser && $sellerUser->email) {
+                    $subject = 'Litige sur une commande - Marketplace';
+                    $mailable = new TemplatedNotification(
+                        'marketplace_dispute_opened_seller',
+                        $subject,
+                        [
+                            'dispute' => $dispute->toArray(),
+                            'marketplaceOrder' => $mp->toArray(),
+                            'order' => $mp->order?->toArray() ?? [],
+                            'user' => $sellerUser->toArray(),
+                        ],
+                        [
+                            'title' => $subject,
+                            'headline' => 'Litige ouvert',
+                            'intro' => 'Un acheteur a ouvert un litige sur une de tes commandes. Ton wallet peut être gelé pendant l’analyse.',
+                            'details' => [
+                                ['label' => 'Référence', 'value' => $orderRef],
+                                ['label' => 'Annonce', 'value' => $listingTitle],
+                                ['label' => 'Raison', 'value' => (string) ($dispute->reason ?? '—')],
+                            ],
+                            'actionUrl' => $this->frontendUrl('/account/seller'),
+                            'actionText' => 'Ouvrir mes commandes',
+                        ]
+                    );
+                    $logged->queue($sellerUser->id, $sellerUser->email, 'marketplace_dispute_opened_seller', $subject, $mailable, [
+                        'dispute_id' => $dispute->id,
+                        'marketplace_order_id' => $mp->id,
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+        }
 
         return response()->json([
             'ok' => true,

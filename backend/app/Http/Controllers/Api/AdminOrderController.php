@@ -444,7 +444,7 @@ class AdminOrderController extends Controller
             'to' => $order->user->email,
             'type' => 'redeem_code_resend',
             'subject' => 'Votre code de recharge PRIME Gaming',
-            'status' => 'queued',
+            'status' => 'pending',
             'sent_at' => now(),
         ]);
 

@@ -201,6 +201,9 @@ export default function LoginClient() {
 
               <div className="flex items-center justify-between text-xs text-white/60">
                 <span>Double authentification bientôt</span>
+                <Link href="/auth/forgot-password" className="text-cyan-300 no-underline">
+                  Mot de passe oublié ?
+                </Link>
               </div>
 
               {error && <p className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</p>}

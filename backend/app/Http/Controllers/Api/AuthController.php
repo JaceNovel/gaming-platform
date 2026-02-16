@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Referral;
 use App\Models\User;
 use App\Services\WalletService;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password as PasswordFacade;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -229,6 +232,68 @@ class AuthController extends Controller
         });
 
         return response()->json(['message' => 'Compte supprimé']);
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'string', 'email'],
+        ]);
+
+        $status = PasswordFacade::sendResetLink(['email' => $data['email']]);
+
+        // Do not leak whether the email exists.
+        if (in_array($status, [PasswordFacade::RESET_LINK_SENT, PasswordFacade::INVALID_USER], true)) {
+            return response()->json([
+                'message' => 'Si un compte existe pour cet email, un lien de réinitialisation a été envoyé.',
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Impossible de traiter la demande pour le moment.',
+        ], 500);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $data = $request->validate([
+            'token' => ['required', 'string'],
+            'email' => ['required', 'string', 'email'],
+            'password' => ['required', 'string', Password::defaults(), 'confirmed'],
+        ]);
+
+        $status = PasswordFacade::reset(
+            [
+                'email' => $data['email'],
+                'password' => $data['password'],
+                'password_confirmation' => $request->input('password_confirmation'),
+                'token' => $data['token'],
+            ],
+            function (User $user, string $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                    'remember_token' => Str::random(60),
+                ])->save();
+
+                // Invalidate API tokens on password reset.
+                try {
+                    $user->tokens()->delete();
+                } catch (\Throwable) {
+                    // best-effort
+                }
+
+                event(new PasswordReset($user));
+            }
+        );
+
+        if ($status === PasswordFacade::PASSWORD_RESET) {
+            return response()->json(['message' => 'Mot de passe réinitialisé.']);
+        }
+
+        return response()->json([
+            'message' => 'Lien de réinitialisation invalide ou expiré.',
+            'errors' => ['token' => ['Lien de réinitialisation invalide ou expiré.']],
+        ], 422);
     }
 
     public function me(Request $request)

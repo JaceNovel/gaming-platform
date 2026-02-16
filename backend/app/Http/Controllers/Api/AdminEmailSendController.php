@@ -31,7 +31,8 @@ class AdminEmailSendController extends Controller
             'to' => $to,
             'type' => 'admin_direct',
             'subject' => $subject,
-            'status' => 'queued',
+            'status' => 'pending',
+            'sent_at' => now(),
         ]);
 
         $adminName = $request->user()?->name;

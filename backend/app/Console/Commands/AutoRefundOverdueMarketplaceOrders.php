@@ -2,11 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\TemplatedNotification;
 use App\Models\MarketplaceOrder;
 use App\Models\Order;
 use App\Models\PartnerWallet;
 use App\Models\PartnerWalletTransaction;
 use App\Models\Refund;
+use App\Services\LoggedEmailService;
 use App\Services\WalletService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -156,6 +158,78 @@ class AutoRefundOverdueMarketplaceOrders extends Command
 
             if ($done) {
                 $processed++;
+
+                // Email buyer + seller (best-effort)
+                try {
+                    $mp = MarketplaceOrder::query()->with(['order.user', 'buyer', 'seller.user', 'listing'])->find($id);
+                    if ($mp && $mp->order && $mp->buyer) {
+                        $front = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+                        $orderRef = (string) ($mp->order->reference ?? $mp->order_id);
+                        $listingTitle = (string) ($mp->listing?->title ?? 'Compte Gaming');
+                        $amount = (float) ($mp->price ?? $mp->order->total_price ?? 0);
+
+                        /** @var LoggedEmailService $logged */
+                        $logged = app(LoggedEmailService::class);
+
+                        $buyer = $mp->buyer;
+                        if ($buyer->email) {
+                            $subject = 'Remboursement automatique - Marketplace';
+                            $mailable = new TemplatedNotification(
+                                'marketplace_auto_refund_buyer',
+                                $subject,
+                                [
+                                    'marketplaceOrder' => $mp->toArray(),
+                                    'order' => $mp->order->toArray(),
+                                    'user' => $buyer->toArray(),
+                                ],
+                                [
+                                    'title' => $subject,
+                                    'headline' => 'Remboursement initié',
+                                    'intro' => 'Le délai de livraison a été dépassé. Un remboursement a été initié sur ton DB Wallet.',
+                                    'details' => [
+                                        ['label' => 'Référence', 'value' => $orderRef],
+                                        ['label' => 'Annonce', 'value' => $listingTitle],
+                                        ['label' => 'Montant', 'value' => number_format($amount, 0, ',', ' ') . ' FCFA'],
+                                    ],
+                                    'actionUrl' => $front . '/account',
+                                    'actionText' => 'Ouvrir mon compte',
+                                ]
+                            );
+                            $logged->queue($buyer->id, $buyer->email, 'marketplace_auto_refund_buyer', $subject, $mailable, [
+                                'marketplace_order_id' => $mp->id,
+                            ]);
+                        }
+
+                        $sellerUser = $mp->seller?->user;
+                        if ($sellerUser && $sellerUser->email) {
+                            $subject = 'Commande remboursée - Marketplace';
+                            $mailable = new TemplatedNotification(
+                                'marketplace_auto_refund_seller',
+                                $subject,
+                                [
+                                    'marketplaceOrder' => $mp->toArray(),
+                                    'order' => $mp->order->toArray(),
+                                    'user' => $sellerUser->toArray(),
+                                ],
+                                [
+                                    'title' => $subject,
+                                    'headline' => 'Remboursement automatique',
+                                    'intro' => 'La commande a été remboursée automatiquement car le délai de livraison a été dépassé.',
+                                    'details' => [
+                                        ['label' => 'Référence', 'value' => $orderRef],
+                                        ['label' => 'Annonce', 'value' => $listingTitle],
+                                    ],
+                                    'actionUrl' => $front . '/account/seller',
+                                    'actionText' => 'Voir mes commandes',
+                                ]
+                            );
+                            $logged->queue($sellerUser->id, $sellerUser->email, 'marketplace_auto_refund_seller', $subject, $mailable, [
+                                'marketplace_order_id' => $mp->id,
+                            ]);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                }
             } else {
                 $skipped++;
             }

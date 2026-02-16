@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedNotification;
 use App\Models\PartnerWallet;
 use App\Models\PartnerWithdrawRequest;
 use App\Models\Seller;
+use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -13,6 +15,13 @@ use Illuminate\Validation\ValidationException;
 class PartnerWalletController extends Controller
 {
     private const WITHDRAW_FEE_AMOUNT = 1000.0;
+
+    private function frontendUrl(string $path = ''): string
+    {
+        $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $p = '/' . ltrim($path, '/');
+        return $base . ($path !== '' ? $p : '');
+    }
 
     public function show(Request $request)
     {
@@ -120,6 +129,48 @@ class PartnerWalletController extends Controller
                 'payout_details' => $payoutDetailsWithFee,
             ]);
         });
+
+        // Email seller (best-effort)
+        try {
+            $seller->loadMissing('user');
+            $user = $seller->user;
+            if ($user && $user->email) {
+                $amount = (float) ($withdraw->amount ?? 0);
+                $payout = is_array($withdraw->payout_details) ? $withdraw->payout_details : [];
+                $fee = (float) ($payout['withdraw_fee_amount'] ?? 0);
+                $total = (float) ($payout['withdraw_total_debit'] ?? ($amount + $fee));
+
+                $subject = 'Demande de retrait reçue - PRIME Gaming';
+                $mailable = new TemplatedNotification(
+                    'partner_withdraw_requested',
+                    $subject,
+                    [
+                        'withdraw' => $withdraw->toArray(),
+                        'seller' => $seller->toArray(),
+                        'user' => $user->toArray(),
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Retrait demandé',
+                        'intro' => 'Ta demande de retrait a été enregistrée et sera traitée par l’admin.',
+                        'details' => [
+                            ['label' => 'Montant', 'value' => number_format($amount, 0, ',', ' ') . ' FCFA'],
+                            ['label' => 'Frais', 'value' => number_format($fee, 0, ',', ' ') . ' FCFA'],
+                            ['label' => 'Total débité', 'value' => number_format($total, 0, ',', ' ') . ' FCFA'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Voir mes retraits',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'partner_withdraw_requested', $subject, $mailable, [
+                    'withdraw_request_id' => $withdraw->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
 
         return response()->json(['ok' => true, 'withdrawRequest' => $withdraw], 201);
     }

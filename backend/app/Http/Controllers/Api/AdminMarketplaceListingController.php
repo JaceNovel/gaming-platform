@@ -3,14 +3,23 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedNotification;
 use App\Models\SellerListing;
 use App\Services\AdminAuditLogger;
+use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AdminMarketplaceListingController extends Controller
 {
+    private function frontendUrl(string $path = ''): string
+    {
+        $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $p = '/' . ltrim($path, '/');
+        return $base . ($path !== '' ? $p : '');
+    }
+
     public function index(Request $request)
     {
         $q = SellerListing::query()->with(['seller.user', 'game', 'category']);
@@ -83,6 +92,44 @@ class AdminMarketplaceListingController extends Controller
             $listing->save();
         });
 
+        // Email seller (best-effort)
+        try {
+            $fresh = SellerListing::query()->with(['seller.user', 'game'])->find($sellerListing->id);
+            $user = $fresh?->seller?->user;
+            if ($fresh && $user && $user->email) {
+                $subject = 'Annonce approuvée - PRIME Gaming';
+                $mailable = new TemplatedNotification(
+                    'marketplace_listing_approved',
+                    $subject,
+                    [
+                        'listing' => $fresh->toArray(),
+                        'seller' => $fresh->seller?->toArray() ?? [],
+                        'user' => $user->toArray(),
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Annonce approuvée',
+                        'intro' => 'Bonne nouvelle: ton annonce est maintenant publiée sur le marketplace.',
+                        'details' => [
+                            ['label' => 'Annonce', 'value' => (string) ($fresh->title ?? ('#' . $fresh->id))],
+                            ['label' => 'Jeu', 'value' => (string) ($fresh->game?->name ?? '—')],
+                            ['label' => 'Prix', 'value' => number_format((float) ($fresh->price ?? 0), 0, ',', ' ') . ' FCFA'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Voir mes annonces',
+                        'outro' => 'Merci pour ta confiance.',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'marketplace_listing_approved', $subject, $mailable, [
+                    'seller_listing_id' => $fresh->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
+
         try {
             /** @var AdminAuditLogger $audit */
             $audit = app(AdminAuditLogger::class);
@@ -123,6 +170,44 @@ class AdminMarketplaceListingController extends Controller
             $listing->reserved_until = null;
             $listing->save();
         });
+
+        // Email seller (best-effort)
+        try {
+            $fresh = SellerListing::query()->with(['seller.user', 'game'])->find($sellerListing->id);
+            $user = $fresh?->seller?->user;
+            if ($fresh && $user && $user->email) {
+                $subject = 'Annonce refusée - PRIME Gaming';
+                $reason = (string) ($fresh->status_reason ?? $data['reason']);
+                $mailable = new TemplatedNotification(
+                    'marketplace_listing_rejected',
+                    $subject,
+                    [
+                        'listing' => $fresh->toArray(),
+                        'seller' => $fresh->seller?->toArray() ?? [],
+                        'user' => $user->toArray(),
+                        'reason' => $reason,
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Annonce refusée',
+                        'intro' => 'Ton annonce a été refusée après vérification.',
+                        'details' => [
+                            ['label' => 'Annonce', 'value' => (string) ($fresh->title ?? ('#' . $fresh->id))],
+                            ['label' => 'Raison', 'value' => $reason ?: '—'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Modifier et renvoyer',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'marketplace_listing_rejected', $subject, $mailable, [
+                    'seller_listing_id' => $fresh->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
 
         try {
             /** @var AdminAuditLogger $audit */
@@ -165,6 +250,44 @@ class AdminMarketplaceListingController extends Controller
             $listing->reserved_until = null;
             $listing->save();
         });
+
+        // Email seller (best-effort)
+        try {
+            $fresh = SellerListing::query()->with(['seller.user', 'game'])->find($sellerListing->id);
+            $user = $fresh?->seller?->user;
+            if ($fresh && $user && $user->email) {
+                $subject = 'Annonce suspendue - PRIME Gaming';
+                $reason = (string) ($fresh->status_reason ?? $data['reason']);
+                $mailable = new TemplatedNotification(
+                    'marketplace_listing_suspended',
+                    $subject,
+                    [
+                        'listing' => $fresh->toArray(),
+                        'seller' => $fresh->seller?->toArray() ?? [],
+                        'user' => $user->toArray(),
+                        'reason' => $reason,
+                    ],
+                    [
+                        'title' => $subject,
+                        'headline' => 'Annonce suspendue',
+                        'intro' => 'Ton annonce a été suspendue.',
+                        'details' => [
+                            ['label' => 'Annonce', 'value' => (string) ($fresh->title ?? ('#' . $fresh->id))],
+                            ['label' => 'Raison', 'value' => $reason ?: '—'],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/account/seller'),
+                        'actionText' => 'Voir mes annonces',
+                    ]
+                );
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+                $logged->queue($user->id, $user->email, 'marketplace_listing_suspended', $subject, $mailable, [
+                    'seller_listing_id' => $fresh->id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+        }
 
         try {
             /** @var AdminAuditLogger $audit */

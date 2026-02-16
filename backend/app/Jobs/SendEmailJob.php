@@ -30,7 +30,10 @@ class SendEmailJob implements ShouldQueue
     public function handle()
     {
         try {
-            Mail::send($this->mailable);
+            // Ensure the recipient is applied from the EmailLog.
+            // Many Mailables in this codebase are constructed without calling ->to().
+            Mail::to((string) ($this->emailLog->to ?? ''))
+                ->send($this->mailable);
 
             $this->emailLog->update([
                 'status' => 'sent',

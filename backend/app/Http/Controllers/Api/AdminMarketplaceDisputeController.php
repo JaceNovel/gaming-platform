@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedNotification;
 use App\Models\Dispute;
 use App\Models\MarketplaceOrder;
 use App\Models\PartnerWallet;
@@ -10,6 +11,7 @@ use App\Models\PartnerWalletTransaction;
 use App\Models\Refund;
 use App\Models\Seller;
 use App\Services\AdminAuditLogger;
+use App\Services\LoggedEmailService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +20,13 @@ use Illuminate\Validation\ValidationException;
 
 class AdminMarketplaceDisputeController extends Controller
 {
+    private function frontendUrl(string $path = ''): string
+    {
+        $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $p = '/' . ltrim($path, '/');
+        return $base . ($path !== '' ? $p : '');
+    }
+
     public function index(Request $request)
     {
         $q = Dispute::query()->with(['buyer', 'seller.user', 'listing', 'marketplaceOrder.order']);
@@ -173,6 +182,95 @@ class AdminMarketplaceDisputeController extends Controller
             $disputeRow->resolved_at = now();
             $disputeRow->save();
         });
+
+        // Email buyer + seller (best-effort)
+        try {
+            $fresh = Dispute::query()->with(['buyer', 'seller.user', 'listing', 'marketplaceOrder.order'])->find($dispute->id);
+            $mp = $fresh?->marketplaceOrder;
+            if ($fresh && $mp) {
+                $orderRef = (string) ($mp->order?->reference ?? $mp->order_id);
+                $listingTitle = (string) ($fresh->listing?->title ?? $mp->listing?->title ?? 'Compte Gaming');
+                $resolution = (string) ($fresh->resolution ?? $data['resolution']);
+
+                /** @var LoggedEmailService $logged */
+                $logged = app(LoggedEmailService::class);
+
+                $buyer = $fresh->buyer;
+                if ($buyer && $buyer->email) {
+                    $subject = 'Décision litige - Marketplace';
+                    $headline = $resolution === 'refund_buyer_wallet' ? 'Remboursement validé' : 'Litige résolu';
+                    $intro = $resolution === 'refund_buyer_wallet'
+                        ? 'Ton litige a été validé: un remboursement a été initié sur ton DB Wallet.'
+                        : 'Ton litige a été résolu. Merci de vérifier ton compte.';
+
+                    $mailable = new TemplatedNotification(
+                        'marketplace_dispute_resolved_buyer',
+                        $subject,
+                        [
+                            'dispute' => $fresh->toArray(),
+                            'marketplaceOrder' => $mp->toArray(),
+                            'order' => $mp->order?->toArray() ?? [],
+                            'user' => $buyer->toArray(),
+                        ],
+                        [
+                            'title' => $subject,
+                            'headline' => $headline,
+                            'intro' => $intro,
+                            'details' => [
+                                ['label' => 'Référence', 'value' => $orderRef],
+                                ['label' => 'Annonce', 'value' => $listingTitle],
+                                ['label' => 'Décision', 'value' => $resolution],
+                                ['label' => 'Note', 'value' => (string) ($fresh->resolution_note ?? $data['note'] ?? '—')],
+                            ],
+                            'actionUrl' => $this->frontendUrl('/account/litige'),
+                            'actionText' => 'Voir le litige',
+                        ]
+                    );
+                    $logged->queue($buyer->id, $buyer->email, 'marketplace_dispute_resolved_buyer', $subject, $mailable, [
+                        'dispute_id' => $fresh->id,
+                        'marketplace_order_id' => $mp->id,
+                    ]);
+                }
+
+                $sellerUser = $fresh->seller?->user;
+                if ($sellerUser && $sellerUser->email) {
+                    $subject = 'Décision litige - Marketplace';
+                    $headline = $resolution === 'release_to_seller' ? 'Paiement libéré' : 'Commande remboursée';
+                    $intro = $resolution === 'release_to_seller'
+                        ? 'Le litige a été résolu en ta faveur: le paiement est libéré.'
+                        : 'Le litige a été résolu: la commande est remboursée à l’acheteur.';
+
+                    $mailable = new TemplatedNotification(
+                        'marketplace_dispute_resolved_seller',
+                        $subject,
+                        [
+                            'dispute' => $fresh->toArray(),
+                            'marketplaceOrder' => $mp->toArray(),
+                            'order' => $mp->order?->toArray() ?? [],
+                            'user' => $sellerUser->toArray(),
+                        ],
+                        [
+                            'title' => $subject,
+                            'headline' => $headline,
+                            'intro' => $intro,
+                            'details' => [
+                                ['label' => 'Référence', 'value' => $orderRef],
+                                ['label' => 'Annonce', 'value' => $listingTitle],
+                                ['label' => 'Décision', 'value' => $resolution],
+                                ['label' => 'Note', 'value' => (string) ($fresh->resolution_note ?? $data['note'] ?? '—')],
+                            ],
+                            'actionUrl' => $this->frontendUrl('/account/seller'),
+                            'actionText' => 'Voir mes commandes',
+                        ]
+                    );
+                    $logged->queue($sellerUser->id, $sellerUser->email, 'marketplace_dispute_resolved_seller', $subject, $mailable, [
+                        'dispute_id' => $fresh->id,
+                        'marketplace_order_id' => $mp->id,
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+        }
 
         try {
             /** @var AdminAuditLogger $audit */
