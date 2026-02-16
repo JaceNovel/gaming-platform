@@ -416,7 +416,7 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         Route::post('/settings/logo', [AdminSettingsController::class, 'uploadLogo']);
     });
 
-    Route::middleware('requireRole:admin_super,admin,staff,admin_article,admin_manager,admin_marketing,admin_client')->group(function () {
+    Route::middleware('requireRole:admin_super,admin,staff,admin_article,admin_manager,admin_marketing,admin_client,admin_support')->group(function () {
         Route::post('/products', [AdminProductController::class, 'store']);
         Route::patch('/products/{product}', [AdminProductController::class, 'update']);
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
