@@ -14,6 +14,7 @@ const getAuthHeaders = (): Record<string, string> => {
 
 export default function AdminNotificationsPage() {
   const [message, setMessage] = useState("");
+  const [sendEmail, setSendEmail] = useState(false);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +30,7 @@ export default function AdminNotificationsPage() {
           "Content-Type": "application/json",
           ...getAuthHeaders(),
         },
-        body: JSON.stringify({ message: message.trim() }),
+        body: JSON.stringify({ message: message.trim(), send_email: sendEmail }),
       });
 
       if (!res.ok) {
@@ -60,6 +61,16 @@ export default function AdminNotificationsPage() {
             className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
             placeholder="Ex: Nouveaux comptes Free Fire ajoutés, section Promotions mise à jour..."
           />
+
+          <label className="flex items-center gap-3 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={sendEmail}
+              onChange={(e) => setSendEmail(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            Envoyer aussi par email
+          </label>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <button
