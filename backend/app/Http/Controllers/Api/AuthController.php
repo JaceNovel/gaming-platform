@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SendPasswordResetLink;
 use App\Models\Referral;
 use App\Models\User;
 use App\Services\WalletService;
@@ -10,7 +11,6 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password as PasswordFacade;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
@@ -240,18 +240,16 @@ class AuthController extends Controller
             'email' => ['required', 'string', 'email'],
         ]);
 
-        $status = PasswordFacade::sendResetLink(['email' => $data['email']]);
-
-        // Do not leak whether the email exists.
-        if (in_array($status, [PasswordFacade::RESET_LINK_SENT, PasswordFacade::INVALID_USER], true)) {
-            return response()->json([
-                'message' => 'Si un compte existe pour cet email, un lien de réinitialisation a été envoyé.',
-            ]);
+        try {
+            SendPasswordResetLink::dispatch((string) $data['email'])->afterCommit();
+        } catch (\Throwable) {
+            // best-effort: never leak internal errors and never block the request
         }
 
+        // Do not leak whether the email exists.
         return response()->json([
-            'message' => 'Impossible de traiter la demande pour le moment.',
-        ], 500);
+            'message' => 'Si un compte existe pour cet email, un lien de réinitialisation a été envoyé.',
+        ]);
     }
 
     public function resetPassword(Request $request)

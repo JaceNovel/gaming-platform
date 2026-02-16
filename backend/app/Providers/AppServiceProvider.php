@@ -25,20 +25,29 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('forgot-password', function (Request $request) {
             $ip = (string) ($request->ip() ?? 'unknown');
             $email = strtolower(trim((string) $request->input('email', '')));
-            $key = $ip;
+
+            $response = function (Request $request, array $headers) {
+                return response()->json(
+                    ['message' => 'Trop de tentatives. Réessayez plus tard.'],
+                    429,
+                    $headers
+                );
+            };
+
+            $limits = [
+                // Primary guard: cap total requests per IP.
+                Limit::perMinute(10)->by('forgot-password:ip:' . $ip),
+            ];
+
+            // Secondary guard: cap repeated attempts for the same email from same IP.
             if ($email !== '') {
-                $key .= '|' . sha1($email);
+                $limits[] = Limit::perMinute(5)
+                    ->by('forgot-password:ip-email:' . $ip . '|' . sha1($email));
             }
 
-            return Limit::perMinute(5)
-                ->by('forgot-password:' . $key)
-                ->response(function (Request $request, array $headers) {
-                    return response()->json(
-                        ['message' => 'Trop de tentatives. Réessayez plus tard.'],
-                        429,
-                        $headers
-                    );
-                });
+            return collect($limits)
+                ->map(fn (Limit $limit) => $limit->response($response))
+                ->all();
         });
 
         RateLimiter::for('reset-password', function (Request $request) {
