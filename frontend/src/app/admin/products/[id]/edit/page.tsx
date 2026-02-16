@@ -477,7 +477,10 @@ export default function AdminProductsEditPage() {
           type === "item" && displaySection !== "emote_skin" && deliveryEstimateLabel.trim()
             ? deliveryEstimateLabel.trim()
             : undefined,
-        display_section: displaySection === "none" ? undefined : displaySection,
+        // Important: allow clearing the persisted section on existing products.
+        // If we omit the field (undefined), the backend keeps the old value (e.g. recharge_direct),
+        // which makes it impossible to remove Recharge Direct once enabled.
+        display_section: displaySection === "none" ? null : displaySection,
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
         images: type === "account" ? cleanedAccountImages : undefined,
