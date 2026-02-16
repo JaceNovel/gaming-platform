@@ -72,24 +72,36 @@
         }
     </style>
 </head>
-<body style="margin:0;padding:0;font-family:Arial, sans-serif;background-color:#121212;color:#ffffff;line-height:1.6;">
-    <div class="container" style="max-width:600px;margin:0 auto;background-color:#1e1e1e;border-radius:10px;overflow:hidden;">
-        <div class="header" style="background:linear-gradient(135deg,#ff0000,#000000);padding:20px;text-align:center;">
-            @if(!empty($logo))
-                <img src="{{ $logo }}" alt="PRIME Gaming Logo" class="logo" style="max-width:150px;height:auto;">
-            @else
-                <h1 style="color: #ffffff; margin: 0;">PRIME Gaming</h1>
-            @endif
-        </div>
-        <div class="content" style="padding:30px;color:#ffffff;">
-            <div style="color:#ffffff;">
-                {{ $slot }}
-            </div>
-        </div>
-        <div class="footer" style="background-color:#2a2a2a;padding:20px;text-align:center;font-size:12px;color:#cccccc;">
-            <p>© 2026 PRIME Gaming. Tous droits réservés.</p>
-            <p>Si vous avez des questions, contactez-nous sur WhatsApp : +228 93 97 06 11</p>
-        </div>
-    </div>
+<body bgcolor="#121212" style="margin:0;padding:0;font-family:Arial, sans-serif;background-color:#121212;color:#ffffff;line-height:1.6;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#121212" style="background-color:#121212;">
+        <tr>
+            <td align="center" style="padding:0;margin:0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#1e1e1e" style="max-width:600px;width:100%;background-color:#1e1e1e;border-radius:10px;overflow:hidden;">
+                    <tr>
+                        <td bgcolor="#000000" style="background-color:#000000;background:linear-gradient(135deg,#ff0000,#000000);padding:20px;text-align:center;">
+                            @if(!empty($logo))
+                                <img src="{{ $logo }}" alt="PRIME Gaming Logo" style="max-width:150px;height:auto;display:inline-block;" />
+                            @else
+                                <h1 style="color:#ffffff;margin:0;">PRIME Gaming</h1>
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:30px;color:#ffffff;font-family:Arial, sans-serif;">
+                            <div style="color:#ffffff;">
+                                {{ $slot }}
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td bgcolor="#2a2a2a" style="background-color:#2a2a2a;padding:20px;text-align:center;font-size:12px;color:#cccccc;font-family:Arial, sans-serif;">
+                            <p style="margin:0 0 6px 0;color:#cccccc;">© 2026 PRIME Gaming. Tous droits réservés.</p>
+                            <p style="margin:0;color:#cccccc;">Si vous avez des questions, contactez-nous sur WhatsApp : +228 93 97 06 11</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>

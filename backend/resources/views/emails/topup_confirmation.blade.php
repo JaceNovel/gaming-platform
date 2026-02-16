@@ -17,23 +17,23 @@
 
   <h2 style="margin:0 0 10px 0; color:#00ff99;">Paiement confirmé ✅</h2>
 
-  <p>Bonjour {{ $order->user->name ?? 'client' }},</p>
-  <p>Votre paiement est confirmé. Votre commande est en cours de traitement.</p>
+    <p style="margin:0 0 10px 0; color:#ffffff;">Bonjour {{ $order->user->name ?? 'client' }},</p>
+    <p style="margin:0 0 10px 0; color:#ffffff;">Votre paiement est confirmé. Votre commande est en cours de traitement.</p>
 
-  <div class="highlight">
-      <h3 style="margin:0 0 10px 0;">Détails</h3>
-      <p style="margin:6px 0;"><strong>Référence :</strong> {{ $order->reference ?? $order->id }}</p>
-      <p style="margin:6px 0;"><strong>Produit :</strong> {{ $productName !== '' ? $productName : '—' }}</p>
-      <p style="margin:6px 0;"><strong>Montant :</strong> {{ number_format($order->total_price ?? $order->total_amount ?? 0, 0, ',', ' ') }} FCFA</p>
-      <p style="margin:6px 0;"><strong>ID saisi :</strong> {{ $gameUserId !== '' ? $gameUserId : '—' }}</p>
-      <p style="margin:6px 0;"><strong>Date :</strong> {{ optional($order->created_at)->format('d/m/Y H:i') }}</p>
-  </div>
+    <div class="highlight" style="background-color:#333333;padding:15px;border-left:4px solid #ff0000;margin:20px 0;color:#ffffff;">
+      <h3 style="margin:0 0 10px 0;color:#ffffff;">Détails</h3>
+      <p style="margin:6px 0;color:#ffffff;"><strong>Référence :</strong> {{ $order->reference ?? $order->id }}</p>
+      <p style="margin:6px 0;color:#ffffff;"><strong>Produit :</strong> {{ $productName !== '' ? $productName : '—' }}</p>
+      <p style="margin:6px 0;color:#ffffff;"><strong>Montant :</strong> {{ number_format($order->total_price ?? $order->total_amount ?? 0, 0, ',', ' ') }} FCFA</p>
+      <p style="margin:6px 0;color:#ffffff;"><strong>ID saisi :</strong> {{ $gameUserId !== '' ? $gameUserId : '—' }}</p>
+      <p style="margin:6px 0;color:#ffffff;"><strong>Date :</strong> {{ optional($order->created_at)->format('d/m/Y H:i') }}</p>
+    </div>
 
   @if($isBooyahPass)
-    <div class="highlight" style="margin-top:14px;">
-      <h3 style="margin:0 0 10px 0;">Important (BOOYAH PASS)</h3>
-      <p style="margin:6px 0;">Vous devez ajouter en amis cet ID Free Fire : <strong>2272704178</strong>.</p>
-      <p style="margin:6px 0;">Vous recevrez votre achat dans un délai de <strong>30 minutes</strong>.</p>
+    <div class="highlight" style="background-color:#333333;padding:15px;border-left:4px solid #ff0000;margin:14px 0 0 0;color:#ffffff;">
+      <h3 style="margin:0 0 10px 0;color:#ffffff;">Important (BOOYAH PASS)</h3>
+      <p style="margin:6px 0;color:#ffffff;">Vous devez ajouter en amis cet ID Free Fire : <strong>2272704178</strong>.</p>
+      <p style="margin:6px 0;color:#ffffff;">Vous recevrez votre achat dans un délai de <strong>30 minutes</strong>.</p>
     </div>
   @endif
 
