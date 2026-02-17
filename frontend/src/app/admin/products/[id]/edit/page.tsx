@@ -69,7 +69,7 @@ const normalizeText = (value: string) =>
 const classifyCatalogCategory = (name: string): CatalogCategoryKind | null => {
   const n = normalizeText(name);
   if (n.includes("abonn")) return "subscription";
-  if (n.includes("accessoire")) return "accessory";
+  if (["accessoire", "accessoir", "accesoire", "accesoir", "accessory"].some((marker) => n.includes(marker))) return "accessory";
   if (n.includes("recharge")) return "recharge";
   return null;
 };

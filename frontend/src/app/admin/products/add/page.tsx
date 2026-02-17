@@ -52,7 +52,7 @@ const normalizeText = (value: string) =>
 const classifyCatalogCategory = (name: string): CatalogCategoryKind | null => {
   const n = normalizeText(name);
   if (n.includes("abonn")) return "subscription";
-  if (n.includes("accessoire")) return "accessory";
+  if (["accessoire", "accessoir", "accesoire", "accesoir", "accessory"].some((marker) => n.includes(marker))) return "accessory";
   if (n.includes("recharge")) return "recharge";
   return null;
 };
@@ -101,6 +101,14 @@ export default function AdminProductsAddPage() {
   const allowedCategories = categories.filter((category) => classifyCatalogCategory(category.name) !== null);
   const selectedCategory = categories.find((category) => String(category.id) === String(categoryId)) ?? null;
   const selectedCatalogKind = selectedCategory ? classifyCatalogCategory(selectedCategory.name) : null;
+
+  useEffect(() => {
+    // Default to the accessory category when adding a product.
+    if (categoryId) return;
+    if (!categories.length) return;
+    const accessory = categories.find((category) => classifyCatalogCategory(category.name) === "accessory");
+    if (accessory) setCategoryId(String(accessory.id));
+  }, [categories, categoryId]);
 
   const loadCategories = useCallback(async () => {
     try {

@@ -792,6 +792,30 @@ function SellerPageClient() {
     const goPrev = () => setStep((p) => Math.max(1, p - 1));
     const goNext = () => setStep((p) => Math.min(steps.length, p + 1));
 
+    const submitListing = () => {
+      const price = Math.round(Number(values.price));
+      if (!Number.isFinite(price) || price < 5000) {
+        pushToast("Annonce Frauduleux et sera supprimé.", "error");
+        return;
+      }
+      void saveListing({
+        mode: listingModal.mode,
+        id: base?.id,
+        image: imageFile,
+        galleryImages: galleryFiles,
+        values: {
+          gameId: values.gameId,
+          title: values.title.trim(),
+          description: values.description.trim() || null,
+          price,
+          accountLevel: values.accountLevel.trim() || null,
+          accountRank: values.accountRank.trim() || null,
+          accountRegion: values.accountRegion.trim() || null,
+          hasEmailAccess: Boolean(values.hasEmailAccess),
+        },
+      });
+    };
+
     return (
       <div
         className={
@@ -853,15 +877,27 @@ function SellerPageClient() {
               ) : null}
               <button
                 type="button"
-                onClick={isMobileCreatePage ? goNext : closeListingModal}
-                disabled={isMobileCreatePage ? (step >= steps.length || !canGoNext(step)) : false}
+                onClick={
+                  isMobileCreatePage
+                    ? step >= steps.length
+                      ? submitListing
+                      : goNext
+                    : closeListingModal
+                }
+                disabled={
+                  isMobileCreatePage
+                    ? step >= steps.length
+                      ? submitDisabled
+                      : step >= steps.length || !canGoNext(step)
+                    : false
+                }
                 className={
                   isMobileCreatePage
                     ? "rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
                     : "rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
                 }
               >
-                {isMobileCreatePage ? "Suivant" : "Fermer"}
+                {isMobileCreatePage ? (step >= steps.length ? (isEdit ? "Enregistrer" : "Créer l'annonce") : "Suivant") : "Fermer"}
               </button>
             </div>
           </div>
@@ -1182,33 +1218,11 @@ function SellerPageClient() {
                 >
                   Suivant
                 </button>
-              ) : step >= steps.length ? (
+              ) : !isMobileCreatePage && step >= steps.length ? (
                 <button
                   type="button"
                   disabled={submitDisabled}
-                  onClick={() => {
-                    const price = Math.round(Number(values.price));
-                    if (!Number.isFinite(price) || price < 5000) {
-                      pushToast("Annonce Frauduleux et sera supprimé.", "error");
-                      return;
-                    }
-                    void saveListing({
-                      mode: listingModal.mode,
-                      id: base?.id,
-                      image: imageFile,
-                      galleryImages: galleryFiles,
-                      values: {
-                        gameId: values.gameId,
-                        title: values.title.trim(),
-                        description: values.description.trim() || null,
-                        price,
-                        accountLevel: values.accountLevel.trim() || null,
-                        accountRank: values.accountRank.trim() || null,
-                        accountRegion: values.accountRegion.trim() || null,
-                        hasEmailAccess: Boolean(values.hasEmailAccess),
-                      },
-                    });
-                  }}
+                  onClick={submitListing}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-4 w-4" />
