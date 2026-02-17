@@ -902,7 +902,12 @@ function SellerPageClient() {
             </div>
           </div>
 
-          <div className={"min-h-0 flex-1 overflow-y-auto " + (isMobileCreatePage ? "px-4 py-4" : "px-6 py-6")}>
+          <div
+            className={
+              "min-h-0 flex-1 overflow-y-auto " +
+              (isMobileCreatePage ? "px-4 pt-4 pb-[calc(16px+env(safe-area-inset-bottom))]" : "px-6 py-6")
+            }
+          >
             {!canSell ? (
               <div className="mb-5 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-100">
                 Ton compte vendeur doit être <span className="font-semibold">validé</span> (et wallet non gelé) pour créer/modifier/activer des annonces.
@@ -1185,52 +1190,45 @@ function SellerPageClient() {
             ) : null}
           </div>
 
-          <div
-            className={
-              "flex flex-col gap-3 border-t border-white/10 " +
-              (isMobileCreatePage
-                ? "sticky bottom-0 bg-[#05020f]/95 px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 backdrop-blur"
-                : "px-6 py-5 sm:flex-row sm:items-center sm:justify-between")
-            }
-          >
-            {!isMobileCreatePage ? (
+          {!isMobileCreatePage ? (
+            <div className="flex flex-col gap-3 border-t border-white/10 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs text-white/55">
                 Commission marketplace appliquée à la vente. Les gains sont <span className="text-white/80">en attente</span> jusqu'à libération manuelle.
               </div>
-            ) : null}
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {!isMobileCreatePage && step > 1 ? (
-                <button
-                  type="button"
-                  onClick={goPrev}
-                  className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/10"
-                >
-                  Précédent
-                </button>
-              ) : null}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {step > 1 ? (
+                  <button
+                    type="button"
+                    onClick={goPrev}
+                    className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/10"
+                  >
+                    Précédent
+                  </button>
+                ) : null}
 
-              {!isMobileCreatePage && step < steps.length ? (
-                <button
-                  type="button"
-                  disabled={!canGoNext(step)}
-                  onClick={goNext}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/85 hover:bg-white/10 disabled:opacity-50"
-                >
-                  Suivant
-                </button>
-              ) : !isMobileCreatePage && step >= steps.length ? (
-                <button
-                  type="button"
-                  disabled={submitDisabled}
-                  onClick={submitListing}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  {isEdit ? "Enregistrer" : "Créer"}
-                </button>
-              ) : null}
+                {step < steps.length ? (
+                  <button
+                    type="button"
+                    disabled={!canGoNext(step)}
+                    onClick={goNext}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/85 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    Suivant
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={submitDisabled}
+                    onClick={submitListing}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-5 py-3 text-sm font-semibold text-black disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    {isEdit ? "Enregistrer" : "Créer"}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
     );
