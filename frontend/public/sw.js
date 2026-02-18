@@ -27,7 +27,8 @@ self.addEventListener("activate", function (event) {
     (async () => {
       try {
         const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
+        // Keep the runtime cache so images remain available across SW updates.
+        await Promise.all(keys.map((k) => (k === RUNTIME_CACHE ? Promise.resolve(false) : caches.delete(k))));
       } catch (e) {
         // ignore
       }

@@ -271,7 +271,7 @@ class MarketplaceOrderController extends Controller
                 if ($request->hasFile('photos')) {
                     $paths = is_array($existing->evidence) ? $existing->evidence : [];
                     foreach ($request->file('photos', []) as $file) {
-                        $paths[] = $file->store('disputes/' . $existing->id, $uploadsDisk);
+                        $paths[] = $file->storePublicly('disputes/' . $existing->id, $uploadsDisk);
                     }
                     $existing->evidence = array_values(array_unique(array_filter($paths)));
                 }
@@ -294,7 +294,7 @@ class MarketplaceOrderController extends Controller
             if ($request->hasFile('photos')) {
                 $paths = [];
                 foreach ($request->file('photos', []) as $file) {
-                    $paths[] = $file->store('disputes/' . $dispute->id, $uploadsDisk);
+                    $paths[] = $file->storePublicly('disputes/' . $dispute->id, $uploadsDisk);
                 }
                 $dispute->evidence = array_values(array_unique(array_filter($paths)));
                 $dispute->save();

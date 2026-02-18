@@ -47,7 +47,9 @@ class PublicStorageController extends Controller
 
                 try {
                     if (!$disk->exists($path)) {
-                        $disk->put($path, $fallbackDisk->get($path));
+                        $disk->put($path, $fallbackDisk->get($path), [
+                            'visibility' => 'public',
+                        ]);
                     }
                 } catch (\Throwable $e) {
                     // Best-effort: still serve from fallback.
@@ -65,7 +67,22 @@ class PublicStorageController extends Controller
         // If the public uploads disk is S3, redirect to the object URL.
         $driver = (string) (config("filesystems.disks.{$diskName}.driver") ?? '');
         if ($driver === 's3') {
-            $url = $disk->url($path);
+            $url = null;
+            try {
+                // Works for private buckets too (signed URL). Cache-friendly duration.
+                $url = $disk->temporaryUrl($path, now()->addHours(6));
+            } catch (\Throwable $e) {
+                // Fallback to plain URL for public buckets.
+                try {
+                    $url = $disk->url($path);
+                } catch (\Throwable $e2) {
+                    $url = null;
+                }
+            }
+
+            if (!$url) {
+                return response()->json(['message' => 'File not available.'], 404);
+            }
             $redirect = redirect()->away($url);
             $redirect->headers->set('Cache-Control', 'public, max-age=86400');
             return $redirect;

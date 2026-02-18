@@ -121,3 +121,15 @@ Variables env minimales:
 - `CORS_SUPPORTS_CREDENTIALS=true`
 - `SANCTUM_STATEFUL_DOMAINS=primegaming.space`
 - `SESSION_DOMAIN=.primegaming.space`
+
+### Uploads publics (annonces marketplace, photos litiges)
+
+Ces fichiers sont ecrits sur le disque defini par `PUBLIC_UPLOADS_DISK` (par defaut: `public`).
+
+- Pour une durabilite maximale (ne jamais perdre les images lors d'un redeploy), utiliser S3:
+  - `PUBLIC_UPLOADS_DISK=s3`
+  - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET`
+  - Optionnel (S3-compatible): `AWS_ENDPOINT`, `AWS_URL`, `AWS_USE_PATH_STYLE_ENDPOINT`
+  - Optionnel: `AWS_PUBLIC_UPLOADS_VISIBILITY=public` (defaut)
+
+Acces cote frontend: via l'API `/api/storage/...`.

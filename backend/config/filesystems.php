@@ -82,6 +82,9 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            // These uploads are intended to be publicly viewable (listing photos, dispute evidence).
+            // For private/sensitive files, use the 'local' disk.
+            'visibility' => env('AWS_PUBLIC_UPLOADS_VISIBILITY', 'public'),
             'throw' => false,
             'report' => false,
         ],

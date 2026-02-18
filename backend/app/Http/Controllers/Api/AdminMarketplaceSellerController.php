@@ -153,7 +153,9 @@ class AdminMarketplaceSellerController extends Controller
             $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
             $disk = Storage::disk($diskName);
             $pdfPath = 'seller-agreements/seller-' . $seller->id . '-agreement.pdf';
-            $disk->put($pdfPath, $dompdf->output());
+            $disk->put($pdfPath, $dompdf->output(), [
+                'visibility' => 'public',
+            ]);
 
             $seller->agreement_pdf_path = $pdfPath;
             $seller->agreement_pdf_generated_at = now();

@@ -33,7 +33,11 @@ class MarketplaceListingController extends Controller
 
     private function putPublicUpload(string $dir, $file): string
     {
-        return Storage::disk($this->publicUploadsDiskName())->putFile($dir, $file);
+        // Ensure objects are publicly readable when using S3.
+        // (For local disks this is effectively a no-op.)
+        return Storage::disk($this->publicUploadsDiskName())->putFile($dir, $file, [
+            'visibility' => 'public',
+        ]);
     }
 
     private function deletePublicUploadBestEffort(string $path): void
