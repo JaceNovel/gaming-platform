@@ -348,19 +348,18 @@ class OrderController extends Controller
                         },
                     ]);
 
-                // Prefer a denomination that can satisfy the requested quantity.
-                $denominationId = (clone $denominationQuery)
-                    ->having('available_count', '>=', $quantity)
+                // Postgres does not allow HAVING on a SELECT alias produced by withCount().
+                // Fetch a small candidate set ordered by stock, then pick the best match in PHP.
+                $candidates = (clone $denominationQuery)
+                    ->orderByDesc('available_count')
                     ->orderByDesc('diamonds')
-                    ->value('id');
+                    ->limit(20)
+                    ->get(['id']);
 
-                // Otherwise, pick the denomination with the most stock (the request will still fail below if insufficient).
-                if (!$denominationId) {
-                    $denominationId = (clone $denominationQuery)
-                        ->orderByDesc('available_count')
-                        ->orderByDesc('diamonds')
-                        ->value('id');
-                }
+                $selected = $candidates->first(fn ($d) => (int) ($d->available_count ?? 0) >= (int) $quantity)
+                    ?? $candidates->first();
+
+                $denominationId = $selected?->id;
             }
 
             if ($requiresDenomination) {
