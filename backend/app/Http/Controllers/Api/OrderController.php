@@ -330,18 +330,40 @@ class OrderController extends Controller
 
             $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
                 || (bool) $product->redeem_code_delivery
-                || strtolower((string) ($product->type ?? '')) === 'redeem';
+                || strtolower((string) ($product->type ?? '')) === 'redeem'
+                || !empty($product->redeem_sku);
 
             if ($requiresDenomination && !$denominationId) {
-                $denominationId = RedeemDenomination::where('active', true)
+                $denominationQuery = RedeemDenomination::query()
+                    ->where('active', true)
                     ->where(function ($q) use ($product) {
                         $q->whereNull('product_id')->orWhere('product_id', $product->id);
                     })
+                    ->when(!empty($product->redeem_sku), function ($q) use ($product) {
+                        $q->where('code', $product->redeem_sku);
+                    })
+                    ->withCount([
+                        'codes as available_count' => function ($q) {
+                            $q->where('status', 'available');
+                        },
+                    ]);
+
+                // Prefer a denomination that can satisfy the requested quantity.
+                $denominationId = (clone $denominationQuery)
+                    ->having('available_count', '>=', $quantity)
                     ->orderByDesc('diamonds')
                     ->value('id');
+
+                // Otherwise, pick the denomination with the most stock (the request will still fail below if insufficient).
+                if (!$denominationId) {
+                    $denominationId = (clone $denominationQuery)
+                        ->orderByDesc('available_count')
+                        ->orderByDesc('diamonds')
+                        ->value('id');
+                }
             }
 
-            if (($product->stock_mode ?? 'manual') === 'redeem_pool' || $product->redeem_code_delivery) {
+            if ($requiresDenomination) {
                     if ($quantity > 1) {
                         // Allow multi-quantity for redeem code delivery.
                 }
@@ -355,6 +377,7 @@ class OrderController extends Controller
                     ->when($product->id, fn ($query) => $query->where(function ($q) use ($product) {
                         $q->whereNull('product_id')->orWhere('product_id', $product->id);
                     }))
+                    ->when(!empty($product->redeem_sku), fn ($query) => $query->where('code', $product->redeem_sku))
                     ->first();
 
                 if (!$redeemDenomination || !$redeemDenomination->active) {
