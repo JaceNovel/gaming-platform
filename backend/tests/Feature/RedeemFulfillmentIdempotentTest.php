@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\RedeemCodeAllocator;
 use App\Services\RedeemStockAlertService;
 use App\Services\NotificationService;
+use App\Services\LoggedEmailService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
@@ -71,7 +72,8 @@ class RedeemFulfillmentIdempotentTest extends TestCase
         $job->handle(
             app(RedeemCodeAllocator::class),
             app(RedeemStockAlertService::class),
-            app(NotificationService::class)
+            app(NotificationService::class),
+            app(LoggedEmailService::class)
         );
 
         $item->refresh();
@@ -82,7 +84,8 @@ class RedeemFulfillmentIdempotentTest extends TestCase
         $job->handle(
             app(RedeemCodeAllocator::class),
             app(RedeemStockAlertService::class),
-            app(NotificationService::class)
+            app(NotificationService::class),
+            app(LoggedEmailService::class)
         );
 
         $item->refresh();
@@ -165,14 +168,16 @@ class RedeemFulfillmentIdempotentTest extends TestCase
         $jobA->handle(
             app(RedeemCodeAllocator::class),
             app(RedeemStockAlertService::class),
-            app(NotificationService::class)
+            app(NotificationService::class),
+            app(LoggedEmailService::class)
         );
 
         $jobB = new ProcessRedeemFulfillment($orderB->id);
         $jobB->handle(
             app(RedeemCodeAllocator::class),
             app(RedeemStockAlertService::class),
-            app(NotificationService::class)
+            app(NotificationService::class),
+            app(LoggedEmailService::class)
         );
 
         $this->assertTrue($orderA->refresh()->requiresRedeemFulfillment());

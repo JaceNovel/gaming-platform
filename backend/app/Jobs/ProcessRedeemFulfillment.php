@@ -47,6 +47,53 @@ class ProcessRedeemFulfillment implements ShouldQueue
             return;
         }
 
+        // If the order requires redeem fulfillment but we couldn't attach a denomination to at least one redeem item,
+        // do not silently return: let the user know it's waiting stock / out of stock.
+        $hasMissingDenomination = $order->orderItems->contains(function ($orderItem) {
+            if (!empty($orderItem->redeem_denomination_id)) {
+                return false;
+            }
+
+            $product = $orderItem->product;
+            if (!$product) {
+                return false;
+            }
+
+            return (
+                (string) ($product->stock_mode ?? '') === 'redeem_pool'
+                || (bool) ($product->redeem_code_delivery ?? false)
+                || !empty($product->redeem_sku)
+                || strtolower((string) ($product->type ?? '')) === 'redeem'
+            );
+        });
+
+        if ($hasMissingDenomination) {
+            $isPreorder = $order->orderItems->contains(function ($item) {
+                return strtolower((string) ($item->delivery_type ?? '')) === 'preorder'
+                    || strtoupper((string) ($item->product?->stock_type ?? '')) === 'PREORDER'
+                    || strtolower((string) ($item->product?->delivery_type ?? '')) === 'preorder';
+            });
+
+            $orderMeta = $order->meta ?? [];
+            if (!is_array($orderMeta)) {
+                $orderMeta = [];
+            }
+            $orderMeta['fulfillment_status'] = $isPreorder ? 'waiting_stock' : 'out_of_stock';
+            $orderMeta['fulfillment_status_set_at'] = now()->toIso8601String();
+            $order->update(['meta' => $orderMeta]);
+
+            $loggedEmailService->queue(
+                userId: $order->user_id ? (int) $order->user_id : null,
+                to: (string) ($order->user?->email ?? ''),
+                type: 'redeem_out_of_stock',
+                subject: 'Rupture de stock - PRIME Gaming',
+                mailable: new OutOfStockMail($order),
+                meta: ['order_id' => $order->id]
+            );
+
+            return;
+        }
+
         $existingDeliveries = RedeemCodeDelivery::with(['redeemCode.denomination'])
             ->where('order_id', $order->id)
             ->orderBy('id')
@@ -193,6 +240,7 @@ class ProcessRedeemFulfillment implements ShouldQueue
 
             $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
                 || (bool) ($product->redeem_code_delivery ?? false)
+                || !empty($product->redeem_sku)
                 || strtolower((string) ($product->type ?? '')) === 'redeem';
 
             if (!$requiresDenomination) {
@@ -203,8 +251,12 @@ class ProcessRedeemFulfillment implements ShouldQueue
 
             $denominations = RedeemDenomination::query()
                 ->where('active', true)
-                ->where(function ($q) use ($product) {
-                    $q->where('product_id', $product->id)->orWhereNull('product_id');
+                ->when(!empty($product->redeem_sku), function ($q) use ($product) {
+                    $q->where('code', $product->redeem_sku);
+                }, function ($q) use ($product) {
+                    $q->where(function ($q2) use ($product) {
+                        $q2->where('product_id', $product->id)->orWhereNull('product_id');
+                    });
                 })
                 ->orderByRaw('CASE WHEN product_id IS NULL THEN 1 ELSE 0 END')
                 ->orderByDesc('diamonds')

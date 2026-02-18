@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands()
     ->withSchedule(function (Schedule $schedule): void {
         // Auto-resync payments stuck in payment_processing by verifying providers.
         // Safe: never marks paid without provider confirmation.

@@ -100,6 +100,7 @@ class Order extends Model
                 return (
                     (string) ($product->stock_mode ?? '') === 'redeem_pool'
                     || (bool) ($product->redeem_code_delivery ?? false)
+                    || !empty($product->redeem_sku)
                     || strtolower((string) ($product->type ?? '')) === 'redeem'
                 );
             });
@@ -110,6 +111,7 @@ class Order extends Model
             ->orWhereHas('product', function ($query) {
                 $query->where('stock_mode', 'redeem_pool')
                     ->orWhere('redeem_code_delivery', true)
+                    ->orWhereNotNull('redeem_sku')
                     ->orWhere('type', 'redeem');
             })
             ->exists();

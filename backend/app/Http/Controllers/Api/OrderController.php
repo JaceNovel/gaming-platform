@@ -97,6 +97,7 @@ class OrderController extends Controller
 
             $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
                 || (bool) ($product->redeem_code_delivery ?? false)
+                || !empty($product->redeem_sku)
                 || strtolower((string) ($product->type ?? '')) === 'redeem';
 
             if (!$requiresDenomination) {
@@ -107,8 +108,12 @@ class OrderController extends Controller
 
             $denominations = RedeemDenomination::query()
                 ->where('active', true)
-                ->where(function ($q) use ($product) {
-                    $q->where('product_id', $product->id)->orWhereNull('product_id');
+                ->when(!empty($product->redeem_sku), function ($q) use ($product) {
+                    $q->where('code', $product->redeem_sku);
+                }, function ($q) use ($product) {
+                    $q->where(function ($q2) use ($product) {
+                        $q2->where('product_id', $product->id)->orWhereNull('product_id');
+                    });
                 })
                 ->orderByRaw('CASE WHEN product_id IS NULL THEN 1 ELSE 0 END')
                 ->orderByDesc('diamonds')

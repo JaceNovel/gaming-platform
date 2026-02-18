@@ -831,6 +831,7 @@ class PaymentController extends Controller
 
             $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
                 || (bool) ($product->redeem_code_delivery ?? false)
+                || !empty($product->redeem_sku)
                 || strtolower((string) ($product->type ?? '')) === 'redeem';
 
             if (!$requiresDenomination) {
@@ -842,7 +843,11 @@ class PaymentController extends Controller
             // Prefer product-scoped denominations first to keep codes tied to the product.
             $denominations = RedeemDenomination::query()
                 ->where('active', true)
-                ->where('product_id', $product->id)
+                ->when(!empty($product->redeem_sku), function ($q) use ($product) {
+                    $q->where('code', $product->redeem_sku);
+                }, function ($q) use ($product) {
+                    $q->where('product_id', $product->id);
+                })
                 ->orderByDesc('diamonds')
                 ->orderBy('id')
                 ->get();
