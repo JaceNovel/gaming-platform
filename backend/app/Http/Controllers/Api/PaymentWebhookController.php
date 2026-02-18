@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\PremiumMembership;
 use App\Services\CinetPayService;
+use App\Services\ReferralCommissionService;
 use App\Services\ShippingService;
 use App\Jobs\ProcessMarketplaceOrder;
 use App\Models\MarketplaceOrder;
@@ -131,6 +132,23 @@ class PaymentWebhookController extends Controller
 
             if ($normalized === 'completed' && (string) ($payment->order->type ?? '') !== 'wallet_topup') {
                 SendOrderPaidSms::dispatch($payment->order_id)->afterCommit();
+
+                DB::afterCommit(function () use ($payment) {
+                    try {
+                        /** @var ReferralCommissionService $referrals */
+                        $referrals = app(ReferralCommissionService::class);
+                        $referrals->applyForPaidOrderId((int) $payment->order_id, [
+                            'source' => 'cinetpay_webhook',
+                            'payment_id' => $payment->id,
+                        ]);
+                    } catch (\Throwable $e) {
+                        Log::warning('cinetpay:referral-commission-skip', [
+                            'order_id' => $payment->order_id,
+                            'payment_id' => $payment->id,
+                            'message' => $e->getMessage(),
+                        ]);
+                    }
+                });
             }
 
             if ($normalized === 'completed' && (string) ($payment->order->type ?? '') === 'premium_subscription') {

@@ -1228,7 +1228,7 @@ function AccountClient() {
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Parrainage VIP</p>
                     <p className="mt-1 text-lg font-semibold text-white">Ton code: <span className="text-cyan-200">{me.referralCode}</span></p>
-                    <p className="mt-1 text-sm text-white/60">Partage-le: tu gagnes 3% sur le 1er dépôt.</p>
+                    <p className="mt-1 text-sm text-white/60">Partage-le: tu gagnes 3% sur les achats payés de tes filleuls.</p>
                   </div>
 
                   <div className="flex gap-2">

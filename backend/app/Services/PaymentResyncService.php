@@ -12,6 +12,7 @@ use App\Models\Payment;
 use App\Models\PaymentAttempt;
 use App\Models\PremiumMembership;
 use App\Models\Product;
+use App\Services\ReferralCommissionService;
 use Carbon\Carbon;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -129,6 +130,25 @@ class PaymentResyncService
 
                 if ($normalized === 'completed') {
                     $order->update(['status' => Order::STATUS_PAYMENT_SUCCESS]);
+
+                    if ((string) ($order->type ?? '') !== 'wallet_topup') {
+                        DB::afterCommit(function () use ($order, $locked) {
+                            try {
+                                /** @var ReferralCommissionService $referrals */
+                                $referrals = app(ReferralCommissionService::class);
+                                $referrals->applyForPaidOrderId((int) $order->id, [
+                                    'source' => 'cinetpay_resync',
+                                    'payment_id' => $locked->id,
+                                ]);
+                            } catch (\Throwable $e) {
+                                Log::warning('cinetpay:resync-referral-commission-skip', [
+                                    'order_id' => $order->id,
+                                    'payment_id' => $locked->id,
+                                    'message' => $e->getMessage(),
+                                ]);
+                            }
+                        });
+                    }
                 } elseif ($normalized === 'failed') {
                     $order->update(['status' => Order::STATUS_PAYMENT_FAILED]);
                 }

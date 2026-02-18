@@ -17,6 +17,7 @@ use App\Models\Notification;
 use App\Services\AdminAuditLogger;
 use App\Services\LoggedEmailService;
 use App\Services\NotificationService;
+use App\Services\ReferralCommissionService;
 use App\Services\WalletService;
 use App\Services\ShippingService;
 use Dompdf\Dompdf;
@@ -24,6 +25,7 @@ use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -344,6 +346,21 @@ class AdminOrderController extends Controller
             actionType: 'payments',
             request: $request
         );
+
+        if ($normalized === 'completed') {
+            try {
+                /** @var ReferralCommissionService $referrals */
+                $referrals = app(ReferralCommissionService::class);
+                $referrals->applyForPaidOrderId((int) $order->id, [
+                    'source' => 'admin_manual_payment',
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('admin:referral-commission-skip', [
+                    'order_id' => $order->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return response()->json(['order' => $order->fresh(['payment'])]);
     }

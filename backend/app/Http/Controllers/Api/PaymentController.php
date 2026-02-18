@@ -21,6 +21,7 @@ use App\Models\WalletTransaction;
 use App\Services\CinetPayService;
 use App\Services\FedaPayService;
 use App\Services\PaymentResyncService;
+use App\Services\ReferralCommissionService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -555,6 +556,19 @@ class PaymentController extends Controller
 
             if (!empty($result['order_id'])) {
                 SendOrderPaidSms::dispatch((int) $result['order_id']);
+                
+                    try {
+                        /** @var ReferralCommissionService $referrals */
+                        $referrals = app(ReferralCommissionService::class);
+                        $referrals->applyForPaidOrderId((int) $result['order_id'], [
+                            'source' => 'wallet_pay',
+                        ]);
+                    } catch (\Throwable $e) {
+                        Log::warning('wallet:referral-commission-skip', [
+                            'order_id' => (int) $result['order_id'],
+                            'message' => $e->getMessage(),
+                        ]);
+                    }
             }
 
             return response()->json([

@@ -149,7 +149,7 @@ function ReferralClient() {
           <div>
             <SectionTitle eyebrow="Compte" label="Parrainage" />
             <p className="mt-1 text-sm text-white/60">
-              Partage ton lien, gagne une commission sur le premier dépôt de tes filleuls.
+              Partage ton lien, gagne une commission sur les achats payés de tes filleuls.
             </p>
           </div>
           <GlowButton variant="secondary" onClick={load} disabled={loading} className="w-full sm:w-auto justify-center">
@@ -224,7 +224,7 @@ function ReferralClient() {
               </span>
             </GlowButton>
             <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/60">
-              Commission sur le <b>premier dépôt wallet</b> du filleul. VIP: 3% • Standard: 1%.
+              Commission sur les <b>achats payés</b> du filleul (wallet ou mobile money). VIP: 3% • Standard: 1%.
             </div>
           </div>
 
@@ -261,7 +261,7 @@ function ReferralClient() {
                   <div key={it.id} className="rounded-2xl border border-white/10 bg-black/30 p-4">
                     <p className="truncate text-sm font-semibold text-white">{it.referred?.name ?? "Utilisateur"}</p>
                     <p className="mt-1 text-xs text-white/55">
-                      {it.rewarded_at ? "Commission versée" : "En attente du premier dépôt"}
+                      {it.rewarded_at ? "Commission versée" : "En attente du premier achat"}
                       {it.commission_rate ? ` • ${(it.commission_rate * 100).toFixed(0)}%` : ""}
                     </p>
                     <div className="mt-3 flex items-baseline justify-between gap-3">
@@ -314,7 +314,7 @@ function ReferralClient() {
                 </div>
                 {lastReferredLabel && <div className="text-xs text-white/50">Dernier filleul: {lastReferredLabel}</div>}
                 <div className="rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/60">
-                  Commission sur le <b>premier dépôt wallet</b> du filleul. VIP: 3% • Standard: 1%.
+                  Commission sur les <b>achats payés</b> du filleul (wallet ou mobile money). VIP: 3% • Standard: 1%.
                 </div>
               </div>
             </div>
@@ -366,7 +366,7 @@ function ReferralClient() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-white">{it.referred?.name ?? "Utilisateur"}</p>
                       <p className="text-xs text-white/50">
-                        {it.rewarded_at ? "Commission versée" : "En attente du premier dépôt"}
+                        {it.rewarded_at ? "Commission versée" : "En attente du premier achat"}
                         {it.commission_rate ? ` • ${(it.commission_rate * 100).toFixed(0)}%` : ""}
                       </p>
                     </div>

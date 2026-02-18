@@ -6,7 +6,7 @@ use App\Models\Order;
 use App\Models\Referral;
 use App\Models\User;
 use App\Models\WalletTransaction;
-use App\Services\WalletService;
+use App\Services\ReferralCommissionService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -20,9 +20,9 @@ class BackfillReferralCommissions extends Command
         {--dry-run : Do not write changes}
         {--limit=500 : Max number of orders to process}';
 
-    protected $description = 'Backfill missing referral commissions for first wallet topup (idempotent).';
+    protected $description = 'Backfill missing referral commissions for paid purchases (idempotent per order).';
 
-    public function handle(WalletService $walletService): int
+    public function handle(ReferralCommissionService $referrals): int
     {
         $dryRun = (bool) $this->option('dry-run');
         $limit = max(1, (int) ($this->option('limit') ?? 500));
@@ -33,7 +33,7 @@ class BackfillReferralCommissions extends Command
 
         $query = Order::query()
             ->with(['payment', 'user'])
-            ->where('type', 'wallet_topup')
+            ->where('type', '!=', 'wallet_topup')
             ->where('status', Order::STATUS_PAYMENT_SUCCESS)
             ->orderBy('id');
 
@@ -58,7 +58,7 @@ class BackfillReferralCommissions extends Command
 
         $orders = $query->limit($limit)->get();
 
-        $this->info(sprintf('Found %d wallet_topup order(s) to scan%s.', $orders->count(), $dryRun ? ' (dry-run)' : ''));
+        $this->info(sprintf('Found %d paid order(s) to scan%s.', $orders->count(), $dryRun ? ' (dry-run)' : ''));
 
         $credited = 0;
         $skipped = 0;
@@ -68,13 +68,6 @@ class BackfillReferralCommissions extends Command
             if (!$referral) {
                 $skipped++;
                 $this->line("skip order={$order->id} reason=no_referral");
-                continue;
-            }
-
-            $alreadyEarned = (float) ($referral->commission_earned ?? 0);
-            if ($alreadyEarned > 0.0 || $referral->rewarded_at) {
-                $skipped++;
-                $this->line("skip order={$order->id} reason=already_rewarded");
                 continue;
             }
 
@@ -97,12 +90,24 @@ class BackfillReferralCommissions extends Command
                     $rate = (float) ($existingTx->meta['rate'] ?? null);
                     $baseAmount = (float) ($existingTx->meta['base_amount'] ?? 0);
                     $amount = (float) ($existingTx->amount ?? 0);
-                    $referral->update([
-                        'commission_earned' => $amount,
-                        'commission_rate' => $rate > 0 ? $rate : null,
-                        'commission_base_amount' => $baseAmount > 0 ? $baseAmount : null,
-                        'rewarded_at' => $referral->rewarded_at ?? now(),
-                    ]);
+
+                    // Do not double count: only add if not already recorded.
+                    $meta = $existingTx->meta;
+                    if (!is_array($meta)) {
+                        $meta = [];
+                    }
+
+                    if (empty($meta['referral_recorded'])) {
+                        $referral->update([
+                            'commission_earned' => round(((float) ($referral->commission_earned ?? 0)) + $amount, 2),
+                            'commission_rate' => $rate > 0 ? $rate : $referral->commission_rate,
+                            'commission_base_amount' => $baseAmount > 0 ? $baseAmount : $referral->commission_base_amount,
+                            'rewarded_at' => $referral->rewarded_at ?? now(),
+                        ]);
+
+                        $meta['referral_recorded'] = true;
+                        $existingTx->update(['meta' => $meta]);
+                    }
                 }
 
                 $credited++;
@@ -110,12 +115,13 @@ class BackfillReferralCommissions extends Command
                 continue;
             }
 
-            $isVip = (bool) $referrer->is_premium
-                && in_array((string) $referrer->premium_level, ['bronze', 'or', 'platine'], true);
+            $isVip = (bool) ($referrer->is_premium ?? false)
+                && in_array((string) ($referrer->premium_level ?? ''), ['bronze', 'or', 'platine'], true);
 
-            $rate = $isVip ? 0.05 : 0.03;
+            // Referral rates: VIP = 3%, standard = 1%
+            $rate = $isVip ? 0.03 : 0.01;
 
-            $baseAmount = (float) ($order->payment?->amount ?? $order->total_price ?? 0);
+            $baseAmount = (float) ($order->total_price ?? ($order->payment?->amount ?? 0));
             if (!is_finite($baseAmount) || $baseAmount <= 0) {
                 $skipped++;
                 $this->line("skip order={$order->id} reason=invalid_amount");
@@ -135,24 +141,9 @@ class BackfillReferralCommissions extends Command
                 continue;
             }
 
-            DB::transaction(function () use ($walletService, $referrer, $referral, $order, $commission, $rate, $baseAmount) {
-                $walletService->credit($referrer, 'REFERRAL-' . $order->id, $commission, [
-                    'type' => $rate >= 0.05 ? 'vip_referral_bonus' : 'referral_bonus',
-                    'referred_user_id' => $order->user_id,
-                    'order_id' => $order->id,
-                    'payment_id' => $order->payment_id,
-                    'rate' => $rate,
-                    'base_amount' => $baseAmount,
-                    'source' => 'referrals_backfill',
-                ]);
-
-                $referral->update([
-                    'commission_earned' => $commission,
-                    'commission_rate' => $rate,
-                    'commission_base_amount' => $baseAmount,
-                    'rewarded_at' => now(),
-                ]);
-            });
+            $referrals->applyForPaidOrder($order, [
+                'source' => 'referrals_backfill',
+            ]);
 
             $credited++;
             $this->line(sprintf('credited order=%d referrer=%d amount=%.2f', $order->id, $referrer->id, $commission));

@@ -19,7 +19,7 @@ const premiumPlans = [
       "-5% recharges & abonnements",
       "-10% articles gaming",
       "Accès marché partenaire",
-      "Parrainage activé (gagner 3% sur les recharges du client parrain)",
+      "Parrainage activé (gagner 3% sur les achats payés de tes filleuls)",
     ],
     theme: {
       ring: "ring-amber-300/25",
