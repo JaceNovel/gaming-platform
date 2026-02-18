@@ -582,9 +582,12 @@ class ProcessFedaPayWebhook implements ShouldQueue
                             $alreadyEarned = $referral ? (float) $referral->commission_earned : 0.0;
                             if ($referral && $alreadyEarned <= 0.0) {
                                 $referrer = User::where('id', $referral->referrer_id)->first();
-                                $isVip = $referrer && (bool) $referrer->is_premium && in_array((string) $referrer->premium_level, ['bronze', 'platine'], true);
+                                $isVip = $referrer
+                                    && (bool) $referrer->is_premium
+                                    && in_array((string) $referrer->premium_level, ['bronze', 'or', 'platine'], true);
                                 if ($referrer) {
-                                    $rate = $isVip ? 0.03 : 0.01;
+                                    // Referral rates: VIP = 5%, standard = 3%
+                                    $rate = $isVip ? 0.05 : 0.03;
                                     $baseAmount = (float) $payment->amount;
                                     $commission = round($baseAmount * $rate, 2);
 
