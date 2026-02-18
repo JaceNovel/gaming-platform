@@ -11,11 +11,36 @@ use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class AdminProductController extends Controller
 {
+    private function filterToExistingProductColumns(array $data): array
+    {
+        static $productColumns = null;
+
+        if ($productColumns === null) {
+            try {
+                $productColumns = Schema::getColumnListing('products');
+            } catch (\Throwable) {
+                // If the DB is unavailable during this request, fall back to the raw payload.
+                // Any query exception will be handled by the calling method.
+                return $data;
+            }
+        }
+
+        $filtered = [];
+        foreach ($data as $key => $value) {
+            if (in_array($key, $productColumns, true)) {
+                $filtered[$key] = $value;
+            }
+        }
+
+        return $filtered;
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -123,6 +148,8 @@ class AdminProductController extends Controller
         if ($mobileSection === 'deal' && empty($data['display_section'])) {
             $data['display_section'] = 'popular';
         }
+
+        $data = $this->filterToExistingProductColumns($data);
 
         $product = null;
         for ($attempt = 1; $attempt <= 3; $attempt++) {
@@ -272,7 +299,11 @@ class AdminProductController extends Controller
         }
 
         if (array_key_exists('slug', $data) && $data['slug'] !== null) {
-            $data['slug'] = $this->generateUniqueProductSlug((string) $data['slug'], $product->id);
+            if (Schema::hasColumn('products', 'slug')) {
+                $data['slug'] = $this->generateUniqueProductSlug((string) $data['slug'], $product->id);
+            } else {
+                unset($data['slug']);
+            }
         }
 
         $imageUrl = $data['image_url'] ?? null;
@@ -320,7 +351,31 @@ class AdminProductController extends Controller
             && strtolower((string) $data['type']) !== 'account'
             && strtolower((string) $product->type) === 'account';
 
-        $product->update($data);
+        $data = $this->filterToExistingProductColumns($data);
+
+        try {
+            $product->update($data);
+        } catch (QueryException $e) {
+            $message = $e->getMessage();
+            $sqlState = $e->errorInfo[0] ?? null;
+
+            Log::error('Admin product update failed', [
+                'path' => $request->path(),
+                'method' => $request->method(),
+                'user_id' => $request->user()?->id,
+                'product_id' => $product->id,
+                'request_id' => $request->headers->get('X-Request-ID')
+                    ?? $request->headers->get('X-Request-Id')
+                    ?? $request->headers->get('X-Correlation-ID')
+                    ?? null,
+                'error' => $message,
+                'sql_state' => $sqlState,
+            ]);
+
+            throw ValidationException::withMessages([
+                'product' => 'Impossible de mettre à jour le produit (schéma base non à jour ou données invalides).',
+            ]);
+        }
 
         if ($request->has('server_tags')) {
             $this->syncServerTags($product, $request->input('server_tags'));
