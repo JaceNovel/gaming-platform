@@ -8,8 +8,6 @@ use Illuminate\Http\Request;
 
 class TournamentController extends Controller
 {
-    private const REAL_COUNT_DISPLAY_THRESHOLD = 40;
-
     public function index(Request $request)
     {
         $query = Tournament::query()->with('game:id,name,slug')->withCount('registrations');
@@ -60,15 +58,12 @@ class TournamentController extends Controller
     {
         $realCount = (int) ($tournament->registrations_count ?? 0);
         $maxParticipants = max(1, (int) ($tournament->max_participants ?? 0));
-        $simulatedFloor = min($maxParticipants, $this->simulatedCount($tournament->id));
-
-        $displayedCount = $realCount >= self::REAL_COUNT_DISPLAY_THRESHOLD
-            ? $realCount
-            : max($realCount, $simulatedFloor);
+        $simulatedBase = $this->simulatedCount($tournament->id);
+        $displayedCount = min($maxParticipants, $simulatedBase + $realCount);
 
         $tournament->setAttribute('registered_participants', $displayedCount);
         $tournament->setAttribute('real_registered_participants', $realCount);
-        $tournament->setAttribute('display_uses_real_count', $realCount >= self::REAL_COUNT_DISPLAY_THRESHOLD);
+        $tournament->setAttribute('display_base_participants', $simulatedBase);
 
         return $tournament;
     }

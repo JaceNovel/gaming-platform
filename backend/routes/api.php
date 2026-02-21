@@ -444,6 +444,8 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         Route::delete('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'destroy']);
 
         Route::get('/tournaments', [AdminTournamentController::class, 'index']);
+        Route::get('/tournaments/{tournament}/registrations', [AdminTournamentController::class, 'registrations']);
+        Route::get('/tournaments/{tournament}/registrations/export', [AdminTournamentController::class, 'exportRegistrations']);
         Route::post('/tournaments', [AdminTournamentController::class, 'store']);
         Route::patch('/tournaments/{tournament}', [AdminTournamentController::class, 'update']);
         Route::delete('/tournaments/{tournament}', [AdminTournamentController::class, 'destroy']);

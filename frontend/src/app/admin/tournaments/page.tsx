@@ -130,14 +130,22 @@ export default function AdminTournamentsPage() {
                 <td className="px-4 py-3 text-slate-600">{item.is_free ? "Gratuite" : `${formatNumber(Number(item.entry_fee_fcfa ?? 0))} FCFA`}</td>
                 <td className="px-4 py-3 text-slate-600">{item.is_active ? "Oui" : "Non"}</td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item.id)}
-                    className="rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-500"
-                    aria-label={`Supprimer ${item.name}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center justify-end gap-2">
+                    <Link
+                      href={`/admin/tournaments/${item.id}/players`}
+                      className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Joueurs
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item.id)}
+                      className="rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-500"
+                      aria-label={`Supprimer ${item.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

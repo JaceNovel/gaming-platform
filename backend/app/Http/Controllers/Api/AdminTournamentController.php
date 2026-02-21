@@ -7,6 +7,7 @@ use App\Models\Tournament;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminTournamentController extends Controller
 {
@@ -52,6 +53,68 @@ class AdminTournamentController extends Controller
         $tournament->delete();
 
         return response()->json(['message' => 'Tournament deleted']);
+    }
+
+    public function registrations(Request $request, Tournament $tournament)
+    {
+        $perPage = max(1, min(100, (int) $request->integer('per_page', 30)));
+
+        $items = $tournament->registrations()
+            ->with(['user:id,name,email'])
+            ->latest()
+            ->paginate($perPage);
+
+        $items->setCollection(
+            $items->getCollection()->map(function ($registration) {
+                return [
+                    'id' => $registration->id,
+                    'user_id' => $registration->user_id,
+                    'user_name' => $registration->user?->name,
+                    'user_email' => $registration->user?->email,
+                    'created_at' => $registration->created_at,
+                ];
+            })
+        );
+
+        return response()->json([
+            'tournament' => [
+                'id' => $tournament->id,
+                'name' => $tournament->name,
+                'slug' => $tournament->slug,
+            ],
+            'registrations' => $items,
+            'total_registrations' => $tournament->registrations()->count(),
+        ]);
+    }
+
+    public function exportRegistrations(Tournament $tournament): StreamedResponse
+    {
+        $filename = 'tournament_' . $tournament->id . '_players_' . now()->format('Ymd_His') . '.csv';
+
+        return response()->streamDownload(function () use ($tournament) {
+            $out = fopen('php://output', 'w');
+
+            fputcsv($out, ['registration_id', 'user_id', 'user_name', 'user_email', 'registered_at']);
+
+            $tournament->registrations()
+                ->with(['user:id,name,email'])
+                ->orderByDesc('id')
+                ->chunk(500, function ($rows) use ($out) {
+                    foreach ($rows as $row) {
+                        fputcsv($out, [
+                            $row->id,
+                            $row->user_id,
+                            $row->user?->name,
+                            $row->user?->email,
+                            optional($row->created_at)?->toDateTimeString(),
+                        ]);
+                    }
+                });
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     private function validated(Request $request, ?int $ignoreId = null, bool $partial = false): array
