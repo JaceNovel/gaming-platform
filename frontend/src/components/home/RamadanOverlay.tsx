@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const RAMADAN_END_AT = new Date("2027-03-05T23:59:59").getTime();
+const RAMADAN_END_AT = new Date("2026-03-05T23:59:59").getTime();
 const DISMISS_KEY = "ramadan-overlay-dismissed-v1";
 
 const formatCountdown = (remainingMs: number): string => {

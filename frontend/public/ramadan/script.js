@@ -1,4 +1,4 @@
-const RAMADAN_END_AT = new Date("2027-03-05T23:59:59").getTime();
+const RAMADAN_END_AT = new Date("2026-03-05T23:59:59").getTime();
 
 const starsContainer = document.getElementById("stars");
 const countdownEl = document.getElementById("countdown");
