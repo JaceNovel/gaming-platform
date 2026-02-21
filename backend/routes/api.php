@@ -251,6 +251,7 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
 
     // Tournaments
     Route::post('/tournaments/{tournament}/register', [TournamentRegistrationController::class, 'store']);
+    Route::get('/tournaments/registrations/mine', [TournamentRegistrationController::class, 'mine']);
 
     // Support tickets
     Route::get('/support/inbox', [SupportTicketController::class, 'inbox']);
@@ -444,6 +445,7 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         Route::delete('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'destroy']);
 
         Route::get('/tournaments', [AdminTournamentController::class, 'index']);
+        Route::get('/tournaments/{tournament}', [AdminTournamentController::class, 'show']);
         Route::get('/tournaments/{tournament}/registrations', [AdminTournamentController::class, 'registrations']);
         Route::get('/tournaments/{tournament}/registrations/export', [AdminTournamentController::class, 'exportRegistrations']);
         Route::post('/tournaments', [AdminTournamentController::class, 'store']);

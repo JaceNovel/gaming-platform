@@ -35,6 +35,7 @@ export default function TournamentDetailsPage() {
   const [tab, setTab] = useState<"overview" | "prizes">("overview");
   const [registering, setRegistering] = useState(false);
   const [registerMessage, setRegisterMessage] = useState<string>("");
+  const [gamePlayerId, setGamePlayerId] = useState("");
 
   useEffect(() => {
     if (!slug) return;
@@ -79,6 +80,12 @@ export default function TournamentDetailsPage() {
     if (!item?.id || !slug || registering) return;
     if (typeof window === "undefined") return;
 
+    const normalizedGamePlayerId = gamePlayerId.trim();
+    if (!normalizedGamePlayerId) {
+      setRegisterMessage("Veuillez entrer votre ID de jeu avant de vous inscrire.");
+      return;
+    }
+
     const token = window.localStorage.getItem("bbshop_token");
     if (!token) {
       setRegisterMessage("Connectez-vous pour vous inscrire.");
@@ -95,6 +102,7 @@ export default function TournamentDetailsPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ game_player_id: normalizedGamePlayerId }),
       });
 
       const payload = (await res.json().catch(() => null)) as { message?: string; registered_participants?: number } | null;
@@ -219,6 +227,16 @@ export default function TournamentDetailsPage() {
             <div className="mt-4 flex items-center justify-between rounded-xl bg-white/15 px-4 py-3 text-sm font-semibold">
               <span>Frais d'entrée</span>
               <span>{item.is_free ? "Gratuit" : `${formatNumber(Number(item.entry_fee_fcfa ?? 0))} FCFA`}</span>
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-white/60">ID de jeu</label>
+              <input
+                value={gamePlayerId}
+                onChange={(event) => setGamePlayerId(event.target.value)}
+                placeholder="Entrez votre ID de jeu"
+                className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-white/45"
+              />
             </div>
 
             <button

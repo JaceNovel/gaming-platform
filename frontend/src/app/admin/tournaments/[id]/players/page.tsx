@@ -11,6 +11,7 @@ type RegistrationRow = {
   user_id: number;
   user_name?: string | null;
   user_email?: string | null;
+  game_player_id?: string | null;
   created_at?: string | null;
 };
 
@@ -131,6 +132,7 @@ export default function AdminTournamentPlayersPage() {
             <tr>
               <th className="px-4 py-3">ID inscription</th>
               <th className="px-4 py-3">ID joueur</th>
+              <th className="px-4 py-3">ID jeu</th>
               <th className="px-4 py-3">Nom</th>
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Date</th>
@@ -141,6 +143,7 @@ export default function AdminTournamentPlayersPage() {
               <tr key={row.id} className="border-t border-slate-100">
                 <td className="px-4 py-3 text-slate-700">{row.id}</td>
                 <td className="px-4 py-3 text-slate-700">{row.user_id}</td>
+                <td className="px-4 py-3 text-slate-700">{row.game_player_id ?? "—"}</td>
                 <td className="px-4 py-3 text-slate-700">{row.user_name ?? "—"}</td>
                 <td className="px-4 py-3 text-slate-700">{row.user_email ?? "—"}</td>
                 <td className="px-4 py-3 text-slate-500">
@@ -151,7 +154,7 @@ export default function AdminTournamentPlayersPage() {
 
             {!rows.length ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">
                   {loading ? "Chargement..." : "Aucun joueur inscrit"}
                 </td>
               </tr>

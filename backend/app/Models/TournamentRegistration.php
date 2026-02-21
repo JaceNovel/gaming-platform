@@ -13,6 +13,7 @@ class TournamentRegistration extends Model
     protected $fillable = [
         'tournament_id',
         'user_id',
+        'game_player_id',
     ];
 
     public function tournament(): BelongsTo

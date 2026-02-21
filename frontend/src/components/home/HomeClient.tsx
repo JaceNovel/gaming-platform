@@ -139,6 +139,7 @@ export default function HomeClient() {
   const [headlineStats, setHeadlineStats] = useState<HomeHeadlineStats>(DEFAULT_HOME_HEADLINE_STATS);
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [hasTournaments, setHasTournaments] = useState(false);
+  const [hasRegisteredTournament, setHasRegisteredTournament] = useState(false);
   const [desktopStart, setDesktopStart] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
 
@@ -169,6 +170,50 @@ export default function HomeClient() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadMineRegistrations = async () => {
+      if (!user) {
+        if (active) setHasRegisteredTournament(false);
+        return;
+      }
+      if (typeof window === "undefined") return;
+
+      const token = window.localStorage.getItem("bbshop_token");
+      if (!token) {
+        if (active) setHasRegisteredTournament(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/tournaments/registrations/mine`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          if (active) setHasRegisteredTournament(false);
+          return;
+        }
+        const payload = (await res.json().catch(() => null)) as { count?: number } | null;
+        if (!active) return;
+        setHasRegisteredTournament(Number(payload?.count ?? 0) > 0);
+      } catch {
+        if (!active) return;
+        setHasRegisteredTournament(false);
+      }
+    };
+
+    void loadMineRegistrations();
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     let active = true;
@@ -389,7 +434,7 @@ export default function HomeClient() {
       className="relative min-h-[100dvh] bg-transparent text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
-      <RamadanOverlay hasTournaments={hasTournaments} />
+      <RamadanOverlay hasTournaments={hasTournaments} hasRegisteredTournament={hasRegisteredTournament} />
       <ImmersiveBackground
         imageSrc="/badboyshop-home.png"
         overlayClassName="bg-black/55"

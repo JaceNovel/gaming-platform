@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TemplatedNotification;
 use App\Models\Tournament;
+use App\Models\TournamentRegistration;
+use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -11,6 +14,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminTournamentController extends Controller
 {
+    private function frontendUrl(string $path = ''): string
+    {
+        $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $p = '/' . ltrim($path, '/');
+        return $base . ($path !== '' ? $p : '');
+    }
+
     public function index(Request $request)
     {
         $query = Tournament::query()->with('game:id,name,slug');
@@ -28,6 +38,11 @@ class AdminTournamentController extends Controller
         return response()->json($items);
     }
 
+    public function show(Tournament $tournament)
+    {
+        return response()->json($tournament->load('game:id,name,slug'));
+    }
+
     public function store(Request $request)
     {
         $data = $this->validated($request);
@@ -40,12 +55,30 @@ class AdminTournamentController extends Controller
 
     public function update(Request $request, Tournament $tournament)
     {
+        $beforePlanningConfigured = (bool) ($tournament->planning_enabled)
+            && !empty($tournament->first_match_at)
+            && trim((string) ($tournament->reward_rules ?? '')) !== '';
+
         $data = $this->validated($request, $tournament->id, true);
         $data = $this->normalizeData($data, $tournament);
 
         $tournament->update($data);
 
-        return response()->json($tournament->fresh()->load('game:id,name,slug'));
+        $tournament->refresh();
+        $afterPlanningConfigured = (bool) ($tournament->planning_enabled)
+            && !empty($tournament->first_match_at)
+            && trim((string) ($tournament->reward_rules ?? '')) !== '';
+
+        $planningFieldsTouched = array_key_exists('planning_enabled', $data)
+            || array_key_exists('first_match_at', $data)
+            || array_key_exists('reward_rules', $data)
+            || array_key_exists('planning_notes', $data);
+
+        if ($afterPlanningConfigured && (!$beforePlanningConfigured || $planningFieldsTouched)) {
+            $this->sendPlanningEmails($tournament);
+        }
+
+        return response()->json($tournament->load('game:id,name,slug'));
     }
 
     public function destroy(Tournament $tournament)
@@ -71,6 +104,7 @@ class AdminTournamentController extends Controller
                     'user_id' => $registration->user_id,
                     'user_name' => $registration->user?->name,
                     'user_email' => $registration->user?->email,
+                    'game_player_id' => $registration->game_player_id,
                     'created_at' => $registration->created_at,
                 ];
             })
@@ -94,7 +128,7 @@ class AdminTournamentController extends Controller
         return response()->streamDownload(function () use ($tournament) {
             $out = fopen('php://output', 'w');
 
-            fputcsv($out, ['registration_id', 'user_id', 'user_name', 'user_email', 'registered_at']);
+            fputcsv($out, ['registration_id', 'user_id', 'user_name', 'user_email', 'game_player_id', 'registered_at']);
 
             $tournament->registrations()
                 ->with(['user:id,name,email'])
@@ -106,6 +140,7 @@ class AdminTournamentController extends Controller
                             $row->user_id,
                             $row->user?->name,
                             $row->user?->email,
+                            $row->game_player_id,
                             optional($row->created_at)?->toDateTimeString(),
                         ]);
                     }
@@ -141,9 +176,13 @@ class AdminTournamentController extends Controller
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date'],
             'registration_deadline' => ['nullable', 'date'],
+            'first_match_at' => ['nullable', 'date'],
             'description' => ['nullable', 'string'],
             'rules' => ['nullable', 'string'],
             'requirements' => ['nullable', 'string'],
+            'reward_rules' => ['nullable', 'string'],
+            'planning_notes' => ['nullable', 'string'],
+            'planning_enabled' => ['nullable', 'boolean'],
             'stream_url' => ['nullable', 'string', 'max:255'],
             'contact_email' => ['nullable', 'email', 'max:255'],
             'image' => ['nullable', 'string', 'max:255'],
@@ -182,5 +221,61 @@ class AdminTournamentController extends Controller
         }
 
         return $data;
+    }
+
+    private function sendPlanningEmails(Tournament $tournament): void
+    {
+        $registrations = TournamentRegistration::query()
+            ->with('user:id,name,email')
+            ->where('tournament_id', $tournament->id)
+            ->get();
+
+        /** @var LoggedEmailService $logged */
+        $logged = app(LoggedEmailService::class);
+
+        $subject = 'Planning du tournoi disponible - ' . $tournament->name;
+        $planningUrl = $this->frontendUrl('/tournois/' . $tournament->slug . '/planning');
+
+        foreach ($registrations as $registration) {
+            $user = $registration->user;
+            if (!$user || empty($user->email)) {
+                continue;
+            }
+
+            $mailable = new TemplatedNotification(
+                'tournament_planning_ready',
+                $subject,
+                [
+                    'tournament' => $tournament->toArray(),
+                    'registration' => $registration->toArray(),
+                    'user' => $user->toArray(),
+                    'planning_url' => $planningUrl,
+                ],
+                [
+                    'title' => $subject,
+                    'headline' => 'Le planning est prêt',
+                    'intro' => 'Le planning de votre tournoi est désormais disponible.',
+                    'details' => [
+                        ['label' => 'Tournoi', 'value' => (string) $tournament->name],
+                        ['label' => '1er match', 'value' => optional($tournament->first_match_at)?->format('d/m/Y H:i') ?? 'À venir'],
+                        ['label' => 'ID de jeu', 'value' => (string) ($registration->game_player_id ?? '—')],
+                    ],
+                    'actionUrl' => $planningUrl,
+                    'actionText' => 'Voir planning',
+                ]
+            );
+
+            $logged->queue(
+                $user->id,
+                (string) $user->email,
+                'tournament_planning_ready',
+                $subject,
+                $mailable,
+                [
+                    'tournament_id' => $tournament->id,
+                    'registration_id' => $registration->id,
+                ]
+            );
+        }
     }
 }

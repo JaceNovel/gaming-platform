@@ -18,8 +18,10 @@ const formatCountdown = (remainingMs: number): string => {
 
 export default function RamadanOverlay({
   hasTournaments,
+  hasRegisteredTournament,
 }: {
   hasTournaments: boolean;
+  hasRegisteredTournament: boolean;
 }) {
   const starsRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -85,7 +87,11 @@ export default function RamadanOverlay({
         <p className="ramadan-countdown">Se termine dans {countdown}</p>
 
         <div className="ramadan-actions">
-          {hasTournaments ? (
+          {hasRegisteredTournament ? (
+            <Link href="/tournois/planning" className="ramadan-btn ramadan-btn-secondary" onClick={closeOverlay}>
+              Voir Planning
+            </Link>
+          ) : hasTournaments ? (
             <Link href="/tournois" className="ramadan-btn ramadan-btn-secondary" onClick={closeOverlay}>
               Participer au Tournois
             </Link>
