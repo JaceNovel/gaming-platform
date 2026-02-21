@@ -5,10 +5,15 @@ const config: CapacitorConfig = {
   appName: 'Prime Gaming',
   webDir: 'public',
   server: {
-    url: 'https://space.primegaming.app',
+    url: 'https://www.primegaming.space',
     cleartext: false,
     errorPath: 'offline.html',
-    allowNavigation: ['space.primegaming.app', '*.space.primegaming.app'],
+    allowNavigation: [
+      'primegaming.space',
+      '*.primegaming.space',
+      'space.primegaming.app',
+      '*.space.primegaming.app',
+    ],
   },
 };
 

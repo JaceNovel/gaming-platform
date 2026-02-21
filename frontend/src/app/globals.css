@@ -539,3 +539,185 @@ body {
     right: clamp(12px, 4vw, 22px) !important;
   }
 }
+
+.ramadan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(20, 40, 92, 0.6), rgba(2, 5, 14, 0.98)),
+    linear-gradient(180deg, #06132f 0%, #02040a 100%);
+  padding: 20px;
+}
+
+.ramadan-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, transparent, rgba(0, 0, 0, 0.62));
+}
+
+.ramadan-stars {
+  position: absolute;
+  inset: 0;
+}
+
+.ramadan-star {
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+  animation-name: ramadanTwinkle;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.ramadan-moon {
+  position: absolute;
+  top: 11%;
+  left: 50%;
+  width: clamp(96px, 13vw, 160px);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 35%, #fff9ce, #f4d16f 58%, #d2a538 100%);
+  transform: translateX(-50%);
+  box-shadow: 0 0 44px rgba(244, 209, 111, 0.62);
+  animation: ramadanMoonFloat 5.5s ease-in-out infinite;
+}
+
+.ramadan-moon::after {
+  content: "";
+  position: absolute;
+  inset: 10% 2% 10% 35%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #08162f 0%, #02050e 100%);
+}
+
+.ramadan-content {
+  position: relative;
+  width: min(700px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 26px;
+  padding: clamp(20px, 4vw, 36px);
+  text-align: center;
+  background: linear-gradient(180deg, rgba(7, 18, 40, 0.78), rgba(2, 8, 22, 0.86));
+  box-shadow:
+    0 32px 90px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(244, 209, 111, 0.2);
+  animation: ramadanFadeSlide 1s ease both;
+  backdrop-filter: blur(10px);
+}
+
+.ramadan-content h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 5vw, 3.2rem);
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: #f9d980;
+  text-shadow: 0 0 16px rgba(249, 217, 128, 0.75), 0 0 36px rgba(218, 165, 32, 0.5);
+}
+
+.ramadan-content p {
+  margin: 14px auto 0;
+  color: rgba(234, 242, 255, 0.9);
+  max-width: 620px;
+  font-size: clamp(0.95rem, 2.4vw, 1.12rem);
+}
+
+.ramadan-content .ramadan-countdown {
+  margin-top: 18px;
+  color: #f4d16f;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.ramadan-actions {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ramadan-btn {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.2s ease;
+}
+
+.ramadan-btn:hover {
+  transform: translateY(-1px);
+}
+
+.ramadan-btn-primary {
+  background: linear-gradient(135deg, #f1c95d, #c49128);
+  color: #1f1300;
+  box-shadow: 0 14px 36px rgba(196, 145, 40, 0.45);
+}
+
+.ramadan-btn-secondary {
+  background: rgba(11, 28, 62, 0.8);
+  color: #e9f2ff;
+  border: 1px solid rgba(233, 242, 255, 0.28);
+}
+
+@keyframes ramadanTwinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes ramadanMoonFloat {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-12px);
+  }
+}
+
+@keyframes ramadanFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .ramadan-moon {
+    top: 7%;
+  }
+
+  .ramadan-content {
+    margin-top: 64px;
+  }
+
+  .ramadan-actions {
+    flex-direction: column;
+  }
+
+  .ramadan-btn {
+    width: 100%;
+  }
+}

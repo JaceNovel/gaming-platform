@@ -53,6 +53,9 @@ use App\Http\Controllers\Api\SellerMarketplaceOrderController;
 use App\Http\Controllers\Api\AdminMarketplaceDisputeController;
 use App\Http\Controllers\Api\AdminMarketplaceCommissionController;
 use App\Http\Controllers\Api\PublicStorageController;
+use App\Http\Controllers\Api\TournamentController;
+use App\Http\Controllers\Api\AdminTournamentController;
+use App\Http\Controllers\Api\TournamentRegistrationController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -147,6 +150,8 @@ Route::get('gaming-accounts/listings/{sellerListing}', [MarketplaceListingContro
 Route::get('/stats/home', [PublicStatsController::class, 'home']);
 Route::get('/stats/overview', [PublicStatsController::class, 'overview']);
 Route::get('/likes/stats', [LikeController::class, 'stats']);
+Route::get('/tournaments', [TournamentController::class, 'index']);
+Route::get('/tournaments/{slug}', [TournamentController::class, 'show']);
 
 // Webhooks (no auth required)
 Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.cinetpay.webhook');
@@ -243,6 +248,9 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     // Reviews
     Route::get('/reviews', [ReviewController::class, 'index']);
     Route::post('/reviews', [ReviewController::class, 'store']);
+
+    // Tournaments
+    Route::post('/tournaments/{tournament}/register', [TournamentRegistrationController::class, 'store']);
 
     // Support tickets
     Route::get('/support/inbox', [SupportTicketController::class, 'inbox']);
@@ -434,6 +442,11 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         Route::post('/games', [\App\Http\Controllers\Api\AdminGameController::class, 'store']);
         Route::patch('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'update']);
         Route::delete('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'destroy']);
+
+        Route::get('/tournaments', [AdminTournamentController::class, 'index']);
+        Route::post('/tournaments', [AdminTournamentController::class, 'store']);
+        Route::patch('/tournaments/{tournament}', [AdminTournamentController::class, 'update']);
+        Route::delete('/tournaments/{tournament}', [AdminTournamentController::class, 'destroy']);
     });
 
     Route::get('/coupons', [\App\Http\Controllers\Api\AdminCouponController::class, 'index'])

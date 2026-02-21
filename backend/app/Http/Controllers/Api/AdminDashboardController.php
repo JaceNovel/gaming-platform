@@ -12,6 +12,7 @@ use App\Models\Payout;
 use App\Models\PremiumMembership;
 use App\Models\Product;
 use App\Models\RedeemDenomination;
+use App\Models\TournamentRegistration;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -38,6 +39,7 @@ class AdminDashboardController extends Controller
         $pendingOrdersCount = Order::where('status', Order::STATUS_PAYMENT_PROCESSING)->count();
         $failedOrdersCount = Order::where('status', Order::STATUS_PAYMENT_FAILED)->count();
         $completedOrdersCount = Order::where('status', Order::STATUS_PAYMENT_SUCCESS)->count();
+        $totalTournamentRegistrations = TournamentRegistration::count();
 
         $availableRedeems = RedeemDenomination::withCount([
             'codes as available_count' => fn ($query) => $query->where('status', 'available'),
@@ -70,6 +72,7 @@ class AdminDashboardController extends Controller
                 'avg_order_value' => $avgOrderValue,
                 'failed_payments_count' => $failedPaymentsCount,
                 'pending_orders_count' => $pendingOrdersCount,
+                'total_tournament_registrations' => $totalTournamentRegistrations,
                 'available_redeems_by_category' => $availableRedeems,
             ],
         ]);

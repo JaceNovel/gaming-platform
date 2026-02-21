@@ -17,6 +17,7 @@ type OverviewResponse = {
     avg_order_value: number;
     failed_payments_count: number;
     pending_orders_count: number;
+    total_tournament_registrations?: number;
     available_redeems_by_category: Record<string, number>;
   };
 };
@@ -217,6 +218,9 @@ export default function AdminDashboardPage() {
         </span>
         <span className="rounded-full bg-emerald-100 px-3 py-1 font-semibold text-emerald-700">
           Complétées: {overview?.data?.completed_orders_count ?? 0}
+        </span>
+        <span className="rounded-full bg-blue-100 px-3 py-1 font-semibold text-blue-700">
+          Inscriptions tournois: {overview?.data?.total_tournament_registrations ?? 0}
         </span>
       </div>
 

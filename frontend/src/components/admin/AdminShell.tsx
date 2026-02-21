@@ -20,6 +20,7 @@ import {
   Star,
   Tags,
   TicketPercent,
+  Trophy,
   Users,
   ChevronDown,
 } from "lucide-react";
@@ -76,6 +77,15 @@ const MENU_ITEMS = [
     ],
   },
   { label: "Offres", icon: Heart, href: "/admin/offers" },
+  {
+    label: "Tournois",
+    icon: Trophy,
+    href: "/admin/tournaments",
+    children: [
+      { label: "Liste", href: "/admin/tournaments" },
+      { label: "Ajouter", href: "/admin/tournaments/add" },
+    ],
+  },
   { label: "Email", icon: Mail, href: "/admin/email" },
   { label: "Notifications", icon: Bell, href: "/admin/notifications" },
   { label: "Demandes d’importation", icon: Boxes, href: "/admin/redeem-lots" },

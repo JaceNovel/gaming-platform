@@ -12,6 +12,7 @@ import { toDisplayImageSrc } from "../../lib/imageProxy";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
 import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
+import RamadanOverlay from "@/components/home/RamadanOverlay";
 
 type ProductCard = {
   id: number;
@@ -137,8 +138,37 @@ export default function HomeClient() {
   const { user, loading: authLoading } = useAuth();
   const [headlineStats, setHeadlineStats] = useState<HomeHeadlineStats>(DEFAULT_HOME_HEADLINE_STATS);
   const [products, setProducts] = useState<ProductCard[]>([]);
+  const [hasTournaments, setHasTournaments] = useState(false);
   const [desktopStart, setDesktopStart] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadTournamentFlag = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/tournaments?active=1&per_page=1`, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        if (!res.ok) return;
+        const payload = await res.json().catch(() => null) as
+          | { data?: Array<{ id?: number | string }> }
+          | null;
+        if (!active) return;
+        setHasTournaments(Array.isArray(payload?.data) && payload.data.length > 0);
+      } catch {
+        if (!active) return;
+        setHasTournaments(false);
+      }
+    };
+
+    void loadTournamentFlag();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -359,6 +389,7 @@ export default function HomeClient() {
       className="relative min-h-[100dvh] bg-transparent text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
+      <RamadanOverlay hasTournaments={hasTournaments} />
       <ImmersiveBackground
         imageSrc="/badboyshop-home.png"
         overlayClassName="bg-black/55"
