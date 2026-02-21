@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const RAMADAN_END_AT = new Date("2026-03-05T23:59:59").getTime();
-const DISMISS_KEY = "ramadan-overlay-dismissed-v1";
 
 const formatCountdown = (remainingMs: number): string => {
   if (remainingMs <= 0) return "00j 00h 00m 00s";
@@ -29,9 +28,7 @@ export default function RamadanOverlay({
   const isExpired = remaining <= 0;
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const dismissed = window.localStorage.getItem(DISMISS_KEY) === "1";
-    const shouldShow = !dismissed && Date.now() < RAMADAN_END_AT;
+    const shouldShow = Date.now() < RAMADAN_END_AT;
     setVisible(shouldShow);
   }, []);
 
@@ -72,10 +69,7 @@ export default function RamadanOverlay({
   if (!visible || isExpired) return null;
 
   const closeOverlay = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(DISMISS_KEY, "1");
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = "";
     setVisible(false);
   };
 
