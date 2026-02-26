@@ -168,6 +168,12 @@ export default function AdminGamesPage() {
                 <td className="px-4 py-3 text-slate-500">{game.is_active ? "Oui" : "Non"}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
+                    <Link
+                      href={`/admin/games/${game.id}/edit`}
+                      className="rounded-xl border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                    >
+                      Modifier
+                    </Link>
                     <button
                       onClick={() => handleDelete(game.id)}
                       className="rounded-full border border-slate-200 p-2 text-slate-500 hover:text-rose-500"
