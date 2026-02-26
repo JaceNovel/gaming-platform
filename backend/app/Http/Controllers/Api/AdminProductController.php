@@ -13,10 +13,16 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AdminProductController extends Controller
 {
+    private function publicUploadsDiskName(): string
+    {
+        return (string) (config('filesystems.public_uploads_disk') ?: 'public');
+    }
+
     private function filterToExistingProductColumns(array $data): array
     {
         static $productColumns = null;
@@ -79,6 +85,7 @@ class AdminProductController extends Controller
             'description' => 'nullable|string',
             'image_url' => 'nullable|url',
             'banner_url' => 'nullable|url',
+            'video_url' => 'nullable|url',
             'mobile_section' => 'nullable|string|in:bundle,deal,for_you',
             'server_tags' => 'nullable|string',
             'images' => 'nullable|array|max:10',
@@ -127,8 +134,10 @@ class AdminProductController extends Controller
 
         $imageUrl = $data['image_url'] ?? null;
         $bannerUrl = $data['banner_url'] ?? null;
+        $hasVideoUrl = array_key_exists('video_url', $data);
+        $videoUrl = $data['video_url'] ?? null;
         $mobileSection = $data['mobile_section'] ?? null;
-        unset($data['image_url'], $data['banner_url']);
+        unset($data['image_url'], $data['banner_url'], $data['video_url']);
 
         $details = is_array($data['details'] ?? null) ? $data['details'] : [];
         if ($imageUrl) {
@@ -137,6 +146,14 @@ class AdminProductController extends Controller
         if ($bannerUrl) {
             $details['banner'] = $bannerUrl;
             $details['cover'] = $bannerUrl;
+        }
+        if ($hasVideoUrl) {
+            if ($videoUrl) {
+                $details['video'] = $videoUrl;
+                unset($details['video_path']);
+            } else {
+                unset($details['video'], $details['video_path']);
+            }
         }
         if ($mobileSection) {
             $details['mobile_section'] = $mobileSection;
@@ -275,6 +292,7 @@ class AdminProductController extends Controller
             'description' => 'nullable|string',
             'image_url' => 'nullable|url',
             'banner_url' => 'nullable|url',
+            'video_url' => 'nullable|url',
             'mobile_section' => 'nullable|string|in:bundle,deal,for_you',
             'server_tags' => 'nullable|string',
             'images' => 'nullable|array|max:10',
@@ -308,8 +326,10 @@ class AdminProductController extends Controller
 
         $imageUrl = $data['image_url'] ?? null;
         $bannerUrl = $data['banner_url'] ?? null;
+        $hasVideoUrl = array_key_exists('video_url', $data);
+        $videoUrl = $data['video_url'] ?? null;
         $mobileSection = $data['mobile_section'] ?? null;
-        unset($data['image_url'], $data['banner_url']);
+        unset($data['image_url'], $data['banner_url'], $data['video_url']);
 
         $details = is_array($data['details'] ?? null) ? $data['details'] : [];
         if ($imageUrl) {
@@ -318,6 +338,14 @@ class AdminProductController extends Controller
         if ($bannerUrl) {
             $details['banner'] = $bannerUrl;
             $details['cover'] = $bannerUrl;
+        }
+        if ($hasVideoUrl) {
+            if ($videoUrl) {
+                $details['video'] = $videoUrl;
+                unset($details['video_path']);
+            } else {
+                unset($details['video'], $details['video_path']);
+            }
         }
         if ($mobileSection) {
             $details['mobile_section'] = $mobileSection;
@@ -404,8 +432,9 @@ class AdminProductController extends Controller
             'position' => 'sometimes|integer|min:1|max:50',
         ]);
 
-        $path = $data['image']->store('products', 'public');
-        $url = Storage::disk('public')->url($path);
+        $diskName = $this->publicUploadsDiskName();
+        $path = $data['image']->store('products', $diskName);
+        $url = Storage::disk($diskName)->url($path);
 
         $nextPosition = (int) (ProductImage::where('product_id', $product->id)->max('position') ?? 0) + 1;
         $position = (int) ($data['position'] ?? $nextPosition);
@@ -417,6 +446,43 @@ class AdminProductController extends Controller
         ]);
 
         return response()->json(['data' => $image], 201);
+    }
+
+    public function uploadVideo(Request $request, Product $product)
+    {
+        $data = $request->validate([
+            'video' => 'required|file|max:51200|mimetypes:video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-m4v',
+        ]);
+
+        $diskName = $this->publicUploadsDiskName();
+        $file = $data['video'];
+        $extension = strtolower((string) ($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'mp4'));
+        $filename = 'product_' . $product->id . '_' . now()->format('Ymd_His') . '_' . Str::random(12) . '.' . $extension;
+        $path = $file->storeAs('products/videos', $filename, $diskName);
+        $url = Storage::disk($diskName)->url($path);
+
+        $details = is_array($product->details) ? $product->details : [];
+        $previousPath = isset($details['video_path']) ? (string) $details['video_path'] : '';
+        $details['video'] = $url;
+        $details['video_path'] = $path;
+
+        $product->details = $details;
+        $product->save();
+
+        if ($previousPath !== '' && $previousPath !== $path) {
+            try {
+                Storage::disk($diskName)->delete($previousPath);
+            } catch (\Throwable) {
+                // best-effort
+            }
+        }
+
+        return response()->json([
+            'data' => [
+                'url' => $url,
+                'path' => $path,
+            ],
+        ], 201);
     }
 
     private function generateSku(): string

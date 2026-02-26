@@ -7,6 +7,7 @@ use App\Models\Referral;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ReferralController extends Controller
@@ -22,6 +23,27 @@ class ReferralController extends Controller
             $user->referral_code = $this->generateUniqueCode();
             $user->save();
             $user->refresh();
+        } else {
+            $normalizedCode = strtoupper((string) $user->referral_code);
+            if ($normalizedCode !== (string) $user->referral_code) {
+                try {
+                    $conflict = User::query()
+                        ->where('id', '!=', $user->id)
+                        ->whereRaw('UPPER(referral_code) = ?', [$normalizedCode])
+                        ->exists();
+
+                    if (!$conflict) {
+                        $user->referral_code = $normalizedCode;
+                        $user->save();
+                        $user->refresh();
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('referrals:normalize-existing-code-skip', [
+                        'user_id' => $user->id,
+                        'message' => $e->getMessage(),
+                    ]);
+                }
+            }
         }
 
         $siteUrl = rtrim((string) env('FRONTEND_URL', config('app.url')), '/');
@@ -90,12 +112,12 @@ class ReferralController extends Controller
             $tries = 0;
             do {
                 $code = strtoupper(Str::random(8));
-                $exists = User::where('referral_code', $code)->exists();
+                $exists = User::query()->whereRaw('UPPER(referral_code) = ?', [$code])->exists();
                 $tries++;
             } while ($exists && $tries < 10);
 
             if ($exists) {
-                $code = strtoupper(Str::uuid()->toString());
+                $code = strtoupper(substr(str_replace('-', '', (string) Str::uuid()), 0, 12));
             }
 
             return $code;

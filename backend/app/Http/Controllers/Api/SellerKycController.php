@@ -19,6 +19,11 @@ class SellerKycController extends Controller
     {
     }
 
+    private function publicUploadsDiskName(): string
+    {
+        return (string) (config('filesystems.public_uploads_disk') ?: 'public');
+    }
+
     private function ensureAgreementPdfExists(Seller $seller): ?string
     {
         if ($seller->status !== 'approved') {
@@ -273,14 +278,15 @@ class SellerKycController extends Controller
 
         $previous = SellerKycFile::query()->where('seller_id', $seller->id)->where('type', 'id_front')->first();
 
-        $path = $file->storeAs($dir, $name, 'public');
+        $diskName = $this->publicUploadsDiskName();
+        $path = $file->storeAs($dir, $name, $diskName);
         $sha256 = @hash_file('sha256', $file->getRealPath()) ?: null;
 
         SellerKycFile::query()->updateOrCreate(
             ['seller_id' => $seller->id, 'type' => 'id_front'],
             [
                 'source' => 'upload',
-                'disk' => 'public',
+                'disk' => $diskName,
                 'path' => $path,
                 'mime' => $file->getMimeType(),
                 'size' => $file->getSize(),
@@ -290,7 +296,7 @@ class SellerKycController extends Controller
 
         if ($previous && $previous->path && $previous->path !== $path) {
             try {
-                Storage::disk($previous->disk ?: 'public')->delete($previous->path);
+                Storage::disk($previous->disk ?: $diskName)->delete($previous->path);
             } catch (\Throwable $e) {
                 // best-effort
             }
@@ -326,14 +332,15 @@ class SellerKycController extends Controller
 
         $previous = SellerKycFile::query()->where('seller_id', $seller->id)->where('type', 'selfie')->first();
 
-        $path = $file->storeAs($dir, $name, 'public');
+        $diskName = $this->publicUploadsDiskName();
+        $path = $file->storeAs($dir, $name, $diskName);
         $sha256 = @hash_file('sha256', $file->getRealPath()) ?: null;
 
         SellerKycFile::query()->updateOrCreate(
             ['seller_id' => $seller->id, 'type' => 'selfie'],
             [
                 'source' => 'camera',
-                'disk' => 'public',
+                'disk' => $diskName,
                 'path' => $path,
                 'mime' => $file->getMimeType(),
                 'size' => $file->getSize(),
@@ -343,7 +350,7 @@ class SellerKycController extends Controller
 
         if ($previous && $previous->path && $previous->path !== $path) {
             try {
-                Storage::disk($previous->disk ?: 'public')->delete($previous->path);
+                Storage::disk($previous->disk ?: $diskName)->delete($previous->path);
             } catch (\Throwable $e) {
                 // best-effort
             }

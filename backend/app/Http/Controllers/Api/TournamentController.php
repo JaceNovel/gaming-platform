@@ -46,12 +46,49 @@ class TournamentController extends Controller
     {
         $tournament = Tournament::query()
             ->with('game:id,name,slug')
+            ->with(['rewards.user:id,name'])
             ->withCount('registrations')
             ->where('slug', $slug)
             ->where('is_active', true)
             ->firstOrFail();
 
         return response()->json($this->transformTournament($tournament));
+    }
+
+    public function ramadanWinners()
+    {
+        $tournament = Tournament::query()
+            ->with(['rewards.user:id,name'])
+            ->whereNotNull('rewards_published_at')
+            ->whereNotNull('rewards_banner_expires_at')
+            ->where('rewards_banner_expires_at', '>=', now())
+            ->orderByDesc('rewards_published_at')
+            ->first();
+
+        if (!$tournament) {
+            return response()->json([
+                'active' => false,
+                'message' => 'Aucun résultat Ramadan actif.',
+            ]);
+        }
+
+        return response()->json([
+            'active' => true,
+            'tournament' => [
+                'id' => $tournament->id,
+                'name' => $tournament->name,
+                'slug' => $tournament->slug,
+            ],
+            'expires_at' => $tournament->rewards_banner_expires_at,
+            'winners' => $tournament->rewards
+                ->sortBy('place')
+                ->values()
+                ->map(fn ($reward) => [
+                    'place' => (int) $reward->place,
+                    'name' => (string) ($reward->user?->name ?? 'Joueur'),
+                    'reward_amount_fcfa' => (int) ($reward->reward_amount_fcfa ?? 0),
+                ]),
+        ]);
     }
 
     private function transformTournament(Tournament $tournament): Tournament

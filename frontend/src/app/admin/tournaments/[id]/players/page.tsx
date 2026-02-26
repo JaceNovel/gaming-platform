@@ -45,6 +45,11 @@ export default function AdminTournamentPlayersPage() {
   const [tournamentName, setTournamentName] = useState<string>("Tournoi");
   const [totalRegistrations, setTotalRegistrations] = useState<number>(0);
   const [exporting, setExporting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishMessage, setPublishMessage] = useState("");
+  const [firstWinnerUserId, setFirstWinnerUserId] = useState("");
+  const [secondWinnerUserId, setSecondWinnerUserId] = useState("");
+  const [thirdWinnerUserId, setThirdWinnerUserId] = useState("");
 
   const load = useCallback(async () => {
     if (!tournamentId) return;
@@ -104,6 +109,59 @@ export default function AdminTournamentPlayersPage() {
     }
   };
 
+  const handlePublishRewards = async () => {
+    if (!tournamentId || publishing) return;
+
+    const first = Number(firstWinnerUserId);
+    const second = Number(secondWinnerUserId);
+    const third = Number(thirdWinnerUserId);
+
+    if (!first || !second || !third) {
+      setPublishMessage("Sélectionnez les gagnants 1er, 2e et 3e.");
+      return;
+    }
+
+    if (new Set([first, second, third]).size !== 3) {
+      setPublishMessage("Un joueur ne peut pas occuper plusieurs places.");
+      return;
+    }
+
+    setPublishing(true);
+    setPublishMessage("");
+    try {
+      const res = await fetch(`${API_BASE}/admin/tournaments/${encodeURIComponent(tournamentId)}/rewards/publish`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          first_user_id: first,
+          second_user_id: second,
+          third_user_id: third,
+        }),
+      });
+
+      const payload = (await res.json().catch(() => null)) as { message?: string } | null;
+
+      if (!res.ok) {
+        setPublishMessage(payload?.message ?? "Publication des récompenses impossible.");
+        return;
+      }
+
+      setPublishMessage(payload?.message ?? "Récompenses publiées.");
+    } catch {
+      setPublishMessage("Publication des récompenses impossible.");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const winnerOptions = rows.map((row) => ({
+    value: String(row.user_id),
+    label: `${row.user_name ?? `Joueur #${row.user_id}`} (ID ${row.user_id})`,
+  }));
+
   return (
     <AdminShell
       title="Joueurs inscrits"
@@ -125,6 +183,59 @@ export default function AdminTournamentPlayersPage() {
       }
     >
       {error ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-800">Attribuer les récompenses</h3>
+        <p className="mt-1 text-xs text-slate-500">1er: 9500 FCFA • 2e: 8000 FCFA • 3e: 1500 FCFA</p>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <label className="text-xs font-medium text-slate-600">
+            1ère place
+            <select value={firstWinnerUserId} onChange={(event) => setFirstWinnerUserId(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+              <option value="">Sélectionner</option>
+              {winnerOptions.map((opt) => (
+                <option key={`first-${opt.value}`} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-medium text-slate-600">
+            2ème place
+            <select value={secondWinnerUserId} onChange={(event) => setSecondWinnerUserId(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+              <option value="">Sélectionner</option>
+              {winnerOptions.map((opt) => (
+                <option key={`second-${opt.value}`} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-medium text-slate-600">
+            3ème place
+            <select value={thirdWinnerUserId} onChange={(event) => setThirdWinnerUserId(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+              <option value="">Sélectionner</option>
+              {winnerOptions.map((opt) => (
+                <option key={`third-${opt.value}`} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handlePublishRewards}
+            disabled={publishing || !rows.length}
+            className="inline-flex items-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {publishing ? "Publication..." : "Publier les gagnants"}
+          </button>
+          {publishMessage ? <span className="text-xs text-slate-600">{publishMessage}</span> : null}
+        </div>
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">

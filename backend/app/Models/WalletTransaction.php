@@ -15,6 +15,7 @@ class WalletTransaction extends Model
 
     protected $fillable = [
         'wallet_account_id',
+        'wallet_bucket',
         'type',
         'amount',
         'reference',

@@ -31,6 +31,7 @@ type ApiProduct = {
     image?: string | null;
     banner?: string | null;
     cover?: string | null;
+    video?: string | null;
     brand?: string | null;
     stock?: number | null;
   } | null;
@@ -84,6 +85,11 @@ const extractBanner = (product: ApiProduct | null): string | null => {
     product.cover ??
     null
   );
+};
+
+const extractVideo = (product: ApiProduct | null): string | null => {
+  if (!product) return null;
+  return product.details?.video ?? null;
 };
 
 const normalizeTags = (product: ApiProduct | null): string[] => {
@@ -227,6 +233,55 @@ function ImageCarousel({
   );
 }
 
+function AutoLoopVideo({ src, title, aspectClass }: { src: string; title: string; aspectClass: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        if (entry.isIntersecting) {
+          void video.play().catch(() => {
+            // autoplay can be blocked on some devices, keep silent
+          });
+          return;
+        }
+        video.pause();
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(video);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [src]);
+
+  return (
+    <div className="rounded-3xl border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+      <video
+        ref={videoRef}
+        src={src}
+        title={title}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        controls={false}
+        controlsList="nodownload noplaybackrate noremoteplayback"
+        disablePictureInPicture
+        className={`${aspectClass} w-full rounded-3xl object-cover`}
+      />
+    </div>
+  );
+}
+
 export default function ProductDetailsPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -312,6 +367,8 @@ export default function ProductDetailsPage() {
     return unique;
   }, [carouselImages, mainImage]);
   const bannerImage = useMemo(() => extractBanner(product), [product]);
+  const videoRaw = useMemo(() => extractVideo(product), [product]);
+  const displayVideo = useMemo(() => (videoRaw ? toDisplayImageSrc(videoRaw) ?? videoRaw : null), [videoRaw]);
   const displayBanner = useMemo(() => toDisplayImageSrc(bannerImage) ?? bannerImage, [bannerImage]);
   const tags = useMemo(() => normalizeTags(product), [product]);
   const priceValue = useMemo(
@@ -499,14 +556,22 @@ export default function ProductDetailsPage() {
           <>
             <div className="mt-8 space-y-5 md:hidden">
               <div className="rounded-[32px] border border-white/10 bg-white/5 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
-                <ImageCarousel
-                  images={mergedCarouselImages}
-                  name={product.name ?? product.title ?? "Produit"}
-                  activeIndex={activeImageIndex}
-                  onActiveIndex={setActiveImageIndex}
-                  aspectClass="aspect-square"
-                  onOpenLightbox={setLightboxSrc}
-                />
+                {displayVideo ? (
+                  <AutoLoopVideo
+                    src={displayVideo}
+                    title={product.name ?? product.title ?? "Produit"}
+                    aspectClass="aspect-square"
+                  />
+                ) : (
+                  <ImageCarousel
+                    images={mergedCarouselImages}
+                    name={product.name ?? product.title ?? "Produit"}
+                    activeIndex={activeImageIndex}
+                    onActiveIndex={setActiveImageIndex}
+                    aspectClass="aspect-square"
+                    onOpenLightbox={setLightboxSrc}
+                  />
+                )}
               </div>
               <div className="space-y-4 rounded-[32px] border border-white/10 bg-black/40 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
                 <div className="space-y-2">
@@ -559,14 +624,22 @@ export default function ProductDetailsPage() {
             </div>
 
             <div className="mt-10 hidden gap-10 md:grid lg:grid-cols-[1.15fr_0.85fr]">
-              <ImageCarousel
-                images={mergedCarouselImages}
-                name={product.name ?? product.title ?? "Produit"}
-                activeIndex={activeImageIndex}
-                onActiveIndex={setActiveImageIndex}
-                aspectClass="aspect-[4/3]"
-                onOpenLightbox={setLightboxSrc}
-              />
+              {displayVideo ? (
+                <AutoLoopVideo
+                  src={displayVideo}
+                  title={product.name ?? product.title ?? "Produit"}
+                  aspectClass="aspect-[4/3]"
+                />
+              ) : (
+                <ImageCarousel
+                  images={mergedCarouselImages}
+                  name={product.name ?? product.title ?? "Produit"}
+                  activeIndex={activeImageIndex}
+                  onActiveIndex={setActiveImageIndex}
+                  aspectClass="aspect-[4/3]"
+                  onOpenLightbox={setLightboxSrc}
+                />
+              )}
 
               <div className="space-y-6">
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">

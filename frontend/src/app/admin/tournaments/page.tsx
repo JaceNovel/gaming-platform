@@ -132,6 +132,12 @@ export default function AdminTournamentsPage() {
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <Link
+                      href={`/admin/tournaments/${item.id}/edit`}
+                      className="rounded-xl border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                    >
+                      Modifier
+                    </Link>
+                    <Link
                       href={`/admin/tournaments/${item.id}/planning`}
                       className="rounded-xl border border-indigo-200 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50"
                     >

@@ -86,8 +86,12 @@ function WalletClient() {
   const [banner, setBanner] = useState<string | null>(null);
 
   const [balance, setBalance] = useState<number>(0);
+  const [rewardBalance, setRewardBalance] = useState<number>(0);
+  const [rewardMinPurchaseAmount, setRewardMinPurchaseAmount] = useState<number>(0);
   const [currency, setCurrency] = useState<string>("FCFA");
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
+  const [exchangeAmount, setExchangeAmount] = useState<string>("");
+  const [exchangeLoading, setExchangeLoading] = useState(false);
 
   const [limit, setLimit] = useState<10 | 25 | 50>(25);
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
@@ -117,6 +121,10 @@ function WalletClient() {
 
       const nextBalance = Number(summary?.balance ?? 0);
       setBalance(Number.isFinite(nextBalance) ? nextBalance : 0);
+      const nextRewardBalance = Number(summary?.reward_balance ?? 0);
+      setRewardBalance(Number.isFinite(nextRewardBalance) ? nextRewardBalance : 0);
+      const nextRewardMin = Number(summary?.reward_min_purchase_amount ?? 0);
+      setRewardMinPurchaseAmount(Number.isFinite(nextRewardMin) ? nextRewardMin : 0);
       setCurrency(String(summary?.currency ?? "FCFA"));
       setWalletStatus(summary?.status ?? null);
 
@@ -212,7 +220,35 @@ function WalletClient() {
   }, []);
 
   const displayBalance = useMemo(() => formatMoney(balance, currency), [balance, currency]);
+  const displayRewardBalance = useMemo(() => formatMoney(rewardBalance, currency), [currency, rewardBalance]);
   const { label: currencyLabel } = useMemo(() => normalizeCurrency(currency), [currency]);
+
+  const handleExchangeReward = async () => {
+    if (exchangeLoading) return;
+    setBanner(null);
+    setExchangeLoading(true);
+    try {
+      const amountValue = Number(exchangeAmount || 0);
+      const payload = Number.isFinite(amountValue) && amountValue > 0 ? { amount: amountValue } : {};
+      const res = await authFetch(`${API_BASE}/payments/wallet-reward/exchange`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setBanner(data?.message ?? "Échange impossible.");
+        return;
+      }
+      setBanner("Échange effectué (taux appliqué: 70%).");
+      setExchangeAmount("");
+      await loadWallet({ silent: true });
+    } catch {
+      setBanner("Échange impossible.");
+    } finally {
+      setExchangeLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen text-white">
@@ -274,6 +310,31 @@ function WalletClient() {
               </div>
 
               {/* Recharge wallet supprimée */}
+
+              {rewardBalance > 0 ? (
+                <div className="mt-5 rounded-2xl border border-violet-300/25 bg-violet-500/10 p-4">
+                  <p className="text-xs uppercase tracking-[0.25em] text-violet-100/80">Wallet récompense</p>
+                  <p className="mt-2 text-lg font-semibold text-violet-100">{displayRewardBalance}</p>
+                  {rewardMinPurchaseAmount > 0 ? (
+                    <p className="mt-1 text-xs text-violet-100/75">Achat minimum: {Math.floor(rewardMinPurchaseAmount)} FCFA</p>
+                  ) : null}
+                  <p className="mt-1 text-xs text-violet-100/75">Conversion disponible à 70% (30% de frais).</p>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={exchangeAmount}
+                      onChange={(event) => setExchangeAmount(event.target.value)}
+                      placeholder="Montant à échanger (vide = tout)"
+                      className="w-full max-w-xs rounded-xl border border-violet-200/25 bg-black/30 px-3 py-2 text-sm text-white"
+                    />
+                    <GlowButton variant="ghost" onClick={handleExchangeReward} disabled={exchangeLoading}>
+                      {exchangeLoading ? "Échange..." : "Échanger vers wallet principal"}
+                    </GlowButton>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">

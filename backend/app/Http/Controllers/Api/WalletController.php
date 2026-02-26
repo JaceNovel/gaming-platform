@@ -20,6 +20,8 @@ class WalletController extends Controller
 
         return response()->json([
             'balance' => $wallet->balance,
+            'reward_balance' => $wallet->reward_balance,
+            'reward_min_purchase_amount' => $wallet->reward_min_purchase_amount,
             'currency' => $wallet->currency,
             'status' => $wallet->status,
             'transactions' => $transactions,
@@ -41,8 +43,16 @@ class WalletController extends Controller
                 $typeHint === 'marketplace_account_refund' => 'Remboursement Account',
                 $typeHint === 'order_refund' => 'Remboursement commande',
                 $typeHint === 'admin_wallet_credit' => 'Crédit wallet (admin)',
+                $typeHint === 'tournament_reward_credit' => 'Récompense tournoi',
+                $typeHint === 'tournament_reward_payment' => 'Achat via wallet récompense',
+                $typeHint === 'tournament_reward_exchange' => 'Échange récompense (-30%)',
                 default => 'Transaction wallet',
             };
+
+            $bucket = (string) ($tx->wallet_bucket ?? 'main');
+            if ($bucket === 'reward' && $label === 'Transaction wallet') {
+                $label = 'Transaction wallet récompense';
+            }
 
             return [
                 'id' => $tx->id,
@@ -53,6 +63,7 @@ class WalletController extends Controller
                 'type' => $tx->type,
                 'status' => $tx->status,
                 'reference' => $tx->reference,
+                'wallet_bucket' => $bucket,
                 'order_id' => null,
                 'transaction_id' => null,
                 'order_status' => null,

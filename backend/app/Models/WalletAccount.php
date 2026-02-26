@@ -14,6 +14,8 @@ class WalletAccount extends Model
         'currency',
         'balance',
         'bonus_balance',
+        'reward_balance',
+        'reward_min_purchase_amount',
         'bonus_expires_at',
         'status',
         'recharge_blocked_at',
@@ -23,6 +25,8 @@ class WalletAccount extends Model
     protected $casts = [
         'balance' => 'decimal:2',
         'bonus_balance' => 'decimal:2',
+        'reward_balance' => 'decimal:2',
+        'reward_min_purchase_amount' => 'decimal:2',
         'bonus_expires_at' => 'datetime',
         'recharge_blocked_at' => 'datetime',
     ];

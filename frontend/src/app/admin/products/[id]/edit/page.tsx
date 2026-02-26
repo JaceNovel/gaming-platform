@@ -54,6 +54,7 @@ type ApiProduct = {
   details?: {
     image?: string | null;
     banner?: string | null;
+    video?: string | null;
     mobile_section?: string | null;
   } | null;
   tags?: Array<{ name?: string | null } | string> | string[] | string | null;
@@ -131,6 +132,10 @@ export default function AdminProductsEditPage() {
   const [isActive, setIsActive] = useState(true);
   const [imageUrl, setImageUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
+  const [useVideo, setUseVideo] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [existingVideoUrl, setExistingVideoUrl] = useState("");
   const [accountImages, setAccountImages] = useState<string[]>([""]);
   const [uploadingAccountImages, setUploadingAccountImages] = useState(false);
   const [imagePreviewError, setImagePreviewError] = useState(false);
@@ -307,6 +312,14 @@ export default function AdminProductsEditPage() {
         }
         setImageUrl(product?.details?.image ?? "");
         setBannerUrl(product?.details?.banner ?? "");
+        const loadedVideo = String(product?.details?.video ?? "").trim();
+        setExistingVideoUrl(loadedVideo);
+        setUseVideo(Boolean(loadedVideo));
+        setVideoFile(null);
+        if (videoPreviewUrl) {
+          URL.revokeObjectURL(videoPreviewUrl);
+        }
+        setVideoPreviewUrl(null);
 
         const rawImages = Array.isArray(product?.images) ? product.images : [];
         const normalized = rawImages
@@ -329,7 +342,7 @@ export default function AdminProductsEditPage() {
     return () => {
       active = false;
     };
-  }, [productId]);
+  }, [productId, videoPreviewUrl]);
 
   useEffect(() => {
     if (!selectedCatalogKind) return;
@@ -381,6 +394,14 @@ export default function AdminProductsEditPage() {
     if (!deliveryEstimateLabel) return;
     setDeliveryEstimateLabel("");
   }, [deliveryEstimateLabel, displaySection, type]);
+
+  useEffect(() => {
+    return () => {
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
+    };
+  }, [videoPreviewUrl]);
 
   useEffect(() => {
     const isAccessory = type === "item" && displaySection !== "emote_skin";
@@ -484,6 +505,7 @@ export default function AdminProductsEditPage() {
         display_section: displaySection === "none" ? null : displaySection,
         image_url: imageUrl.trim() || undefined,
         banner_url: bannerUrl.trim() || undefined,
+        video_url: useVideo ? (videoFile ? undefined : existingVideoUrl || undefined) : null,
         images: type === "account" ? cleanedAccountImages : undefined,
         stock_mode:
           selectedCatalogKind === "recharge" ? (rechargeKind === "codes" ? "redeem_pool" : "manual") : undefined,
@@ -521,16 +543,39 @@ export default function AdminProductsEditPage() {
         return;
       }
 
-      setStatus("Produit mis à jour.");
+      if (useVideo && videoFile) {
+        const form = new FormData();
+        form.append("video", videoFile);
+        const up = await fetch(`${API_BASE}/admin/products/${productId}/video`, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+            ...getAuthHeaders(),
+          },
+          body: form,
+        });
+        if (!up.ok) {
+          const err = await up.json().catch(() => ({}));
+          throw new Error(err?.message ?? "Upload vidéo impossible");
+        }
+      }
+
+      setStatus(useVideo && videoFile ? "Produit mis à jour + vidéo uploadée." : "Produit mis à jour.");
+      if (!useVideo) {
+        setExistingVideoUrl("");
+      }
+      setVideoFile(null);
       router.refresh();
-    } catch {
-      setStatus("Modification impossible");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Modification impossible";
+      setStatus(message || "Modification impossible");
     } finally {
       setLoading(false);
     }
   };
 
-  const previewGrid = useMemo(() => imageUrl || bannerUrl, [imageUrl, bannerUrl]);
+  const previewGrid = useMemo(() => (!useVideo ? imageUrl || bannerUrl : ""), [imageUrl, bannerUrl, useVideo]);
 
   const statusKind = useMemo<"success" | "error" | "info" | null>(() => {
     const value = status.trim().toLowerCase();
@@ -783,6 +828,48 @@ export default function AdminProductsEditPage() {
           <div className={CARD}>
             <h3 className="text-base font-semibold">Visuels du produit</h3>
             <div className="mt-6 space-y-4">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={useVideo}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setUseVideo(next);
+                    if (!next) {
+                      setVideoFile(null);
+                      if (videoPreviewUrl) {
+                        URL.revokeObjectURL(videoPreviewUrl);
+                      }
+                      setVideoPreviewUrl(null);
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-slate-300"
+                  disabled={loadingProduct}
+                />
+                Vidéo produit (au lieu de l&apos;image principale)
+              </label>
+
+              {useVideo ? (
+                <div>
+                  <label className="text-sm font-medium">Uploader une vidéo (PC / téléphone)</label>
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,video/x-m4v,video/*"
+                    disabled={loadingProduct}
+                    onChange={(e) => {
+                      const nextFile = e.target.files?.[0] ?? null;
+                      setVideoFile(nextFile);
+                      if (videoPreviewUrl) {
+                        URL.revokeObjectURL(videoPreviewUrl);
+                      }
+                      setVideoPreviewUrl(nextFile ? URL.createObjectURL(nextFile) : null);
+                    }}
+                    className={INPUT}
+                  />
+                  <p className={HELP}>La vidéo sera affichée sur la carte produit et la page détail.</p>
+                </div>
+              ) : null}
+
               <div>
                 <label className="text-sm font-medium">Image principale (URL)</label>
                 <input
@@ -794,7 +881,7 @@ export default function AdminProductsEditPage() {
                   type="url"
                   className={INPUT}
                   placeholder="https://..."
-                  disabled={loadingProduct}
+                  disabled={loadingProduct || useVideo}
                 />
                 <p className={HELP}>Astuce: utiliser un lien HTTPS direct vers une image (jpg/png).</p>
               </div>
@@ -809,9 +896,23 @@ export default function AdminProductsEditPage() {
                   type="url"
                   className={INPUT}
                   placeholder="https://..."
-                  disabled={loadingProduct}
+                  disabled={loadingProduct || useVideo}
                 />
               </div>
+              {useVideo && (videoPreviewUrl || existingVideoUrl) ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-4">
+                  <p className="text-xs font-semibold text-slate-500">Prévisualisation vidéo</p>
+                  <video
+                    src={videoPreviewUrl || existingVideoUrl}
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                    controls={false}
+                    className="mt-2 h-44 w-full rounded-xl object-cover"
+                  />
+                </div>
+              ) : null}
               {previewGrid && (
                 <div className="grid gap-4 rounded-2xl border border-dashed border-slate-200 p-4 text-center md:grid-cols-2">
                   <div>

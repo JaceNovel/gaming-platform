@@ -54,7 +54,7 @@ return [
 
         'public' => [
             'driver' => 'local',
-            'root' => storage_path('app/public'),
+            'root' => env('PUBLIC_UPLOADS_ROOT', storage_path('app/public')),
             // Serve public uploads through the API to avoid relying on web server symlink/static config.
             // Example: https://api.primegaming.space/api/storage/seller-listings/xxx.png
             'url' => (function () {

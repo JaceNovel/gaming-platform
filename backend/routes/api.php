@@ -151,6 +151,7 @@ Route::get('/stats/home', [PublicStatsController::class, 'home']);
 Route::get('/stats/overview', [PublicStatsController::class, 'overview']);
 Route::get('/likes/stats', [LikeController::class, 'stats']);
 Route::get('/tournaments', [TournamentController::class, 'index']);
+Route::get('/tournaments/ramadan-winners', [TournamentController::class, 'ramadanWinners']);
 Route::get('/tournaments/{slug}', [TournamentController::class, 'show']);
 
 // Webhooks (no auth required)
@@ -214,6 +215,8 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
         Route::post('/payments/cinetpay/init', [PaymentController::class, 'init'])->name('api.payments.cinetpay.init');
         Route::post('/payments/fedapay/init', [PaymentController::class, 'initFedapay'])->name('api.payments.fedapay.init');
         Route::post('/payments/wallet/pay', [PaymentController::class, 'payWithWallet'])->name('api.payments.wallet.pay');
+        Route::post('/payments/wallet-reward/pay', [PaymentController::class, 'payWithRewardWallet'])->name('api.payments.wallet_reward.pay');
+        Route::post('/payments/wallet-reward/exchange', [PaymentController::class, 'exchangeRewardWallet'])->name('api.payments.wallet_reward.exchange');
 
         // Premium
         Route::post('/premium/init', [PremiumController::class, 'init']);
@@ -430,6 +433,7 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         Route::patch('/products/{product}', [AdminProductController::class, 'update']);
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
         Route::post('/products/{product}/image', [AdminProductController::class, 'uploadImage']);
+        Route::post('/products/{product}/video', [AdminProductController::class, 'uploadVideo']);
 
         Route::post('/offers/likes', [AdminOfferController::class, 'boostLikes']);
 
@@ -451,6 +455,7 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         Route::post('/tournaments', [AdminTournamentController::class, 'store']);
         Route::patch('/tournaments/{tournament}', [AdminTournamentController::class, 'update']);
         Route::delete('/tournaments/{tournament}', [AdminTournamentController::class, 'destroy']);
+        Route::post('/tournaments/{tournament}/rewards/publish', [AdminTournamentController::class, 'publishRewards']);
     });
 
     Route::get('/coupons', [\App\Http\Controllers\Api\AdminCouponController::class, 'index'])

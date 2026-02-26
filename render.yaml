@@ -22,7 +22,7 @@ services:
     dockerfilePath: Dockerfile
     disk:
       name: primegaming-backend-storage
-      mountPath: /app/storage
+      mountPath: /var/data
       sizeGB: 1
     envVars:
       - key: CONTAINER_ROLE
@@ -50,6 +50,10 @@ services:
 
       - key: QUEUE_CONNECTION
         value: database
+      - key: PUBLIC_UPLOADS_DISK
+        value: public
+      - key: PUBLIC_UPLOADS_ROOT
+        value: /var/data/public-uploads
 
       # Mail (Brevo SMTP) - set these in Render dashboard
       - key: MAIL_MAILER

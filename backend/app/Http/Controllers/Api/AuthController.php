@@ -11,6 +11,7 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password as PasswordFacade;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
@@ -43,7 +44,9 @@ class AuthController extends Controller
         $referralCode = strtoupper(trim((string) $request->input('referralCode', '')));
         $referrer = null;
         if ($referralCode !== '') {
-            $referrer = User::where('referral_code', $referralCode)->first();
+            $referrer = User::query()
+                ->whereRaw('UPPER(referral_code) = ?', [$referralCode])
+                ->first();
             if (!$referrer) {
                 return response()->json([
                     'message' => 'Code parrain invalide.',
@@ -74,8 +77,32 @@ class AuthController extends Controller
                 $code = strtoupper(\Illuminate\Support\Str::random(8));
                 $tries++;
             }
-            if (!User::where('referral_code', $code)->exists()) {
+            if (!User::whereRaw('UPPER(referral_code) = ?', [$code])->exists()) {
                 $user->update(['referral_code' => $code]);
+            } else {
+                $fallbackCode = strtoupper(substr(str_replace('-', '', (string) Str::uuid()), 0, 12));
+                if (!User::whereRaw('UPPER(referral_code) = ?', [$fallbackCode])->exists()) {
+                    $user->update(['referral_code' => $fallbackCode]);
+                }
+            }
+        } else {
+            $normalizedCode = strtoupper((string) $user->referral_code);
+            if ($normalizedCode !== (string) $user->referral_code) {
+                try {
+                    $conflict = User::query()
+                        ->where('id', '!=', $user->id)
+                        ->whereRaw('UPPER(referral_code) = ?', [$normalizedCode])
+                        ->exists();
+
+                    if (!$conflict) {
+                        $user->update(['referral_code' => $normalizedCode]);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('referrals:code-normalization-skip', [
+                        'user_id' => $user->id,
+                        'message' => $e->getMessage(),
+                    ]);
+                }
             }
         }
 

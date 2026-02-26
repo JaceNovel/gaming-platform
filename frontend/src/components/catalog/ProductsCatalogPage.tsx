@@ -37,7 +37,7 @@ type ProductRow = {
   banner_url?: string | null;
   cover?: string | null;
   banner?: string | null;
-  details?: { image?: string | null; banner?: string | null; cover?: string | null } | null;
+  details?: { image?: string | null; banner?: string | null; cover?: string | null; video?: string | null } | null;
   images?: Array<{ url?: string | null; path?: string | null }> | null;
   game?: { name?: string | null; image?: string | null; cover?: string | null } | null;
   category_entity?: { name?: string | null } | null;
@@ -379,6 +379,8 @@ export default function ProductsCatalogPage({
                       p?.game?.image ??
                       p?.game?.cover ??
                       null;
+                    const videoRaw = String(p?.details?.video ?? "").trim();
+                    const videoSrc = videoRaw ? (toDisplayImageSrc(videoRaw) ?? videoRaw) : null;
                     const imageSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
 
                     const delivery = getDeliveryBadgeDisplay({
@@ -424,7 +426,18 @@ export default function ProductsCatalogPage({
                             ) : null}
                           </div>
 
-                          {imageSrc ? (
+                          {videoSrc ? (
+                            <video
+                              src={videoSrc}
+                              autoPlay
+                              muted
+                              loop
+                              playsInline
+                              preload="metadata"
+                              controls={false}
+                              className="h-full w-full object-cover opacity-95 transition group-hover:scale-[1.02]"
+                            />
+                          ) : imageSrc ? (
                             <Image
                               src={imageSrc}
                               alt={displayTitle}
@@ -489,6 +502,8 @@ export default function ProductsCatalogPage({
                     p?.game?.cover ??
                     null;
 
+                  const videoRaw = String(p?.details?.video ?? "").trim();
+                  const videoSrc = videoRaw ? (toDisplayImageSrc(videoRaw) ?? videoRaw) : null;
                   const imageSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
                   const delivery = getDeliveryBadgeDisplay({
                     type: p.type ?? null,
@@ -513,7 +528,7 @@ export default function ProductsCatalogPage({
                         onAction={() => router.push(`/produits/${p.id}`)}
                         onDoubleClick={() => router.push(`/produits/${p.id}`)}
                         imageSlot={
-                          imageSrc ? (
+                          imageSrc || videoSrc ? (
                             <div className="relative h-full w-full overflow-hidden">
                               <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
                                 {isInstant ? (
@@ -534,13 +549,26 @@ export default function ProductsCatalogPage({
                               </div>
 
                               <div className="absolute inset-0 transition-transform duration-300 group-hover:scale-[1.04] motion-reduce:transform-none">
-                                <Image
-                                  src={imageSrc}
-                                  alt={displayTitle}
-                                  fill
-                                  className="object-cover"
-                                  sizes="(min-width: 1024px) 360px, 90vw"
-                                />
+                                {videoSrc ? (
+                                  <video
+                                    src={videoSrc}
+                                    autoPlay
+                                    muted
+                                    loop
+                                    playsInline
+                                    preload="metadata"
+                                    controls={false}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <Image
+                                    src={imageSrc as string}
+                                    alt={displayTitle}
+                                    fill
+                                    className="object-cover"
+                                    sizes="(min-width: 1024px) 360px, 90vw"
+                                  />
+                                )}
                               </div>
                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent" />
                             </div>

@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-
-const RAMADAN_END_AT = new Date("2026-03-05T23:59:59").getTime();
+import { API_BASE } from "@/lib/config";
 
 const formatCountdown = (remainingMs: number): string => {
   if (remainingMs <= 0) return "00j 00h 00m 00s";
@@ -25,26 +24,81 @@ export default function RamadanOverlay({
 }) {
   const starsRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
-  const [remaining, setRemaining] = useState(() => Math.max(0, RAMADAN_END_AT - Date.now()));
+  const [endsAt, setEndsAt] = useState<number>(0);
+  const [winnerNames, setWinnerNames] = useState<{ first: string; second: string; third: string }>({
+    first: "",
+    second: "",
+    third: "",
+  });
+  const [tournamentName, setTournamentName] = useState("");
+  const [remaining, setRemaining] = useState(0);
 
   const isExpired = remaining <= 0;
 
   useEffect(() => {
-    const shouldShow = Date.now() < RAMADAN_END_AT;
-    setVisible(shouldShow);
+    let active = true;
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/tournaments/ramadan-winners`, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+        const payload = (await res.json().catch(() => null)) as
+          | {
+              active?: boolean;
+              expires_at?: string;
+              tournament?: { name?: string };
+              winners?: Array<{ place?: number; name?: string }>;
+            }
+          | null;
+
+        if (!active) return;
+
+        if (!res.ok || !payload?.active || !payload?.expires_at) {
+          setVisible(false);
+          return;
+        }
+
+        const expiry = new Date(payload.expires_at).getTime();
+        if (!Number.isFinite(expiry) || expiry <= Date.now()) {
+          setVisible(false);
+          return;
+        }
+
+        const findName = (place: number) =>
+          String(payload?.winners?.find((winner) => Number(winner?.place ?? 0) === place)?.name ?? "").trim();
+
+        setWinnerNames({
+          first: findName(1),
+          second: findName(2),
+          third: findName(3),
+        });
+        setTournamentName(String(payload?.tournament?.name ?? "").trim());
+        setEndsAt(expiry);
+        setRemaining(Math.max(0, expiry - Date.now()));
+        setVisible(true);
+      } catch {
+        if (active) setVisible(false);
+      }
+    };
+
+    void load();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || !endsAt) return;
     document.body.style.overflow = "hidden";
     const timer = window.setInterval(() => {
-      setRemaining(Math.max(0, RAMADAN_END_AT - Date.now()));
+      setRemaining(Math.max(0, endsAt - Date.now()));
     }, 1000);
     return () => {
       window.clearInterval(timer);
       document.body.style.overflow = "";
     };
-  }, [visible]);
+  }, [endsAt, visible]);
 
   useEffect(() => {
     if (!visible || isExpired) return;
@@ -83,8 +137,10 @@ export default function RamadanOverlay({
 
       <div className="ramadan-content">
         <h1>Bonne fête de Ramadan</h1>
-        <p>Que ce mois sacré vous apporte paix et réussite</p>
-        <p className="ramadan-countdown">Se termine dans {countdown}</p>
+        <p>Félicitations aux gagnants du tournoi Ramadan</p>
+        {tournamentName ? <p className="ramadan-countdown">{tournamentName}</p> : null}
+        <p className="ramadan-countdown">1er: {winnerNames.first || "—"} • 2e: {winnerNames.second || "—"} • 3e: {winnerNames.third || "—"}</p>
+        <p className="ramadan-countdown">Disparaît dans {countdown}</p>
 
         <div className="ramadan-actions">
           {hasRegisteredTournament ? (

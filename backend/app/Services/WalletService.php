@@ -28,6 +28,8 @@ class WalletService
                 'currency' => 'FCFA',
                 'balance' => 0,
                 'bonus_balance' => 0,
+                'reward_balance' => 0,
+                'reward_min_purchase_amount' => null,
                 'bonus_expires_at' => null,
                 'status' => 'active',
             ]
@@ -59,6 +61,8 @@ class WalletService
                     'currency' => 'FCFA',
                     'balance' => 0,
                     'bonus_balance' => 0,
+                    'reward_balance' => 0,
+                    'reward_min_purchase_amount' => null,
                     'bonus_expires_at' => null,
                     'status' => 'active',
                 ]);
@@ -151,6 +155,8 @@ class WalletService
                     'currency' => 'FCFA',
                     'balance' => 0,
                     'bonus_balance' => 0,
+                    'reward_balance' => 0,
+                    'reward_min_purchase_amount' => null,
                     'bonus_expires_at' => null,
                     'status' => 'active',
                 ]);

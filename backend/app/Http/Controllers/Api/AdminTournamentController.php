@@ -6,7 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Mail\TemplatedNotification;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
+use App\Models\TournamentReward;
+use App\Models\WalletAccount;
+use App\Models\WalletTransaction;
 use App\Services\LoggedEmailService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -152,6 +156,132 @@ class AdminTournamentController extends Controller
         ]);
     }
 
+    public function publishRewards(Request $request, Tournament $tournament)
+    {
+        $payload = $request->validate([
+            'first_user_id' => ['required', 'integer', 'distinct'],
+            'second_user_id' => ['required', 'integer', 'different:first_user_id', 'distinct'],
+            'third_user_id' => ['required', 'integer', 'different:first_user_id', 'different:second_user_id', 'distinct'],
+        ]);
+
+        $registrationUserIds = TournamentRegistration::query()
+            ->where('tournament_id', $tournament->id)
+            ->pluck('user_id')
+            ->map(fn ($value) => (int) $value)
+            ->all();
+
+        $registered = array_flip($registrationUserIds);
+        $places = [
+            1 => (int) $payload['first_user_id'],
+            2 => (int) $payload['second_user_id'],
+            3 => (int) $payload['third_user_id'],
+        ];
+
+        foreach ($places as $place => $userId) {
+            if (!isset($registered[$userId])) {
+                return response()->json([
+                    'message' => "Le gagnant place {$place} doit être inscrit au tournoi.",
+                ], 422);
+            }
+        }
+
+        $rewardByPlace = [
+            1 => 9500,
+            2 => 8000,
+            3 => 1500,
+        ];
+
+        DB::transaction(function () use ($tournament, $places, $rewardByPlace) {
+            TournamentReward::query()->where('tournament_id', $tournament->id)->delete();
+
+            foreach ($places as $place => $userId) {
+                $amount = (int) ($rewardByPlace[$place] ?? 0);
+                $minPurchase = $amount;
+
+                TournamentReward::create([
+                    'tournament_id' => $tournament->id,
+                    'place' => $place,
+                    'user_id' => $userId,
+                    'reward_amount_fcfa' => $amount,
+                    'min_purchase_amount_fcfa' => $minPurchase,
+                    'credited_at' => now(),
+                ]);
+
+                $wallet = WalletAccount::where('user_id', $userId)->lockForUpdate()->first();
+                if (!$wallet) {
+                    $wallet = WalletAccount::create([
+                        'user_id' => $userId,
+                        'wallet_id' => 'DBW-' . (string) Str::ulid(),
+                        'currency' => 'FCFA',
+                        'balance' => 0,
+                        'bonus_balance' => 0,
+                        'reward_balance' => 0,
+                        'reward_min_purchase_amount' => null,
+                        'bonus_expires_at' => null,
+                        'status' => 'active',
+                    ]);
+                    $wallet = WalletAccount::where('id', $wallet->id)->lockForUpdate()->first();
+                }
+
+                if (empty($wallet->wallet_id)) {
+                    $wallet->wallet_id = 'DBW-' . (string) Str::ulid();
+                }
+
+                $wallet->reward_balance = (float) ($wallet->reward_balance ?? 0) + $amount;
+
+                $existingMin = (float) ($wallet->reward_min_purchase_amount ?? 0);
+                if ($existingMin <= 0) {
+                    $wallet->reward_min_purchase_amount = $minPurchase;
+                } else {
+                    $wallet->reward_min_purchase_amount = max($existingMin, $minPurchase);
+                }
+
+                $wallet->save();
+
+                WalletTransaction::create([
+                    'wallet_account_id' => $wallet->id,
+                    'wallet_bucket' => 'reward',
+                    'type' => 'credit',
+                    'amount' => $amount,
+                    'reference' => 'TRW-' . $tournament->id . '-' . $place . '-' . strtoupper(Str::random(10)),
+                    'meta' => [
+                        'type' => 'tournament_reward_credit',
+                        'tournament_id' => $tournament->id,
+                        'place' => $place,
+                        'min_purchase_amount_fcfa' => $minPurchase,
+                    ],
+                    'status' => 'success',
+                ]);
+            }
+
+            $tournament->rewards_published_at = now();
+            $tournament->rewards_banner_expires_at = now()->addDays(2);
+            $tournament->save();
+        });
+
+        $tournament->refresh();
+        $tournament->load(['rewards.user:id,name,email']);
+
+        $this->sendRewardAnnouncementEmails($tournament);
+
+        return response()->json([
+            'message' => 'Récompenses publiées avec succès.',
+            'tournament_id' => $tournament->id,
+            'rewards_published_at' => $tournament->rewards_published_at,
+            'rewards_banner_expires_at' => $tournament->rewards_banner_expires_at,
+            'winners' => $tournament->rewards
+                ->sortBy('place')
+                ->values()
+                ->map(fn (TournamentReward $reward) => [
+                    'place' => (int) $reward->place,
+                    'user_id' => (int) $reward->user_id,
+                    'user_name' => (string) ($reward->user?->name ?? ''),
+                    'reward_amount_fcfa' => (int) $reward->reward_amount_fcfa,
+                    'min_purchase_amount_fcfa' => (int) $reward->min_purchase_amount_fcfa,
+                ]),
+        ]);
+    }
+
     private function validated(Request $request, ?int $ignoreId = null, bool $partial = false): array
     {
         $required = $partial ? 'sometimes' : 'required';
@@ -274,6 +404,125 @@ class AdminTournamentController extends Controller
                 [
                     'tournament_id' => $tournament->id,
                     'registration_id' => $registration->id,
+                ]
+            );
+        }
+    }
+
+    private function sendRewardAnnouncementEmails(Tournament $tournament): void
+    {
+        $tournament->loadMissing(['rewards.user:id,name,email']);
+
+        $rewardRows = $tournament->rewards
+            ->sortBy('place')
+            ->values();
+
+        if ($rewardRows->isEmpty()) {
+            return;
+        }
+
+        $registrations = TournamentRegistration::query()
+            ->with('user:id,name,email')
+            ->where('tournament_id', $tournament->id)
+            ->get();
+
+        /** @var LoggedEmailService $logged */
+        $logged = app(LoggedEmailService::class);
+
+        $subjectAll = 'Résultats du tournoi - ' . $tournament->name;
+        $tournamentUrl = $this->frontendUrl('/tournois/' . $tournament->slug);
+
+        $winnerDetails = $rewardRows->map(function (TournamentReward $reward) {
+            $place = (int) $reward->place;
+            $placeLabel = $place === 1 ? '1ère place' : $place . 'ème place';
+            return [
+                'label' => $placeLabel,
+                'value' => trim(sprintf('%s - %s FCFA', (string) ($reward->user?->name ?? 'Gagnant'), number_format((int) $reward->reward_amount_fcfa, 0, ',', ' '))),
+            ];
+        })->all();
+
+        foreach ($registrations as $registration) {
+            $user = $registration->user;
+            if (!$user || empty($user->email)) {
+                continue;
+            }
+
+            $mailable = new TemplatedNotification(
+                'tournament_rewards_published',
+                $subjectAll,
+                [
+                    'tournament' => $tournament->toArray(),
+                    'registration' => $registration->toArray(),
+                    'winners' => $rewardRows->map(fn (TournamentReward $reward) => [
+                        'place' => (int) $reward->place,
+                        'name' => (string) ($reward->user?->name ?? ''),
+                        'amount' => (int) $reward->reward_amount_fcfa,
+                    ])->all(),
+                ],
+                [
+                    'title' => $subjectAll,
+                    'headline' => 'Classement du tournoi',
+                    'intro' => 'Les gagnants ont été annoncés. Merci pour votre participation.',
+                    'details' => $winnerDetails,
+                    'actionUrl' => $tournamentUrl,
+                    'actionText' => 'Voir le tournoi',
+                ]
+            );
+
+            $logged->queue(
+                $user->id,
+                (string) $user->email,
+                'tournament_rewards_published',
+                $subjectAll,
+                $mailable,
+                [
+                    'tournament_id' => $tournament->id,
+                    'registration_id' => $registration->id,
+                ]
+            );
+        }
+
+        foreach ($rewardRows as $reward) {
+            $winner = $reward->user;
+            if (!$winner || empty($winner->email)) {
+                continue;
+            }
+
+            $subjectWinner = 'Félicitations ! Récompense créditée - ' . $tournament->name;
+
+            $winnerMail = new TemplatedNotification(
+                'tournament_reward_winner',
+                $subjectWinner,
+                [
+                    'tournament' => $tournament->toArray(),
+                    'winner' => $winner->toArray(),
+                    'reward' => $reward->toArray(),
+                ],
+                [
+                    'title' => $subjectWinner,
+                    'headline' => 'Votre récompense est disponible',
+                    'intro' => 'Votre gain a été crédité dans votre wallet récompense.',
+                    'details' => [
+                        ['label' => 'Tournoi', 'value' => (string) $tournament->name],
+                        ['label' => 'Classement', 'value' => (string) ((int) $reward->place . 'e place')],
+                        ['label' => 'Montant', 'value' => number_format((int) $reward->reward_amount_fcfa, 0, ',', ' ') . ' FCFA'],
+                        ['label' => 'Achat minimum', 'value' => number_format((int) $reward->min_purchase_amount_fcfa, 0, ',', ' ') . ' FCFA'],
+                    ],
+                    'actionUrl' => $this->frontendUrl('/wallet'),
+                    'actionText' => 'Ouvrir mon wallet',
+                ]
+            );
+
+            $logged->queue(
+                $winner->id,
+                (string) $winner->email,
+                'tournament_reward_winner',
+                $subjectWinner,
+                $winnerMail,
+                [
+                    'tournament_id' => $tournament->id,
+                    'reward_place' => (int) $reward->place,
+                    'reward_amount_fcfa' => (int) $reward->reward_amount_fcfa,
                 ]
             );
         }

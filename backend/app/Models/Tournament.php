@@ -33,6 +33,8 @@ class Tournament extends Model
         'requirements',
         'reward_rules',
         'planning_notes',
+        'rewards_published_at',
+        'rewards_banner_expires_at',
         'stream_url',
         'contact_email',
         'image',
@@ -57,6 +59,8 @@ class Tournament extends Model
         'ends_at' => 'datetime',
         'registration_deadline' => 'datetime',
         'first_match_at' => 'datetime',
+        'rewards_published_at' => 'datetime',
+        'rewards_banner_expires_at' => 'datetime',
         'sponsors' => 'array',
     ];
 
@@ -68,5 +72,10 @@ class Tournament extends Model
     public function registrations(): HasMany
     {
         return $this->hasMany(TournamentRegistration::class);
+    }
+
+    public function rewards(): HasMany
+    {
+        return $this->hasMany(TournamentReward::class)->orderBy('place');
     }
 }

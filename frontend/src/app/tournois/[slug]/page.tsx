@@ -35,6 +35,11 @@ export default function TournamentDetailsPage() {
   const [tab, setTab] = useState<"overview" | "prizes">("overview");
   const [registering, setRegistering] = useState(false);
   const [registerMessage, setRegisterMessage] = useState<string>("");
+  const [registerModal, setRegisterModal] = useState<{ open: boolean; title: string; message: string }>({
+    open: false,
+    title: "",
+    message: "",
+  });
   const [gamePlayerId, setGamePlayerId] = useState("");
 
   useEffect(() => {
@@ -88,7 +93,11 @@ export default function TournamentDetailsPage() {
 
     const token = window.localStorage.getItem("bbshop_token");
     if (!token) {
-      setRegisterMessage("Connectez-vous pour vous inscrire.");
+      setRegisterModal({
+        open: true,
+        title: "Connexion requise",
+        message: "Veuillez vous connecter.",
+      });
       return;
     }
 
@@ -121,6 +130,11 @@ export default function TournamentDetailsPage() {
         if (refreshed) setItem(refreshed);
       }
       setRegisterMessage(payload?.message ?? "Inscription confirmée.");
+      setRegisterModal({
+        open: true,
+        title: "Inscription validée",
+        message: "Merci de votre inscription.",
+      });
     } catch {
       setRegisterMessage("Inscription impossible.");
     } finally {
@@ -148,7 +162,8 @@ export default function TournamentDetailsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#0c2146_0%,#030712_45%,#02050d_100%)] px-4 pb-24 pt-24 text-white sm:px-6">
+    <>
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top,#0c2146_0%,#030712_45%,#02050d_100%)] px-4 pb-24 pt-24 text-white sm:px-6">
       <section className="mx-auto max-w-6xl">
         <div className="relative overflow-hidden rounded-3xl border border-white/10">
           <img
@@ -261,6 +276,25 @@ export default function TournamentDetailsPage() {
           </aside>
         </div>
       </section>
-    </main>
+      </main>
+
+      {registerModal.open ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/60 px-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 bg-[#101d33] p-6 text-white shadow-2xl">
+            <h3 className="text-xl font-bold">{registerModal.title}</h3>
+            <p className="mt-2 text-sm text-white/80">{registerModal.message}</p>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setRegisterModal({ open: false, title: "", message: "" })}
+                className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-white"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

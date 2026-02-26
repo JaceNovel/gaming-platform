@@ -26,8 +26,10 @@ function CheckoutScreen() {
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [walletBonusBalance, setWalletBonusBalance] = useState<number>(0);
   const [walletBonusExpiresAt, setWalletBonusExpiresAt] = useState<string | null>(null);
+  const [rewardWalletBalance, setRewardWalletBalance] = useState<number>(0);
+  const [rewardMinPurchaseAmount, setRewardMinPurchaseAmount] = useState<number>(0);
   const [walletLoading, setWalletLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
+  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet" | "wallet_reward">("fedapay");
 
   const [shippingMapsUrl, setShippingMapsUrl] = useState("");
   const [shippingCity, setShippingCity] = useState("");
@@ -120,6 +122,15 @@ function CheckoutScreen() {
           const bonusValue = typeof data?.bonus_balance === "number" ? data.bonus_balance : Number(data?.bonus_balance ?? 0);
           setWalletBonusBalance(Number.isFinite(bonusValue) ? bonusValue : 0);
           setWalletBonusExpiresAt(typeof data?.bonus_expires_at === "string" ? data.bonus_expires_at : null);
+
+          const rewardValue = typeof data?.reward_balance === "number" ? data.reward_balance : Number(data?.reward_balance ?? 0);
+          setRewardWalletBalance(Number.isFinite(rewardValue) ? rewardValue : 0);
+
+          const minRewardValue =
+            typeof data?.reward_min_purchase_amount === "number"
+              ? data.reward_min_purchase_amount
+              : Number(data?.reward_min_purchase_amount ?? 0);
+          setRewardMinPurchaseAmount(Number.isFinite(minRewardValue) ? minRewardValue : 0);
         }
       } catch {
         // ignore
@@ -247,6 +258,24 @@ function CheckoutScreen() {
         return;
       }
 
+      if (paymentMethod === "wallet_reward") {
+        const payRewardRes = await authFetch(`${API_BASE}/payments/wallet-reward/pay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order_id: orderId }),
+        });
+
+        const payRewardPayload = await payRewardRes.json().catch(() => null);
+        if (!payRewardRes.ok) {
+          setStatus(payRewardPayload?.message ?? "Paiement wallet récompense impossible.");
+          return;
+        }
+
+        setStatus("Paiement wallet récompense réussi.");
+        router.replace(`/account?payment_status=success&order=${encodeURIComponent(String(orderId))}`);
+        return;
+      }
+
       const currency = String(order?.currency ?? "XOF").toUpperCase();
       const customer = buildCustomerPayload();
 
@@ -328,11 +357,25 @@ function CheckoutScreen() {
     return walletAvailable + 0.0001 >= estimatedTotal;
   }, [estimatedTotal, walletAvailable, walletLoading]);
 
+  const rewardWalletPayable = useMemo(() => {
+    if (walletLoading) return false;
+    if (!(rewardWalletBalance > 0)) return false;
+    if (!Number.isFinite(estimatedTotal) || estimatedTotal <= 0) return false;
+    if (rewardWalletBalance + 0.0001 < estimatedTotal) return false;
+    if (rewardMinPurchaseAmount > 0 && estimatedTotal + 0.0001 < rewardMinPurchaseAmount) return false;
+    return true;
+  }, [estimatedTotal, rewardMinPurchaseAmount, rewardWalletBalance, walletLoading]);
+
   useEffect(() => {
     if (paymentMethod === "wallet" && !walletPayable) {
       setPaymentMethod("fedapay");
+      return;
     }
-  }, [paymentMethod, walletPayable]);
+
+    if (paymentMethod === "wallet_reward" && !rewardWalletPayable) {
+      setPaymentMethod("fedapay");
+    }
+  }, [paymentMethod, rewardWalletPayable, walletPayable]);
 
   return (
     <div className="min-h-screen pb-24">
@@ -433,6 +476,27 @@ function CheckoutScreen() {
                 <span className="text-xs text-white/50">(solde insuffisant)</span>
               ) : null}
             </label>
+
+            {rewardWalletBalance > 0 ? (
+              <label className="flex items-center gap-2 text-sm text-white/80">
+                <input
+                  type="radio"
+                  name="payment_method"
+                  value="wallet_reward"
+                  checked={paymentMethod === "wallet_reward"}
+                  onChange={() => setPaymentMethod("wallet_reward")}
+                  disabled={!rewardWalletPayable}
+                />
+                Wallet récompense {walletLoading ? "(chargement...)" : `(dispo: ${Math.floor(rewardWalletBalance)} FCFA)`}
+                {!rewardWalletPayable && !walletLoading ? (
+                  <span className="text-xs text-white/50">
+                    {rewardMinPurchaseAmount > 0
+                      ? `(achat >= ${Math.floor(rewardMinPurchaseAmount)} FCFA)`
+                      : "(solde insuffisant)"}
+                  </span>
+                ) : null}
+              </label>
+            ) : null}
           </div>
 
           <label className="text-sm text-white/70">Quantité</label>

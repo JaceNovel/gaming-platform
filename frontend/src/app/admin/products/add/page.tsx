@@ -82,6 +82,9 @@ export default function AdminProductsAddPage() {
   const [bannerUrl, setBannerUrl] = useState("");
   const [accountImages, setAccountImages] = useState<string[]>([""]);
   const [accountImageFiles, setAccountImageFiles] = useState<File[]>([]);
+  const [useVideo, setUseVideo] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [imagePreviewError, setImagePreviewError] = useState(false);
   const [bannerPreviewError, setBannerPreviewError] = useState(false);
   const isLikelyImageUrl = (value: string) => {
@@ -230,6 +233,14 @@ export default function AdminProductsAddPage() {
     setDeliveryEstimateLabel("");
   }, [deliveryEstimateLabel, displaySection, type]);
 
+  useEffect(() => {
+    return () => {
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
+    };
+  }, [videoPreviewUrl]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("");
@@ -363,6 +374,24 @@ export default function AdminProductsAddPage() {
         }
       }
 
+      if (productId && useVideo && videoFile) {
+        const form = new FormData();
+        form.append("video", videoFile);
+        const up = await fetch(`${API_BASE}/admin/products/${productId}/video`, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+            ...getAuthHeaders(),
+          },
+          body: form,
+        });
+        if (!up.ok) {
+          const err = await up.json().catch(() => ({}));
+          throw new Error(err?.message ?? "Upload vidéo impossible");
+        }
+      }
+
       setName("");
       setDescription("");
       setServerTags("");
@@ -387,10 +416,17 @@ export default function AdminProductsAddPage() {
       setBannerUrl("");
       setAccountImages([""]);
       setAccountImageFiles([]);
+      setUseVideo(false);
+      setVideoFile(null);
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
+      setVideoPreviewUrl(null);
       setRedeemEnabled(false);
       setRedeemCodesText("");
       if (!redeemEnabled) {
-        setStatus(accountImageFiles.length ? "Produit ajouté + images uploadées." : "Produit ajouté.");
+        const mediaDone = accountImageFiles.length || (useVideo && !!videoFile);
+        setStatus(mediaDone ? "Produit ajouté + médias uploadés." : "Produit ajouté.");
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Création impossible";
@@ -599,6 +635,46 @@ export default function AdminProductsAddPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-base font-semibold">Visuels du produit</h3>
             <div className="mt-6 space-y-4">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={useVideo}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setUseVideo(next);
+                    if (!next) {
+                      setVideoFile(null);
+                      if (videoPreviewUrl) {
+                        URL.revokeObjectURL(videoPreviewUrl);
+                      }
+                      setVideoPreviewUrl(null);
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                Vidéo produit (au lieu de l&apos;image principale)
+              </label>
+
+              {useVideo ? (
+                <div>
+                  <label className="text-sm font-medium">Uploader une vidéo (PC / téléphone)</label>
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,video/x-m4v,video/*"
+                    onChange={(e) => {
+                      const nextFile = e.target.files?.[0] ?? null;
+                      setVideoFile(nextFile);
+                      if (videoPreviewUrl) {
+                        URL.revokeObjectURL(videoPreviewUrl);
+                      }
+                      setVideoPreviewUrl(nextFile ? URL.createObjectURL(nextFile) : null);
+                    }}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm"
+                  />
+                  <p className="mt-2 text-xs text-slate-500">La vidéo sera visible sur la carte produit et la page détail.</p>
+                </div>
+              ) : null}
+
               <div>
                 <label className="text-sm font-medium">Image principale (URL)</label>
                 <input
@@ -608,6 +684,7 @@ export default function AdminProductsAddPage() {
                     setImagePreviewError(false);
                   }}
                   type="url"
+                  disabled={useVideo}
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                   placeholder="https://..."
                 />
@@ -622,10 +699,25 @@ export default function AdminProductsAddPage() {
                     setBannerPreviewError(false);
                   }}
                   type="url"
+                  disabled={useVideo}
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"
                   placeholder="https://..."
                 />
               </div>
+              {useVideo && videoPreviewUrl ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 p-4">
+                  <p className="text-xs font-semibold text-slate-500">Prévisualisation vidéo</p>
+                  <video
+                    src={videoPreviewUrl}
+                    muted
+                    loop
+                    autoPlay
+                    playsInline
+                    controls={false}
+                    className="mt-2 h-44 w-full rounded-xl object-cover"
+                  />
+                </div>
+              ) : null}
               {(imageUrl || bannerUrl) && (
                 <div className="grid gap-4 rounded-2xl border border-dashed border-slate-200 p-4 text-center md:grid-cols-2">
                   <div>
