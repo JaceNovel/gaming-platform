@@ -35,6 +35,7 @@ export default function TournamentDetailsPage() {
   const [tab, setTab] = useState<"overview" | "prizes">("overview");
   const [registering, setRegistering] = useState(false);
   const [registerMessage, setRegisterMessage] = useState<string>("");
+  const [isRegistered, setIsRegistered] = useState(false);
   const [registerModal, setRegisterModal] = useState<{ open: boolean; title: string; message: string }>({
     open: false,
     title: "",
@@ -74,6 +75,55 @@ export default function TournamentDetailsPage() {
     };
   }, [slug]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadRegistration = async () => {
+      if (!item?.id) return;
+      if (typeof window === "undefined") return;
+
+      const token = window.localStorage.getItem("bbshop_token");
+      if (!token) {
+        if (active) setIsRegistered(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/tournaments/registrations/mine`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          if (active) setIsRegistered(false);
+          return;
+        }
+
+        const payload = (await res.json().catch(() => null)) as
+          | { data?: Array<{ tournament_id?: number; game_player_id?: string | null }> }
+          | null;
+
+        const rows = Array.isArray(payload?.data) ? payload.data : [];
+        const mine = rows.find((row) => Number(row?.tournament_id ?? 0) === Number(item.id));
+        if (!active) return;
+        setIsRegistered(Boolean(mine));
+        if (mine?.game_player_id && !gamePlayerId.trim()) {
+          setGamePlayerId(String(mine.game_player_id));
+        }
+      } catch {
+        if (active) setIsRegistered(false);
+      }
+    };
+
+    void loadRegistration();
+    return () => {
+      active = false;
+    };
+  }, [item?.id]);
+
   const participants = useMemo(() => {
     const max = Math.max(1, Number(item?.max_participants ?? 0));
     const current = Math.min(max, Math.max(0, Number(item?.registered_participants ?? 0)));
@@ -84,6 +134,7 @@ export default function TournamentDetailsPage() {
   const handleRegister = async () => {
     if (!item?.id || !slug || registering) return;
     if (typeof window === "undefined") return;
+    if (isRegistered) return;
 
     const normalizedGamePlayerId = gamePlayerId.trim();
     if (!normalizedGamePlayerId) {
@@ -120,6 +171,8 @@ export default function TournamentDetailsPage() {
         setRegisterMessage(payload?.message ?? "Inscription impossible.");
         return;
       }
+
+      setIsRegistered(true);
 
       const refresh = await fetch(`${API_BASE}/tournaments/${encodeURIComponent(slug)}`, {
         cache: "no-store",
@@ -244,24 +297,41 @@ export default function TournamentDetailsPage() {
               <span>{item.is_free ? "Gratuit" : `${formatNumber(Number(item.entry_fee_fcfa ?? 0))} FCFA`}</span>
             </div>
 
-            <div className="mt-4">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-white/60">ID de jeu</label>
-              <input
-                value={gamePlayerId}
-                onChange={(event) => setGamePlayerId(event.target.value)}
-                placeholder="Entrez votre ID de jeu"
-                className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-white/45"
-              />
-            </div>
+            {isRegistered ? (
+              <>
+                <div className="mt-4 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100">
+                  Vous êtes déjà inscrit.
+                </div>
+                <button
+                  type="button"
+                  disabled
+                  className="mt-5 w-full cursor-not-allowed rounded-xl bg-white/10 py-3 text-sm font-bold text-white/85 ring-1 ring-white/15"
+                >
+                  Vous êtes déjà inscrit
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="mt-4">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-white/60">ID de jeu</label>
+                  <input
+                    value={gamePlayerId}
+                    onChange={(event) => setGamePlayerId(event.target.value)}
+                    placeholder="Entrez votre ID de jeu"
+                    className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-white/45"
+                  />
+                </div>
 
-            <button
-              type="button"
-              onClick={handleRegister}
-              disabled={registering}
-              className="mt-5 w-full rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-400 py-3 text-sm font-bold text-white disabled:opacity-60"
-            >
-              {registering ? "Inscription..." : "S'inscrire maintenant"}
-            </button>
+                <button
+                  type="button"
+                  onClick={handleRegister}
+                  disabled={registering}
+                  className="mt-5 w-full rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-400 py-3 text-sm font-bold text-white disabled:opacity-60"
+                >
+                  {registering ? "Inscription..." : "S'inscrire maintenant"}
+                </button>
+              </>
+            )}
             {registerMessage ? <p className="mt-2 text-xs text-cyan-100">{registerMessage}</p> : null}
 
             <div className="mt-6 text-sm text-white/70">

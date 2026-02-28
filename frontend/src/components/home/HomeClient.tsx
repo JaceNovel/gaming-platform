@@ -140,6 +140,7 @@ export default function HomeClient() {
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [hasTournaments, setHasTournaments] = useState(false);
   const [hasRegisteredTournament, setHasRegisteredTournament] = useState(false);
+  const [activeTournamentEndsAt, setActiveTournamentEndsAt] = useState<number>(0);
   const [desktopStart, setDesktopStart] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
 
@@ -154,13 +155,18 @@ export default function HomeClient() {
         });
         if (!res.ok) return;
         const payload = await res.json().catch(() => null) as
-          | { data?: Array<{ id?: number | string }> }
+          | { data?: Array<{ id?: number | string; ends_at?: string | null }> }
           | null;
         if (!active) return;
-        setHasTournaments(Array.isArray(payload?.data) && payload.data.length > 0);
+        const first = Array.isArray(payload?.data) ? payload.data[0] : null;
+        const hasAny = Array.isArray(payload?.data) && payload.data.length > 0;
+        setHasTournaments(hasAny);
+        const endsMs = first?.ends_at ? new Date(first.ends_at).getTime() : 0;
+        setActiveTournamentEndsAt(Number.isFinite(endsMs) ? endsMs : 0);
       } catch {
         if (!active) return;
         setHasTournaments(false);
+        setActiveTournamentEndsAt(0);
       }
     };
 
@@ -434,7 +440,11 @@ export default function HomeClient() {
       className="relative min-h-[100dvh] bg-transparent text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
       style={{ paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}
     >
-      <RamadanOverlay hasTournaments={hasTournaments} hasRegisteredTournament={hasRegisteredTournament} />
+      <RamadanOverlay
+        hasTournaments={hasTournaments}
+        hasRegisteredTournament={hasRegisteredTournament}
+        activeTournamentEndsAt={activeTournamentEndsAt}
+      />
       <ImmersiveBackground
         imageSrc="/badboyshop-home.png"
         overlayClassName="bg-black/55"
@@ -474,6 +484,34 @@ export default function HomeClient() {
           <p className="mx-auto mt-2 max-w-[560px] text-sm font-semibold text-cyan-200/90 sm:text-base">
             Le gaming sans attente, sans risque, sans stress.
           </p>
+
+          <div className="mx-auto mt-6 w-full max-w-xl rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">Planning Tournois</p>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="/tournois"
+                className="inline-flex items-center justify-center rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15"
+              >
+                Tournois
+              </Link>
+              {hasTournaments ? (
+                <Link
+                  href="/tournois"
+                  className="inline-flex items-center justify-center rounded-xl bg-cyan-500/80 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-400"
+                >
+                  Participer au tournois
+                </Link>
+              ) : null}
+              {hasRegisteredTournament ? (
+                <Link
+                  href="/tournois/planning"
+                  className="inline-flex items-center justify-center rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15"
+                >
+                  Voir planning
+                </Link>
+              ) : null}
+            </div>
+          </div>
 
           <div className="mx-auto mt-5 w-full max-w-3xl">
             <div className="mx-auto h-px w-40 bg-white/12" />

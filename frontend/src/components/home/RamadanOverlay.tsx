@@ -18,9 +18,11 @@ const formatCountdown = (remainingMs: number): string => {
 export default function RamadanOverlay({
   hasTournaments,
   hasRegisteredTournament,
+  activeTournamentEndsAt,
 }: {
   hasTournaments: boolean;
   hasRegisteredTournament: boolean;
+  activeTournamentEndsAt?: number;
 }) {
   const starsRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -59,7 +61,12 @@ export default function RamadanOverlay({
           return;
         }
 
-        const expiry = new Date(payload.expires_at).getTime();
+        const expiryFromApi = new Date(payload.expires_at).getTime();
+        const expiry = Math.max(
+          Number.isFinite(expiryFromApi) ? expiryFromApi : 0,
+          Number.isFinite(activeTournamentEndsAt ?? 0) ? Number(activeTournamentEndsAt) : 0,
+        );
+
         if (!Number.isFinite(expiry) || expiry <= Date.now()) {
           setVisible(false);
           return;
@@ -86,7 +93,7 @@ export default function RamadanOverlay({
     return () => {
       active = false;
     };
-  }, []);
+  }, [activeTournamentEndsAt]);
 
   useEffect(() => {
     if (!visible || !endsAt) return;

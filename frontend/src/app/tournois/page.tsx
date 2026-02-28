@@ -35,6 +35,7 @@ export default function TournamentsPage() {
   const [items, setItems] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [registeredTournamentIds, setRegisteredTournamentIds] = useState<Set<number>>(() => new Set());
 
   useEffect(() => {
     let active = true;
@@ -60,6 +61,52 @@ export default function TournamentsPage() {
     };
 
     void load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadMine = async () => {
+      if (typeof window === "undefined") return;
+      const token = window.localStorage.getItem("bbshop_token");
+      if (!token) {
+        if (active) setRegisteredTournamentIds(new Set());
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/tournaments/registrations/mine`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          if (active) setRegisteredTournamentIds(new Set());
+          return;
+        }
+
+        const payload = (await res.json().catch(() => null)) as
+          | { data?: Array<{ tournament_id?: number }> }
+          | null;
+        const ids = new Set<number>();
+        for (const row of Array.isArray(payload?.data) ? payload.data : []) {
+          const id = Number(row?.tournament_id ?? 0);
+          if (Number.isFinite(id) && id > 0) ids.add(id);
+        }
+        if (!active) return;
+        setRegisteredTournamentIds(ids);
+      } catch {
+        if (active) setRegisteredTournamentIds(new Set());
+      }
+    };
+
+    void loadMine();
     return () => {
       active = false;
     };
@@ -115,6 +162,7 @@ export default function TournamentsPage() {
                 const max = Math.max(1, Number(tournament.max_participants ?? 0));
                 const current = Math.min(max, Math.max(0, Number(tournament.registered_participants ?? 0)));
                 const percent = Math.round((current / max) * 100);
+              const isRegistered = registeredTournamentIds.has(Number(tournament.id));
 
                 return (
                   <article
@@ -158,12 +206,18 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      <Link
-                        href={`/tournois/${tournament.slug}`}
-                        className="inline-flex w-full items-center justify-center rounded-xl bg-cyan-500 py-3 text-sm font-bold text-white transition hover:bg-cyan-400"
-                      >
-                        S'inscrire
-                      </Link>
+                      {isRegistered ? (
+                        <div className="inline-flex w-full items-center justify-center rounded-xl bg-white/10 py-3 text-sm font-bold text-white/85 ring-1 ring-white/15">
+                          Vous êtes déjà inscrit
+                        </div>
+                      ) : (
+                        <Link
+                          href={`/tournois/${tournament.slug}`}
+                          className="inline-flex w-full items-center justify-center rounded-xl bg-cyan-500 py-3 text-sm font-bold text-white transition hover:bg-cyan-400"
+                        >
+                          S'inscrire
+                        </Link>
+                      )}
                     </div>
                   </article>
                 );
