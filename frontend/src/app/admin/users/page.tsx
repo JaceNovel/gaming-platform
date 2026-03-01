@@ -58,8 +58,7 @@ export default function AdminUsersPage() {
     try {
       const res = await fetch(
         buildUrl("/admin/users", {
-          name: term,
-          email: term,
+          q: term,
           role: role === "all" ? "" : role,
           is_premium: vip === "vip" ? "1" : "",
           per_page: "100",
@@ -121,7 +120,7 @@ export default function AdminUsersPage() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Recherche rapide..."
+          placeholder="Rechercher par pseudo ou email..."
           className="w-full rounded-xl border border-slate-200 bg-white px-10 py-2 text-sm text-slate-700"
         />
       </div>

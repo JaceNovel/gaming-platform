@@ -24,12 +24,24 @@ class AdminUsersController extends Controller
             $query->where('role', $request->query('role'));
         }
 
-        if ($request->filled('email')) {
-            $query->where('email', 'like', '%' . $request->query('email') . '%');
-        }
+        $q = trim((string) $request->query('q', ''));
+        $nameTerm = trim((string) $request->query('name', ''));
+        $emailTerm = trim((string) $request->query('email', ''));
 
-        if ($request->filled('name')) {
-            $query->where('name', 'like', '%' . $request->query('name') . '%');
+        if ($q !== '') {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('name', 'like', '%' . $q . '%')
+                    ->orWhere('email', 'like', '%' . $q . '%');
+            });
+        } elseif ($nameTerm !== '' && $emailTerm !== '') {
+            $query->where(function ($sub) use ($nameTerm, $emailTerm) {
+                $sub->where('name', 'like', '%' . $nameTerm . '%')
+                    ->orWhere('email', 'like', '%' . $emailTerm . '%');
+            });
+        } elseif ($emailTerm !== '') {
+            $query->where('email', 'like', '%' . $emailTerm . '%');
+        } elseif ($nameTerm !== '') {
+            $query->where('name', 'like', '%' . $nameTerm . '%');
         }
 
         $perPage = $request->integer('per_page', 30);
