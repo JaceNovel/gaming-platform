@@ -99,6 +99,20 @@ class ProcessRedeemFulfillment implements ShouldQueue
             ->orderBy('id')
             ->get();
 
+        $existingByKey = [];
+        foreach ($existingDeliveries as $delivery) {
+            $denominationId = (int) ($delivery->redeemCode?->denomination_id ?? 0);
+            $productId = (int) ($delivery->product_id ?? 0);
+            if ($denominationId <= 0 || $productId <= 0) {
+                continue;
+            }
+
+            $key = $productId . ':' . $denominationId;
+            $existingByKey[$key] = (int) ($existingByKey[$key] ?? 0) + 1;
+        }
+
+        $consumedExistingByKey = [];
+
         $assignedCodes = [];
 
         foreach ($order->orderItems as $orderItem) {
@@ -108,13 +122,15 @@ class ProcessRedeemFulfillment implements ShouldQueue
 
             $quantity = max(1, (int) ($orderItem->quantity ?? 1));
 
-            $existingForItem = $existingDeliveries
-                ->filter(fn ($d) => (int) ($d->product_id ?? 0) === (int) ($orderItem->product_id ?? 0))
-                ->filter(fn ($d) => (int) ($d->redeemCode?->denomination_id ?? 0) === (int) $orderItem->redeem_denomination_id)
-                ->count();
+            $deliveryKey = (int) ($orderItem->product_id ?? 0) . ':' . (int) $orderItem->redeem_denomination_id;
+            $existingCountForKey = (int) ($existingByKey[$deliveryKey] ?? 0);
+            $alreadyConsumedForKey = (int) ($consumedExistingByKey[$deliveryKey] ?? 0);
+            $remainingExistingForKey = max(0, $existingCountForKey - $alreadyConsumedForKey);
+            $existingForItem = min($quantity, $remainingExistingForKey);
 
             $missing = max(0, $quantity - $existingForItem);
             if ($missing <= 0) {
+                $consumedExistingByKey[$deliveryKey] = $alreadyConsumedForKey + $quantity;
                 continue;
             }
 
@@ -122,6 +138,7 @@ class ProcessRedeemFulfillment implements ShouldQueue
                 $codes = $allocator->assignCodes($orderItem->redeemDenomination, $order, $orderItem, $missing);
                 $assignedCodes = array_merge($assignedCodes, $codes);
                 $alertService->notifyIfLowStock($orderItem->redeemDenomination);
+                $consumedExistingByKey[$deliveryKey] = $alreadyConsumedForKey + $quantity;
             } catch (RedeemStockDepletedException $e) {
                 Log::warning('Redeem stock depleted during fulfillment', [
                     'order_id' => $order->id,

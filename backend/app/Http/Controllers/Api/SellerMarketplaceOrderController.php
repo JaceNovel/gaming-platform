@@ -10,10 +10,17 @@ use App\Models\SellerStat;
 use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class SellerMarketplaceOrderController extends Controller
 {
+    private function publicUploadsDiskName(): string
+    {
+        $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+        return $diskName !== '' ? $diskName : 'public';
+    }
+
     private function frontendUrl(string $path = ''): string
     {
         $base = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
@@ -100,9 +107,28 @@ class SellerMarketplaceOrderController extends Controller
                 $file = $data['proof'];
                 $dir = "marketplace/deliveries/seller_{$order->seller_id}/order_{$order->id}";
                 $name = 'proof_' . now()->format('Ymd_His') . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs($dir, $name, ['disk' => 'local']);
+
+                $diskName = $this->publicUploadsDiskName();
+                $path = $file->storeAs($dir, $name, [
+                    'disk' => $diskName,
+                    'visibility' => 'public',
+                ]);
+
+                // Best-effort cleanup of previous file if replaced.
+                $existingFile = isset($proof['file']) && is_array($proof['file']) ? $proof['file'] : null;
+                $existingPath = is_array($existingFile) ? (string) ($existingFile['path'] ?? '') : '';
+                $existingDisk = is_array($existingFile)
+                    ? (string) ($existingFile['disk'] ?? $diskName)
+                    : $diskName;
+                if ($existingPath !== '' && ($existingPath !== $path || $existingDisk !== $diskName)) {
+                    try {
+                        Storage::disk($existingDisk)->delete($existingPath);
+                    } catch (\Throwable $e) {
+                    }
+                }
+
                 $proof['file'] = [
-                    'disk' => 'local',
+                    'disk' => $diskName,
                     'path' => $path,
                     'mime' => $file->getMimeType(),
                     'size' => $file->getSize(),

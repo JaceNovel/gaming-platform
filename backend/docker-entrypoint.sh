@@ -5,6 +5,10 @@ set -e
 mkdir -p storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache || true
 chmod -R ug+rwX storage bootstrap/cache || true
 
+PUBLIC_UPLOADS_ROOT_PATH=${PUBLIC_UPLOADS_ROOT:-/var/data/public-uploads}
+mkdir -p "$PUBLIC_UPLOADS_ROOT_PATH" || true
+chmod -R ug+rwX "$PUBLIC_UPLOADS_ROOT_PATH" || true
+
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
