@@ -162,6 +162,12 @@ Route::post('/payments/fedapay/webhook', [FedaPayWebhookController::class, 'hand
 
 Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFreeFire']);
 
+// CORS preflight fallback for API routes.
+// Ensures browsers always receive a fast 204 on OPTIONS before auth/route middlewares.
+Route::options('/{path}', function () {
+    return response()->noContent();
+})->where('path', '.*');
+
 // Web Push (public key)
 Route::get('/push/vapid-public-key', [PushController::class, 'vapidPublicKey']);
 
