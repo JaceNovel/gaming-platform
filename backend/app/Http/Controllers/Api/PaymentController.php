@@ -1203,10 +1203,22 @@ class PaymentController extends Controller
                 continue;
             }
 
+            $normalizedRedeemSku = mb_strtolower(trim((string) ($product->redeem_sku ?? '')));
+            $productHasActiveRedeemDenominations = RedeemDenomination::query()
+                ->where('active', true)
+                ->where(function ($q) use ($product, $normalizedRedeemSku) {
+                    $q->where('product_id', $product->id);
+                    if ($normalizedRedeemSku !== '') {
+                        $q->orWhereRaw('LOWER(code) = ?', [$normalizedRedeemSku]);
+                    }
+                })
+                ->exists();
+
             $requiresDenomination = ($product->stock_mode ?? 'manual') === 'redeem_pool'
                 || (bool) ($product->redeem_code_delivery ?? false)
-                || !empty($product->redeem_sku)
-                || strtolower((string) ($product->type ?? '')) === 'redeem';
+                || $normalizedRedeemSku !== ''
+                || strtolower((string) ($product->type ?? '')) === 'redeem'
+                || $productHasActiveRedeemDenominations;
 
             if (!$requiresDenomination) {
                 continue;
@@ -1217,8 +1229,8 @@ class PaymentController extends Controller
             // Prefer product-scoped denominations first to keep codes tied to the product.
             $denominations = RedeemDenomination::query()
                 ->where('active', true)
-                ->when(!empty($product->redeem_sku), function ($q) use ($product) {
-                    $q->where('code', $product->redeem_sku);
+                ->when($normalizedRedeemSku !== '', function ($q) use ($normalizedRedeemSku) {
+                    $q->whereRaw('LOWER(code) = ?', [$normalizedRedeemSku]);
                 }, function ($q) use ($product) {
                     $q->where('product_id', $product->id);
                 })

@@ -102,6 +102,7 @@ class Order extends Model
                     || (bool) ($product->redeem_code_delivery ?? false)
                     || !empty($product->redeem_sku)
                     || strtolower((string) ($product->type ?? '')) === 'redeem'
+                    || $product->redeemDenominations()->where('active', true)->exists()
                 );
             });
         }
@@ -112,7 +113,10 @@ class Order extends Model
                 $query->where('stock_mode', 'redeem_pool')
                     ->orWhere('redeem_code_delivery', true)
                     ->orWhereNotNull('redeem_sku')
-                    ->orWhere('type', 'redeem');
+                    ->orWhere('type', 'redeem')
+                    ->orWhereHas('redeemDenominations', function ($q) {
+                        $q->where('active', true);
+                    });
             })
             ->exists();
     }

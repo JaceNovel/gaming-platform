@@ -32,7 +32,16 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/android-chrome-:size*.png",
+        source: "/android-chrome-192x192.png",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/android-chrome-512x512.png",
         headers: [
           {
             key: "Cache-Control",
