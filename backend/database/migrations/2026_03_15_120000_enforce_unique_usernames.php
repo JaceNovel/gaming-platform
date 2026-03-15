@@ -9,25 +9,41 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::table('users')
-            ->selectRaw('UPPER(TRIM(name)) as normalized_name, COUNT(*) as aggregate')
-            ->groupByRaw('UPPER(TRIM(name))')
-            ->havingRaw('COUNT(*) > 1')
-            ->when(DB::getDriverName() === 'pgsql', fn ($query) => $query)
-            ->get()
-            ->whenNotEmpty(function ($duplicates) {
-                $list = $duplicates->pluck('normalized_name')->filter()->implode(', ');
-                throw new RuntimeException('Duplicate usernames must be resolved before enforcing uniqueness: ' . $list);
-            });
+        $rows = DB::table('users')
+            ->select(['id', 'name'])
+            ->orderBy('id')
+            ->get();
 
-        DB::table('users')->whereNotNull('name')->orderBy('id')->chunkById(200, function ($rows) {
-            foreach ($rows as $row) {
-                $normalized = strtoupper(trim((string) $row->name));
-                if ($normalized !== (string) $row->name) {
-                    DB::table('users')->where('id', $row->id)->update(['name' => $normalized]);
-                }
+        $seen = [];
+        $reserved = [];
+
+        foreach ($rows as $row) {
+            $normalized = strtoupper(trim((string) $row->name));
+            if ($normalized === '') {
+                $normalized = 'USER' . $row->id;
             }
-        });
+
+            $reserved[$normalized] = true;
+        }
+
+        foreach ($rows as $row) {
+            $normalized = strtoupper(trim((string) $row->name));
+            if ($normalized === '') {
+                $normalized = 'USER' . $row->id;
+            }
+
+            if (!isset($seen[$normalized])) {
+                $seen[$normalized] = true;
+                $finalName = $normalized;
+            } else {
+                $finalName = $this->buildUniqueUsername($normalized, $reserved);
+                $reserved[$finalName] = true;
+            }
+
+            if ($finalName !== (string) $row->name) {
+                DB::table('users')->where('id', $row->id)->update(['name' => $finalName]);
+            }
+        }
 
         Schema::table('users', function (Blueprint $table) {
             $table->unique('name', 'users_name_unique');
@@ -39,5 +55,22 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->dropUnique('users_name_unique');
         });
+    }
+
+    private function buildUniqueUsername(string $normalized, array $reserved): string
+    {
+        $base = $normalized !== '' ? $normalized : 'USER';
+
+        for ($suffix = 2; $suffix < 100000; $suffix++) {
+            $suffixText = (string) $suffix;
+            $candidateBase = mb_substr($base, 0, max(1, 7 - strlen($suffixText)));
+            $candidate = $candidateBase . $suffixText;
+
+            if (!isset($reserved[$candidate])) {
+                return $candidate;
+            }
+        }
+
+        throw new RuntimeException('Unable to generate a unique username for ' . $normalized);
     }
 };
