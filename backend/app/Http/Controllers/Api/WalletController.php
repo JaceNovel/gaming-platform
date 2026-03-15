@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
 use App\Services\FedaPayService;
+use App\Services\PayPalService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ class WalletController extends Controller
     public function __construct(
         private WalletService $walletService,
         private FedaPayService $fedaPayService,
+        private PayPalService $payPalService,
     )
     {
     }
@@ -252,6 +254,7 @@ class WalletController extends Controller
         }
 
         $amount = round((float) $request->validated()['amount'], 2);
+        $provider = strtolower(trim((string) ($request->validated()['provider'] ?? 'fedapay')));
         $customerPhone = trim((string) ($request->validated()['customer_phone'] ?? $user->phone ?? ''));
         $customerCountry = strtoupper(trim((string) ($request->validated()['customer_country'] ?? $user->country_code ?? 'CI')));
 
@@ -260,7 +263,7 @@ class WalletController extends Controller
         $walletTx = null;
 
         try {
-            ['order' => $order, 'payment' => $payment, 'walletTx' => $walletTx] = DB::transaction(function () use ($user, $wallet, $amount) {
+            ['order' => $order, 'payment' => $payment, 'walletTx' => $walletTx] = DB::transaction(function () use ($user, $wallet, $amount, $provider) {
                 $reference = 'WTU-' . strtoupper(Str::random(10));
 
                 $order = Order::create([
@@ -289,17 +292,18 @@ class WalletController extends Controller
                         'order_id' => $order->id,
                     ],
                     'status' => 'pending',
-                    'provider' => 'fedapay',
+                    'provider' => $provider,
                 ]);
 
                 $payment = Payment::create([
                     'order_id' => $order->id,
                     'wallet_transaction_id' => $walletTx->id,
                     'amount' => $amount,
-                    'method' => 'fedapay',
+                    'method' => $provider,
                     'status' => 'pending',
                     'webhook_data' => [
                         'source' => 'wallet_topup',
+                        'provider' => $provider,
                     ],
                 ]);
 
@@ -313,21 +317,37 @@ class WalletController extends Controller
                 ];
             });
 
-            $initResult = $this->fedaPayService->initPayment($order, $user, [
-                'amount' => $amount,
-                'currency' => 'XOF',
-                'description' => 'Recharge DB Wallet',
-                'customer_phone' => $customerPhone,
-                'customer_country' => $customerCountry,
-                'customer_email' => $user->email,
-                'merchant_reference' => (string) $order->reference,
-                'metadata' => [
-                    'type' => 'wallet_topup',
-                    'order_id' => $order->id,
-                    'wallet_transaction_id' => $walletTx->id,
-                    'user_id' => $user->id,
-                ],
-            ]);
+            if ($provider === 'paypal') {
+                $initResult = $this->payPalService->createCheckoutOrder($order, $user, [
+                    'amount' => $amount,
+                    'source_currency' => 'XOF',
+                    'currency' => (string) config('paypal.default_currency', 'EUR'),
+                    'description' => 'Recharge DB Wallet',
+                    'return_url' => route('api.payments.paypal.return', [
+                        'order_id' => $order->id,
+                    ]),
+                    'cancel_url' => route('api.payments.paypal.return', [
+                        'order_id' => $order->id,
+                        'cancelled' => 1,
+                    ]),
+                ]);
+            } else {
+                $initResult = $this->fedaPayService->initPayment($order, $user, [
+                    'amount' => $amount,
+                    'currency' => 'XOF',
+                    'description' => 'Recharge DB Wallet',
+                    'customer_phone' => $customerPhone,
+                    'customer_country' => $customerCountry,
+                    'customer_email' => $user->email,
+                    'merchant_reference' => (string) $order->reference,
+                    'metadata' => [
+                        'type' => 'wallet_topup',
+                        'order_id' => $order->id,
+                        'wallet_transaction_id' => $walletTx->id,
+                        'user_id' => $user->id,
+                    ],
+                ]);
+            }
 
             DB::transaction(function () use ($order, $payment, $initResult, $amount) {
                 $paymentMeta = $payment->webhook_data ?? [];
@@ -335,20 +355,26 @@ class WalletController extends Controller
                     $paymentMeta = [];
                 }
                 $paymentMeta['init_response'] = $initResult['raw'] ?? null;
+                if (isset($initResult['provider_currency'])) {
+                    $paymentMeta['provider_currency'] = $initResult['provider_currency'];
+                }
+                if (isset($initResult['provider_amount'])) {
+                    $paymentMeta['provider_amount'] = $initResult['provider_amount'];
+                }
 
                 $payment->update([
-                    'transaction_id' => (string) $initResult['transaction_id'],
+                    'transaction_id' => (string) ($initResult['transaction_id'] ?? $initResult['order_id'] ?? ''),
                     'webhook_data' => $paymentMeta,
                 ]);
 
                 PaymentAttempt::updateOrCreate(
-                    ['transaction_id' => (string) $initResult['transaction_id']],
+                    ['transaction_id' => (string) ($initResult['transaction_id'] ?? $initResult['order_id'] ?? '')],
                     [
                         'order_id' => $order->id,
-                        'amount' => $amount,
-                        'currency' => 'XOF',
+                        'amount' => (float) ($initResult['provider_amount'] ?? $amount),
+                        'currency' => (string) ($initResult['provider_currency'] ?? 'XOF'),
                         'status' => 'pending',
-                        'provider' => 'fedapay',
+                        'provider' => (string) ($payment->method ?? 'fedapay'),
                         'raw_payload' => [
                             'source' => 'wallet_topup',
                             'init_response' => $initResult['raw'] ?? null,
@@ -360,13 +386,16 @@ class WalletController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'payment_url' => $initResult['payment_url'],
-                    'transaction_id' => (string) $initResult['transaction_id'],
+                    'payment_url' => (string) ($initResult['payment_url'] ?? $initResult['approve_url'] ?? ''),
+                    'transaction_id' => (string) ($initResult['transaction_id'] ?? $initResult['order_id'] ?? ''),
                     'payment_id' => $payment->id,
                     'order_id' => $order->id,
                     'wallet_transaction_id' => $walletTx->id,
                     'amount' => $amount,
                     'currency' => 'XOF',
+                    'provider_currency' => $initResult['provider_currency'] ?? 'XOF',
+                    'provider_amount' => $initResult['provider_amount'] ?? $amount,
+                    'provider' => $provider,
                     'status' => 'pending',
                 ],
             ]);

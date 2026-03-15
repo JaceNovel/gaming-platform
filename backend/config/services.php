@@ -59,4 +59,11 @@ return [
         'base_url' => env('BREVO_BASE_URL', 'https://api.brevo.com'),
     ],
 
+    'paypal' => [
+        'client_id' => env('PAYPAL_CLIENT_ID'),
+        'client_secret' => env('PAYPAL_CLIENT_SECRET'),
+        'environment' => env('PAYPAL_ENV', 'sandbox'),
+        'base_url' => env('PAYPAL_BASE_URL'),
+    ],
+
 ];

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
+import PaymentMethodModal, { type PaymentMethodOption } from "@/components/payments/PaymentMethodModal";
 import SectionTitle from "@/components/ui/SectionTitle";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
@@ -132,6 +133,8 @@ function WalletClient() {
   const [exchangeLoading, setExchangeLoading] = useState(false);
   const [topupAmount, setTopupAmount] = useState<string>("");
   const [topupLoading, setTopupLoading] = useState(false);
+  const [topupModalOpen, setTopupModalOpen] = useState(false);
+  const [topupProvider, setTopupProvider] = useState<"fedapay" | "paypal" | "bank_card">("fedapay");
   const [withdrawAmount, setWithdrawAmount] = useState<string>("");
   const [withdrawMethod, setWithdrawMethod] = useState<string>("wave");
   const [withdrawPhone, setWithdrawPhone] = useState<string>(defaultPhone);
@@ -310,15 +313,34 @@ function WalletClient() {
   }, [hasPendingTx, limit]);
 
   useEffect(() => {
+    const walletPaid = String(searchParams.get("wallet_paid") ?? "").toLowerCase();
     const topupOrder = searchParams.get("topup_order");
     if (!topupOrder || !HAS_API_ENV) return;
+
+    const providerParam = String(searchParams.get("provider") ?? "fedapay").toLowerCase();
+    const provider = providerParam === "paypal" ? "paypal" : "fedapay";
+
+    if (["success", "paid", "completed"].includes(walletPaid)) {
+      setBanner("Recharge wallet validée. Ton solde a été mis à jour.");
+      emitWalletUpdated({ source: "wallet_topup_paid" });
+      void loadWallet({ silent: true });
+      router.replace("/wallet");
+      return;
+    }
+
+    if (["failed", "cancelled", "canceled"].includes(walletPaid)) {
+      setBanner(walletPaid === "failed" ? "La recharge wallet a échoué." : "La recharge wallet a été annulée.");
+      void loadWallet({ silent: true });
+      router.replace("/wallet");
+      return;
+    }
 
     let active = true;
     let ticks = 0;
 
     const checkStatus = async () => {
       try {
-        const res = await authFetch(`${API_BASE}/payments/fedapay/status?order_id=${encodeURIComponent(topupOrder)}`);
+        const res = await authFetch(`${API_BASE}/payments/${encodeURIComponent(provider)}/status?order_id=${encodeURIComponent(topupOrder)}`);
         const payload = await res.json().catch(() => null);
         if (!active || !res.ok) return;
 
@@ -372,6 +394,30 @@ function WalletClient() {
   const displayRewardBalance = useMemo(() => formatMoney(rewardBalance, currency), [currency, rewardBalance]);
   const { label: currencyLabel } = useMemo(() => normalizeCurrency(currency), [currency]);
   const withdrawMax = useMemo(() => Math.max(0, Math.floor(balance - withdrawFeeAmount)), [balance, withdrawFeeAmount]);
+  const topupAmountValue = useMemo(() => Math.round(Number(topupAmount || 0)), [topupAmount]);
+  const topupPaymentOptions = useMemo<PaymentMethodOption[]>(() => {
+    return [
+      {
+        key: "paypal",
+        title: "PayPal",
+        description: "Recharge le DB Wallet avec PayPal. Le montant est converti automatiquement en EUR côté PayPal.",
+        badge: "EUR",
+        variant: "paypal",
+      },
+      {
+        key: "fedapay",
+        title: "Mobile Money",
+        description: "Recharge le DB Wallet avec Orange Money, MTN MoMo et les moyens mobiles supportés par FedaPay.",
+        badge: "FCFA",
+        variant: "mobile_money",
+      },
+    ];
+  }, []);
+  const selectedTopupOption = useMemo(
+    () => topupPaymentOptions.find((option) => option.key === topupProvider) ?? topupPaymentOptions[0] ?? null,
+    [topupPaymentOptions, topupProvider],
+  );
+  const topupProviderRequestValue = topupProvider === "bank_card" ? "paypal" : topupProvider;
 
   const handleExchangeReward = async () => {
     if (exchangeLoading) return;
@@ -396,6 +442,13 @@ function WalletClient() {
     } catch {
       setBanner("Échange impossible.");
     } finally {
+          {
+            key: "bank_card",
+            title: "Carte bancaire",
+            description: "Recharge le DB Wallet par carte bancaire via l’interface sécurisée PayPal pour le moment.",
+            badge: "CB",
+            variant: "bank_card",
+          },
       setExchangeLoading(false);
     }
   };
@@ -415,7 +468,7 @@ function WalletClient() {
       const res = await authFetch(`${API_BASE}/wallet/topup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: amountValue }),
+        body: JSON.stringify({ amount: amountValue, provider: topupProviderRequestValue }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -429,6 +482,7 @@ function WalletClient() {
         return;
       }
 
+      setTopupModalOpen(false);
       window.location.href = String(paymentUrl);
     } catch {
       setBanner("Impossible de démarrer la recharge wallet.");
@@ -700,7 +754,7 @@ function WalletClient() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.25em] text-emerald-100/80">Recharge wallet</p>
-                    <p className="mt-1 text-sm text-emerald-50/85">Recharge ton DB Wallet via FedaPay.</p>
+                    <p className="mt-1 text-sm text-emerald-50/85">Recharge ton DB Wallet via PayPal ou Mobile Money.</p>
                   </div>
                   <div className="text-xs text-emerald-100/75">Minimum: 100 FCFA</div>
                 </div>
@@ -714,9 +768,25 @@ function WalletClient() {
                     placeholder="Montant à recharger"
                     className="w-full max-w-xs rounded-xl border border-emerald-200/25 bg-black/30 px-3 py-2 text-sm text-white"
                   />
-                  <GlowButton variant="ghost" onClick={handleTopup} disabled={topupLoading}>
-                    {topupLoading ? "Préparation..." : "Recharger maintenant"}
+                  <GlowButton variant="ghost" onClick={() => setTopupModalOpen(true)} disabled={topupLoading}>
+                    {topupLoading ? "Préparation..." : "Choisir le paiement"}
                   </GlowButton>
+                </div>
+
+                <div className="mt-3 rounded-2xl border border-emerald-200/20 bg-black/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{selectedTopupOption?.title ?? "Choisir un moyen"}</p>
+                      <p className="mt-1 text-xs text-emerald-50/80">{selectedTopupOption?.description ?? "Sélectionne un moyen de recharge sécurisé."}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTopupModalOpen(true)}
+                      className="rounded-xl border border-emerald-200/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
+                    >
+                      Changer
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -987,6 +1057,29 @@ function WalletClient() {
           </div>
         </div>
       </main>
+
+      <PaymentMethodModal
+        open={topupModalOpen}
+        title="Moyens de paiement"
+        subtitle="Nous protégeons vos informations de paiement."
+        amountLabel={
+          Number.isFinite(topupAmountValue) && topupAmountValue > 0
+            ? `Montant à recharger: ${topupAmountValue.toLocaleString("fr-FR")} FCFA`
+            : "Entre un montant avant de confirmer la recharge."
+        }
+        options={topupPaymentOptions}
+        value={topupProvider}
+        loading={topupLoading}
+        status={banner}
+        confirmLabel={
+          Number.isFinite(topupAmountValue) && topupAmountValue > 0
+            ? `Recharger ${topupAmountValue.toLocaleString("fr-FR")} FCFA`
+            : "Confirmer la recharge"
+        }
+        onChange={(key) => setTopupProvider(key as typeof topupProvider)}
+        onClose={() => setTopupModalOpen(false)}
+        onConfirm={handleTopup}
+      />
     </div>
   );
 }

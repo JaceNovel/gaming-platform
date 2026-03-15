@@ -91,6 +91,20 @@ services:
       - key: FEDAPAY_PAYOUT_WEBHOOK_SECRET
         sync: false
 
+      # PayPal (set these in Render dashboard)
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_ENV
+        value: live
+      - key: PAYPAL_DEFAULT_CURRENCY
+        value: EUR
+      - key: PAYPAL_XOF_TO_EUR_RATE
+        value: "655.957"
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+
   - type: worker
     name: primegaming-backend-worker
     runtime: docker
@@ -156,4 +170,18 @@ services:
       - key: FEDAPAY_WEBHOOK_SECRET
         sync: false
       - key: FEDAPAY_PAYOUT_WEBHOOK_SECRET
+        sync: false
+
+      # PayPal (set these in Render dashboard)
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_ENV
+        value: live
+      - key: PAYPAL_DEFAULT_CURRENCY
+        value: EUR
+      - key: PAYPAL_XOF_TO_EUR_RATE
+        value: "655.957"
+      - key: PAYPAL_WEBHOOK_ID
         sync: false

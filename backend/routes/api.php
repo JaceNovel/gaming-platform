@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\GameController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PayPalWebhookController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\FedaPayPayoutWebhookController;
 use App\Http\Controllers\Api\FedaPayWebhookController;
@@ -160,7 +161,9 @@ Route::get('/tournaments/{slug}', [TournamentController::class, 'show']);
 Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.cinetpay.webhook');
 Route::match(['get', 'post'], '/payments/cinetpay/return', [PaymentWebhookController::class, 'redirect'])->name('api.payments.cinetpay.return');
 Route::match(['get', 'post'], '/payments/fedapay/return', [PaymentController::class, 'redirectFedapayReturn'])->name('api.payments.fedapay.return');
+Route::match(['get', 'post'], '/payments/paypal/return', [PaymentController::class, 'redirectPaypalReturn'])->name('api.payments.paypal.return');
 Route::post('/payments/fedapay/webhook', [FedaPayWebhookController::class, 'handle'])->name('api.payments.fedapay.webhook');
+Route::post('/payments/paypal/webhook', [PayPalWebhookController::class, 'handle'])->name('api.payments.paypal.webhook');
 Route::post('/payouts/fedapay/webhook', [FedaPayPayoutWebhookController::class, 'handle'])->name('api.payouts.fedapay.webhook');
 
 Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFreeFire']);
@@ -196,6 +199,7 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     // Payments
     Route::get('/payments/cinetpay/status', [PaymentController::class, 'status'])->name('api.payments.cinetpay.status');
     Route::get('/payments/fedapay/status', [PaymentController::class, 'statusFedapay'])->name('api.payments.fedapay.status');
+    Route::get('/payments/paypal/status', [PaymentController::class, 'statusPaypal'])->name('api.payments.paypal.status');
 
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);
@@ -229,6 +233,7 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
         // Payments
         Route::post('/payments/cinetpay/init', [PaymentController::class, 'init'])->name('api.payments.cinetpay.init');
         Route::post('/payments/fedapay/init', [PaymentController::class, 'initFedapay'])->name('api.payments.fedapay.init');
+        Route::post('/payments/paypal/init', [PaymentController::class, 'initPaypal'])->name('api.payments.paypal.init');
         Route::post('/payments/wallet/pay', [PaymentController::class, 'payWithWallet'])->name('api.payments.wallet.pay');
         Route::post('/payments/wallet-reward/pay', [PaymentController::class, 'payWithRewardWallet'])->name('api.payments.wallet_reward.pay');
         Route::post('/payments/wallet-reward/exchange', [PaymentController::class, 'exchangeRewardWallet'])->name('api.payments.wallet_reward.exchange');

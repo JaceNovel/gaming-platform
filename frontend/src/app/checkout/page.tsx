@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import RequireAuth from "@/components/auth/RequireAuth";
+import PaymentMethodModal, { type PaymentMethodOption } from "@/components/payments/PaymentMethodModal";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
@@ -29,7 +30,8 @@ function CheckoutScreen() {
   const [rewardWalletBalance, setRewardWalletBalance] = useState<number>(0);
   const [rewardMinPurchaseAmount, setRewardMinPurchaseAmount] = useState<number>(0);
   const [walletLoading, setWalletLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet" | "wallet_reward">("fedapay");
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "paypal" | "bank_card" | "wallet" | "wallet_reward">("fedapay");
 
   const [shippingMapsUrl, setShippingMapsUrl] = useState("");
   const [shippingCity, setShippingCity] = useState("");
@@ -281,6 +283,42 @@ function CheckoutScreen() {
 
       const callbackUrl = `${window.location.origin}/order-confirmation?order=${orderId}`;
 
+      if (paymentMethod === "paypal" || paymentMethod === "bank_card") {
+        const payRes = await authFetch(`${API_BASE}/payments/paypal/init`, {
+          method: "POST",
+          body: JSON.stringify({
+            order_id: orderId,
+            payment_method: "paypal",
+            amount: amountToCharge,
+            currency,
+            customer_email: customer.customer_email,
+            metadata: {
+              source: "checkout",
+              product_id: productId,
+              quantity,
+            },
+          }),
+        });
+
+        if (!payRes.ok) {
+          const err = await payRes.json().catch(() => ({}));
+          setStatus(err.message ?? "Impossible de démarrer le paiement PayPal / carte bancaire.");
+          return;
+        }
+
+        const payData = await payRes.json().catch(() => null);
+        const paymentUrl = typeof payData?.data?.payment_url === "string" ? payData.data.payment_url : "";
+
+        if (paymentUrl) {
+          setStatus("Redirection vers PayPal...");
+          window.location.href = paymentUrl;
+          return;
+        }
+
+        setStatus("Paiement PayPal / carte bancaire indisponible : URL de paiement manquante.");
+        return;
+      }
+
       const payRes = await authFetch(`${API_BASE}/payments/fedapay/init`, {
         method: "POST",
         body: JSON.stringify({
@@ -377,6 +415,67 @@ function CheckoutScreen() {
     }
   }, [paymentMethod, rewardWalletPayable, walletPayable]);
 
+  const paymentOptions = useMemo<PaymentMethodOption[]>(() => {
+    const options: PaymentMethodOption[] = [
+      {
+        key: "paypal",
+        title: "PayPal",
+        description: "Paiement rapide et sécurisé via PayPal avec conversion automatique en EUR.",
+        badge: "EUR",
+        variant: "paypal",
+      },
+      {
+        key: "bank_card",
+        title: "Carte bancaire",
+        description: "Paiement par carte bancaire via l’interface sécurisée PayPal pour le moment.",
+        badge: "CB",
+        variant: "bank_card",
+      },
+      {
+        key: "fedapay",
+        title: "Mobile Money",
+        description: "Règlement via FedaPay avec Orange Money, MTN MoMo et autres services mobiles.",
+        badge: "FCFA",
+        variant: "mobile_money",
+      },
+      {
+        key: "wallet",
+        title: "Wallet",
+        description: walletLoading ? "Chargement du solde wallet..." : `Solde disponible: ${Math.floor(walletAvailable).toLocaleString()} FCFA.`,
+        badge: "DB",
+        variant: "wallet",
+        disabled: !walletPayable,
+        disabledReason: !walletPayable && !walletLoading ? "Solde insuffisant pour cet achat." : undefined,
+      },
+    ];
+
+    if (rewardWalletBalance > 0) {
+      options.push({
+        key: "wallet_reward",
+        title: "Wallet récompense",
+        description: walletLoading
+          ? "Chargement du wallet récompense..."
+          : `Solde disponible: ${Math.floor(rewardWalletBalance).toLocaleString()} FCFA.`,
+        badge: "BONUS",
+        variant: "reward_wallet",
+        disabled: !rewardWalletPayable,
+        disabledReason:
+          !rewardWalletPayable && !walletLoading
+            ? rewardMinPurchaseAmount > 0
+              ? `Achat minimum: ${Math.floor(rewardMinPurchaseAmount).toLocaleString()} FCFA.`
+              : "Ce wallet bonus ne peut pas payer ce produit."
+            : undefined,
+      });
+    }
+
+    return options;
+  }, [rewardMinPurchaseAmount, rewardWalletBalance, rewardWalletPayable, walletAvailable, walletLoading, walletPayable]);
+
+  const selectedPaymentOption = useMemo(
+    () => paymentOptions.find((option) => option.key === paymentMethod) ?? paymentOptions[0] ?? null,
+    [paymentMethod, paymentOptions],
+  );
+
   return (
     <div className="min-h-screen pb-24">
       <div className="mobile-shell py-6 space-y-6">
@@ -450,53 +549,34 @@ function CheckoutScreen() {
             </div>
           ) : null}
 
-          <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
-            <p className="text-sm font-semibold text-white">Mode de paiement</p>
-            <label className="flex items-center gap-2 text-sm text-white/80">
-              <input
-                type="radio"
-                name="payment_method"
-                value="fedapay"
-                checked={paymentMethod === "fedapay"}
-                onChange={() => setPaymentMethod("fedapay")}
-              />
-              Mobile Money
-            </label>
-            <label className="flex items-center gap-2 text-sm text-white/80">
-              <input
-                type="radio"
-                name="payment_method"
-                value="wallet"
-                checked={paymentMethod === "wallet"}
-                onChange={() => setPaymentMethod("wallet")}
-                disabled={!walletPayable}
-              />
-              Wallet {walletLoading ? "(chargement...)" : `(dispo: ${Math.floor(walletAvailable)} FCFA)`}
-              {!walletPayable && !walletLoading ? (
-                <span className="text-xs text-white/50">(solde insuffisant)</span>
-              ) : null}
-            </label>
+          <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Mode de paiement</p>
+                <p className="mt-1 text-xs text-white/60">Choisis dans la fenêtre PayPal, Wallet ou Mobile Money.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPaymentModalOpen(true)}
+                className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
+              >
+                Changer
+              </button>
+            </div>
 
-            {rewardWalletBalance > 0 ? (
-              <label className="flex items-center gap-2 text-sm text-white/80">
-                <input
-                  type="radio"
-                  name="payment_method"
-                  value="wallet_reward"
-                  checked={paymentMethod === "wallet_reward"}
-                  onChange={() => setPaymentMethod("wallet_reward")}
-                  disabled={!rewardWalletPayable}
-                />
-                Wallet récompense {walletLoading ? "(chargement...)" : `(dispo: ${Math.floor(rewardWalletBalance)} FCFA)`}
-                {!rewardWalletPayable && !walletLoading ? (
-                  <span className="text-xs text-white/50">
-                    {rewardMinPurchaseAmount > 0
-                      ? `(achat >= ${Math.floor(rewardMinPurchaseAmount)} FCFA)`
-                      : "(solde insuffisant)"}
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">{selectedPaymentOption?.title ?? "Choisir un moyen"}</p>
+                  <p className="mt-1 text-xs text-white/60">{selectedPaymentOption?.description ?? "Sélectionne un mode de paiement avant de confirmer."}</p>
+                </div>
+                {selectedPaymentOption?.badge ? (
+                  <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                    {selectedPaymentOption.badge}
                   </span>
                 ) : null}
-              </label>
-            ) : null}
+              </div>
+            </div>
           </div>
 
           <label className="text-sm text-white/70">Quantité</label>
@@ -536,8 +616,8 @@ function CheckoutScreen() {
             </div>
           ) : null}
 
-          <GlowButton onClick={handleCreateOrder} disabled={loading} className="w-full justify-center">
-            {loading ? "Création..." : "Confirmer la commande"}
+          <GlowButton onClick={() => setPaymentModalOpen(true)} disabled={loading} className="w-full justify-center">
+            {loading ? "Création..." : "Confirmer et choisir le paiement"}
           </GlowButton>
           {status && <p className="text-sm text-amber-200">{status}</p>}
         </div>
@@ -546,6 +626,21 @@ function CheckoutScreen() {
           Retour boutique
         </GlowButton>
       </div>
+
+      <PaymentMethodModal
+        open={paymentModalOpen}
+        title="Moyens de paiement"
+        subtitle="Nous protégeons vos informations de paiement."
+        amountLabel={`Total à payer: ${Math.floor(estimatedTotal).toLocaleString()} FCFA`}
+        options={paymentOptions}
+        value={paymentMethod}
+        loading={loading}
+        status={status}
+        confirmLabel={`Payer ${Math.floor(estimatedTotal).toLocaleString()} FCFA`}
+        onChange={(key) => setPaymentMethod(key as typeof paymentMethod)}
+        onClose={() => setPaymentModalOpen(false)}
+        onConfirm={handleCreateOrder}
+      />
     </div>
   );
 }

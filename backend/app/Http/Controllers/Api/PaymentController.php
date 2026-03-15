@@ -20,6 +20,8 @@ use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
 use App\Services\CinetPayService;
 use App\Services\FedaPayService;
+use App\Services\PayPalPaymentSyncService;
+use App\Services\PayPalService;
 use App\Services\PaymentResyncService;
 use App\Services\ReferralCommissionService;
 use App\Services\WalletService;
@@ -35,6 +37,8 @@ class PaymentController extends Controller
     public function __construct(
         private CinetPayService $cinetPayService,
         private FedaPayService $fedaPayService,
+        private PayPalService $payPalService,
+        private PayPalPaymentSyncService $payPalPaymentSyncService,
         private PaymentResyncService $paymentResyncService,
     )
     {
@@ -316,6 +320,275 @@ class PaymentController extends Controller
             }
         } catch (\Throwable $e) {
             Log::warning('fedapay:status-resync-failed', [
+                'order_id' => $order?->id,
+                'payment_id' => $payment->id,
+                'transaction_id' => $payment->transaction_id,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        $paymentStatus = $order->isPaymentSuccess() ? 'paid' : ($order->isPaymentFailed() ? 'failed' : 'processing');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'payment_status' => $paymentStatus,
+                'order_status' => $order->status,
+                'order_type' => $order->type,
+                'transaction_id' => $payment->transaction_id,
+                'order_id' => $payment->order_id,
+            ],
+        ]);
+    }
+
+    public function initPaypal(Request $request)
+    {
+        $validated = $request->validate([
+            'order_id' => ['required', 'integer', Rule::exists('orders', 'id')],
+            'payment_method' => ['nullable', Rule::in(['paypal'])],
+            'amount' => ['required', 'numeric', 'min:100'],
+            'currency' => ['required', 'string', 'size:3'],
+            'customer_email' => ['nullable', 'email'],
+            'description' => ['nullable', 'string', 'max:191'],
+            'metadata' => ['sometimes', 'array'],
+        ]);
+
+        $user = $request->user();
+        $order = Order::with(['payment', 'user'])
+            ->where('id', $validated['order_id'])
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        if ((string) $order->status !== Order::STATUS_PAYMENT_PROCESSING) {
+            return response()->json(['message' => 'Order is not payable'], 400);
+        }
+
+        if ($order->payment && $order->payment->status === 'completed') {
+            return response()->json(['message' => 'Order already paid'], 400);
+        }
+
+        $expectedAmount = (float) $order->total_price;
+        $payloadAmount = (float) $validated['amount'];
+
+        if (abs($expectedAmount - $payloadAmount) > 0.01) {
+            return response()->json(['message' => 'Amount mismatch'], 422);
+        }
+
+        $currency = strtoupper((string) $validated['currency']);
+        if ($currency !== 'XOF') {
+            return response()->json(['message' => 'Unsupported source currency for PayPal'], 422);
+        }
+
+        try {
+            $payment = DB::transaction(function () use ($order, $expectedAmount) {
+                $payment = $order->payment ?? new Payment();
+
+                $payment->fill([
+                    'order_id' => $order->id,
+                    'amount' => $expectedAmount,
+                    'method' => 'paypal',
+                ]);
+
+                $payment->status = 'pending';
+                $payment->save();
+
+                $order->payment_id = $payment->id;
+                $order->save();
+
+                return $payment->fresh(['order']);
+            });
+
+            $initResult = $this->payPalService->createCheckoutOrder($order, $user, [
+                'amount' => $expectedAmount,
+                'source_currency' => 'XOF',
+                'currency' => (string) config('paypal.default_currency', 'EUR'),
+                'description' => $validated['description'] ?? null,
+                'return_url' => route('api.payments.paypal.return', [
+                    'order_id' => $order->id,
+                ]),
+                'cancel_url' => route('api.payments.paypal.return', [
+                    'order_id' => $order->id,
+                    'cancelled' => 1,
+                ]),
+            ]);
+
+            $providerOrderId = (string) $initResult['order_id'];
+            $meta = $payment->webhook_data ?? [];
+            if (!is_array($meta)) {
+                $meta = [];
+            }
+            $meta['init_response'] = $initResult['raw'] ?? null;
+            $meta['provider_currency'] = $initResult['provider_currency'] ?? null;
+            $meta['provider_amount'] = $initResult['provider_amount'] ?? null;
+            $meta['source_currency'] = 'XOF';
+            $meta['source_amount'] = $expectedAmount;
+
+            $payment->update([
+                'status' => 'pending',
+                'transaction_id' => $providerOrderId,
+                'webhook_data' => $meta,
+            ]);
+
+            PaymentAttempt::updateOrCreate(
+                ['transaction_id' => $providerOrderId],
+                [
+                    'order_id' => $order->id,
+                    'amount' => (float) ($initResult['provider_amount'] ?? 0),
+                    'currency' => (string) ($initResult['provider_currency'] ?? config('paypal.default_currency', 'EUR')),
+                    'status' => 'pending',
+                    'provider' => 'paypal',
+                    'raw_payload' => [
+                        'init_request' => [
+                            'order_id' => $order->id,
+                            'source_amount' => $expectedAmount,
+                            'source_currency' => 'XOF',
+                        ],
+                        'init_response' => $initResult['raw'] ?? null,
+                    ],
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'payment_url' => $initResult['approve_url'],
+                    'transaction_id' => $providerOrderId,
+                    'payment_id' => $payment->id,
+                    'order_id' => $order->id,
+                    'amount' => $expectedAmount,
+                    'currency' => 'XOF',
+                    'provider_amount' => $initResult['provider_amount'],
+                    'provider_currency' => $initResult['provider_currency'],
+                    'status' => $payment->status,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('paypal:error', [
+                'stage' => 'init-controller',
+                'order_id' => $validated['order_id'] ?? null,
+                'message' => $e->getMessage(),
+            ]);
+
+            $message = $e->getMessage();
+            if (str_contains($message, 'PayPal not configured')) {
+                return response()->json(['message' => $message], 500);
+            }
+
+            return response()->json(['message' => 'PayPal initiation failed'], 502);
+        }
+    }
+
+    public function redirectPaypalReturn(Request $request)
+    {
+        $orderId = (int) ($request->query('order_id') ?? $request->input('order_id') ?? 0);
+        $cancelled = (bool) ($request->query('cancelled') ?? $request->input('cancelled') ?? false);
+        $providerOrderId = trim((string) ($request->query('token') ?? $request->input('token') ?? ''));
+
+        if ($orderId <= 0) {
+            return redirect()->away($this->buildFrontendPaymentRedirect(null, 'failed'));
+        }
+
+        $payment = Payment::with(['order.user', 'walletTransaction'])
+            ->where('method', 'paypal')
+            ->where('order_id', $orderId)
+            ->latest('id')
+            ->first();
+
+        $order = $payment?->order ?? Order::query()->find($orderId);
+        if (!$payment || !$order) {
+            return redirect()->away($this->buildFrontendPaymentRedirect($order, 'failed'));
+        }
+
+        if ($cancelled) {
+            return redirect()->away($this->buildFrontendPaymentRedirect($order, 'cancelled'));
+        }
+
+        if ($providerOrderId === '' && !$order->isPaymentSuccess() && !$order->isPaymentFailed()) {
+            return redirect()->away($this->buildFrontendPaymentRedirect($order, 'processing'));
+        }
+
+        if ($providerOrderId !== '' && $payment->transaction_id && $providerOrderId !== (string) $payment->transaction_id) {
+            Log::warning('paypal:return-order-mismatch', [
+                'payment_id' => $payment->id,
+                'order_id' => $order->id,
+                'expected' => $payment->transaction_id,
+                'received' => $providerOrderId,
+            ]);
+
+            return redirect()->away($this->buildFrontendPaymentRedirect($order, 'failed'));
+        }
+
+        try {
+            $this->payPalPaymentSyncService->sync($payment, true, ['source' => 'return_endpoint']);
+            $payment = $payment->fresh(['order']);
+            $order = $payment?->order ?? $order;
+        } catch (\Throwable $e) {
+            Log::warning('paypal:return-sync-failed', [
+                'payment_id' => $payment->id,
+                'order_id' => $order->id,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        $status = $order?->isPaymentSuccess()
+            ? 'paid'
+            : ($order?->isPaymentFailed() ? 'failed' : 'processing');
+
+        return redirect()->away($this->buildFrontendPaymentRedirect($order, $status));
+    }
+
+    public function statusPaypal(Request $request)
+    {
+        $validated = $request->validate([
+            'order_id' => ['nullable', 'integer', Rule::exists('orders', 'id'), 'required_without:transaction_id'],
+            'transaction_id' => ['nullable', 'string', 'max:191', 'required_without:order_id'],
+        ]);
+
+        $user = $request->user();
+
+        $baseQuery = Payment::with(['order.user', 'walletTransaction'])
+            ->where('method', 'paypal')
+            ->whereHas('order', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            });
+
+        $payment = null;
+        if (!empty($validated['transaction_id'])) {
+            $payment = (clone $baseQuery)
+                ->where('transaction_id', $validated['transaction_id'])
+                ->latest('id')
+                ->first();
+        }
+
+        if (!$payment && !empty($validated['order_id'])) {
+            $payment = (clone $baseQuery)
+                ->where('order_id', $validated['order_id'])
+                ->latest('id')
+                ->first();
+        }
+
+        if (!$payment) {
+            return response()->json(['message' => 'Payment not found'], 404);
+        }
+
+        $order = $payment->order;
+        if (!$order) {
+            return response()->json(['message' => 'Order not found for payment'], 404);
+        }
+
+        try {
+            if (!$order->isPaymentSuccess() && !$order->isPaymentFailed() && (string) ($payment->status ?? '') === 'pending' && $payment->transaction_id) {
+                $this->payPalPaymentSyncService->sync($payment, true, [
+                    'source' => 'status_endpoint',
+                    'order_id' => $order->id,
+                    'user_id' => $user->id,
+                ]);
+
+                $payment = $payment->fresh(['order.user', 'walletTransaction']);
+                $order = $payment?->order;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('paypal:status-sync-failed', [
                 'order_id' => $order?->id,
                 'payment_id' => $payment->id,
                 'transaction_id' => $payment->transaction_id,
@@ -1194,6 +1467,36 @@ class PaymentController extends Controller
                 'order_id' => $payment->order_id,
             ],
         ]);
+    }
+
+    private function buildFrontendPaymentRedirect(?Order $order, string $status): string
+    {
+        $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
+        $normalizedStatus = strtolower(trim($status));
+
+        if ($order && (string) ($order->type ?? '') === 'wallet_topup') {
+            $query = Arr::query(array_filter([
+                'wallet_paid' => $normalizedStatus,
+                'topup_order' => $order->id,
+                'provider' => 'paypal',
+            ], static fn ($value) => $value !== null && $value !== ''));
+
+            return ($frontUrl !== '' ? $frontUrl : '') . '/wallet' . ($query !== '' ? ('?' . $query) : '');
+        }
+
+        $mappedStatus = match ($normalizedStatus) {
+            'paid', 'completed', 'success' => 'paid',
+            'cancelled', 'canceled' => 'cancelled',
+            'failed' => 'failed',
+            default => 'processing',
+        };
+
+        $query = Arr::query(array_filter([
+            'order' => $order?->id,
+            'status' => $mappedStatus,
+        ], static fn ($value) => $value !== null && $value !== ''));
+
+        return ($frontUrl !== '' ? $frontUrl : '') . '/order-confirmation' . ($query !== '' ? ('?' . $query) : '');
     }
 
     private function attachRedeemDenominationsIfMissing(Order $order): bool

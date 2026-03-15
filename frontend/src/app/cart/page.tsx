@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CreditCard, ShoppingBag, Trash2 } from "lucide-react";
 import GlowButton from "@/components/ui/GlowButton";
+import PaymentMethodModal, { type PaymentMethodOption } from "@/components/payments/PaymentMethodModal";
 import SectionTitle from "@/components/ui/SectionTitle";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -59,7 +60,8 @@ function CartScreen() {
   const [rewardWalletBalance, setRewardWalletBalance] = useState<number>(0);
   const [rewardMinPurchaseAmount, setRewardMinPurchaseAmount] = useState<number>(0);
   const [walletLoading, setWalletLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet" | "wallet_reward">("fedapay");
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "paypal" | "bank_card" | "wallet" | "wallet_reward">("fedapay");
 
   const [shippingMapsUrl, setShippingMapsUrl] = useState("");
   const [shippingCity, setShippingCity] = useState("");
@@ -309,6 +311,68 @@ function CartScreen() {
     }
   }, [paymentMethod, rewardWalletEligible, walletAvailable, walletLoading, total]);
 
+  const paymentOptions = useMemo<PaymentMethodOption[]>(() => {
+    const options: PaymentMethodOption[] = [
+      {
+        key: "paypal",
+        title: "PayPal",
+        description: "Payez facilement, rapidement et en toute sécurité avec PayPal.",
+        badge: "EUR",
+        variant: "paypal",
+      },
+      {
+        key: "bank_card",
+        title: "Carte bancaire",
+        description: "Paiement par carte bancaire via la page sécurisée PayPal pour le moment.",
+        badge: "CB",
+        variant: "bank_card",
+      },
+      {
+        key: "fedapay",
+        title: "Mobile Money",
+        description: "Orange Money, MTN MoMo et autres moyens mobiles pris en charge.",
+        badge: "FCFA",
+        variant: "mobile_money",
+      },
+      {
+        key: "wallet",
+        title: "Wallet",
+        description: walletLoading ? "Chargement du solde wallet..." : `Solde disponible: ${Math.floor(walletAvailable).toLocaleString()} FCFA.`,
+        badge: "DB",
+        variant: "wallet",
+        disabled: walletLoading || walletAvailable + 0.0001 < total,
+        disabledReason: !walletLoading && walletAvailable + 0.0001 < total ? "Solde insuffisant pour cette commande." : undefined,
+      },
+    ];
+
+    if (rewardWalletBalance > 0) {
+      options.push({
+        key: "wallet_reward",
+        title: "Wallet récompense",
+        description: walletLoading
+          ? "Chargement du wallet récompense..."
+          : `Solde disponible: ${Math.floor(rewardWalletBalance).toLocaleString()} FCFA.`,
+        badge: "BONUS",
+        variant: "reward_wallet",
+        disabled: walletLoading || !rewardWalletEligible,
+        disabledReason:
+          !walletLoading && !rewardWalletEligible
+            ? rewardMinPurchaseAmount > 0
+              ? `Produits à partir de ${Math.floor(rewardMinPurchaseAmount).toLocaleString()} FCFA requis.`
+              : "Ce wallet bonus ne peut pas payer cette commande."
+            : undefined,
+      });
+    }
+
+    return options;
+  }, [rewardMinPurchaseAmount, rewardWalletBalance, rewardWalletEligible, total, walletAvailable, walletLoading]);
+
+  const selectedPaymentOption = useMemo(
+    () => paymentOptions.find((option) => option.key === paymentMethod) ?? paymentOptions[0] ?? null,
+    [paymentMethod, paymentOptions],
+  );
+  const usesPaypalFlow = paymentMethod === "paypal" || paymentMethod === "bank_card";
+
   const handlePay = async () => {
     setStatus(null);
     setLoading(true);
@@ -429,6 +493,41 @@ function CartScreen() {
           localStorage.removeItem("bbshop_cart");
         }
         window.location.href = `/account?payment_status=success&order=${encodeURIComponent(String(orderId))}`;
+        return;
+      }
+
+      if (usesPaypalFlow) {
+        const payRes = await authFetch(`${API_BASE}/payments/paypal/init`, {
+          method: "POST",
+          body: JSON.stringify({
+            order_id: orderId,
+            payment_method: "paypal",
+            amount: amountToCharge,
+            currency,
+            customer_email: user?.email,
+            metadata: {
+              source: "cart",
+              item_count: cartItems.length,
+              cart_items: cartItems.map((item) => ({ id: item.id, quantity: item.quantity })),
+            },
+          }),
+        });
+
+        if (!payRes.ok) {
+          const err = await payRes.json().catch(() => ({}));
+          setStatus(err.message ?? "Impossible de démarrer le paiement PayPal / carte bancaire.");
+          return;
+        }
+
+        const data = await payRes.json();
+        const paymentUrl = data?.data?.payment_url;
+
+        if (!paymentUrl) {
+          setStatus("Lien PayPal / carte bancaire indisponible.");
+          return;
+        }
+
+        window.location.href = paymentUrl;
         return;
       }
 
@@ -682,71 +781,39 @@ function CartScreen() {
               ) : null}
 
               <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm font-semibold text-white">Mode de paiement</p>
-                <label className="flex items-center gap-2 text-sm text-white/80">
-                  <input
-                    type="radio"
-                    name="payment_method"
-                    value="fedapay"
-                    checked={paymentMethod === "fedapay"}
-                    onChange={() => setPaymentMethod("fedapay")}
-                  />
-                  <span className="inline-flex items-center gap-2">
-                    <CreditCard className="h-4 w-4" />
-                    Mobile Money
-                  </span>
-                </label>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Mode de paiement</p>
+                    <p className="mt-1 text-xs text-white/55">La fenêtre de paiement s’ouvre avec PayPal, Wallet et Mobile Money.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModalOpen(true)}
+                    className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
+                  >
+                    Changer
+                  </button>
+                </div>
 
-                <label className="flex items-center gap-2 text-sm text-white/80">
-                  <input
-                    type="radio"
-                    name="payment_method"
-                    value="wallet"
-                    checked={paymentMethod === "wallet"}
-                    onChange={() => setPaymentMethod("wallet")}
-                    disabled={walletLoading || walletAvailable + 0.0001 < total}
-                  />
-                  <span className="inline-flex items-center gap-2">
-                    Wallet {walletLoading ? "(chargement...)" : `(dispo: ${Math.floor(walletAvailable)} FCFA)`}
-                  </span>
-                  {!walletLoading && walletAvailable + 0.0001 < total ? (
-                    <span className="text-xs text-white/50">(solde insuffisant)</span>
-                  ) : null}
-                </label>
-
-                {rewardWalletBalance > 0 ? (
-                  <label className="flex items-center gap-2 text-sm text-white/80">
-                    <input
-                      type="radio"
-                      name="payment_method"
-                      value="wallet_reward"
-                      checked={paymentMethod === "wallet_reward"}
-                      onChange={() => setPaymentMethod("wallet_reward")}
-                      disabled={walletLoading || !rewardWalletEligible}
-                    />
-                    <span className="inline-flex items-center gap-2">
-                      Wallet récompense {walletLoading ? "(chargement...)" : `(dispo: ${Math.floor(rewardWalletBalance)} FCFA)`}
-                    </span>
-                    {!walletLoading && !rewardWalletEligible ? (
-                      <span className="text-xs text-white/50">
-                        {rewardMinPurchaseAmount > 0
-                          ? `(produits >= ${Math.floor(rewardMinPurchaseAmount)} FCFA requis)`
-                          : "(non éligible)"}
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{selectedPaymentOption?.title ?? "Choisir un moyen"}</p>
+                      <p className="mt-1 text-xs text-white/60">{selectedPaymentOption?.description ?? "Sélectionne un mode de paiement sécurisé."}</p>
+                    </div>
+                    {selectedPaymentOption?.badge ? (
+                      <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                        {selectedPaymentOption.badge}
                       </span>
                     ) : null}
-                  </label>
-                ) : null}
+                  </div>
+                </div>
               </div>
 
               <GlowButton
                 className="w-full justify-center"
-                onClick={handlePay}
-                disabled={
-                  loading ||
-                  !cartItems.length ||
-                  (paymentMethod === "wallet" && (walletLoading || walletAvailable + 0.0001 < total)) ||
-                  (paymentMethod === "wallet_reward" && (walletLoading || !rewardWalletEligible))
-                }
+                onClick={() => setPaymentModalOpen(true)}
+                disabled={loading || !cartItems.length}
               >
                 <CreditCard className="h-4 w-4" />
                 {loading ? "Paiement..." : "Payer maintenant"}
@@ -757,6 +824,21 @@ function CartScreen() {
           </div>
         </div>
       </div>
+
+      <PaymentMethodModal
+        open={paymentModalOpen}
+        title="Moyens de paiement"
+        subtitle="Nous protégeons vos informations de paiement."
+        amountLabel={`Total à payer: ${Math.floor(total).toLocaleString()} FCFA`}
+        options={paymentOptions}
+        value={paymentMethod}
+        loading={loading}
+        status={status}
+        confirmLabel={`Payer ${Math.floor(total).toLocaleString()} FCFA`}
+        onChange={(key) => setPaymentMethod(key as typeof paymentMethod)}
+        onClose={() => setPaymentModalOpen(false)}
+        onConfirm={handlePay}
+      />
     </div>
   );
 }
