@@ -998,6 +998,14 @@ function AccountClient() {
     router.push("/shop");
   };
 
+  const handleWalletWithdraw = () => {
+    router.push("/wallet#withdraw-section");
+  };
+
+  const handleWalletTopup = () => {
+    router.push("/wallet#topup-section");
+  };
+
   const closeWalletModal = () => {
     setWalletModalOpen(false);
   };
@@ -1291,7 +1299,8 @@ function AccountClient() {
                 walletDisplay={walletDisplay}
                 walletCurrencyLabel={walletCurrencyLabel}
                 onChangeAvatar={() => setPickerOpen(true)}
-                onUseFunds={handleUseFunds}
+                onWithdraw={handleWalletWithdraw}
+                onTopup={handleWalletTopup}
               />
             </div>
             {activeMenu !== "Parametres" && (

@@ -648,7 +648,7 @@ function WalletClient() {
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-[0.35em] text-white/45">Solde</p>
                   <p className="mt-2 text-4xl font-semibold">{displayBalance}</p>
@@ -657,21 +657,21 @@ function WalletClient() {
                     <p className="mt-1 text-xs text-white/60">Statut: {walletStatus}</p>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
                   <button
                     type="button"
                     onClick={() => void loadWallet()}
-                    className="rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold"
+                    className="min-w-0 rounded-2xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold sm:px-4 sm:text-sm"
                     disabled={refreshing}
                   >
-                    {refreshing ? "Actualisation..." : "Actualiser"}
+                    <span className="block truncate">{refreshing ? "Actualisation..." : "Actualiser"}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => void openTidioChat({ message: supportMessage })}
-                    className="rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100"
+                    className="min-w-0 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 sm:px-4 sm:text-sm"
                   >
-                    Support
+                    <span className="block truncate">Support</span>
                   </button>
                 </div>
               </div>
@@ -754,7 +754,7 @@ function WalletClient() {
                 </div>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-4">
+              <div id="topup-section" className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-4 scroll-mt-24">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.25em] text-emerald-100/80">Recharge wallet</p>
@@ -794,7 +794,7 @@ function WalletClient() {
                 </div>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-orange-300/20 bg-orange-500/10 p-4">
+              <div id="withdraw-section" className="mt-5 rounded-2xl border border-orange-300/20 bg-orange-500/10 p-4 scroll-mt-24">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.25em] text-orange-100/80">Retrait wallet</p>

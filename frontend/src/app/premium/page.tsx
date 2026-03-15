@@ -11,7 +11,7 @@ const premiumPlans = [
   {
     id: "bronze",
     name: "Bronze",
-    ceiling: "Gagnez jusqu'a 30 000 FCFA",
+    ceiling: "Gagnez 30 000 FCFA",
     billing: "Programme partenaire",
     badge: "Populaire",
     perks: [
@@ -38,7 +38,7 @@ const premiumPlans = [
   {
     id: "platine",
     name: "Platine",
-    ceiling: "On peux gagné jusqu'a 100 000 fcfa",
+    ceiling: "Gagnez jusqu'a 100 000 fcfa",
     billing: "Programme partenaire expert",
     perks: [
       "Abonnement Weekly",
@@ -180,7 +180,7 @@ export default function Premium() {
                       <div className="mt-5 flex items-end justify-between gap-3">
                         <div>
                           <p className="text-sm text-white/60">Potentiel</p>
-                          <p className="mt-1 text-2xl font-black text-white">{plan.ceiling}</p>
+                          <p className="mt-1 text-[clamp(0.88rem,3.4vw,1.5rem)] font-black text-white whitespace-nowrap">{plan.ceiling}</p>
                         </div>
                         <button
                           onClick={() => requestSubscribe(plan.id)}
