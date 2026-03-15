@@ -38,7 +38,7 @@ const premiumPlans = [
   {
     id: "platine",
     name: "Platine",
-    ceiling: "Gagnez jusqu'a 100 000 fcfa",
+    ceiling: "Gagnez 100.000 FCFA",
     billing: "Programme partenaire expert",
     perks: [
       "Abonnement Weekly",
@@ -177,20 +177,9 @@ export default function Premium() {
                         ) : null}
                       </div>
 
-                      <div className="mt-5 flex items-end justify-between gap-3">
-                        <div>
-                          <p className="text-sm text-white/60">Potentiel</p>
-                          <p className="mt-1 text-[clamp(0.88rem,3.4vw,1.5rem)] font-black text-white whitespace-nowrap">{plan.ceiling}</p>
-                        </div>
-                        <button
-                          onClick={() => requestSubscribe(plan.id)}
-                          disabled={isCurrent}
-                          className={`inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold shadow-[0_14px_40px_rgba(0,0,0,0.45)] hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed ${
-                            isCurrent ? "bg-white/10 text-white" : `bg-gradient-to-r ${plan.theme.button} text-black`
-                          }`}
-                        >
-                          {isCurrent ? "Plan actuel" : "Demande"}
-                        </button>
+                      <div className="mt-5">
+                        <p className="text-sm text-white/60">Potentiel</p>
+                        <p className="mt-1 text-[clamp(0.88rem,3vw,1.5rem)] font-black text-white whitespace-nowrap">{plan.ceiling}</p>
                       </div>
 
                       <ul className="mt-6 space-y-3 text-left text-sm text-white/80">
@@ -213,6 +202,16 @@ export default function Premium() {
                           ))}
                         </ul>
                       </div>
+
+                      <button
+                        onClick={() => requestSubscribe(plan.id)}
+                        disabled={isCurrent}
+                        className={`mt-6 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold shadow-[0_14px_40px_rgba(0,0,0,0.45)] hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed ${
+                          isCurrent ? "bg-white/10 text-white" : `bg-gradient-to-r ${plan.theme.button} text-black`
+                        }`}
+                      >
+                        {isCurrent ? "Plan actuel" : "Demande"}
+                      </button>
                     </div>
                   </motion.div>
                 );

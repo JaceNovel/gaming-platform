@@ -4,6 +4,16 @@ $appUrl = rtrim(env('APP_URL', ''), '/');
 $frontUrl = rtrim(env('FRONTEND_URL', $appUrl), '/');
 
 $defaultCallback = $frontUrl ? $frontUrl . '/order-confirmation' : null;
+$payoutCurrencyIds = json_decode((string) env('FEDAPAY_CURRENCY_IDS', '{}'), true);
+$payoutBalanceIds = json_decode((string) env('FEDAPAY_PAYOUT_BALANCE_IDS', '{}'), true);
+
+if (!is_array($payoutCurrencyIds)) {
+    $payoutCurrencyIds = [];
+}
+
+if (!is_array($payoutBalanceIds)) {
+    $payoutBalanceIds = [];
+}
 
 return [
     // Secret key is required server-side. Never expose it to the frontend.
@@ -29,4 +39,10 @@ return [
 
     // Max age in seconds for webhook timestamp (replay protection).
     'webhook_tolerance' => (int) env('FEDAPAY_WEBHOOK_TOLERANCE', 300),
+
+    // Optional explicit FedaPay currency IDs keyed by ISO, e.g. {"XOF":1}
+    'currency_ids' => $payoutCurrencyIds,
+
+    // Optional explicit source balance IDs keyed by FedaPay payout mode, e.g. {"togocel":1270186}
+    'payout_balance_ids' => $payoutBalanceIds,
 ];

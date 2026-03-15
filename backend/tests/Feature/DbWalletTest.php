@@ -4,11 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Payout;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
+use App\Services\FedaPayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -137,7 +140,6 @@ class DbWalletTest extends TestCase
         $this->assertEquals(300.0, (float) $wallet->balance);
         $this->assertEquals(0.0, (float) $wallet->bonus_balance);
 
-        // Non-recharge order should not consume bonus.
         $wallet->update([
             'balance' => 1000,
             'bonus_balance' => 500,
@@ -291,5 +293,78 @@ class DbWalletTest extends TestCase
 
         $res->assertStatus(422)
             ->assertJsonPath('errors.name.0', 'Pseudo indisponible.');
+    }
+
+    #[Test]
+    public function wallet_withdraw_starts_fedapay_payout_immediately(): void
+    {
+        $user = User::factory()->create([
+            'name' => 'WITHDRAWER',
+            'phone' => '22507070707',
+            'country_code' => 'CI',
+        ]);
+
+        $wallet = WalletAccount::create([
+            'user_id' => $user->id,
+            'wallet_id' => 'DBW-WITHDRAW-0001',
+            'currency' => 'FCFA',
+            'balance' => 10000,
+            'bonus_balance' => 0,
+            'reward_balance' => 0,
+            'status' => 'active',
+        ]);
+
+        $mockFedaPay = Mockery::mock(FedaPayService::class)->makePartial();
+        $mockFedaPay->shouldReceive('createPayout')->once()->andReturn([
+            'id' => 987654,
+            'reference' => 'FDP-PAYOUT-REF',
+            'status' => 'pending',
+        ]);
+        $mockFedaPay->shouldReceive('startPayout')->once()->andReturn([
+            [
+                'id' => 987654,
+                'reference' => 'FDP-PAYOUT-REF',
+                'status' => 'processing',
+            ],
+        ]);
+        $mockFedaPay->shouldReceive('retrievePayout')->once()->andReturn([
+            'id' => 987654,
+            'reference' => 'FDP-PAYOUT-REF',
+            'status' => 'processing',
+        ]);
+        $this->app->instance(FedaPayService::class, $mockFedaPay);
+
+        $this->actingAs($user, 'sanctum');
+
+        $response = $this->postJson('/api/wallet/withdraw', [
+            'amount' => 5000,
+            'payoutDetails' => [
+                'phone' => '22507070707',
+                'country' => 'CI',
+                'method' => 'mobile_money',
+                'name' => 'Withdrawer Test',
+            ],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.withdraw_fee_amount', 1000)
+            ->assertJsonPath('data.payout.status', 'processing')
+            ->assertJsonPath('data.payout.provider_ref', 'FDP-PAYOUT-REF');
+
+        $wallet->refresh();
+
+        $this->assertSame(4000.0, (float) $wallet->balance);
+
+        $payout = Payout::query()->latest('created_at')->first();
+        $this->assertNotNull($payout);
+        $this->assertSame('processing', $payout->status);
+        $this->assertSame('FDP-PAYOUT-REF', $payout->provider_ref);
+
+        $this->assertDatabaseHas('wallet_transactions', [
+            'wallet_account_id' => $wallet->id,
+            'type' => 'debit',
+            'amount' => 6000,
+            'status' => 'pending',
+        ]);
     }
 }

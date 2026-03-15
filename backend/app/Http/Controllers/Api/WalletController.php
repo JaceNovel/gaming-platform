@@ -518,7 +518,9 @@ class WalletController extends Controller
             ];
         });
 
-        ProcessPayout::dispatch($result['payout']->id)->afterCommit();
+        ProcessPayout::dispatchSync($result['payout']->id);
+
+        $result['payout'] = Payout::query()->findOrFail($result['payout']->id);
 
         return response()->json([
             'success' => true,

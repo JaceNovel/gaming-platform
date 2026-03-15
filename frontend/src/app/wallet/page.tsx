@@ -49,13 +49,6 @@ type WalletPayout = {
   created_at: string;
 };
 
-type WalletRecipient = {
-  id: number;
-  username: string;
-  wallet_id: string;
-  phone_masked: string;
-};
-
 const normalizeCurrency = (currency?: string | null): { intl: string; label: string } => {
   const raw = String(currency ?? "").trim().toUpperCase();
   if (!raw) return { intl: "XOF", label: "FCFA" };
@@ -138,17 +131,12 @@ function WalletClient() {
   const [topupModalOpen, setTopupModalOpen] = useState(false);
   const [topupProvider, setTopupProvider] = useState<"fedapay" | "paypal" | "bank_card">("fedapay");
   const [withdrawAmount, setWithdrawAmount] = useState<string>("");
-  const [withdrawMethod, setWithdrawMethod] = useState<string>("wave");
+  const [withdrawMethod, setWithdrawMethod] = useState<string>("orange_money");
   const [withdrawPhone, setWithdrawPhone] = useState<string>(defaultPhone);
   const [withdrawCountry, setWithdrawCountry] = useState<string>(defaultCountry);
   const [withdrawName, setWithdrawName] = useState<string>(String(user?.name ?? ""));
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [withdrawFeeAmount, setWithdrawFeeAmount] = useState<number>(1000);
-  const [transferQuery, setTransferQuery] = useState<string>("");
-  const [transferAmount, setTransferAmount] = useState<string>("");
-  const [transferRecipient, setTransferRecipient] = useState<WalletRecipient | null>(null);
-  const [transferLookupLoading, setTransferLookupLoading] = useState(false);
-  const [transferLoading, setTransferLoading] = useState(false);
 
   const [limit, setLimit] = useState<10 | 25 | 50>(25);
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
@@ -552,80 +540,6 @@ function WalletClient() {
     }
   };
 
-  const handleResolveRecipient = async () => {
-    const query = transferQuery.trim();
-    if (query.length < 2) {
-      setBanner("Entre un ID wallet, un pseudo ou un numéro.");
-      setTransferRecipient(null);
-      return;
-    }
-
-    setTransferLookupLoading(true);
-    setBanner(null);
-    try {
-      const res = await authFetch(`${API_BASE}/wallet/recipient?query=${encodeURIComponent(query)}`);
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setTransferRecipient(null);
-        setBanner(data?.message ?? "Destinataire introuvable.");
-        return;
-      }
-
-      setTransferRecipient(data?.recipient ?? null);
-    } catch {
-      setTransferRecipient(null);
-      setBanner("Destinataire introuvable.");
-    } finally {
-      setTransferLookupLoading(false);
-    }
-  };
-
-  const handleTransfer = async () => {
-    if (transferLoading) return;
-    const amountValue = Math.round(Number(transferAmount || 0));
-    if (!transferRecipient) {
-      setBanner("Recherche d'abord le destinataire.");
-      return;
-    }
-    if (!Number.isFinite(amountValue) || amountValue < 1) {
-      setBanner("Montant de transfert invalide.");
-      return;
-    }
-    if (amountValue > Math.floor(balance)) {
-      setBanner("Solde insuffisant.");
-      return;
-    }
-
-    setTransferLoading(true);
-    setBanner(null);
-    try {
-      const res = await authFetch(`${API_BASE}/wallet/transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: amountValue,
-          recipient_query: transferQuery.trim(),
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setBanner(data?.message ?? "Transfert impossible.");
-        return;
-      }
-
-      setBanner(`Transfert envoyé à ${transferRecipient.username} sans frais.`);
-      setTransferAmount("");
-      setTransferQuery("");
-      setTransferRecipient(null);
-      emitWalletUpdated({ source: "wallet_transfer_sent" });
-      await loadWallet({ silent: true });
-    } catch {
-      setBanner("Transfert impossible.");
-    } finally {
-      setTransferLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen text-white">
       <div className="fixed inset-0 -z-10">
@@ -657,7 +571,7 @@ function WalletClient() {
                     <p className="mt-1 text-xs text-white/60">Statut: {walletStatus}</p>
                   ) : null}
                 </div>
-                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[260px]">
                   <button
                     type="button"
                     onClick={() => void loadWallet()}
@@ -673,23 +587,34 @@ function WalletClient() {
                   >
                     <span className="block truncate">Support</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const node = document.getElementById("topup-section");
+                      node?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className="min-w-0 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-100 sm:px-4 sm:text-sm"
+                  >
+                    <span className="block truncate">Recharger</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const node = document.getElementById("withdraw-section");
+                      node?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className="min-w-0 rounded-2xl border border-orange-300/30 bg-orange-400/10 px-3 py-2 text-xs font-semibold text-orange-100 sm:px-4 sm:text-sm"
+                  >
+                    <span className="block truncate">Retrait</span>
+                  </button>
                 </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <GlowButton variant="secondary" onClick={() => router.push("/shop")}>
-                  Aller à la boutique
-                </GlowButton>
-                <GlowButton variant="ghost" onClick={() => router.push("/account")}>
-                  Aller au profil
-                </GlowButton>
               </div>
 
               <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-500/10 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.25em] text-cyan-100/80">DB Wallet ID</p>
-                    <p className="mt-1 text-lg font-semibold text-cyan-50">{walletId || "Chargement..."}</p>
+                    <p className="mt-1 break-all text-lg font-semibold text-cyan-50">{walletId || "Chargement..."}</p>
                     <p className="mt-1 text-xs text-cyan-100/75">Pseudo public: {walletUsername || String(user?.name ?? "—")}</p>
                   </div>
                   {walletId ? (
@@ -707,50 +632,6 @@ function WalletClient() {
                       Copier mon ID
                     </button>
                   ) : null}
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-2xl border border-sky-300/20 bg-sky-500/10 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.25em] text-sky-100/80">Envoi compte à compte</p>
-                    <p className="mt-1 text-sm text-sky-50/85">Envoie de l'argent vers un autre DB Wallet sans frais.</p>
-                  </div>
-                  <div className="text-xs text-sky-100/75">Recherche par ID wallet, pseudo ou téléphone</div>
-                </div>
-
-                <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <input
-                    value={transferQuery}
-                    onChange={(event) => setTransferQuery(event.target.value)}
-                    placeholder="DBW-..., pseudo ou téléphone"
-                    className="w-full rounded-xl border border-sky-200/25 bg-black/30 px-3 py-2 text-sm text-white"
-                  />
-                  <GlowButton variant="ghost" onClick={handleResolveRecipient} disabled={transferLookupLoading}>
-                    {transferLookupLoading ? "Recherche..." : "Trouver"}
-                  </GlowButton>
-                </div>
-
-                {transferRecipient ? (
-                  <div className="mt-3 rounded-2xl border border-sky-200/20 bg-black/20 p-4">
-                    <p className="text-sm font-semibold text-white">{transferRecipient.username}</p>
-                    <p className="mt-1 text-xs text-white/70">Wallet: {transferRecipient.wallet_id} • Tel: {transferRecipient.phone_masked}</p>
-                  </div>
-                ) : null}
-
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    max={Math.floor(balance)}
-                    value={transferAmount}
-                    onChange={(event) => setTransferAmount(event.target.value)}
-                    placeholder={`Montant à envoyer (max ${Math.floor(balance)})`}
-                    className="w-full max-w-xs rounded-xl border border-sky-200/25 bg-black/30 px-3 py-2 text-sm text-white"
-                  />
-                  <GlowButton variant="ghost" onClick={handleTransfer} disabled={transferLoading || !transferRecipient}>
-                    {transferLoading ? "Envoi..." : "Envoyer sans frais"}
-                  </GlowButton>
                 </div>
               </div>
 

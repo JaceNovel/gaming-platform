@@ -1006,6 +1006,32 @@ function AccountClient() {
     router.push("/wallet#topup-section");
   };
 
+  const handleSendToFriend = async () => {
+    if (!referralInviteUrl) {
+      setReferralToast("Lien de parrainage indisponible");
+      window.setTimeout(() => setReferralToast(null), 1800);
+      return;
+    }
+
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({
+          title: "PRIME Gaming",
+          text: "Inscris-toi avec mon lien PRIME Gaming.",
+          url: referralInviteUrl,
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(referralInviteUrl);
+      setReferralToast("Lien copié");
+    } catch {
+      setReferralToast("Impossible de partager");
+    } finally {
+      window.setTimeout(() => setReferralToast(null), 1800);
+    }
+  };
+
   const closeWalletModal = () => {
     setWalletModalOpen(false);
   };
@@ -1242,6 +1268,7 @@ function AccountClient() {
             countryCode={me.countryCode}
             activeMenu={activeMenu}
             onChangeMenu={handleMenuChange}
+            onSendToFriendClick={handleSendToFriend}
           />
 
           <section className="space-y-8">

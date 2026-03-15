@@ -12,6 +12,7 @@ use App\Services\FedaPayService;
 use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class AdminMarketplaceWithdrawController extends Controller
@@ -53,116 +54,164 @@ class AdminMarketplaceWithdrawController extends Controller
             'adminNote' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $syncPayload = DB::transaction(function () use ($partnerWithdrawRequest, $admin, $data, $fedaPayService) {
-            $wallet = PartnerWallet::query()->where('id', $partnerWithdrawRequest->partner_wallet_id)->lockForUpdate()->firstOrFail();
-            $partnerWithdrawRequest = PartnerWithdrawRequest::query()
-                ->with(['seller.user', 'partnerWallet'])
-                ->whereKey($partnerWithdrawRequest->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+        try {
+            $syncPayload = DB::transaction(function () use ($partnerWithdrawRequest, $admin, $data, $fedaPayService) {
+                $wallet = PartnerWallet::query()->where('id', $partnerWithdrawRequest->partner_wallet_id)->lockForUpdate()->firstOrFail();
+                $partnerWithdrawRequest = PartnerWithdrawRequest::query()
+                    ->with(['seller.user', 'partnerWallet'])
+                    ->whereKey($partnerWithdrawRequest->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
-            $amount = (float) $partnerWithdrawRequest->amount;
+                $amount = (float) $partnerWithdrawRequest->amount;
+                $payout = $partnerWithdrawRequest->payout_details;
+                if (!is_array($payout)) {
+                    $payout = [];
+                }
+
+                $feeAmount = (float) ($payout['withdraw_fee_amount'] ?? 0);
+                $totalDebit = (float) ($payout['withdraw_total_debit'] ?? ($amount + $feeAmount));
+                if ($totalDebit <= 0) {
+                    $totalDebit = $amount;
+                }
+
+                if ($totalDebit > (float) $wallet->reserved_withdraw_balance) {
+                    throw ValidationException::withMessages([
+                        'amount' => ['Reserved balance is insufficient.'],
+                    ]);
+                }
+
+                $user = $partnerWithdrawRequest->seller?->user;
+                if (!$user) {
+                    throw ValidationException::withMessages([
+                        'seller' => ['Seller user not found.'],
+                    ]);
+                }
+
+                $providerStatus = strtolower((string) ($payout['provider_status'] ?? ''));
+                if (in_array($providerStatus, ['processing', 'sent'], true)) {
+                    $partnerWithdrawRequest->processed_by_admin_id = $admin->id;
+                    $partnerWithdrawRequest->admin_note = $data['adminNote'] ?? $partnerWithdrawRequest->admin_note;
+                    $partnerWithdrawRequest->save();
+                    return null;
+                }
+
+                $phone = trim((string) ($payout['phone'] ?? ''));
+                if ($phone === '') {
+                    throw ValidationException::withMessages([
+                        'phone' => ['Seller withdraw phone is missing.'],
+                    ]);
+                }
+
+                $phoneDigits = preg_replace('/\D+/', '', $phone) ?? '';
+                if ($phoneDigits === '') {
+                    throw ValidationException::withMessages([
+                        'phone' => ['Seller withdraw phone is invalid.'],
+                    ]);
+                }
+
+                $country = strtoupper(trim((string) ($payout['country'] ?? ($user->country_code ?? 'CI'))));
+                $countryCode = strtolower($country);
+                $name = trim((string) ($payout['name'] ?? $user->name ?? ''));
+                $method = trim((string) ($payout['method'] ?? 'mobile_money'));
+
+                $created = $fedaPayService->createPayout($user, [
+                    'amount' => $amount,
+                    'currency' => 'XOF',
+                    'mode' => $method,
+                    'customer_phone' => $phoneDigits,
+                    'customer_country' => $countryCode,
+                    'customer_name' => $name,
+                    'customer_email' => $user->email,
+                    'merchant_reference' => 'PARTNER-WDR-' . $partnerWithdrawRequest->id,
+                    'metadata' => [
+                        'source' => 'partner_withdraw_request',
+                        'partner_withdraw_request_id' => $partnerWithdrawRequest->id,
+                        'seller_id' => $partnerWithdrawRequest->seller_id,
+                    ],
+                    'custom_metadata' => [
+                        'partner_withdraw_request_id' => $partnerWithdrawRequest->id,
+                        'seller_id' => $partnerWithdrawRequest->seller_id,
+                        'admin_id' => $admin->id,
+                    ],
+                ]);
+
+                $providerId = $fedaPayService->extractPayoutId($created);
+                $started = null;
+                if ($providerId) {
+                    $started = $fedaPayService->startPayout([
+                        [
+                            'id' => $providerId,
+                            'phone_number' => [
+                                'number' => $phoneDigits,
+                                'country' => $countryCode,
+                            ],
+                        ],
+                    ]);
+                }
+
+                $currentPayload = is_array($started) ? $started : $created;
+                $providerStatus = $fedaPayService->normalizePayoutStatus($currentPayload);
+
+                $partnerWithdrawRequest->processed_by_admin_id = $admin->id;
+                $partnerWithdrawRequest->admin_note = $data['adminNote'] ?? null;
+                $partnerWithdrawRequest->payout_details = array_merge($payout, [
+                    'provider' => 'fedapay',
+                    'provider_payout_id' => $providerId,
+                    'provider_reference' => $fedaPayService->extractPayoutReference($created),
+                    'provider_status' => $providerStatus,
+                    'provider_payload' => $created,
+                    'provider_start_payload' => $started,
+                    'provider_last_error_code' => null,
+                    'provider_last_error_message' => null,
+                ]);
+                $partnerWithdrawRequest->save();
+
+                return [
+                    'entity' => is_array($currentPayload) && array_is_list($currentPayload)
+                        ? ($currentPayload[0] ?? $created)
+                        : $currentPayload,
+                ];
+            });
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('Marketplace withdraw payout start failed', [
+                'withdraw_request_id' => $partnerWithdrawRequest->id,
+                'seller_id' => $partnerWithdrawRequest->seller_id,
+                'error' => $e->getMessage(),
+            ]);
+
             $payout = $partnerWithdrawRequest->payout_details;
             if (!is_array($payout)) {
                 $payout = [];
             }
 
-            $feeAmount = (float) ($payout['withdraw_fee_amount'] ?? 0);
-            $totalDebit = (float) ($payout['withdraw_total_debit'] ?? ($amount + $feeAmount));
-            if ($totalDebit <= 0) {
-                $totalDebit = $amount;
-            }
+            $partnerWithdrawRequest->forceFill([
+                'processed_by_admin_id' => $admin->id,
+                'admin_note' => $data['adminNote'] ?? $partnerWithdrawRequest->admin_note,
+                'payout_details' => array_merge($payout, [
+                    'provider' => 'fedapay',
+                    'provider_status' => 'failed',
+                    'provider_last_error_message' => mb_substr(trim($e->getMessage()), 0, 1000),
+                ]),
+            ])->save();
 
-            if ($totalDebit > (float) $wallet->reserved_withdraw_balance) {
-                throw ValidationException::withMessages([
-                    'amount' => ['Reserved balance is insufficient.'],
-                ]);
-            }
-
-            $user = $partnerWithdrawRequest->seller?->user;
-            if (!$user) {
-                throw ValidationException::withMessages([
-                    'seller' => ['Seller user not found.'],
-                ]);
-            }
-
-            $providerStatus = strtolower((string) ($payout['provider_status'] ?? ''));
-            if (in_array($providerStatus, ['processing', 'sent'], true)) {
-                $partnerWithdrawRequest->processed_by_admin_id = $admin->id;
-                $partnerWithdrawRequest->admin_note = $data['adminNote'] ?? $partnerWithdrawRequest->admin_note;
-                $partnerWithdrawRequest->save();
-                return null;
-            }
-
-            $phone = trim((string) ($payout['phone'] ?? ''));
-            if ($phone === '') {
-                throw ValidationException::withMessages([
-                    'phone' => ['Seller withdraw phone is missing.'],
-                ]);
-            }
-
-            $country = strtoupper(trim((string) ($payout['country'] ?? ($user->country_code ?? 'CI'))));
-            $name = trim((string) ($payout['name'] ?? $user->name ?? ''));
-
-            $created = $fedaPayService->createPayout($user, [
-                'amount' => $amount,
-                'currency' => 'XOF',
-                'mode' => 'mobile_money',
-                'customer_phone' => $phone,
-                'customer_country' => $country,
-                'customer_name' => $name,
-                'customer_email' => $user->email,
-                'merchant_reference' => 'PARTNER-WDR-' . $partnerWithdrawRequest->id,
-                'metadata' => [
-                    'source' => 'partner_withdraw_request',
-                    'partner_withdraw_request_id' => $partnerWithdrawRequest->id,
-                    'seller_id' => $partnerWithdrawRequest->seller_id,
-                ],
-                'custom_metadata' => [
-                    'partner_withdraw_request_id' => $partnerWithdrawRequest->id,
-                    'seller_id' => $partnerWithdrawRequest->seller_id,
-                    'admin_id' => $admin->id,
-                ],
+            throw ValidationException::withMessages([
+                'provider' => [mb_substr(trim($e->getMessage()) !== '' ? trim($e->getMessage()) : 'Unable to start the FedaPay payout.', 0, 1000)],
             ]);
-
-            $providerId = $fedaPayService->extractPayoutId($created);
-            $started = null;
-            if ($providerId) {
-                $started = $fedaPayService->startPayout([
-                    [
-                        'id' => $providerId,
-                        'phone_number' => [
-                            'number' => preg_replace('/\D+/', '', $phone) ?? $phone,
-                            'country' => $country,
-                        ],
-                    ],
-                ]);
-            }
-
-            $currentPayload = is_array($started) ? $started : $created;
-            $providerStatus = $fedaPayService->normalizePayoutStatus($currentPayload);
-
-            $partnerWithdrawRequest->processed_by_admin_id = $admin->id;
-            $partnerWithdrawRequest->admin_note = $data['adminNote'] ?? null;
-            $partnerWithdrawRequest->payout_details = array_merge($payout, [
-                'provider' => 'fedapay',
-                'provider_payout_id' => $providerId,
-                'provider_reference' => $fedaPayService->extractPayoutReference($created),
-                'provider_status' => $providerStatus,
-                'provider_payload' => $created,
-                'provider_start_payload' => $started,
-            ]);
-            $partnerWithdrawRequest->save();
-
-            return [
-                'entity' => is_array($currentPayload) && array_is_list($currentPayload)
-                    ? ($currentPayload[0] ?? $created)
-                    : $currentPayload,
-            ];
-        });
+        }
 
         if (is_array($syncPayload)) {
-            ProcessFedaPayPayoutWebhook::dispatchSync($syncPayload);
+            try {
+                ProcessFedaPayPayoutWebhook::dispatchSync($syncPayload);
+            } catch (\Throwable $e) {
+                Log::error('Marketplace withdraw payout sync failed', [
+                    'withdraw_request_id' => $partnerWithdrawRequest->id,
+                    'seller_id' => $partnerWithdrawRequest->seller_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         $partnerWithdrawRequest->load(['seller.user', 'partnerWallet']);

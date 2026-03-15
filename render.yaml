@@ -90,6 +90,10 @@ services:
         sync: false
       - key: FEDAPAY_PAYOUT_WEBHOOK_SECRET
         sync: false
+      - key: FEDAPAY_CURRENCY_IDS
+        value: '{"XOF":1}'
+      - key: FEDAPAY_PAYOUT_BALANCE_IDS
+        sync: false
 
       # PayPal (set these in Render dashboard)
       - key: PAYPAL_CLIENT_ID
@@ -170,6 +174,10 @@ services:
       - key: FEDAPAY_WEBHOOK_SECRET
         sync: false
       - key: FEDAPAY_PAYOUT_WEBHOOK_SECRET
+        sync: false
+      - key: FEDAPAY_CURRENCY_IDS
+        value: '{"XOF":1}'
+      - key: FEDAPAY_PAYOUT_BALANCE_IDS
         sync: false
 
       # PayPal (set these in Render dashboard)

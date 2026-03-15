@@ -10,6 +10,7 @@ type ProfileSidebarProps = {
   onChangeMenu: (menu: DashboardMenuId) => void;
   onVipClick?: () => void;
   onWalletClick?: () => void;
+  onSendToFriendClick?: () => void;
 };
 
 export default function ProfileSidebar({
@@ -20,6 +21,7 @@ export default function ProfileSidebar({
   onChangeMenu,
   onVipClick,
   onWalletClick,
+  onSendToFriendClick,
 }: ProfileSidebarProps) {
   const isVip = String(premiumTier ?? "").toLowerCase() !== "basic";
   return (
@@ -55,6 +57,9 @@ export default function ProfileSidebar({
               }
               if (item.id === "Wallet") {
                 onWalletClick?.();
+              }
+              if (item.id === "EnvoyerAmi") {
+                onSendToFriendClick?.();
               }
             }}
             className={`w-full text-left px-4 py-3 rounded-2xl border transition flex items-center gap-3 ${

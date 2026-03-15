@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\AdminLog;
 use App\Models\Payout;
+use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Services\FedaPayService;
 use App\Services\WalletService;
@@ -103,12 +104,13 @@ class ProcessPayout implements ShouldQueue
                 && !in_array((string) $payout->status, ['sent', 'failed', 'cancelled'], true)
                 && !$this->hasStartBeenRequested($payout)
             ) {
+                $phoneDigits = preg_replace('/\D+/', '', (string) $payout->phone) ?? '';
                 $started = $fedaPayService->startPayout([
                     [
                         'id' => $providerPayoutId,
                         'phone_number' => [
-                            'number' => $payout->phone,
-                            'country' => strtoupper((string) $payout->country),
+                            'number' => $phoneDigits !== '' ? $phoneDigits : (string) $payout->phone,
+                            'country' => strtolower((string) $payout->country),
                         ],
                     ],
                 ]);
@@ -136,22 +138,30 @@ class ProcessPayout implements ShouldQueue
             }
         }
 
-        AdminLog::create([
-            'admin_id' => null,
-            'action' => 'payout_process',
-            'details' => json_encode([
+        try {
+            $adminId = $payout->user_id ?: User::query()->orderBy('id')->value('id');
+            if ($adminId) {
+                AdminLog::create([
+                    'admin_id' => $adminId,
+                    'action' => 'payout_process',
+                    'details' => json_encode([
+                        'payout_id' => $payout->id,
+                        'status' => Payout::query()->whereKey($payout->id)->value('status'),
+                    ]),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Payout admin log write failed', [
                 'payout_id' => $payout->id,
-                'status' => Payout::query()->whereKey($payout->id)->value('status'),
-            ]),
-        ]);
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function resolveProviderMode(Payout $payout): string
     {
         $meta = $this->walletTxMeta($payout);
-        $method = strtolower((string) ($meta['payout_method'] ?? 'mobile_money'));
-
-        return $method === 'bank' ? 'bank_transfer' : 'mobile_money';
+        return strtolower((string) ($meta['payout_method'] ?? 'mobile_money'));
     }
 
     private function resolveProviderPayoutId(Payout $payout, FedaPayService $fedaPayService): ?int

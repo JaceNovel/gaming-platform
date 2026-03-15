@@ -25,6 +25,15 @@ class PayPalWebhookController extends Controller
             return response()->json(['message' => 'Invalid PayPal webhook payload'], 400);
         }
 
+        if ($this->looksLikeForeignWebhook($request, $payload)) {
+            Log::warning('paypal:webhook-ignored-foreign-payload', [
+                'name' => $payload['name'] ?? null,
+                'object' => $payload['object'] ?? null,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Ignored non-PayPal webhook payload']);
+        }
+
         $headers = [
             'paypal-transmission-id' => (string) $request->header('PayPal-Transmission-Id', ''),
             'paypal-transmission-time' => (string) $request->header('PayPal-Transmission-Time', ''),
@@ -112,5 +121,19 @@ class PayPalWebhookController extends Controller
 
             return response()->json(['message' => 'PayPal webhook processing failed'], 500);
         }
+    }
+
+    private function looksLikeForeignWebhook(Request $request, array $payload): bool
+    {
+        $hasPaypalHeaders = trim((string) $request->header('PayPal-Transmission-Id', '')) !== ''
+            || trim((string) $request->header('PayPal-Transmission-Sig', '')) !== '';
+
+        if ($hasPaypalHeaders) {
+            return false;
+        }
+
+        return isset($payload['entity'])
+            && isset($payload['name'])
+            && strtolower((string) ($payload['object'] ?? '')) === 'transaction';
     }
 }

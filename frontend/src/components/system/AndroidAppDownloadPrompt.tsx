@@ -1,7 +1,7 @@
 "use client";
 
 import { Capacitor } from "@capacitor/core";
-import { ExternalLink, Smartphone, X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -146,7 +146,7 @@ export default function AndroidAppDownloadPrompt() {
         <div className="flex items-start justify-between gap-4 px-5 pb-2 pt-5">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-300/25 bg-emerald-400/15 text-emerald-100">
-              <Smartphone className="h-6 w-6" />
+              <img src="/favicon-32x32.png" alt="PRIME Gaming" className="h-8 w-8 object-contain" />
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-[0.35em] text-emerald-100/70">Android</p>
