@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AdminLog;
+use App\Models\Notification;
 use App\Models\User;
 use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
@@ -246,5 +247,124 @@ class WalletService
     public function generateReference(string $prefix = 'WTX'): string
     {
         return $prefix . '-' . strtoupper(Str::random(10));
+    }
+
+    public function transfer(User $sender, User $recipient, string $reference, float $amount, array $meta = []): array
+    {
+        if ($amount <= 0) {
+            throw new \RuntimeException('Transfer amount must be greater than zero');
+        }
+
+        if ((int) $sender->id === (int) $recipient->id) {
+            throw new \RuntimeException('Cannot transfer to self');
+        }
+
+        $result = DB::transaction(function () use ($sender, $recipient, $reference, $amount, $meta) {
+            $senderWallet = $this->getOrCreateWallet($sender);
+            $recipientWallet = $this->getOrCreateWallet($recipient);
+
+            $walletIds = [$senderWallet->id, $recipientWallet->id];
+            sort($walletIds);
+
+            $locked = WalletAccount::query()
+                ->whereIn('id', $walletIds)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            /** @var WalletAccount $lockedSender */
+            $lockedSender = $locked->get($senderWallet->id);
+            /** @var WalletAccount $lockedRecipient */
+            $lockedRecipient = $locked->get($recipientWallet->id);
+
+            if (!$lockedSender || !$lockedRecipient) {
+                throw new \RuntimeException('Wallet not found');
+            }
+
+            if ((string) $lockedSender->status === 'locked') {
+                throw new \RuntimeException('Sender wallet locked');
+            }
+
+            if ((string) $lockedRecipient->status === 'locked') {
+                throw new \RuntimeException('Recipient wallet locked');
+            }
+
+            $outReference = $reference . '-OUT';
+            $inReference = $reference . '-IN';
+
+            $existingOut = WalletTransaction::query()->where('reference', $outReference)->first();
+            $existingIn = WalletTransaction::query()->where('reference', $inReference)->first();
+            if ($existingOut && $existingIn) {
+                return [
+                    'sender_wallet' => $lockedSender->fresh(),
+                    'recipient_wallet' => $lockedRecipient->fresh(),
+                    'debit' => $existingOut,
+                    'credit' => $existingIn,
+                ];
+            }
+
+            if ((float) $lockedSender->balance < $amount) {
+                throw new \RuntimeException('Insufficient balance');
+            }
+
+            $transferMeta = array_merge($meta, [
+                'type' => 'wallet_transfer',
+                'reason' => 'wallet_transfer',
+                'sender_user_id' => $sender->id,
+                'sender_wallet_id' => $lockedSender->wallet_id,
+                'sender_username' => $sender->name,
+                'recipient_user_id' => $recipient->id,
+                'recipient_wallet_id' => $lockedRecipient->wallet_id,
+                'recipient_username' => $recipient->name,
+                'transfer_reference' => $reference,
+            ]);
+
+            $lockedSender->balance = (float) $lockedSender->balance - $amount;
+            $lockedSender->save();
+
+            $lockedRecipient->balance = (float) $lockedRecipient->balance + $amount;
+            $lockedRecipient->save();
+
+            $debit = WalletTransaction::create([
+                'wallet_account_id' => $lockedSender->id,
+                'type' => 'debit',
+                'amount' => $amount,
+                'reference' => $outReference,
+                'meta' => $transferMeta,
+                'status' => 'success',
+            ]);
+
+            $credit = WalletTransaction::create([
+                'wallet_account_id' => $lockedRecipient->id,
+                'type' => 'credit',
+                'amount' => $amount,
+                'reference' => $inReference,
+                'meta' => $transferMeta,
+                'status' => 'success',
+            ]);
+
+            return [
+                'sender_wallet' => $lockedSender->fresh(),
+                'recipient_wallet' => $lockedRecipient->fresh(),
+                'debit' => $debit,
+                'credit' => $credit,
+            ];
+        });
+
+        try {
+            Notification::create([
+                'user_id' => $recipient->id,
+                'type' => 'wallet_transfer_received',
+                'message' => $sender->name . ' t\'a envoyé ' . number_format($amount, 0, ',', ' ') . ' FCFA sur ton DB Wallet.',
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('wallet:transfer-notification-skipped', [
+                'reference' => $reference,
+                'recipient_user_id' => $recipient->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $result;
     }
 }

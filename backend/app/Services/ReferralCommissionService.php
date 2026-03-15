@@ -21,7 +21,7 @@ class ReferralCommissionService
      * Rules:
      * - Triggered on any paid purchase (order.status = payment_success), regardless of payment method.
      * - Excludes wallet_topup orders.
-     * - VIP sponsor rate = 3%, Standard sponsor rate = 1%.
+    * - VIP sponsor rate depends on premium plan, Standard sponsor rate = 1%.
      * - Idempotent per order via wallet transaction reference REFERRAL-{order_id}.
      */
     public function applyForPaidOrderId(int $orderId, array $context = []): void
@@ -91,10 +91,15 @@ class ReferralCommissionService
                     return;
                 }
 
+                $premiumLevel = strtolower(trim((string) ($referrer->premium_level ?? '')));
                 $isVip = (bool) ($referrer->is_premium ?? false)
-                    && in_array((string) ($referrer->premium_level ?? ''), ['bronze', 'or', 'platine'], true);
+                    && in_array($premiumLevel, ['bronze', 'or', 'platine'], true);
 
-                $rate = $isVip ? 0.03 : 0.01;
+                $rate = match ($premiumLevel) {
+                    'platine' => 0.18,
+                    'bronze' => 0.10,
+                    default => ($isVip ? 0.10 : 0.01),
+                };
 
                 $baseAmount = (float) ($order->total_price ?? 0);
                 if (!is_finite($baseAmount) || $baseAmount <= 0) {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Seller;
 use App\Models\SellerKycFile;
+use App\Services\AdminResponsibilityService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
@@ -247,6 +248,35 @@ class SellerKycController extends Controller
         }
 
         $seller->save();
+
+        try {
+            app(AdminResponsibilityService::class)->notify(
+                'partnerships',
+                'admin_partner_kyc_submitted',
+                'Nouvelle demande partenaire',
+                [
+                    'headline' => 'Dossier partenaire en attente',
+                    'intro' => 'Un vendeur a soumis ou mis a jour son dossier KYC.',
+                    'details' => [
+                        ['label' => 'Vendeur', 'value' => (string) ($user->name ?? $seller->kyc_full_name ?? 'Vendeur')],
+                        ['label' => 'Societe', 'value' => (string) ($seller->company_name ?? '—')],
+                        ['label' => 'WhatsApp', 'value' => (string) ($seller->whatsapp_number ?? '—')],
+                        ['label' => 'Pays', 'value' => (string) ($seller->kyc_country ?? '—')],
+                    ],
+                    'actionUrl' => rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/') . '/admin/marketplace/sellers',
+                    'actionText' => 'Verifier les vendeurs',
+                ],
+                [
+                    'seller' => $seller->toArray(),
+                    'user' => $user->toArray(),
+                ],
+                [
+                    'seller_id' => $seller->id,
+                    'user_id' => $user->id,
+                ]
+            );
+        } catch (\Throwable $e) {
+        }
 
         return $this->me($request);
     }

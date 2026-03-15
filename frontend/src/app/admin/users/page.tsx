@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Eye, Plus, Search, Download } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
+import { ADMIN_ROLE_OPTIONS } from "@/components/auth/adminRoles";
 import { API_BASE } from "@/lib/config";
 
 type AdminUser = {
@@ -134,10 +135,11 @@ export default function AdminUsersPage() {
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
         >
           <option value="all">Tous les rôles</option>
-          <option value="admin">Admin</option>
-          <option value="manager">Manager</option>
-          <option value="support">Support</option>
-          <option value="customer">Client</option>
+          {ADMIN_ROLE_OPTIONS.map((role) => (
+            <option key={role.value} value={role.value}>
+              {role.label}
+            </option>
+          ))}
         </select>
         <select
           value={statusFilter}

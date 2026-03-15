@@ -1,14 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
-import { emitWalletUpdated } from "@/lib/walletEvents";
-
-type Game = { id: number; name: string };
 
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
@@ -25,58 +22,37 @@ function PremiumSubscribeScreen() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [walletSubmitting, setWalletSubmitting] = useState(false);
-  const [games, setGames] = useState<Game[]>([]);
-  const [loadingGames, setLoadingGames] = useState(false);
-  const [gameId, setGameId] = useState<string>("");
-  const [gameUsername, setGameUsername] = useState<string>("");
+  const [socialPlatform, setSocialPlatform] = useState("");
+  const [socialHandle, setSocialHandle] = useState("");
+  const [socialUrl, setSocialUrl] = useState("");
+  const [followersCount, setFollowersCount] = useState("");
+  const [promotionChannels, setPromotionChannels] = useState("");
+  const [otherPlatforms, setOtherPlatforms] = useState("");
+  const [motivation, setMotivation] = useState("");
 
   const level = useMemo(() => {
     const raw = String(searchParams.get("level") ?? "bronze").trim().toLowerCase();
     return raw === "platine" ? "platine" : "bronze";
   }, [searchParams]);
 
-  useEffect(() => {
-    let active = true;
-    setLoadingGames(true);
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/games`, { cache: "no-store" });
-        const payload = await res.json().catch(() => null);
-        const list: Game[] = Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.data)
-            ? payload.data
-            : [];
-        if (!active) return;
-        setGames(list);
-        if (!gameId && list.length) setGameId(String(list[0].id));
-      } catch {
-        // ignore
-      } finally {
-        if (active) setLoadingGames(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const startPayment = useCallback(async () => {
+  const submitRequest = useCallback(async () => {
     setStatus(null);
-    if (!gameId) {
-      setStatus("Choisissez un jeu.");
+    if (!socialPlatform.trim()) {
+      setStatus("Indiquez votre plateforme principale.");
       return;
     }
-    if (!gameUsername.trim()) {
-      setStatus("Entrez votre pseudo de jeu.");
+    if (!motivation.trim()) {
+      setStatus("Expliquez votre motivation.");
+      return;
+    }
+    if (!followersCount.trim()) {
+      setStatus("Indiquez votre audience.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/premium/init`, {
+      const res = await fetch(`${API_BASE}/premium/request`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -84,125 +60,106 @@ function PremiumSubscribeScreen() {
         },
         body: JSON.stringify({
           level: String(level ?? "bronze").toLowerCase(),
-          game_id: Number(gameId),
-          game_username: gameUsername.trim(),
+          social_platform: socialPlatform.trim(),
+          social_handle: socialHandle.trim() || null,
+          social_url: socialUrl.trim() || null,
+          followers_count: Number(followersCount || 0),
+          promotion_channels: promotionChannels.trim() || null,
+          other_platforms: otherPlatforms.trim() || null,
+          motivation: motivation.trim(),
         }),
       });
 
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setStatus(payload?.message ?? "Impossible de lancer le paiement VIP.");
+        setStatus(payload?.message ?? "Impossible d'envoyer la demande Premium.");
         return;
       }
-
-      const url = String(payload?.payment_url ?? "").trim();
-      if (!url) {
-        setStatus("Lien de paiement introuvable.");
-        return;
-      }
-
-      window.location.href = url;
+      setStatus(payload?.message ?? "Demande envoyée.");
+      window.setTimeout(() => router.replace("/account"), 800);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Impossible de lancer le paiement VIP.";
-      setStatus(message || "Impossible de lancer le paiement VIP.");
+      const message = err instanceof Error ? err.message : "Impossible d'envoyer la demande Premium.";
+      setStatus(message || "Impossible d'envoyer la demande Premium.");
     } finally {
       setSubmitting(false);
     }
-  }, [gameId, gameUsername, level]);
-
-  const startWalletPayment = useCallback(async () => {
-    setStatus(null);
-    if (!gameId) {
-      setStatus("Choisissez un jeu.");
-      return;
-    }
-    if (!gameUsername.trim()) {
-      setStatus("Entrez votre pseudo de jeu.");
-      return;
-    }
-
-    setWalletSubmitting(true);
-    try {
-      const initRes = await fetch(`${API_BASE}/premium/init-wallet`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          level: String(level ?? "bronze").toLowerCase(),
-          game_id: Number(gameId),
-          game_username: gameUsername.trim(),
-        }),
-      });
-
-      const initPayload = await initRes.json().catch(() => ({}));
-      if (!initRes.ok) {
-        setStatus(initPayload?.message ?? "Impossible de démarrer le paiement wallet.");
-        return;
-      }
-
-      const orderId = Number(initPayload?.order_id ?? 0);
-      if (!Number.isFinite(orderId) || orderId <= 0) {
-        setStatus("Commande wallet invalide.");
-        return;
-      }
-
-      const payRes = await fetch(`${API_BASE}/payments/wallet/pay`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({ order_id: orderId }),
-      });
-
-      const payPayload = await payRes.json().catch(() => ({}));
-      if (!payRes.ok) {
-        setStatus(payPayload?.message ?? "Paiement wallet impossible.");
-        return;
-      }
-
-      setStatus("VIP activé via Wallet.");
-      emitWalletUpdated({ source: "premium_wallet_pay" });
-      router.replace("/account?payment_status=paid");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Paiement wallet impossible.";
-      setStatus(message || "Paiement wallet impossible.");
-    } finally {
-      setWalletSubmitting(false);
-    }
-  }, [gameId, gameUsername, level, router]);
+  }, [followersCount, level, motivation, otherPlatforms, promotionChannels, router, socialHandle, socialPlatform, socialUrl]);
 
   return (
     <div className="mobile-shell min-h-screen space-y-6 py-6 pb-24">
-      <SectionTitle eyebrow="Premium" label="Souscription" />
+      <SectionTitle eyebrow="Premium" label="Demande" />
       <div className="glass-card space-y-4 rounded-2xl border border-white/10 p-6">
-        <p className="text-sm text-white/70">Plan: <span className="font-semibold text-white">{level}</span></p>
+        <p className="text-sm text-white/70">Plan demandé: <span className="font-semibold capitalize text-white">{level}</span></p>
+        <p className="text-sm text-white/60">L'équipe admin valide ou refuse les demandes. En cas d'acceptation, tu recevras par email les directives et le certificat de partenariat.</p>
         <div className="grid gap-3">
           <div>
-            <label className="text-sm text-white/70">Jeu</label>
-            <select
-              value={gameId}
-              onChange={(e) => setGameId(e.target.value)}
-              disabled={loadingGames || submitting}
-              className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
-            >
-              {games.map((g) => (
-                <option key={g.id} value={String(g.id)} className="text-black">
-                  {g.name}
-                </option>
-              ))}
-            </select>
+            <label className="text-sm text-white/70">Plateforme principale</label>
+            <input
+              value={socialPlatform}
+              onChange={(e) => setSocialPlatform(e.target.value)}
+              disabled={submitting}
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+              placeholder="TikTok, Instagram, YouTube, Discord..."
+            />
           </div>
           <div>
-            <label className="text-sm text-white/70">Pseudo (Game Username)</label>
+            <label className="text-sm text-white/70">Pseudo / Handle</label>
             <input
-              value={gameUsername}
-              onChange={(e) => setGameUsername(e.target.value)}
+              value={socialHandle}
+              onChange={(e) => setSocialHandle(e.target.value)}
               disabled={submitting}
-              className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
-              placeholder="Votre pseudo en jeu"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+              placeholder="@toncompte"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-white/70">Lien du profil</label>
+            <input
+              value={socialUrl}
+              onChange={(e) => setSocialUrl(e.target.value)}
+              disabled={submitting}
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+              placeholder="https://..."
+            />
+          </div>
+          <div>
+            <label className="text-sm text-white/70">Nombre d'abonnés / membres</label>
+            <input
+              value={followersCount}
+              onChange={(e) => setFollowersCount(e.target.value.replace(/[^0-9]/g, ""))}
+              disabled={submitting}
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+              placeholder="10000"
+            />
+          </div>
+          <div>
+            <label className="text-sm text-white/70">Autres plateformes</label>
+            <textarea
+              value={otherPlatforms}
+              onChange={(e) => setOtherPlatforms(e.target.value)}
+              disabled={submitting}
+              className="mt-2 min-h-24 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+              placeholder={"Une plateforme par ligne\nEx: YouTube 4 500 abonnés\nEx: Discord 12 000 membres"}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-white/70">Canaux de promotion prévus</label>
+            <textarea
+              value={promotionChannels}
+              onChange={(e) => setPromotionChannels(e.target.value)}
+              disabled={submitting}
+              className="mt-2 min-h-24 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+              placeholder={"Une ligne par canal\nEx: Shorts YouTube\nEx: Stories Instagram\nEx: Statuts WhatsApp"}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-white/70">Pourquoi devons-nous t'accepter ?</label>
+            <textarea
+              value={motivation}
+              onChange={(e) => setMotivation(e.target.value)}
+              disabled={submitting}
+              className="mt-2 min-h-28 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
+              placeholder="Présente ton audience, ton rythme de publication et la manière dont tu comptes promouvoir PRIME Gaming et KING League."
             />
           </div>
         </div>
@@ -213,20 +170,12 @@ function PremiumSubscribeScreen() {
             variant="secondary"
             className="flex-1 justify-center"
             onClick={() => router.push("/premium")}
-            disabled={submitting || walletSubmitting}
+            disabled={submitting}
           >
             Retour
           </GlowButton>
-          <GlowButton
-            variant="secondary"
-            className="flex-1 justify-center"
-            onClick={startWalletPayment}
-            disabled={walletSubmitting || submitting || loadingGames}
-          >
-            {walletSubmitting ? "Wallet..." : "Payer Wallet"}
-          </GlowButton>
-          <GlowButton className="flex-1 justify-center" onClick={startPayment} disabled={submitting || walletSubmitting || loadingGames}>
-            {submitting ? "Paiement..." : "Payer Mobile Money"}
+          <GlowButton className="flex-1 justify-center" onClick={submitRequest} disabled={submitting}>
+            {submitting ? "Envoi..." : "Envoyer la demande"}
           </GlowButton>
         </div>
       </div>

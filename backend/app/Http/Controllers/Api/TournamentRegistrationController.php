@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
+use App\Services\AdminResponsibilityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -77,6 +78,36 @@ class TournamentRegistrationController extends Controller
         });
 
         $updatedReal = TournamentRegistration::query()->where('tournament_id', $tournament->id)->count();
+
+        try {
+            app(AdminResponsibilityService::class)->notify(
+                'tournaments',
+                'admin_tournament_registration',
+                'Nouvelle inscription tournoi',
+                [
+                    'headline' => 'Un joueur vient de s\'inscrire',
+                    'intro' => 'Une nouvelle inscription tournoi a ete enregistree.',
+                    'details' => [
+                        ['label' => 'Tournoi', 'value' => (string) ($tournament->name ?? 'Tournoi')],
+                        ['label' => 'Joueur', 'value' => (string) ($user->name ?? 'Utilisateur')],
+                        ['label' => 'Pseudo jeu', 'value' => (string) $payload['game_player_id']],
+                        ['label' => 'Inscrits', 'value' => (string) $updatedReal],
+                    ],
+                    'actionUrl' => rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/') . '/admin/tournaments',
+                    'actionText' => 'Voir les tournois',
+                ],
+                [
+                    'tournament' => $tournament->toArray(),
+                    'user' => $user->toArray(),
+                    'game_player_id' => $payload['game_player_id'],
+                ],
+                [
+                    'tournament_id' => $tournament->id,
+                    'user_id' => $user->id,
+                ]
+            );
+        } catch (\Throwable $e) {
+        }
 
         return response()->json([
             'message' => 'Inscription confirmée.',

@@ -22,7 +22,7 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:7',
+            'name' => ['required', 'string', 'min:1', 'max:7'],
             'email' => 'required|string|email|max:255|unique:users',
             'phone' => 'required|string|min:6|max:32',
             'password' => 'required|string|min:8|confirmed',
@@ -31,6 +31,21 @@ class AuthController extends Controller
             'countryName' => 'required|string|max:100',
             'referralCode' => 'nullable|string|max:32',
         ]);
+
+        $normalizedName = $this->normalizeUsername((string) $request->input('name', ''));
+        if ($normalizedName === '') {
+            return response()->json([
+                'message' => 'Pseudo indisponible.',
+                'errors' => ['name' => ['Pseudo indisponible.']],
+            ], 422);
+        }
+
+        if ($this->usernameExists($normalizedName)) {
+            return response()->json([
+                'message' => 'Pseudo indisponible.',
+                'errors' => ['name' => ['Pseudo indisponible.']],
+            ], 422);
+        }
 
         $rawPhone = (string) $request->input('phone', '');
         $phoneDigits = preg_replace('/\D+/', '', $rawPhone) ?? '';
@@ -56,7 +71,7 @@ class AuthController extends Controller
         }
 
         $user = User::create([
-            'name' => $request->name,
+            'name' => $normalizedName,
             'email' => $request->email,
             'phone' => $phoneDigits,
             'password' => Hash::make($request->password),
@@ -336,11 +351,28 @@ class AuthController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'phone' => $user->phone,
+            'country_code' => $user->country_code,
+            'country_name' => $user->country_name,
             'role' => $user->role,
             'is_premium' => (bool) $user->is_premium,
             'premium_level' => $user->premium_level,
             'premium_expiration' => optional($user->premium_expiration)?->toIso8601String(),
             'referral_code' => $user->referral_code,
         ];
+    }
+
+    private function normalizeUsername(string $value): string
+    {
+        return strtoupper(trim($value));
+    }
+
+    private function usernameExists(string $normalizedName, ?int $ignoreUserId = null): bool
+    {
+        $query = User::query()->whereRaw('UPPER(name) = ?', [$normalizedName]);
+        if ($ignoreUserId) {
+            $query->where('id', '!=', $ignoreUserId);
+        }
+
+        return $query->exists();
     }
 }

@@ -241,14 +241,23 @@ class PaymentController extends Controller
         );
 
         $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
+        $orderType = $orderId > 0
+            ? (string) (Order::query()->where('id', $orderId)->value('type') ?? '')
+            : '';
+        $isWalletTopup = $orderType === 'wallet_topup';
+
         $fallbackRedirect = $frontUrl !== ''
-            ? $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : '')
+            ? ($isWalletTopup
+                ? $frontUrl . '/wallet' . ($orderId > 0 ? ('?topup_order=' . $orderId) : '')
+                : $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : ''))
             : '/';
 
         // Intentionally no provider verification and no DB writes here.
 
         $redirect = $frontUrl !== ''
-            ? $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : '')
+            ? ($isWalletTopup
+                ? $frontUrl . '/wallet' . ($orderId > 0 ? ('?topup_order=' . $orderId) : '')
+                : $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : ''))
             : $fallbackRedirect;
 
         return redirect()->away($redirect);

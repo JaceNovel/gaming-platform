@@ -38,4 +38,13 @@ class PartnerWithdrawRequest extends Model
     {
         return $this->belongsTo(User::class, 'processed_by_admin_id');
     }
+
+    public function scopeWithFedapayStatus($query, ?string $status)
+    {
+        if (!$status) {
+            return $query;
+        }
+
+        return $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(payout_details, '$.provider_status')) = ?", [$status]);
+    }
 }

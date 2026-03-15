@@ -3,8 +3,16 @@
   "short_name": "PRIME Gaming",
   "start_url": "/",
   "display": "standalone",
+  "prefer_related_applications": false,
   "background_color": "#0B0F19",
   "theme_color": "#0B0F19",
+  "related_applications": [
+    {
+      "platform": "play",
+      "id": "space.primegaming.app173654",
+      "url": "https://play.google.com/store/apps/details?id=space.primegaming.app173654"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Boutique",

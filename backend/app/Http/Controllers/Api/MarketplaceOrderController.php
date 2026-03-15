@@ -10,6 +10,7 @@ use App\Models\SellerListing;
 use App\Models\Seller;
 use App\Models\Dispute;
 use App\Models\SellerStat;
+use App\Services\AdminResponsibilityService;
 use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -262,7 +263,7 @@ class MarketplaceOrderController extends Controller
             ]);
         }
 
-        $dispute = DB::transaction(function () use ($marketplaceOrder, $orderModel, $data, $request) {
+        ['dispute' => $dispute, 'created' => $created] = DB::transaction(function () use ($marketplaceOrder, $orderModel, $data, $request) {
             $existing = Dispute::query()->where('marketplace_order_id', $marketplaceOrder->id)->lockForUpdate()->first();
             if ($existing) {
                 if (!$existing->reason && !empty($data['reason'])) {
@@ -276,7 +277,7 @@ class MarketplaceOrderController extends Controller
                     $existing->evidence = array_values(array_unique(array_filter($paths)));
                 }
                 $existing->save();
-                return $existing;
+                return ['dispute' => $existing, 'created' => false];
             }
 
             $dispute = Dispute::create([
@@ -327,7 +328,7 @@ class MarketplaceOrderController extends Controller
                 $stats->save();
             }
 
-            return $dispute;
+            return ['dispute' => $dispute, 'created' => true];
         });
 
         $evidence = is_array($dispute->evidence) ? $dispute->evidence : [];
@@ -426,6 +427,38 @@ class MarketplaceOrderController extends Controller
                 }
             }
         } catch (\Throwable $e) {
+        }
+
+        if ($created) {
+            try {
+                $subject = 'Nouveau litige marketplace';
+                app(AdminResponsibilityService::class)->notify(
+                    'disputes_refunds',
+                    'admin_marketplace_dispute_opened',
+                    $subject,
+                    [
+                        'headline' => 'Litige a traiter',
+                        'intro' => 'Un acheteur vient d\'ouvrir un litige sur une commande marketplace.',
+                        'details' => [
+                            ['label' => 'Commande', 'value' => (string) ($marketplaceOrder->order?->reference ?? $orderModel->reference ?? $orderModel->id)],
+                            ['label' => 'Acheteur', 'value' => (string) ($request->user()?->name ?? 'Client')],
+                            ['label' => 'Annonce', 'value' => (string) ($marketplaceOrder->listing?->title ?? 'Compte Gaming')],
+                            ['label' => 'Raison', 'value' => (string) ($dispute->reason ?? '—')],
+                        ],
+                        'actionUrl' => $this->frontendUrl('/admin/marketplace/disputes'),
+                        'actionText' => 'Voir les litiges',
+                    ],
+                    [
+                        'dispute' => $dispute->toArray(),
+                        'marketplace_order' => $marketplaceOrder->toArray(),
+                    ],
+                    [
+                        'dispute_id' => $dispute->id,
+                        'marketplace_order_id' => $marketplaceOrder->id,
+                    ]
+                );
+            } catch (\Throwable $e) {
+            }
         }
 
         return response()->json([

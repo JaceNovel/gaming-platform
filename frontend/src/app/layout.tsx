@@ -64,6 +64,7 @@ import Footer from "@/components/layout/Footer";
 import ChunkErrorReload from "@/components/system/ChunkErrorReload";
 import CartDrawer from "@/components/cart/CartDrawer";
 import ServiceWorkerBootstrap from "@/components/system/ServiceWorkerBootstrap";
+import AndroidAppDownloadPrompt from "@/components/system/AndroidAppDownloadPrompt";
 import NativeBridge from "./NativeBridge";
 
 export default function RootLayout({
@@ -154,6 +155,7 @@ gtag('js', new Date());
         <NativeBridge />
         <AuthProvider>
           <AppHeader />
+          <AndroidAppDownloadPrompt />
           {children}
           <Footer />
           <BottomNavigation />

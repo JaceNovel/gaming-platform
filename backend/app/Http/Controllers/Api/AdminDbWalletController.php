@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessPayout;
 use App\Jobs\SendEmailJob;
 use App\Mail\DbWalletCredited;
 use App\Models\EmailLog;
+use App\Models\Payout;
 use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
 use App\Services\AdminAuditLogger;
@@ -51,6 +53,53 @@ class AdminDbWalletController extends Controller
         $perPage = max(1, min(100, (int) $request->query('per_page', 30)));
 
         return response()->json($query->paginate($perPage));
+    }
+
+    public function payouts(Request $request)
+    {
+        $query = Payout::query()
+            ->with(['wallet.user'])
+            ->latest('created_at');
+
+        if ($request->filled('wallet_id')) {
+            $walletId = trim((string) $request->query('wallet_id'));
+            $query->whereHas('wallet', function ($q) use ($walletId) {
+                $q->where('wallet_id', $walletId);
+            });
+        }
+
+        if ($request->filled('email')) {
+            $email = trim((string) $request->query('email'));
+            $query->whereHas('wallet.user', function ($q) use ($email) {
+                $q->where('email', $email);
+            });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', trim((string) $request->query('status')));
+        }
+
+        if ($request->filled('reference')) {
+            $reference = trim((string) $request->query('reference'));
+            $query->where(function ($q) use ($reference) {
+                $q->where('provider_ref', $reference)
+                    ->orWhere('idempotency_key', $reference);
+            });
+        }
+
+        $perPage = max(1, min(100, (int) $request->query('per_page', 30)));
+
+        return response()->json($query->paginate($perPage));
+    }
+
+    public function syncPayout(Payout $payout)
+    {
+        ProcessPayout::dispatchSync($payout->id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $payout->fresh(['wallet.user']),
+        ]);
     }
 
     public function credit(Request $request, WalletService $walletService)

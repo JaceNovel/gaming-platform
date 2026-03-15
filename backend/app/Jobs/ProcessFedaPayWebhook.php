@@ -12,6 +12,7 @@ use App\Models\Referral;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\FedaPayService;
+use App\Services\AdminResponsibilityService;
 use App\Services\ReferralCommissionService;
 use App\Services\ShippingService;
 use App\Services\WalletService;
@@ -672,6 +673,49 @@ class ProcessFedaPayWebhook implements ShouldQueue
 
                             $orderMeta['premium_activated_at'] = now()->toIso8601String();
                             $order->update(['meta' => $orderMeta]);
+
+                            $frontendUrl = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+                            DB::afterCommit(function () use ($order, $payment, $level, $gameUsername, $expiresAt, $frontendUrl) {
+                                try {
+                                    app(AdminResponsibilityService::class)->notify(
+                                        'subscriptions',
+                                        'admin_subscription_paid',
+                                        'Nouvel abonnement Premium paye',
+                                        [
+                                            'headline' => 'Abonnement Premium active',
+                                            'intro' => 'Un paiement d\'abonnement a ete valide et le compte a ete active.',
+                                            'details' => [
+                                                ['label' => 'Client', 'value' => (string) ($order->user?->name ?? 'Utilisateur')],
+                                                ['label' => 'Email', 'value' => (string) ($order->user?->email ?? '—')],
+                                                ['label' => 'Niveau', 'value' => strtoupper((string) $level)],
+                                                ['label' => 'Compte jeu', 'value' => (string) $gameUsername],
+                                                ['label' => 'Reference', 'value' => (string) ($order->reference ?? '—')],
+                                                ['label' => 'Montant', 'value' => number_format((float) ($payment->amount ?? 0), 0, ',', ' ') . ' FCFA'],
+                                                ['label' => 'Expiration', 'value' => $expiresAt->toDateString()],
+                                            ],
+                                            'actionUrl' => $frontendUrl . '/admin/orders/' . $order->id,
+                                            'actionText' => 'Voir la commande',
+                                        ],
+                                        [
+                                            'order' => $order->toArray(),
+                                            'payment' => $payment->toArray(),
+                                            'user' => $order->user?->toArray() ?? [],
+                                            'premium_level' => $level,
+                                            'game_username' => $gameUsername,
+                                        ],
+                                        [
+                                            'order_id' => $order->id,
+                                            'payment_id' => $payment->id,
+                                        ]
+                                    );
+                                } catch (\Throwable $e) {
+                                    Log::warning('fedapay:subscription-admin-notify-failed', [
+                                        'order_id' => $order->id,
+                                        'payment_id' => $payment->id,
+                                        'message' => $e->getMessage(),
+                                    ]);
+                                }
+                            });
                         }
                     }
                 }

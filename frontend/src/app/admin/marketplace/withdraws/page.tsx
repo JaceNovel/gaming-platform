@@ -11,6 +11,11 @@ type WithdrawRow = {
   created_at?: string | null;
   processed_at?: string | null;
   admin_note?: string | null;
+  payout_details?: {
+    provider_status?: string | null;
+    provider_reference?: string | null;
+    provider_last_error_code?: string | null;
+  } | null;
   seller?: { id?: number; user?: { name?: string | null; email?: string | null } | null } | null;
 };
 
@@ -32,6 +37,7 @@ export default function AdminMarketplaceWithdrawsPage() {
   const [error, setError] = useState<string>("");
 
   const [status, setStatus] = useState("all");
+  const [providerStatus, setProviderStatus] = useState("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,6 +45,7 @@ export default function AdminMarketplaceWithdrawsPage() {
     try {
       const url = new URL(`${API_BASE}/admin/marketplace/withdraw-requests`);
       if (status !== "all") url.searchParams.set("status", status);
+      if (providerStatus !== "all") url.searchParams.set("provider_status", providerStatus);
 
       const res = await fetch(url.toString(), {
         headers: {
@@ -56,7 +63,7 @@ export default function AdminMarketplaceWithdrawsPage() {
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, [providerStatus, status]);
 
   useEffect(() => {
     void load();
@@ -116,12 +123,21 @@ export default function AdminMarketplaceWithdrawsPage() {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
-            <option value="all">Tous statuts</option>
-            <option value="requested">requested</option>
-            <option value="paid">paid</option>
-            <option value="rejected">rejected</option>
-          </select>
+          <div className="flex flex-wrap gap-3">
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="all">Tous statuts</option>
+              <option value="requested">requested</option>
+              <option value="paid">paid</option>
+              <option value="rejected">rejected</option>
+            </select>
+            <select value={providerStatus} onChange={(e) => setProviderStatus(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+              <option value="all">Tous provider statuts</option>
+              <option value="processing">processing</option>
+              <option value="sent">sent</option>
+              <option value="failed">failed</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
           <button onClick={() => void load()} className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white" disabled={loading}>
             {loading ? "Chargement..." : "Rafraîchir"}
           </button>
@@ -136,13 +152,14 @@ export default function AdminMarketplaceWithdrawsPage() {
               <th className="pb-2 pr-4">Vendeur</th>
               <th className="pb-2 pr-4">Montant</th>
               <th className="pb-2 pr-4">Statut</th>
+              <th className="pb-2 pr-4">Payout FedaPay</th>
               <th className="pb-2 pr-4">Actions</th>
             </tr>
           </thead>
           <tbody className="text-slate-700">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-slate-500">
+                <td colSpan={6} className="py-6 text-center text-slate-500">
                   {loading ? "Chargement..." : "Aucune demande"}
                 </td>
               </tr>
@@ -160,9 +177,14 @@ export default function AdminMarketplaceWithdrawsPage() {
                   </td>
                   <td className="py-3 pr-4">{String(w.amount ?? "—")} FCFA</td>
                   <td className="py-3 pr-4">{w.status ?? "—"}</td>
+                  <td className="py-3 pr-4 text-xs text-slate-600">
+                    <div>{w.payout_details?.provider_status ?? "—"}</div>
+                    <div>{w.payout_details?.provider_reference ?? "—"}</div>
+                    {w.payout_details?.provider_last_error_code ? <div className="text-rose-600">{w.payout_details.provider_last_error_code}</div> : null}
+                  </td>
                   <td className="py-3 pr-4">
                     <div className="flex flex-wrap gap-2">
-                      <button className="rounded-lg bg-emerald-600 px-2 py-1 text-xs text-white" onClick={() => void markPaid(w.id)}>Marquer payé</button>
+                      <button className="rounded-lg bg-emerald-600 px-2 py-1 text-xs text-white" onClick={() => void markPaid(w.id)}>Lancer payout</button>
                       <button className="rounded-lg bg-rose-600 px-2 py-1 text-xs text-white" onClick={() => void reject(w.id)}>Rejeter</button>
                     </div>
                   </td>

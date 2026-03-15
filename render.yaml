@@ -81,6 +81,16 @@ services:
       - key: CINETPAY_BASE_URL
         value: https://api-checkout.cinetpay.com/v2
 
+      # FedaPay (set these in Render dashboard)
+      - key: FEDAPAY_SECRET_KEY
+        sync: false
+      - key: FEDAPAY_ENV
+        value: live
+      - key: FEDAPAY_WEBHOOK_SECRET
+        sync: false
+      - key: FEDAPAY_PAYOUT_WEBHOOK_SECRET
+        sync: false
+
   - type: worker
     name: primegaming-backend-worker
     runtime: docker
@@ -137,3 +147,13 @@ services:
         sync: false
       - key: CINETPAY_BASE_URL
         value: https://api-checkout.cinetpay.com/v2
+
+      # FedaPay (set these in Render dashboard)
+      - key: FEDAPAY_SECRET_KEY
+        sync: false
+      - key: FEDAPAY_ENV
+        value: live
+      - key: FEDAPAY_WEBHOOK_SECRET
+        sync: false
+      - key: FEDAPAY_PAYOUT_WEBHOOK_SECRET
+        sync: false

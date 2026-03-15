@@ -20,6 +20,8 @@ class User extends Authenticatable
     public const ADMIN_ROLES = [
         'admin',
         'admin_super',
+        'admin_operations',
+        'admin_domain',
         'admin_manager',
         'admin_support',
         'admin_marketing',
@@ -92,6 +94,11 @@ class User extends Authenticatable
     public function premiumMemberships(): HasMany
     {
         return $this->hasMany(PremiumMembership::class);
+    }
+
+    public function premiumRequests(): HasMany
+    {
+        return $this->hasMany(PremiumRequest::class);
     }
 
     public function walletBd(): HasOne

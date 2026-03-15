@@ -626,22 +626,28 @@ class OrderController extends Controller
             return [
                 'recharge' => 5.0,
                 'subscription' => 5.0,
-                'item' => 10.0,
+                'item' => 15.0,
             ];
         }
 
         if ($level !== '') {
-            $percent = match ($level) {
-                'platine' => 10.0,
-                'or' => 7.0,
-                default => 3.0,
+            return match ($level) {
+                'platine' => [
+                    'recharge' => 8.0,
+                    'subscription' => 8.0,
+                    'item' => 25.0,
+                ],
+                'or' => [
+                    'recharge' => 7.0,
+                    'subscription' => 7.0,
+                    'item' => 12.0,
+                ],
+                default => [
+                    'recharge' => 3.0,
+                    'subscription' => 3.0,
+                    'item' => 3.0,
+                ],
             };
-
-            return [
-                'recharge' => $percent,
-                'subscription' => $percent,
-                'item' => $percent,
-            ];
         }
 
         return [];
@@ -661,14 +667,14 @@ class OrderController extends Controller
                 return 5.0;
             }
             if ($type === 'item') {
-                return 10.0;
+                return 15.0;
             }
             return 0.0;
         }
 
         if ($level !== '') {
             return match ($level) {
-                'platine' => 10.0,
+                'platine' => in_array($type, ['recharge', 'subscription'], true) ? 8.0 : ($type === 'item' ? 25.0 : 0.0),
                 'or' => 7.0,
                 default => 3.0,
             };

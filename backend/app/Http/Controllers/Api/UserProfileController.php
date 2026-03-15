@@ -84,12 +84,14 @@ class UserProfileController extends Controller
     private function inferPremiumTier($user): string
     {
         if (!$user->is_premium) {
-            return 'Bronze';
+            return 'Basic';
         }
 
-        return match ((int) ($user->premium_level ?? 1)) {
-            3 => 'Platine',
-            2 => 'Or',
+        $level = strtolower(trim((string) ($user->premium_level ?? '')));
+
+        return match ($level) {
+            'platine' => 'Platine',
+            'or' => 'Or',
             default => 'Bronze',
         };
     }

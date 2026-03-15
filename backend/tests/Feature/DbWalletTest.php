@@ -7,6 +7,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\WalletAccount;
+use App\Models\WalletTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -21,6 +22,7 @@ class DbWalletTest extends TestCase
         $payload = [
             'name' => 'Test',
             'email' => 'test@example.com',
+            'phone' => '+237670000000',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'countryCode' => 'CM',
@@ -166,5 +168,128 @@ class DbWalletTest extends TestCase
 
         $payRes2 = $this->postJson('/api/payments/wallet/pay', ['order_id' => $nonRechargeOrder->id]);
         $payRes2->assertStatus(422);
+    }
+
+    #[Test]
+    public function wallet_can_transfer_to_another_user_without_fee_using_wallet_id(): void
+    {
+        $sender = User::factory()->create([
+            'name' => 'ALPHA',
+            'phone' => '22501010101',
+        ]);
+        $recipient = User::factory()->create([
+            'name' => 'BRAVO',
+            'phone' => '22502020202',
+        ]);
+
+        $senderWallet = WalletAccount::create([
+            'user_id' => $sender->id,
+            'wallet_id' => 'DBW-SENDER-0001',
+            'currency' => 'FCFA',
+            'balance' => 12000,
+            'bonus_balance' => 0,
+            'reward_balance' => 0,
+            'status' => 'active',
+        ]);
+
+        $recipientWallet = WalletAccount::create([
+            'user_id' => $recipient->id,
+            'wallet_id' => 'DBW-RECEIVER-0001',
+            'currency' => 'FCFA',
+            'balance' => 500,
+            'bonus_balance' => 0,
+            'reward_balance' => 0,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($sender, 'sanctum');
+
+        $res = $this->postJson('/api/wallet/transfer', [
+            'recipient_query' => $recipientWallet->wallet_id,
+            'amount' => 3000,
+        ]);
+
+        $res->assertCreated()
+            ->assertJsonPath('data.recipient.username', 'BRAVO');
+
+        $senderWallet->refresh();
+        $recipientWallet->refresh();
+
+        $this->assertSame(9000.0, (float) $senderWallet->balance);
+        $this->assertSame(3500.0, (float) $recipientWallet->balance);
+        $this->assertDatabaseHas('wallet_transactions', [
+            'wallet_account_id' => $senderWallet->id,
+            'type' => 'debit',
+            'amount' => 3000,
+            'status' => 'success',
+        ]);
+        $this->assertDatabaseHas('wallet_transactions', [
+            'wallet_account_id' => $recipientWallet->id,
+            'type' => 'credit',
+            'amount' => 3000,
+            'status' => 'success',
+        ]);
+
+        $debit = WalletTransaction::query()->where('wallet_account_id', $senderWallet->id)->latest('id')->first();
+        $this->assertSame('BRAVO', $debit?->meta['recipient_username'] ?? null);
+        $this->assertSame('DBW-RECEIVER-0001', $debit?->meta['recipient_wallet_id'] ?? null);
+    }
+
+    #[Test]
+    public function recipient_lookup_accepts_username_and_phone(): void
+    {
+        $sender = User::factory()->create([
+            'name' => 'SENDER',
+            'phone' => '22511111111',
+        ]);
+        $recipient = User::factory()->create([
+            'name' => 'TARGET',
+            'phone' => '22599998888',
+        ]);
+
+        WalletAccount::create([
+            'user_id' => $recipient->id,
+            'wallet_id' => 'DBW-TARGET-0001',
+            'currency' => 'FCFA',
+            'balance' => 0,
+            'bonus_balance' => 0,
+            'reward_balance' => 0,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($sender, 'sanctum');
+
+        $this->getJson('/api/wallet/recipient?query=target')
+            ->assertOk()
+            ->assertJsonPath('recipient.username', 'TARGET');
+
+        $this->getJson('/api/wallet/recipient?query=22599998888')
+            ->assertOk()
+            ->assertJsonPath('recipient.username', 'TARGET');
+    }
+
+    #[Test]
+    public function registration_rejects_duplicate_username_case_insensitively(): void
+    {
+        User::factory()->create([
+            'name' => 'PRIME',
+            'email' => 'prime1@example.com',
+            'phone' => '22512312312',
+        ]);
+
+        $payload = [
+            'name' => 'prime',
+            'email' => 'prime2@example.com',
+            'phone' => '+22507070707',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'countryCode' => 'CI',
+            'countryName' => 'Côte d\'Ivoire',
+        ];
+
+        $res = $this->postJson('/api/auth/register', $payload);
+
+        $res->assertStatus(422)
+            ->assertJsonPath('errors.name.0', 'Pseudo indisponible.');
     }
 }

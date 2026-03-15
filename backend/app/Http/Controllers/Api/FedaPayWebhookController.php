@@ -68,12 +68,6 @@ class FedaPayWebhookController extends Controller
                 return response()->json(['received' => true, 'ignored' => true]);
             }
 
-            // Wallet topups are no longer supported.
-            // ACK the webhook but ignore wallet_topup events completely.
-            if (strtolower($metaType) === 'wallet_topup') {
-                return response()->json(['received' => true, 'ignored' => true]);
-            }
-
             // Process all transaction.* events (job decides if status is final or pending).
             if (str_starts_with($eventName, 'transaction.')) {
                 ProcessFedaPayWebhook::dispatch($payload)->afterResponse();

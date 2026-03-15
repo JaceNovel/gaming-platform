@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentWebhookController;
+use App\Http\Controllers\Api\FedaPayPayoutWebhookController;
 use App\Http\Controllers\Api\FedaPayWebhookController;
 use App\Http\Controllers\Api\PremiumController;
 use App\Http\Controllers\Api\ProductController;
@@ -44,6 +45,7 @@ use App\Http\Controllers\Api\PartnerWalletController;
 use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\PlayIntegrityController;
 use App\Http\Controllers\Api\AdminMarketplaceWithdrawController;
+use App\Http\Controllers\Api\AdminPremiumRequestController;
 use App\Http\Controllers\Api\AdminMarketplaceOrderController;
 use App\Http\Controllers\Api\MarketplaceListingController;
 use App\Http\Controllers\Api\MarketplaceCheckoutController;
@@ -159,6 +161,7 @@ Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'han
 Route::match(['get', 'post'], '/payments/cinetpay/return', [PaymentWebhookController::class, 'redirect'])->name('api.payments.cinetpay.return');
 Route::match(['get', 'post'], '/payments/fedapay/return', [PaymentController::class, 'redirectFedapayReturn'])->name('api.payments.fedapay.return');
 Route::post('/payments/fedapay/webhook', [FedaPayWebhookController::class, 'handle'])->name('api.payments.fedapay.webhook');
+Route::post('/payouts/fedapay/webhook', [FedaPayPayoutWebhookController::class, 'handle'])->name('api.payouts.fedapay.webhook');
 
 Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFreeFire']);
 
@@ -196,6 +199,7 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
 
     // Premium
     Route::get('/premium/status', [PremiumController::class, 'status']);
+    Route::post('/premium/request', [PremiumController::class, 'submit']);
 
     // Chat
     Route::get('/chat/rooms', [ChatController::class, 'rooms']);
@@ -211,6 +215,11 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     // Wallet
     Route::get('/wallet', [WalletController::class, 'show']);
     Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
+    Route::get('/wallet/payouts', [WalletController::class, 'payouts']);
+    Route::get('/wallet/recipient', [WalletController::class, 'resolveRecipient']);
+    Route::post('/wallet/transfer', [WalletController::class, 'transfer']);
+    Route::post('/wallet/topup', [WalletController::class, 'topup']);
+    Route::post('/wallet/withdraw', [WalletController::class, 'requestWithdraw']);
 
     // Sensitive actions (Play Integrity required)
     Route::middleware('playIntegrity')->group(function () {
@@ -309,27 +318,27 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
 });
 
 // Admin routes
-Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super,admin_manager,admin_support,admin_marketing,viewer,admin,staff,admin_article,admin_client'])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super,admin,admin_operations,admin_domain,admin_manager,admin_support,admin_marketing,viewer,staff,admin_article,admin_client'])->prefix('admin')->group(function () {
     Route::get('/me', AdminMeController::class);
-    Route::get('/dashboard', [AdminDashboardController::class, 'overview']);
+    Route::get('/dashboard', [AdminDashboardController::class, 'overview'])->middleware('permission:dashboard.view');
     Route::get('/activity/recent', [\App\Http\Controllers\Api\AdminActivityController::class, 'recent'])
         ->middleware('permission:dashboard.view');
     Route::get('/stats/overview', [AdminDashboardController::class, 'statsOverview'])->middleware('permission:stats.view');
     Route::get('/stats/revenue', [AdminDashboardController::class, 'revenue'])->middleware('permission:stats.view');
-    Route::get('/dashboard/tables', [AdminDashboardController::class, 'tables']);
-    Route::get('/dashboard/export', [AdminDashboardController::class, 'export']);
-    Route::get('/dashboard/summary', [AdminDashboardController::class, 'summary']);
-    Route::get('/dashboard/charts', [AdminDashboardController::class, 'charts']);
+    Route::get('/dashboard/tables', [AdminDashboardController::class, 'tables'])->middleware('permission:dashboard.view');
+    Route::get('/dashboard/export', [AdminDashboardController::class, 'export'])->middleware('permission:dashboard.view');
+    Route::get('/dashboard/summary', [AdminDashboardController::class, 'summary'])->middleware('permission:dashboard.view');
+    Route::get('/dashboard/charts', [AdminDashboardController::class, 'charts'])->middleware('permission:stats.view');
 
     // Orders + fulfillment
     Route::get('/orders', [AdminOrderController::class, 'index'])->middleware('permission:orders.view');
     Route::get('/orders/recent', [AdminOrderController::class, 'recent'])->middleware('permission:orders.view');
-    Route::get('/orders/{order}', [AdminOrderController::class, 'show']);
+    Route::get('/orders/{order}', [AdminOrderController::class, 'show'])->middleware('permission:orders.view');
     Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->middleware('permission:orders.manage');
     Route::patch('/orders/{order}/payment/status', [AdminOrderController::class, 'updatePaymentStatus'])->middleware('permission:orders.manage');
     Route::post('/orders/{order}/refund', [AdminOrderController::class, 'refund'])->middleware('permission:orders.manage');
-    Route::post('/orders/{order}/delivery-note-pdf', [AdminOrderController::class, 'deliveryNotePdf']);
-    Route::post('/orders/{order}/resend-code', [AdminOrderController::class, 'resendCode']);
+    Route::post('/orders/{order}/delivery-note-pdf', [AdminOrderController::class, 'deliveryNotePdf'])->middleware('permission:orders.view');
+    Route::post('/orders/{order}/resend-code', [AdminOrderController::class, 'resendCode'])->middleware('permission:orders.manage');
     Route::post('/orders/{order}/shipping/generate-document', [AdminOrderController::class, 'generateShippingDocument'])
         ->middleware('permission:orders.manage');
     Route::get('/orders/{order}/shipping/document', [AdminOrderController::class, 'downloadShippingDocument'])
@@ -376,6 +385,12 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         ->middleware('permission:marketplace.withdraws.manage');
     Route::post('/marketplace/withdraw-requests/{partnerWithdrawRequest}/reject', [AdminMarketplaceWithdrawController::class, 'reject'])
         ->middleware('permission:marketplace.withdraws.manage');
+    Route::get('/premium/requests', [AdminPremiumRequestController::class, 'index'])
+        ->middleware('permission:premium.manage');
+    Route::post('/premium/requests/{premiumRequest}/approve', [AdminPremiumRequestController::class, 'approve'])
+        ->middleware('permission:premium.manage');
+    Route::post('/premium/requests/{premiumRequest}/refuse', [AdminPremiumRequestController::class, 'refuse'])
+        ->middleware('permission:premium.manage');
 
     // Gaming Account Marketplace (Disputes)
     Route::get('/marketplace/disputes', [AdminMarketplaceDisputeController::class, 'index'])
@@ -424,8 +439,8 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
     Route::post('/redeem-codes/{redeemCode}/invalidate', [AdminRedeemCodeController::class, 'invalidate'])->middleware('permission:redeems.manage');
 
     // Chat moderation
-    Route::post('/chat/rooms/{room}/mute', [ChatController::class, 'muteUser']);
-    Route::post('/chat/rooms/{room}/ban', [ChatController::class, 'banUser']);
+    Route::post('/chat/rooms/{room}/mute', [ChatController::class, 'muteUser'])->middleware('permission:support.manage');
+    Route::post('/chat/rooms/{room}/ban', [ChatController::class, 'banUser'])->middleware('permission:support.manage');
 
     // Settings reserved for admins (admin + super)
     Route::middleware('requireRole:admin_super,admin')->group(function () {
@@ -434,34 +449,34 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         Route::post('/settings/logo', [AdminSettingsController::class, 'uploadLogo']);
     });
 
-    Route::middleware('requireRole:admin_super,admin,staff,admin_article,admin_manager,admin_marketing,admin_client,admin_support,viewer')->group(function () {
-        Route::post('/products', [AdminProductController::class, 'store']);
-        Route::patch('/products/{product}', [AdminProductController::class, 'update']);
-        Route::delete('/products/{product}', [AdminProductController::class, 'destroy']);
-        Route::post('/products/{product}/image', [AdminProductController::class, 'uploadImage']);
-        Route::post('/products/{product}/video', [AdminProductController::class, 'uploadVideo']);
+    Route::middleware('requireRole:admin_super,admin,admin_operations,admin_domain,staff,admin_article,admin_manager,admin_marketing,admin_client,admin_support,viewer')->group(function () {
+        Route::post('/products', [AdminProductController::class, 'store'])->middleware('permission:products.manage');
+        Route::patch('/products/{product}', [AdminProductController::class, 'update'])->middleware('permission:products.manage');
+        Route::delete('/products/{product}', [AdminProductController::class, 'destroy'])->middleware('permission:products.manage');
+        Route::post('/products/{product}/image', [AdminProductController::class, 'uploadImage'])->middleware('permission:products.manage');
+        Route::post('/products/{product}/video', [AdminProductController::class, 'uploadVideo'])->middleware('permission:products.manage');
 
-        Route::post('/offers/likes', [AdminOfferController::class, 'boostLikes']);
+        Route::post('/offers/likes', [AdminOfferController::class, 'boostLikes'])->middleware('permission:promotions.manage');
 
-        Route::get('/categories', [AdminCategoryController::class, 'index']);
-        Route::post('/categories', [AdminCategoryController::class, 'store']);
-        Route::patch('/categories/{category}', [AdminCategoryController::class, 'update']);
-        Route::delete('/categories/{category}', [AdminCategoryController::class, 'destroy']);
-        Route::post('/categories/{category}/image', [AdminCategoryController::class, 'uploadImage']);
+        Route::get('/categories', [AdminCategoryController::class, 'index'])->middleware('permission:categories.manage');
+        Route::post('/categories', [AdminCategoryController::class, 'store'])->middleware('permission:categories.manage');
+        Route::patch('/categories/{category}', [AdminCategoryController::class, 'update'])->middleware('permission:categories.manage');
+        Route::delete('/categories/{category}', [AdminCategoryController::class, 'destroy'])->middleware('permission:categories.manage');
+        Route::post('/categories/{category}/image', [AdminCategoryController::class, 'uploadImage'])->middleware('permission:categories.manage');
 
-        Route::get('/games', [\App\Http\Controllers\Api\AdminGameController::class, 'index']);
-        Route::post('/games', [\App\Http\Controllers\Api\AdminGameController::class, 'store']);
-        Route::patch('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'update']);
-        Route::delete('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'destroy']);
+        Route::get('/games', [\App\Http\Controllers\Api\AdminGameController::class, 'index'])->middleware('permission:categories.manage');
+        Route::post('/games', [\App\Http\Controllers\Api\AdminGameController::class, 'store'])->middleware('permission:categories.manage');
+        Route::patch('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'update'])->middleware('permission:categories.manage');
+        Route::delete('/games/{game}', [\App\Http\Controllers\Api\AdminGameController::class, 'destroy'])->middleware('permission:categories.manage');
 
-        Route::get('/tournaments', [AdminTournamentController::class, 'index']);
-        Route::get('/tournaments/{tournament}', [AdminTournamentController::class, 'show']);
-        Route::get('/tournaments/{tournament}/registrations', [AdminTournamentController::class, 'registrations']);
-        Route::get('/tournaments/{tournament}/registrations/export', [AdminTournamentController::class, 'exportRegistrations']);
-        Route::post('/tournaments', [AdminTournamentController::class, 'store']);
-        Route::patch('/tournaments/{tournament}', [AdminTournamentController::class, 'update']);
-        Route::delete('/tournaments/{tournament}', [AdminTournamentController::class, 'destroy']);
-        Route::post('/tournaments/{tournament}/rewards/publish', [AdminTournamentController::class, 'publishRewards']);
+        Route::get('/tournaments', [AdminTournamentController::class, 'index'])->middleware('permission:tournaments.view');
+        Route::get('/tournaments/{tournament}', [AdminTournamentController::class, 'show'])->middleware('permission:tournaments.view');
+        Route::get('/tournaments/{tournament}/registrations', [AdminTournamentController::class, 'registrations'])->middleware('permission:tournaments.view');
+        Route::get('/tournaments/{tournament}/registrations/export', [AdminTournamentController::class, 'exportRegistrations'])->middleware('permission:tournaments.view');
+        Route::post('/tournaments', [AdminTournamentController::class, 'store'])->middleware('permission:tournaments.manage');
+        Route::patch('/tournaments/{tournament}', [AdminTournamentController::class, 'update'])->middleware('permission:tournaments.manage');
+        Route::delete('/tournaments/{tournament}', [AdminTournamentController::class, 'destroy'])->middleware('permission:tournaments.manage');
+        Route::post('/tournaments/{tournament}/rewards/publish', [AdminTournamentController::class, 'publishRewards'])->middleware('permission:tournaments.manage');
     });
 
     Route::get('/coupons', [\App\Http\Controllers\Api\AdminCouponController::class, 'index'])
@@ -545,6 +560,10 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
 
     // DBWallet (admin-only manual operations)
     Route::get('/dbwallet/transactions', [AdminDbWalletController::class, 'transactions'])
+        ->middleware('permission:wallet.manage');
+    Route::get('/dbwallet/payouts', [AdminDbWalletController::class, 'payouts'])
+        ->middleware('permission:wallet.manage');
+    Route::post('/dbwallet/payouts/{payout}/sync', [AdminDbWalletController::class, 'syncPayout'])
         ->middleware('permission:wallet.manage');
     Route::post('/dbwallet/credit', [AdminDbWalletController::class, 'credit'])
         ->middleware('permission:wallet.manage');

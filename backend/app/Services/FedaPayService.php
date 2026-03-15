@@ -266,6 +266,141 @@ class FedaPayService
         return $this->getJson($this->endpoint('/transactions/' . $transactionId));
     }
 
+    public function createPayout(User $user, array $payload = []): array
+    {
+        if ($this->secretKey === '') {
+            throw new \RuntimeException('FedaPay not configured (missing: FEDAPAY_SECRET_KEY)');
+        }
+
+        $amountInt = (int) round((float) ($payload['amount'] ?? 0));
+        if ($amountInt <= 0) {
+            throw new \RuntimeException('FedaPay payout amount must be greater than zero');
+        }
+
+        $currency = $this->sanitizeCurrency($payload['currency'] ?? $this->defaultCurrency);
+        $mode = strtolower(trim((string) ($payload['mode'] ?? 'mobile_money')));
+        if (!in_array($mode, ['mobile_money', 'bank_transfer'], true)) {
+            $mode = 'mobile_money';
+        }
+
+        $customer = $payload['customer'] ?? null;
+        if (!is_array($customer)) {
+            $fullName = trim((string) ($payload['customer_name'] ?? $user->name ?? 'Client PRIME'));
+            $parts = $fullName !== '' ? preg_split('/\s+/', $fullName) : [];
+            $firstname = (string) ($user->first_name ?? ($parts[0] ?? 'Client'));
+            $lastname = (string) ($user->last_name ?? (isset($parts[1]) ? implode(' ', array_slice($parts, 1)) : ''));
+            $customer = array_filter([
+                'firstname' => $firstname,
+                'lastname' => $lastname,
+                'email' => (string) ($payload['customer_email'] ?? $user->email ?? ''),
+            ], static fn ($value) => $value !== null && $value !== '');
+
+            $phone = trim((string) ($payload['customer_phone'] ?? ''));
+            $digits = preg_replace('/\D+/', '', $phone) ?? '';
+            if ($digits !== '' && strlen($digits) >= 6) {
+                $customer['phone_number'] = [
+                    'number' => $digits,
+                    'country' => strtolower((string) ($payload['customer_country'] ?? 'BJ')),
+                ];
+            }
+        }
+
+        $basePayload = array_filter([
+            'amount' => $amountInt,
+            'currency' => ['iso' => $currency],
+            'customer' => $customer,
+            'mode' => $mode,
+            'metadata' => is_array($payload['metadata'] ?? null) ? $payload['metadata'] : null,
+            'custom_metadata' => is_array($payload['custom_metadata'] ?? null) ? $payload['custom_metadata'] : null,
+            'merchant_reference' => (string) ($payload['merchant_reference'] ?? ''),
+        ], static fn ($value) => $value !== null && $value !== '');
+
+        return $this->postWithFallback($this->endpoint('/payouts'), $basePayload, [
+            ['payout' => $basePayload],
+            array_merge($basePayload, ['currency' => $currency]),
+            ['payout' => array_merge($basePayload, ['currency' => $currency])],
+        ]);
+    }
+
+    public function retrievePayout(int|string $payoutId): array
+    {
+        if ($this->secretKey === '') {
+            throw new \RuntimeException('FedaPay not configured (missing: FEDAPAY_SECRET_KEY)');
+        }
+
+        return $this->getJson($this->endpoint('/payouts/' . $payoutId));
+    }
+
+    public function updatePayout(int|string $payoutId, array $payload): array
+    {
+        if ($this->secretKey === '') {
+            throw new \RuntimeException('FedaPay not configured (missing: FEDAPAY_SECRET_KEY)');
+        }
+
+        return $this->putJson($this->endpoint('/payouts/' . $payoutId), $payload);
+    }
+
+    public function deletePayout(int|string $payoutId): void
+    {
+        if ($this->secretKey === '') {
+            throw new \RuntimeException('FedaPay not configured (missing: FEDAPAY_SECRET_KEY)');
+        }
+
+        $this->deleteJson($this->endpoint('/payouts/' . $payoutId));
+    }
+
+    public function searchPayouts(array $query = []): array
+    {
+        if ($this->secretKey === '') {
+            throw new \RuntimeException('FedaPay not configured (missing: FEDAPAY_SECRET_KEY)');
+        }
+
+        return $this->getJson($this->endpoint('/payouts/search'), $query);
+    }
+
+    public function startPayout(array $items): array
+    {
+        if ($this->secretKey === '') {
+            throw new \RuntimeException('FedaPay not configured (missing: FEDAPAY_SECRET_KEY)');
+        }
+
+        return $this->putJson($this->endpoint('/payouts/start'), $items);
+    }
+
+    public function extractPayoutId(array $payload): ?int
+    {
+        $id = Arr::get($payload, 'id')
+            ?? Arr::get($payload, 'data.id')
+            ?? Arr::get($payload, 'payout.id')
+            ?? Arr::get($payload, 'data.payout.id');
+
+        if (is_array($payload) && array_is_list($payload)) {
+            $first = $payload[0] ?? null;
+            if (is_array($first)) {
+                $id = $id ?? Arr::get($first, 'id') ?? Arr::get($first, 'data.id');
+            }
+        }
+
+        return is_numeric($id) ? (int) $id : null;
+    }
+
+    public function extractPayoutReference(array $payload): ?string
+    {
+        $reference = Arr::get($payload, 'reference')
+            ?? Arr::get($payload, 'data.reference')
+            ?? Arr::get($payload, 'payout.reference')
+            ?? Arr::get($payload, 'data.payout.reference');
+
+        if (is_array($payload) && array_is_list($payload)) {
+            $first = $payload[0] ?? null;
+            if (is_array($first)) {
+                $reference = $reference ?? Arr::get($first, 'reference') ?? Arr::get($first, 'data.reference');
+            }
+        }
+
+        return is_string($reference) && trim($reference) !== '' ? trim($reference) : null;
+    }
+
     public function normalizeStatus(array $payload, ?string $fallback = null): string
     {
         $candidates = array_filter(array_map(function ($value) {
@@ -290,6 +425,36 @@ class FedaPayService
         return 'pending';
     }
 
+    public function normalizePayoutStatus(array $payload, ?string $fallback = null): string
+    {
+        $candidates = array_filter(array_map(function ($value) {
+            return $value ? strtolower((string) $value) : null;
+        }, [
+            Arr::get($payload, 'status'),
+            Arr::get($payload, 'data.status'),
+            Arr::get($payload, 'payout.status'),
+            is_array($payload) && array_is_list($payload) ? Arr::get($payload, '0.status') : null,
+            $fallback,
+        ]));
+
+        foreach ($candidates as $status) {
+            if (in_array($status, ['sent', 'completed', 'success', 'paid', 'transferred'], true)) {
+                return 'sent';
+            }
+            if (in_array($status, ['failed', 'declined'], true)) {
+                return 'failed';
+            }
+            if (in_array($status, ['cancelled', 'canceled', 'deleted'], true)) {
+                return 'cancelled';
+            }
+            if (in_array($status, ['pending', 'scheduled', 'processing'], true)) {
+                return 'processing';
+            }
+        }
+
+        return 'processing';
+    }
+
     private function endpoint(string $path): string
     {
         return rtrim($this->baseUrl, '/') . '/' . ltrim($path, '/');
@@ -303,15 +468,24 @@ class FedaPayService
             ->withToken($this->secretKey);
     }
 
-    private function postJson(string $url, array $payload): array
+    private function requestJson(string $method, string $url, array $payload = []): array
     {
-        $response = $this->http()->post($url, $payload);
+        $method = strtolower($method);
+        $request = $this->http();
+
+        if ($method === 'get') {
+            $response = $request->get($url, $payload);
+        } elseif ($method === 'delete') {
+            $response = $request->send('DELETE', $url, ['json' => $payload]);
+        } else {
+            $response = $request->send(strtoupper($method), $url, ['json' => $payload]);
+        }
 
         if (!$response->successful()) {
             $body = $response->body();
             $snippet = mb_substr((string) $body, 0, 1200);
             Log::error('fedapay:error', [
-                'stage' => 'post',
+                'stage' => $method,
                 'url' => $url,
                 'status' => $response->status(),
                 'body' => $snippet,
@@ -319,26 +493,31 @@ class FedaPayService
             throw new \RuntimeException('FedaPay API request failed (HTTP ' . $response->status() . '): ' . $snippet);
         }
 
-        return (array) $response->json();
+        if ($response->status() === 204) {
+            return [];
+        }
+
+        return (array) ($response->json() ?? []);
     }
 
-    private function getJson(string $url): array
+    private function postJson(string $url, array $payload): array
     {
-        $response = $this->http()->get($url);
+        return $this->requestJson('post', $url, $payload);
+    }
 
-        if (!$response->successful()) {
-            $body = $response->body();
-            $snippet = mb_substr((string) $body, 0, 1200);
-            Log::error('fedapay:error', [
-                'stage' => 'get',
-                'url' => $url,
-                'status' => $response->status(),
-                'body' => $snippet,
-            ]);
-            throw new \RuntimeException('FedaPay API request failed (HTTP ' . $response->status() . '): ' . $snippet);
-        }
+    private function putJson(string $url, array $payload): array
+    {
+        return $this->requestJson('put', $url, $payload);
+    }
 
-        return (array) $response->json();
+    private function deleteJson(string $url, array $payload = []): array
+    {
+        return $this->requestJson('delete', $url, $payload);
+    }
+
+    private function getJson(string $url, array $query = []): array
+    {
+        return $this->requestJson('get', $url, $query);
     }
 
     private function postWithFallback(string $url, array $primary, array $fallbacks): array

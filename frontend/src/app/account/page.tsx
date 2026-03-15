@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Globe, LogOut, PhoneCall } from "lucide-react";
+import { Download, ExternalLink, Globe, LogOut, PhoneCall } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
@@ -33,6 +33,20 @@ type PremiumStatus = {
   is_premium?: boolean;
   level?: string | null;
   expiration?: string | null;
+  request?: {
+    id?: number;
+    level?: string | null;
+    status?: string | null;
+    admin_note?: string | null;
+    rejection_reasons?: string[] | null;
+    processed_at?: string | null;
+    approved_at?: string | null;
+    refused_at?: string | null;
+    created_at?: string | null;
+    conditions_pdf_url?: string | null;
+    certificate_pdf_url?: string | null;
+    refusal_pdf_url?: string | null;
+  } | null;
   membership?: {
     level?: string | null;
     created_at?: string | null;
@@ -103,18 +117,20 @@ const VIP_PLANS: VipPlan[] = [
     level: "bronze",
     label: "Bronze",
     perks: [
-      "Réductions VIP",
-      "Parrainage VIP (commission améliorée)",
-      "Support prioritaire",
+      "Abonnement Weekly",
+      "-5% recharge & abonnements",
+      "-15% articles gaming",
+      "Parrainage à 10%",
     ],
   },
   {
     level: "platine",
     label: "Platine",
     perks: [
-      "Réductions VIP +",
-      "Support prioritaire",
-      "Accès offres partenaires",
+      "Abonnement Weekly",
+      "-8% recharge & abonnements",
+      "-25% articles gaming",
+      "Parrainage à 18%",
     ],
   },
 ];
@@ -136,6 +152,18 @@ const formatCurrency = (value: number, code?: string | null) => {
     return `${formatted} FCFA`;
   }
   return new Intl.NumberFormat(info.locale, { style: "currency", currency: info.label }).format(value);
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(parsed);
 };
 
 const mapOrderStatus = (status?: string | null): OrderStatus => {
@@ -273,7 +301,6 @@ function AccountClient() {
   const [vipModalOpen, setVipModalOpen] = useState(false);
   const [premiumStatus, setPremiumStatus] = useState<PremiumStatus | null>(null);
   const [vipStatusLoading, setVipStatusLoading] = useState(false);
-  const [vipCancelSubmitting, setVipCancelSubmitting] = useState(false);
   const [vipStatusError, setVipStatusError] = useState<string>("");
   const [vipStatusSuccess, setVipStatusSuccess] = useState<string>("");
   const [walletModalOpen, setWalletModalOpen] = useState(false);
@@ -2041,9 +2068,9 @@ function AccountClient() {
 
                   return <p className="mt-2 text-lg font-semibold text-white">{label}</p>;
                 })()}
-                <p className="mt-1 text-xs text-white/60">
-                  {vipStatusLoading ? "Chargement..." : premiumStatus?.expiration ? `Expiration: ${premiumStatus.expiration}` : "Expiration: —"}
-                </p>
+                    <p className="mt-1 text-xs text-white/60">
+                      {vipStatusLoading ? "Chargement..." : premiumStatus?.expiration ? `Expiration: ${premiumStatus.expiration}` : vipActive ? "Programme actif" : "Aucun plan actif"}
+                    </p>
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -2069,54 +2096,83 @@ function AccountClient() {
                 </div>
               </div>
 
-              {(() => {
-                const startedAt = premiumStatus?.membership?.created_at ? new Date(String(premiumStatus.membership.created_at)) : null;
-                const deadline = startedAt ? new Date(startedAt.getTime() + 10 * 24 * 60 * 60 * 1000) : null;
-                const now = new Date();
-                const withinWindow = deadline ? now <= deadline : false;
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Demande</p>
+                <p className="mt-2 text-sm text-white/70">
+                  {premiumStatus?.request?.status === "pending"
+                    ? "Une demande Premium est en attente de validation admin."
+                    : premiumStatus?.request?.status === "refused"
+                      ? "La dernière demande a été refusée. Consulte les motifs ci-dessous puis renvoie une nouvelle demande."
+                      : premiumStatus?.request?.status === "approved"
+                        ? "La dernière demande Premium a été approuvée."
+                        : "Aucune demande récente."}
+                </p>
 
-                return (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Résiliation</p>
-                    <p className="mt-2 text-sm text-white/70">
-                      {deadline ? (
-                        withinWindow ? "Résiliation possible (fenêtre 10 jours)." : "Résiliation expirée (fenêtre 10 jours dépassée)."
-                      ) : (
-                        "Règle: tu peux résilier seulement dans les 10 prochains jours après l'abonnement."
-                      )}
-                    </p>
+                {(() => {
+                  const request = premiumStatus?.request;
+                  if (!request) return null;
 
-                    <button
-                      type="button"
-                      disabled={vipCancelSubmitting || vipStatusLoading || !withinWindow}
-                      onClick={async () => {
-                        if (vipCancelSubmitting) return;
-                        setVipStatusError("");
-                        setVipStatusSuccess("");
-                        setVipCancelSubmitting(true);
-                        try {
-                          const res = await authFetch(`${API_BASE}/premium/cancel`, { method: "POST" });
-                          const payload = await res.json().catch(() => null);
-                          if (!res.ok) {
-                            throw new Error(payload?.message ?? "Résiliation impossible");
-                          }
-                          setVipStatusSuccess(payload?.message ?? "Abonnement résilié.");
-                          setPremiumStatus((prev) => (prev ? { ...prev, is_premium: false, level: null, expiration: null } : prev));
-                          setMe((prev) => (prev ? { ...prev, premiumTier: "Basic" } : prev));
-                          await refreshUser();
-                        } catch (e) {
-                          setVipStatusError(e instanceof Error ? e.message : "Résiliation impossible");
-                        } finally {
-                          setVipCancelSubmitting(false);
-                        }
-                      }}
-                      className="mt-4 w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {vipCancelSubmitting ? "Résiliation..." : "Résilier"}
-                    </button>
+                  const decisionAt = formatDateTime(
+                    request.approved_at ?? request.refused_at ?? request.processed_at ?? request.created_at,
+                  );
+                  const documents = [
+                    {
+                      href: request.conditions_pdf_url,
+                      label: "Télécharger les directives",
+                    },
+                    {
+                      href: request.certificate_pdf_url,
+                      label: "Télécharger le certificat",
+                    },
+                    {
+                      href: request.refusal_pdf_url,
+                      label: "Télécharger le résumé du refus",
+                    },
+                  ].filter((document) => Boolean(document.href));
+
+                  return (
+                    <>
+                      {decisionAt ? (
+                        <p className="mt-3 text-xs text-white/50">
+                          Dernière mise à jour: {decisionAt}
+                        </p>
+                      ) : null}
+
+                      {documents.length ? (
+                        <div className="mt-4 space-y-2">
+                          {documents.map((document) => (
+                            <a
+                              key={document.label}
+                              href={document.href ?? undefined}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-between rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-3 text-sm text-cyan-50 transition hover:border-cyan-200/35 hover:bg-cyan-400/15"
+                            >
+                              <span className="flex items-center gap-2">
+                                <Download className="h-4 w-4" />
+                                {document.label}
+                              </span>
+                              <ExternalLink className="h-4 w-4 text-cyan-100/80" />
+                            </a>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
+                  );
+                })()}
+
+                {premiumStatus?.request?.rejection_reasons?.length ? (
+                  <div className="mt-3 space-y-2 text-xs text-white/70">
+                    {premiumStatus.request.rejection_reasons.map((reason) => (
+                      <div key={reason} className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">{reason}</div>
+                    ))}
                   </div>
-                );
-              })()}
+                ) : null}
+
+                {premiumStatus?.request?.admin_note ? (
+                  <p className="mt-3 text-xs text-white/60">Note admin: {premiumStatus.request.admin_note}</p>
+                ) : null}
+              </div>
 
               <button
                 type="button"

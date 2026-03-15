@@ -7,6 +7,7 @@ use App\Mail\TemplatedNotification;
 use App\Models\PartnerWallet;
 use App\Models\PartnerWithdrawRequest;
 use App\Models\Seller;
+use App\Services\AdminResponsibilityService;
 use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -169,6 +170,42 @@ class PartnerWalletController extends Controller
                     'withdraw_request_id' => $withdraw->id,
                 ]);
             }
+        } catch (\Throwable $e) {
+        }
+
+        try {
+            $amount = (float) ($withdraw->amount ?? 0);
+            $payout = is_array($withdraw->payout_details) ? $withdraw->payout_details : [];
+            $fee = (float) ($payout['withdraw_fee_amount'] ?? 0);
+            $total = (float) ($payout['withdraw_total_debit'] ?? ($amount + $fee));
+
+            app(AdminResponsibilityService::class)->notify(
+                'sellers',
+                'admin_partner_withdraw_requested',
+                'Nouveau retrait vendeur en attente',
+                [
+                    'headline' => 'Retrait vendeur a traiter',
+                    'intro' => 'Un vendeur vient d\'envoyer une demande de retrait marketplace.',
+                    'details' => [
+                        ['label' => 'Vendeur', 'value' => (string) ($seller->company_name ?? $seller->kyc_full_name ?? $user->name ?? 'Vendeur')],
+                        ['label' => 'Email', 'value' => (string) ($user->email ?? '—')],
+                        ['label' => 'Montant net', 'value' => number_format($amount, 0, ',', ' ') . ' FCFA'],
+                        ['label' => 'Frais', 'value' => number_format($fee, 0, ',', ' ') . ' FCFA'],
+                        ['label' => 'Total debite', 'value' => number_format($total, 0, ',', ' ') . ' FCFA'],
+                    ],
+                    'actionUrl' => $this->frontendUrl('/admin/marketplace/withdraws'),
+                    'actionText' => 'Voir les retraits vendeur',
+                ],
+                [
+                    'withdraw' => $withdraw->toArray(),
+                    'seller' => $seller->toArray(),
+                    'user' => $user->toArray(),
+                ],
+                [
+                    'withdraw_request_id' => $withdraw->id,
+                    'seller_id' => $seller->id,
+                ]
+            );
         } catch (\Throwable $e) {
         }
 

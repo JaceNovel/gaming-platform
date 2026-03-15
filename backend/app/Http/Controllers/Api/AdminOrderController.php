@@ -15,6 +15,7 @@ use App\Jobs\ProcessMarketplaceOrder;
 use App\Models\MarketplaceOrder;
 use App\Models\Notification;
 use App\Services\AdminAuditLogger;
+use App\Services\AdminResponsibilityService;
 use App\Services\LoggedEmailService;
 use App\Services\NotificationService;
 use App\Services\ReferralCommissionService;
@@ -260,6 +261,38 @@ class AdminOrderController extends Controller
                 'refund',
                 $request
             );
+        }
+
+        try {
+            $front = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+            app(AdminResponsibilityService::class)->notify(
+                'disputes_refunds',
+                'admin_order_refund_issued',
+                'Remboursement commande effectue',
+                [
+                    'headline' => 'Remboursement commande a verifier',
+                    'intro' => 'Un remboursement vient d\'etre effectue sur une commande.',
+                    'details' => [
+                        ['label' => 'Commande', 'value' => (string) ($result['order']->reference ?? $result['order']->id)],
+                        ['label' => 'Client', 'value' => (string) ($result['order']->user?->email ?? '—')],
+                        ['label' => 'Montant', 'value' => number_format((float) ($result['refund']->amount ?? 0), 0, ',', ' ') . ' FCFA'],
+                        ['label' => 'Type', 'value' => strtoupper((string) $refundType)],
+                        ['label' => 'Motif', 'value' => (string) ($result['refund']->reason ?? $reason ?? '—')],
+                    ],
+                    'actionUrl' => $front . '/admin/orders/' . $result['order']->id,
+                    'actionText' => 'Voir la commande',
+                ],
+                [
+                    'order' => $result['order']->toArray(),
+                    'refund' => $result['refund']->toArray(),
+                    'admin' => $admin?->toArray() ?? [],
+                ],
+                [
+                    'order_id' => $result['order']->id,
+                    'refund_id' => $result['refund']->id,
+                ]
+            );
+        } catch (\Throwable $e) {
         }
 
         return response()->json([

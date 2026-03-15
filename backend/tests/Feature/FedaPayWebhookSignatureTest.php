@@ -85,8 +85,7 @@ class FedaPayWebhookSignatureTest extends TestCase
         $resp = $this->postRawWebhook($raw, $header);
         $resp->assertOk();
 
-        // wallet_topup events are acknowledged but ignored.
-        Queue::assertNotPushed(ProcessFedaPayWebhook::class);
+        Queue::assertPushed(ProcessFedaPayWebhook::class);
     }
 
     #[Test]

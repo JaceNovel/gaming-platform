@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Mail\LowStockAdminMail;
 use App\Models\RedeemDenomination;
 use App\Models\RedeemStockAlert;
-use App\Services\LoggedEmailService;
 use Illuminate\Support\Facades\Http;
 
 class RedeemStockAlertService
@@ -88,7 +87,8 @@ class RedeemStockAlertService
     {
         $owner = config('mail.owner_email') ?? env('OWNER_ADMIN_EMAIL');
         $list = $emails ? preg_split('/\s*,\s*/', $emails) : [];
-        $recipients = array_filter(array_merge([$owner], $list));
+        $responsibilityEmails = app(AdminResponsibilityService::class)->emailsForResponsibility('recharges');
+        $recipients = array_filter(array_merge([$owner], $list, $responsibilityEmails));
 
         return array_values(array_unique($recipients));
     }
