@@ -560,22 +560,22 @@ function WalletClient() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+            <div className="min-w-0 rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
                   <p className="text-xs uppercase tracking-[0.35em] text-white/45">Solde</p>
-                  <p className="mt-2 text-4xl font-semibold">{displayBalance}</p>
+                  <p className="mt-2 break-words text-4xl font-semibold leading-none sm:text-[2.8rem]">{displayBalance}</p>
                   <p className="mt-1 text-xs text-white/60">Devise: {currencyLabel}</p>
                   {walletStatus ? (
                     <p className="mt-1 text-xs text-white/60">Statut: {walletStatus}</p>
                   ) : null}
                 </div>
-                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[260px]">
+                <div className="grid w-full grid-cols-2 gap-2 xl:w-[272px] xl:flex-none">
                   <button
                     type="button"
                     onClick={() => void loadWallet()}
-                    className="min-w-0 rounded-2xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold sm:px-4 sm:text-sm"
+                    className="min-w-0 rounded-2xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold xl:px-4 xl:text-sm"
                     disabled={refreshing}
                   >
                     <span className="block truncate">{refreshing ? "Actualisation..." : "Actualiser"}</span>
@@ -583,7 +583,7 @@ function WalletClient() {
                   <button
                     type="button"
                     onClick={() => void openTidioChat({ message: supportMessage })}
-                    className="min-w-0 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 sm:px-4 sm:text-sm"
+                    className="min-w-0 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 xl:px-4 xl:text-sm"
                   >
                     <span className="block truncate">Support</span>
                   </button>
@@ -593,7 +593,7 @@ function WalletClient() {
                       const node = document.getElementById("topup-section");
                       node?.scrollIntoView({ behavior: "smooth", block: "start" });
                     }}
-                    className="min-w-0 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-100 sm:px-4 sm:text-sm"
+                    className="min-w-0 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-100 xl:px-4 xl:text-sm"
                   >
                     <span className="block truncate">Recharger</span>
                   </button>
@@ -603,7 +603,7 @@ function WalletClient() {
                       const node = document.getElementById("withdraw-section");
                       node?.scrollIntoView({ behavior: "smooth", block: "start" });
                     }}
-                    className="min-w-0 rounded-2xl border border-orange-300/30 bg-orange-400/10 px-3 py-2 text-xs font-semibold text-orange-100 sm:px-4 sm:text-sm"
+                    className="min-w-0 rounded-2xl border border-orange-300/30 bg-orange-400/10 px-3 py-2 text-xs font-semibold text-orange-100 xl:px-4 xl:text-sm"
                   >
                     <span className="block truncate">Retrait</span>
                   </button>
@@ -611,8 +611,8 @@ function WalletClient() {
               </div>
 
               <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-500/10 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
                     <p className="text-xs uppercase tracking-[0.25em] text-cyan-100/80">DB Wallet ID</p>
                     <p className="mt-1 break-all text-lg font-semibold text-cyan-50">{walletId || "Chargement..."}</p>
                     <p className="mt-1 text-xs text-cyan-100/75">Pseudo public: {walletUsername || String(user?.name ?? "—")}</p>
@@ -627,7 +627,7 @@ function WalletClient() {
                           window.setTimeout(() => setBanner(null), 1500);
                         }
                       }}
-                      className="rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100"
+                      className="self-start rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100"
                     >
                       Copier mon ID
                     </button>
@@ -778,7 +778,7 @@ function WalletClient() {
               ) : null}
             </div>
 
-            <div className="rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
+            <div className="min-w-0 rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.35em] text-white/45">Historique</p>

@@ -82,6 +82,12 @@ type WalletTransaction = {
   status: "success" | "pending" | "failed";
 };
 
+type TransferRecipient = {
+  wallet_id: string;
+  username: string;
+  phone?: string | null;
+};
+
 type Avatar = {
   id: string;
   name: string;
@@ -308,6 +314,14 @@ function AccountClient() {
   const [walletHistoryLoading, setWalletHistoryLoading] = useState(HAS_API_ENV);
   const [walletBalanceState, setWalletBalanceState] = useState(me?.walletBalanceFcfa ?? 0);
   const [referralToast, setReferralToast] = useState<string | null>(null);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferQuery, setTransferQuery] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferRecipient, setTransferRecipient] = useState<TransferRecipient | null>(null);
+  const [transferLookupLoading, setTransferLookupLoading] = useState(false);
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferMessage, setTransferMessage] = useState<string | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
   const [ordersModalOpen, setOrdersModalOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [countryFormCode, setCountryFormCode] = useState(me?.countryCode ?? "CI");
@@ -1006,29 +1020,143 @@ function AccountClient() {
     router.push("/wallet#topup-section");
   };
 
-  const handleSendToFriend = async () => {
-    if (!referralInviteUrl) {
-      setReferralToast("Lien de parrainage indisponible");
-      window.setTimeout(() => setReferralToast(null), 1800);
+  const closeTransferModal = () => {
+    setTransferModalOpen(false);
+    setTransferLookupLoading(false);
+    setTransferSubmitting(false);
+    setTransferQuery("");
+    setTransferAmount("");
+    setTransferRecipient(null);
+    setTransferMessage(null);
+    setTransferError(null);
+  };
+
+  const handleSendToFriend = () => {
+    setActiveMenu("EnvoyerAmi");
+    setTransferModalOpen(true);
+    setTransferMessage(null);
+    setTransferError(null);
+  };
+
+  const refreshWalletTransferSummary = async () => {
+    try {
+      const [walletRes, txRes] = await Promise.all([
+        authFetch(`${API_BASE}/wallet`),
+        authFetch(`${API_BASE}/wallet/transactions?limit=10`),
+      ]);
+
+      if (walletRes.ok) {
+        const walletData = await walletRes.json().catch(() => null);
+        const balanceValue = typeof walletData?.balance === "number" ? walletData.balance : Number(walletData?.balance ?? 0);
+        const normalized = Number.isFinite(balanceValue) ? balanceValue : 0;
+        setWalletBalanceState(normalized);
+        setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: normalized } : prev));
+      }
+
+      if (txRes.ok) {
+        const txData = await txRes.json().catch(() => null);
+        const rows = Array.isArray(txData?.transactions) ? txData.transactions : Array.isArray(txData) ? txData : [];
+        setWalletTransactions(
+          rows.slice(0, 10).map((tx: any, index: number) => {
+            const amountValue = Number(tx.amount ?? 0);
+            return {
+              id: String(tx.id ?? index),
+              label: tx.label ?? tx.description ?? "Transaction wallet",
+              amount: amountValue,
+              currency: tx.currency ?? getCurrencyInfo(me?.countryCode).label,
+              createdAt: tx.created_at ?? tx.createdAt ?? new Date().toISOString(),
+              type: tx.type === "debit" ? "debit" : "credit",
+              status: tx.status === "failed" ? "failed" : tx.status === "pending" ? "pending" : "success",
+            } satisfies WalletTransaction;
+          }),
+        );
+      }
+    } catch {
+      // best effort refresh only
+    }
+  };
+
+  const handleResolveTransferRecipient = async () => {
+    const query = transferQuery.trim();
+    if (query.length < 2) {
+      setTransferError("Renseigne un wallet ID, pseudo ou numéro valide.");
+      setTransferRecipient(null);
       return;
     }
 
+    setTransferLookupLoading(true);
+    setTransferError(null);
+    setTransferMessage(null);
+
     try {
-      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-        await navigator.share({
-          title: "PRIME Gaming",
-          text: "Inscris-toi avec mon lien PRIME Gaming.",
-          url: referralInviteUrl,
-        });
+      const res = await authFetch(`${API_BASE}/wallet/recipient?query=${encodeURIComponent(query)}`);
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.recipient) {
+        setTransferRecipient(null);
+        setTransferError(payload?.message ?? "Destinataire introuvable.");
         return;
       }
 
-      await navigator.clipboard.writeText(referralInviteUrl);
-      setReferralToast("Lien copié");
+      setTransferRecipient({
+        wallet_id: String(payload.recipient.wallet_id ?? ""),
+        username: String(payload.recipient.username ?? "Utilisateur"),
+        phone: payload.recipient.phone_masked ? String(payload.recipient.phone_masked) : null,
+      });
+      setTransferMessage("Destinataire trouvé.");
     } catch {
-      setReferralToast("Impossible de partager");
+      setTransferRecipient(null);
+      setTransferError("Destinataire introuvable.");
     } finally {
-      window.setTimeout(() => setReferralToast(null), 1800);
+      setTransferLookupLoading(false);
+    }
+  };
+
+  const handleTransferSubmit = async () => {
+    const amountValue = Number(transferAmount || 0);
+    if (!transferRecipient) {
+      setTransferError("Recherche d'abord le destinataire.");
+      return;
+    }
+    if (!Number.isFinite(amountValue) || amountValue < 1) {
+      setTransferError("Montant invalide.");
+      return;
+    }
+
+    setTransferSubmitting(true);
+    setTransferError(null);
+    setTransferMessage(null);
+
+    try {
+      const res = await authFetch(`${API_BASE}/wallet/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipient_query: transferQuery.trim(),
+          amount: amountValue,
+        }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        setTransferError(payload?.message ?? payload?.errors?.amount?.[0] ?? payload?.errors?.recipient_query?.[0] ?? "Transfert impossible.");
+        return;
+      }
+
+      const nextBalance = Number(payload?.data?.wallet_balance ?? NaN);
+      if (Number.isFinite(nextBalance)) {
+        setWalletBalanceState(nextBalance);
+        setMe((prev) => (prev ? { ...prev, walletBalanceFcfa: nextBalance } : prev));
+      }
+
+      await refreshWalletTransferSummary();
+
+      setTransferMessage(`Transfert envoyé à ${transferRecipient.username} sans frais.`);
+      setTransferAmount("");
+      setTransferQuery("");
+      setTransferRecipient(null);
+    } catch {
+      setTransferError("Transfert impossible.");
+    } finally {
+      setTransferSubmitting(false);
     }
   };
 
@@ -1914,6 +2042,97 @@ function AccountClient() {
             </div>
           </div>
         )
+      )}
+
+      {transferModalOpen && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={closeTransferModal} />
+          <div className="relative z-10 w-full max-w-xl rounded-[28px] border border-white/10 bg-[#05030d] p-5 text-white shadow-[0_30px_120px_rgba(0,0,0,0.85)] sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.4em] text-white/40">Compte à compte</p>
+                <h2 className="mt-1 text-xl font-semibold sm:text-2xl">Transfert à un ami</h2>
+                <p className="mt-1 text-sm text-white/60">Envoie de l'argent vers un autre DB Wallet avec wallet ID, pseudo ou numéro.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-full border border-white/20 px-3 py-1 text-xs text-white/70"
+                onClick={closeTransferModal}
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-3xl border border-cyan-300/20 bg-cyan-500/10 p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-cyan-100/70">Solde disponible</p>
+              <p className="mt-2 text-3xl font-black text-white">{walletDisplay}</p>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <label className="block text-sm text-white/75">
+                Wallet ID, pseudo ou numéro
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={transferQuery}
+                    onChange={(event) => {
+                      setTransferQuery(event.target.value);
+                      setTransferRecipient(null);
+                      setTransferMessage(null);
+                      setTransferError(null);
+                    }}
+                    placeholder="Ex: DBW-..., PRIMEUSER ou 225..."
+                    className="min-w-0 flex-1 rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleResolveTransferRecipient}
+                    disabled={transferLookupLoading || transferSubmitting}
+                    className="rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 disabled:opacity-50"
+                  >
+                    {transferLookupLoading ? "Recherche..." : "Trouver"}
+                  </button>
+                </div>
+              </label>
+
+              {transferRecipient ? (
+                <div className="rounded-3xl border border-emerald-300/20 bg-emerald-500/10 p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-emerald-100/75">Destinataire</p>
+                  <p className="mt-2 text-lg font-semibold text-white">{transferRecipient.username}</p>
+                  <p className="mt-1 break-all text-sm text-emerald-100/80">{transferRecipient.wallet_id}</p>
+                  {transferRecipient.phone ? <p className="mt-1 text-xs text-emerald-100/70">{transferRecipient.phone}</p> : null}
+                </div>
+              ) : null}
+
+              <label className="block text-sm text-white/75">
+                Montant (FCFA)
+                <input
+                  type="number"
+                  min={1}
+                  value={transferAmount}
+                  onChange={(event) => setTransferAmount(event.target.value)}
+                  placeholder="Montant à envoyer"
+                  className="mt-2 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
+                />
+              </label>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-white/65">
+                Le transfert compte à compte est instantané et sans frais.
+              </div>
+
+              {transferError ? <p className="text-sm text-rose-300">{transferError}</p> : null}
+              {transferMessage ? <p className="text-sm text-emerald-300">{transferMessage}</p> : null}
+
+              <button
+                type="button"
+                onClick={handleTransferSubmit}
+                disabled={transferSubmitting || transferLookupLoading || !transferRecipient}
+                className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-orange-400 px-4 py-3 text-sm font-semibold text-black disabled:opacity-50"
+              >
+                {transferSubmitting ? "Envoi..." : "Envoyer maintenant"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {ordersModalOpen && (
