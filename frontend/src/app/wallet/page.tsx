@@ -30,6 +30,8 @@ type WalletTx = {
   payout_id?: string | null;
   payout_status?: string | null;
   failure_reason?: string | null;
+  counterparty_username?: string | null;
+  counterparty_wallet_id?: string | null;
 };
 
 type WalletPayout = {
@@ -241,6 +243,8 @@ function WalletClient() {
             payout_id: tx.payout_id ? String(tx.payout_id) : null,
             payout_status: tx.payout_status ? String(tx.payout_status) : null,
             failure_reason: tx.failure_reason ? String(tx.failure_reason) : null,
+            counterparty_username: tx.counterparty_username ? String(tx.counterparty_username) : null,
+            counterparty_wallet_id: tx.counterparty_wallet_id ? String(tx.counterparty_wallet_id) : null,
           };
         })
         .filter((t: WalletTx) => Boolean(t.id));
