@@ -405,6 +405,13 @@ function WalletClient() {
         variant: "paypal",
       },
       {
+        key: "bank_card",
+        title: "Carte bancaire",
+        description: "Recharge le DB Wallet par carte bancaire via l’interface sécurisée PayPal pour le moment.",
+        badge: "CB",
+        variant: "bank_card",
+      },
+      {
         key: "fedapay",
         title: "Mobile Money",
         description: "Recharge le DB Wallet avec Orange Money, MTN MoMo et les moyens mobiles supportés par FedaPay.",
@@ -442,13 +449,6 @@ function WalletClient() {
     } catch {
       setBanner("Échange impossible.");
     } finally {
-          {
-            key: "bank_card",
-            title: "Carte bancaire",
-            description: "Recharge le DB Wallet par carte bancaire via l’interface sécurisée PayPal pour le moment.",
-            badge: "CB",
-            variant: "bank_card",
-          },
       setExchangeLoading(false);
     }
   };
