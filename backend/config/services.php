@@ -71,8 +71,8 @@ return [
         'platforms' => [
             'alibaba' => [
                 'authorize_url' => env('ALIBABA_OAUTH_AUTHORIZE_URL', 'https://openapi-auth.alibaba.com/oauth/authorize'),
-                'token_url' => env('ALIBABA_OAUTH_TOKEN_URL', 'https://openapi-auth.alibaba.com/auth/token/create'),
-                'refresh_url' => env('ALIBABA_OAUTH_REFRESH_URL', 'https://openapi-auth.alibaba.com/auth/token/refresh'),
+                'token_url' => env('ALIBABA_OAUTH_TOKEN_URL', 'https://openapi.alibaba.com/auth/token/create'),
+                'refresh_url' => env('ALIBABA_OAUTH_REFRESH_URL', 'https://openapi.alibaba.com/auth/token/refresh'),
                 'api_base_url' => env('ALIBABA_API_BASE_URL', 'https://openapi.alibaba.com'),
                 'callback_url' => env('ALIBABA_CALLBACK_URL'),
                 'default_scope' => env('ALIBABA_DEFAULT_SCOPE'),
@@ -125,8 +125,8 @@ return [
             ],
             'aliexpress' => [
                 'authorize_url' => env('ALIEXPRESS_OAUTH_AUTHORIZE_URL', 'https://openapi-auth.alibaba.com/oauth/authorize'),
-                'token_url' => env('ALIEXPRESS_OAUTH_TOKEN_URL', 'https://openapi-auth.alibaba.com/auth/token/create'),
-                'refresh_url' => env('ALIEXPRESS_OAUTH_REFRESH_URL', 'https://openapi-auth.alibaba.com/auth/token/refresh'),
+                'token_url' => env('ALIEXPRESS_OAUTH_TOKEN_URL', 'https://openapi.alibaba.com/auth/token/create'),
+                'refresh_url' => env('ALIEXPRESS_OAUTH_REFRESH_URL', 'https://openapi.alibaba.com/auth/token/refresh'),
                 'api_base_url' => env('ALIEXPRESS_API_BASE_URL', 'https://openapi.alibaba.com'),
                 'callback_url' => env('ALIEXPRESS_CALLBACK_URL'),
                 'default_scope' => env('ALIEXPRESS_DEFAULT_SCOPE'),

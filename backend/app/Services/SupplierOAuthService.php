@@ -87,6 +87,7 @@ class SupplierOAuthService
             'client_secret' => (string) ($account->app_secret ?? ''),
             'grant_type' => 'refresh_token',
             'refresh_token' => (string) ($account->refresh_token ?? ''),
+            'uuid' => trim((string) ($config['authorize_uuid'] ?? '')) ?: null,
         ]);
 
         $account->update([
@@ -116,6 +117,7 @@ class SupplierOAuthService
             'grant_type' => 'authorization_code',
             'redirect_uri' => $this->callbackUrl($account->platform),
             'code' => $code,
+            'uuid' => trim((string) ($config['authorize_uuid'] ?? '')) ?: null,
         ]);
     }
 
@@ -155,10 +157,13 @@ class SupplierOAuthService
             ->acceptJson();
 
         $filteredParams = array_filter($params, static fn ($value) => $value !== null && $value !== '');
-        $response = $request->post($url, $filteredParams);
+        $resolvedUrl = $this->resolveIoAuthUrl($account, $url);
+        $headers = $this->buildIoAuthHeaders($account, (string) (parse_url($resolvedUrl, PHP_URL_PATH) ?: '/auth/token/create'), $filteredParams);
+
+        $response = $request->withHeaders($headers)->post($resolvedUrl, $filteredParams);
 
         if ($response->status() === 405) {
-            $response = $request->get($url, $filteredParams);
+            $response = $request->withHeaders($headers)->get($resolvedUrl, $filteredParams);
         }
 
         if (!$response->successful()) {
@@ -171,6 +176,46 @@ class SupplierOAuthService
         }
 
         return $this->parseTokenResponse($payload);
+    }
+
+    private function resolveIoAuthUrl(SupplierAccount $account, string $url): string
+    {
+        $host = (string) (parse_url($url, PHP_URL_HOST) ?? '');
+        if ($host === 'openapi-auth.alibaba.com') {
+            $apiBaseUrl = rtrim((string) data_get($this->platformConfig($account->platform), 'api_base_url', ''), '/');
+            $path = (string) (parse_url($url, PHP_URL_PATH) ?? '');
+            if ($apiBaseUrl !== '' && $path !== '') {
+                return $apiBaseUrl . $path;
+            }
+        }
+
+        return $url;
+    }
+
+    private function buildIoAuthHeaders(SupplierAccount $account, string $path, array $params): array
+    {
+        $appKey = trim((string) ($account->app_key ?? ''));
+        $appSecret = (string) ($account->app_secret ?? '');
+        if ($appKey === '' || $appSecret === '') {
+            throw new \RuntimeException('App Key / App Secret manquants pour l’échange OAuth IOP.');
+        }
+
+        ksort($params);
+        $payload = $path;
+        foreach ($params as $key => $value) {
+            $payload .= $key . $value;
+        }
+
+        $algorithm = strtolower((string) data_get($this->platformConfig($account->platform), 'sign_method', 'sha256')) === 'md5'
+            ? 'md5'
+            : 'sha256';
+
+        return [
+            'app_key' => $appKey,
+            'timestamp' => (string) round(microtime(true) * 1000),
+            'sign_method' => $algorithm,
+            'sign' => strtoupper(hash_hmac($algorithm, $payload, $appSecret)),
+        ];
     }
 
     private function callbackUrl(string $platform): string
