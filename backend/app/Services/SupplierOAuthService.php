@@ -24,6 +24,7 @@ class SupplierOAuthService
         }
 
         $state = 'supplier-oauth:' . Str::random(40);
+        $state = 'supplieroauth' . Str::random(32);
         $ttl = max(1, (int) config('services.sourcing.oauth_state_ttl_minutes', 15));
         Cache::put($state, [
             'supplier_account_id' => $account->id,
@@ -31,15 +32,20 @@ class SupplierOAuthService
             'admin_user_id' => $adminUserId,
         ], now()->addMinutes($ttl));
 
-        $query = array_filter([
+        $query = [
             'client_id' => $appKey,
             'redirect_uri' => $this->callbackUrl($account->platform),
             'response_type' => 'code',
-            'scope' => trim((string) ($config['default_scope'] ?? '')) ?: null,
             'state' => $state,
-            'force_auth' => filter_var($config['authorize_force_auth'] ?? false, FILTER_VALIDATE_BOOL) ? 'true' : null,
-            'uuid' => trim((string) ($config['authorize_uuid'] ?? '')) ?: null,
-        ], static fn ($value) => $value !== null && $value !== '');
+        ];
+
+        if (filter_var($config['include_optional_authorize_params'] ?? false, FILTER_VALIDATE_BOOL)) {
+            $query = array_merge($query, array_filter([
+                'scope' => trim((string) ($config['default_scope'] ?? '')) ?: null,
+                'force_auth' => filter_var($config['authorize_force_auth'] ?? false, FILTER_VALIDATE_BOOL) ? 'true' : null,
+                'uuid' => trim((string) ($config['authorize_uuid'] ?? '')) ?: null,
+            ], static fn ($value) => $value !== null && $value !== ''));
+        }
 
         return $authorizeUrl . (str_contains($authorizeUrl, '?') ? '&' : '?') . Arr::query($query);
     }
