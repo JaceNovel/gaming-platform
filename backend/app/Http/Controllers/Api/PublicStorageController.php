@@ -18,7 +18,7 @@ class PublicStorageController extends Controller
         if (str_starts_with($path, 'seller-listings/') || str_starts_with($path, 'disputes/') || str_starts_with($path, 'seller-agreements/')) {
             // Older deployments stored files in the local "public" disk (storage/app/public).
             // Some older jobs stored in storage/app (legacy_app) or the current private local disk (storage/app/private).
-            return ['public', 'legacy_app', 'local'];
+            return ['public', 'legacy_public_local', 'legacy_app', 'local'];
         }
 
         return [];

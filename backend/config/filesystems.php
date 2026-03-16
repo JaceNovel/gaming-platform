@@ -52,6 +52,16 @@ return [
             'report' => false,
         ],
 
+        // Legacy fallback for deployments that used the default Laravel public disk
+        // before public uploads were moved to a dedicated persistent root.
+        'legacy_public_local' => [
+            'driver' => 'local',
+            'root' => storage_path('app/public'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => env('PUBLIC_UPLOADS_ROOT', storage_path('app/public')),
