@@ -20,6 +20,290 @@ type SupplierProduct = {
   skus_count?: number | null;
 };
 
+type RemoteSearchResult = {
+  external_product_id?: string | null;
+  title?: string | null;
+  model_number?: string | null;
+  status?: string | null;
+  sku_code?: string | null;
+  category_name?: string | null;
+  main_image_url?: string | null;
+};
+
+type CategoryPrediction = {
+  category_id?: string | null;
+  category_name?: string | null;
+  category_path?: string | null;
+  msg_code?: string | null;
+  message?: string | null;
+};
+
+type VideoUploadResult = {
+  request_id?: string | null;
+  request_status?: string | null;
+  video_id?: string | null;
+  msg_code?: string | null;
+  message?: string | null;
+};
+
+type RemoteVideo = {
+  video_id?: string | null;
+  title?: string | null;
+  status?: string | null;
+  quality?: string | null;
+  video_url?: string | null;
+  cover_url?: string | null;
+  duration?: string | null;
+  file_size?: string | null;
+};
+
+type BuyerItemSummary = {
+  item_id?: string | null;
+  isv_item_id?: string | null;
+  title?: string | null;
+  price?: string | null;
+  currency?: string | null;
+  available_quantity?: string | null;
+  permalink?: string | null;
+};
+
+type BuyerEcoOperation =
+  | "product-events"
+  | "channel-batch-import"
+  | "crossborder-check"
+  | "product-cert"
+  | "product-description"
+  | "product-keyattributes"
+  | "product-inventory"
+  | "local-check"
+  | "localregular-check"
+  | "item-rec-image"
+  | "product-check"
+  | "product-search"
+  | "item-rec";
+
+type IopOperation =
+  | "advanced-freight-calculate"
+  | "basic-freight-calculate"
+  | "merge-pay-query"
+  | "buynow-order-create"
+  | "logistics-tracking-get"
+  | "overseas-admittance-check"
+  | "dropshipping-order-pay"
+  | "order-fund-query"
+  | "ggs-warehouse-list"
+  | "order-cancel"
+  | "order-get"
+  | "order-list"
+  | "order-pay-result-query"
+  | "seller-warehouse-list"
+  | "order-logistics-query";
+
+const stringifyTemplate = (value: unknown) => JSON.stringify(value, null, 2);
+
+const BUYER_ITEM_TEMPLATES = {
+  add: stringifyTemplate({
+    isv_item_id: "isv-demo-001",
+    title: "Gaming Headset RGB",
+    description: "USB gaming headset with detachable microphone",
+    price: "29.90",
+    original_price: "39.90",
+    currency: "USD",
+    available_quantity: "25",
+    image_urls: ["https://example.com/headset-main.jpg"],
+    variations: [
+      {
+        variation_id: "var-001",
+        isv_variation_id: "isv-var-001",
+        price: "29.90",
+        available_quantity: "25",
+        image_urls: ["https://example.com/headset-black.jpg"],
+      },
+    ],
+  }),
+  update: stringifyTemplate({
+    item_id: "14001030307",
+    title: "Gaming Headset RGB v2",
+    price: "27.90",
+    available_quantity: "18",
+  }),
+  delete: stringifyTemplate({
+    item_id: "14001030307",
+  }),
+  query: stringifyTemplate({
+    item_id: "14001030307",
+    page: 1,
+    page_size: 20,
+  }),
+} as const;
+
+const BUYER_ECO_TEMPLATES: Record<BuyerEcoOperation, string> = {
+  "product-events": stringifyTemplate({
+    events: [
+      {
+        item_id: "14001030307",
+        status: "ACTIVE",
+        price: "69.00",
+        currency: "USD",
+      },
+    ],
+  }),
+  "channel-batch-import": stringifyTemplate({
+    ecology_id_list: ["eco-001", "eco-002"],
+    channel_name: "shopify",
+  }),
+  "crossborder-check": stringifyTemplate({
+    page: 1,
+    page_size: 20,
+  }),
+  "product-cert": stringifyTemplate({
+    product_id: "1601206892606",
+  }),
+  "product-description": stringifyTemplate({
+    product_id: "1601206892606",
+  }),
+  "product-keyattributes": stringifyTemplate({
+    product_id: "1601206892606",
+  }),
+  "product-inventory": stringifyTemplate({
+    product_id: "1600927952535",
+    shipping_from: "CN",
+  }),
+  "local-check": stringifyTemplate({
+    page: 1,
+    page_size: 20,
+  }),
+  "localregular-check": stringifyTemplate({
+    page: 1,
+    page_size: 20,
+  }),
+  "item-rec-image": stringifyTemplate({
+    item_id: "14001030307",
+    page: 1,
+    page_size: 20,
+  }),
+  "product-check": stringifyTemplate({
+    page: 1,
+    page_size: 20,
+    destination_country: "US",
+  }),
+  "product-search": stringifyTemplate({
+    keyword: "wireless headset",
+    page: 1,
+    page_size: 20,
+    destination_country: "US",
+  }),
+  "item-rec": stringifyTemplate({
+    item_id: "14001030307",
+    page: 1,
+    page_size: 20,
+  }),
+};
+
+const IOP_TEMPLATES: Record<IopOperation, string> = {
+  "advanced-freight-calculate": stringifyTemplate({
+    e_company_id: "cVmhg7/xG8q3UQgcH/5Fag==",
+    destination_country: "US",
+    address: {
+      zip: "35022",
+      country: { code: "US", name: "United States" },
+      address: "4595 Clubview Drive",
+      province: { code: "AL", name: "Alabama" },
+      city: { code: "Bessemer", name: "Bessemer" },
+    },
+    logistics_product_list: [
+      {
+        quantity: "1",
+        product_id: "1600191825486",
+        sku_id: "12321",
+      },
+    ],
+    dispatch_location: "CN",
+    enable_distribution_waybill: false,
+  }),
+  "basic-freight-calculate": stringifyTemplate({
+    destination_country: "US",
+    product_id: "213421",
+    quantity: "3",
+    zip_code: "90001",
+    dispatch_location: "CN",
+    enable_distribution_waybill: false,
+  }),
+  "merge-pay-query": stringifyTemplate(["23423333", "123421"]),
+  "buynow-order-create": stringifyTemplate({
+    channel_refer_id: "124232",
+    logistics_detail: {
+      shipment_address: {
+        zip: "10012",
+        country: "United States of America",
+        address: "1000 Fifth Avenue at 82nd Street, New York, NY",
+        city: "New York",
+        contact_person: "John Doe",
+        country_code: "US",
+        province: "New York",
+      },
+      dispatch_location: "CN",
+      carrier_code: "EX_ASP_JYC_FEDEX",
+    },
+    product_list: [
+      {
+        quantity: "10",
+        product_id: "100001",
+        sku_id: "200001",
+      },
+    ],
+    properties: {
+      platform: "Shopify",
+      orderId: "1111111111111",
+    },
+    remark: "order remarks",
+    enable_distribution_waybill: false,
+  }),
+  "logistics-tracking-get": stringifyTemplate("2345323432"),
+  "overseas-admittance-check": stringifyTemplate({}),
+  "dropshipping-order-pay": stringifyTemplate({
+    user_ip: "10.11.102.11",
+    isv_drop_shipper_registration_time: "1616595118627",
+    order_id_list: ["1234", "2234"],
+    is_pc: true,
+    accept_language: "en-US,en;q=0.9",
+    screen_resolution: "1024*1024",
+    user_agent: "Mozilla/5.0",
+    payment_method: "CREDIT_CARD",
+  }),
+  "order-fund-query": stringifyTemplate({
+    e_trade_id: "21342134",
+    data_select: "fund_transaction_fee",
+  }),
+  "ggs-warehouse-list": stringifyTemplate({
+    product_id: "12134343",
+    page_size: 10,
+    current_page: 1,
+  }),
+  "order-cancel": stringifyTemplate("1234532134"),
+  "order-get": stringifyTemplate({
+    e_trade_id: "12342132",
+    data_select: "draft_role",
+    language: "en_US",
+  }),
+  "order-list": stringifyTemplate({
+    start_page: 0,
+    role: "buyer",
+    page_size: 10,
+    status: "unpay",
+  }),
+  "order-pay-result-query": stringifyTemplate("2134213421"),
+  "seller-warehouse-list": stringifyTemplate({
+    product_id: "12343213",
+    country_code: "US",
+    current_page: 1,
+  }),
+  "order-logistics-query": stringifyTemplate({
+    trade_id: "2134532",
+    data_select: "logistic_order",
+  }),
+};
+
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
   if (typeof window === "undefined") return headers;
@@ -37,11 +321,50 @@ export default function AdminSourcingImportPage() {
 
   const [supplierAccountId, setSupplierAccountId] = useState("");
   const [externalProductId, setExternalProductId] = useState("");
+  const [lookupType, setLookupType] = useState<"product_id" | "sku_id">("product_id");
+  const [searchModelNumber, setSearchModelNumber] = useState("");
+  const [searchSkuCode, setSearchSkuCode] = useState("");
+  const [remoteResults, setRemoteResults] = useState<RemoteSearchResult[]>([]);
+  const [searchingRemote, setSearchingRemote] = useState(false);
   const [externalOfferId, setExternalOfferId] = useState("");
   const [title, setTitle] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [mainImageUrl, setMainImageUrl] = useState("");
+  const [predictionDescription, setPredictionDescription] = useState("");
+  const [predictingCategory, setPredictingCategory] = useState(false);
+  const [predictedCategory, setPredictedCategory] = useState<CategoryPrediction | null>(null);
+  const [videoPath, setVideoPath] = useState("");
+  const [videoName, setVideoName] = useState("");
+  const [videoCover, setVideoCover] = useState("");
+  const [videoRequestId, setVideoRequestId] = useState("");
+  const [videoId, setVideoId] = useState("");
+  const [videoProductId, setVideoProductId] = useState("");
+  const [videoUploadResult, setVideoUploadResult] = useState<VideoUploadResult | null>(null);
+  const [remoteVideos, setRemoteVideos] = useState<RemoteVideo[]>([]);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [checkingVideoResult, setCheckingVideoResult] = useState(false);
+  const [queryingVideos, setQueryingVideos] = useState(false);
+  const [attachingVideo, setAttachingVideo] = useState(false);
+  const [buyerInsertReq, setBuyerInsertReq] = useState(BUYER_ITEM_TEMPLATES.add);
+  const [buyerUpdateReq, setBuyerUpdateReq] = useState(BUYER_ITEM_TEMPLATES.update);
+  const [buyerDeleteReq, setBuyerDeleteReq] = useState(BUYER_ITEM_TEMPLATES.delete);
+  const [buyerQueryReq, setBuyerQueryReq] = useState(BUYER_ITEM_TEMPLATES.query);
+  const [buyerItems, setBuyerItems] = useState<BuyerItemSummary[]>([]);
+  const [buyerRawResponse, setBuyerRawResponse] = useState("");
+  const [runningBuyerAction, setRunningBuyerAction] = useState<"add" | "update" | "delete" | "query" | null>(null);
+  const [buyerEcoOperation, setBuyerEcoOperation] = useState<BuyerEcoOperation>("product-description");
+  const [buyerEcoPayload, setBuyerEcoPayload] = useState(BUYER_ECO_TEMPLATES["product-description"]);
+  const [buyerEcoRawResponse, setBuyerEcoRawResponse] = useState("");
+  const [runningBuyerEco, setRunningBuyerEco] = useState(false);
+  const [iopOperation, setIopOperation] = useState<IopOperation>("advanced-freight-calculate");
+  const [iopPayload, setIopPayload] = useState(IOP_TEMPLATES["advanced-freight-calculate"]);
+  const [iopRawResponse, setIopRawResponse] = useState("");
+  const [runningIop, setRunningIop] = useState(false);
+  const [attachmentFileName, setAttachmentFileName] = useState("waybill.jpg");
+  const [attachmentBase64, setAttachmentBase64] = useState("");
+  const [attachmentResponse, setAttachmentResponse] = useState("");
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [fetchingRemote, setFetchingRemote] = useState(false);
   const [skusJson, setSkusJson] = useState(
     JSON.stringify(
@@ -91,6 +414,14 @@ export default function AdminSourcingImportPage() {
     if (!supplierAccountId && accounts.length) setSupplierAccountId(String(accounts[0].id));
   }, [accounts, supplierAccountId]);
 
+  useEffect(() => {
+    setBuyerEcoPayload(BUYER_ECO_TEMPLATES[buyerEcoOperation]);
+  }, [buyerEcoOperation]);
+
+  useEffect(() => {
+    setIopPayload(IOP_TEMPLATES[iopOperation]);
+  }, [iopOperation]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
@@ -135,6 +466,7 @@ export default function AdminSourcingImportPage() {
   const fetchRemoteProduct = async () => {
     setError("");
     setSuccess("");
+    setPredictedCategory(null);
     if (!supplierAccountId || !externalProductId.trim()) {
       setError("Sélectionne un compte fournisseur et renseigne un external product ID.");
       return;
@@ -152,6 +484,7 @@ export default function AdminSourcingImportPage() {
         body: JSON.stringify({
           supplier_account_id: Number(supplierAccountId),
           external_product_id: externalProductId.trim(),
+          lookup_type: lookupType,
         }),
       });
       if (!res.ok) {
@@ -174,6 +507,416 @@ export default function AdminSourcingImportPage() {
     }
   };
 
+  const searchRemoteProducts = async () => {
+    setError("");
+    setSuccess("");
+    setRemoteResults([]);
+    if (!supplierAccountId || (!searchModelNumber.trim() && !searchSkuCode.trim())) {
+      setError("Renseigne un compte fournisseur et au moins un model number ou sku code.");
+      return;
+    }
+
+    setSearchingRemote(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/search-remote`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          model_number: searchModelNumber.trim() || undefined,
+          sku_code: searchSkuCode.trim() || undefined,
+          page_index: 1,
+          page_size: 10,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Recherche API impossible");
+      }
+      const payload = await res.json();
+      setRemoteResults(Array.isArray(payload?.data) ? payload.data : []);
+      setSuccess("Recherche fournisseur terminée.");
+    } catch (err: any) {
+      setError(err?.message ?? "Recherche API impossible");
+    } finally {
+      setSearchingRemote(false);
+    }
+  };
+
+  const predictCategory = async () => {
+    setError("");
+    setSuccess("");
+    setPredictedCategory(null);
+    if (!supplierAccountId || !title.trim()) {
+      setError("Sélectionne un compte fournisseur et renseigne un titre pour la prédiction de catégorie.");
+      return;
+    }
+
+    setPredictingCategory(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/predict-category`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          title: title.trim(),
+          description: predictionDescription.trim() || undefined,
+          image: mainImageUrl.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Prédiction catégorie impossible");
+      }
+      const payload = await res.json();
+      setPredictedCategory(payload?.data ?? null);
+      setSuccess("Prédiction de catégorie récupérée.");
+    } catch (err: any) {
+      setError(err?.message ?? "Prédiction catégorie impossible");
+    } finally {
+      setPredictingCategory(false);
+    }
+  };
+
+  const uploadVideo = async () => {
+    setError("");
+    setSuccess("");
+    setVideoUploadResult(null);
+    if (!supplierAccountId || !videoPath.trim() || !videoName.trim()) {
+      setError("Renseigne un compte fournisseur, une URL vidéo et un nom de vidéo.");
+      return;
+    }
+
+    setUploadingVideo(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/videos/upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          video_path: videoPath.trim(),
+          video_name: videoName.trim(),
+          video_cover: videoCover.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Upload vidéo impossible");
+      }
+      const payload = await res.json();
+      setVideoUploadResult(payload?.data ?? null);
+      setVideoRequestId(payload?.data?.request_id || "");
+      setVideoId(payload?.data?.video_id || "");
+      setSuccess("Upload vidéo déclenché côté Alibaba.");
+    } catch (err: any) {
+      setError(err?.message ?? "Upload vidéo impossible");
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  const checkVideoUploadResult = async () => {
+    setError("");
+    setSuccess("");
+    if (!supplierAccountId || !videoRequestId.trim()) {
+      setError("Renseigne un compte fournisseur et un req_id vidéo.");
+      return;
+    }
+
+    setCheckingVideoResult(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/videos/upload-result`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          req_id: videoRequestId.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Suivi upload vidéo impossible");
+      }
+      const payload = await res.json();
+      setVideoUploadResult(payload?.data ?? null);
+      setVideoId(payload?.data?.video_id || videoId);
+      setSuccess("Statut d’upload vidéo récupéré.");
+    } catch (err: any) {
+      setError(err?.message ?? "Suivi upload vidéo impossible");
+    } finally {
+      setCheckingVideoResult(false);
+    }
+  };
+
+  const queryVideos = async () => {
+    setError("");
+    setSuccess("");
+    setRemoteVideos([]);
+    if (!supplierAccountId) {
+      setError("Sélectionne un compte fournisseur.");
+      return;
+    }
+
+    setQueryingVideos(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/videos/query`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          current_page: 1,
+          page_size: 10,
+          video_id: videoId.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Liste vidéo impossible");
+      }
+      const payload = await res.json();
+      setRemoteVideos(Array.isArray(payload?.data?.items) ? payload.data.items : []);
+      setSuccess("Liste des vidéos Alibaba récupérée.");
+    } catch (err: any) {
+      setError(err?.message ?? "Liste vidéo impossible");
+    } finally {
+      setQueryingVideos(false);
+    }
+  };
+
+  const attachVideoMain = async () => {
+    setError("");
+    setSuccess("");
+    if (!supplierAccountId || !videoId.trim() || !videoProductId.trim()) {
+      setError("Renseigne un compte fournisseur, un video_id et un product_id Alibaba.");
+      return;
+    }
+
+    setAttachingVideo(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/videos/attach-main`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          video_id: videoId.trim(),
+          product_id: videoProductId.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Liaison vidéo produit impossible");
+      }
+      const payload = await res.json();
+      setSuccess(payload?.data?.success ? "Vidéo liée comme vidéo principale du produit." : "Réponse reçue, vérifie le détail du provider.");
+    } catch (err: any) {
+      setError(err?.message ?? "Liaison vidéo produit impossible");
+    } finally {
+      setAttachingVideo(false);
+    }
+  };
+
+  const runBuyerAction = async (action: "add" | "update" | "delete" | "query") => {
+    setError("");
+    setSuccess("");
+    setBuyerRawResponse("");
+    if (!supplierAccountId) {
+      setError("Sélectionne un compte fournisseur.");
+      return;
+    }
+
+    const config = {
+      add: { endpoint: "buyer-items/add", key: "insertReq", raw: buyerInsertReq },
+      update: { endpoint: "buyer-items/update", key: "updateReq", raw: buyerUpdateReq },
+      delete: { endpoint: "buyer-items/delete", key: "deleteReq", raw: buyerDeleteReq },
+      query: { endpoint: "buyer-items/query", key: "queryReq", raw: buyerQueryReq },
+    }[action];
+
+    setRunningBuyerAction(action);
+    try {
+      let parsed: unknown = config.raw;
+      if (action !== "query" || config.raw.trim().startsWith("{") || config.raw.trim().startsWith("[")) {
+        parsed = JSON.parse(config.raw);
+      }
+
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/${config.endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          [config.key]: parsed,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Action buyer solution impossible");
+      }
+
+      const payload = await res.json();
+      setBuyerRawResponse(JSON.stringify(payload?.data?.raw ?? payload?.data ?? {}, null, 2));
+      if (action === "query") {
+        setBuyerItems(Array.isArray(payload?.data?.items) ? payload.data.items : []);
+      }
+      setSuccess(`Action buyer solution ${action} terminée.`);
+    } catch (err: any) {
+      setError(err?.message ?? "Action buyer solution impossible");
+    } finally {
+      setRunningBuyerAction(null);
+    }
+  };
+
+  const runBuyerEcoOperation = async () => {
+    setError("");
+    setSuccess("");
+    setBuyerEcoRawResponse("");
+    if (!supplierAccountId) {
+      setError("Sélectionne un compte fournisseur.");
+      return;
+    }
+
+    setRunningBuyerEco(true);
+    try {
+      let parsedPayload: unknown = buyerEcoPayload;
+      if (buyerEcoPayload.trim().startsWith("{") || buyerEcoPayload.trim().startsWith("[")) {
+        parsedPayload = JSON.parse(buyerEcoPayload);
+      }
+
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/buyer-eco/${buyerEcoOperation}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          request_payload: parsedPayload,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Opération buyer eco impossible");
+      }
+
+      const payload = await res.json();
+      setBuyerEcoRawResponse(JSON.stringify(payload?.data?.raw ?? payload?.data ?? {}, null, 2));
+      setSuccess(`Opération buyer eco ${buyerEcoOperation} terminée.`);
+    } catch (err: any) {
+      setError(err?.message ?? "Opération buyer eco impossible");
+    } finally {
+      setRunningBuyerEco(false);
+    }
+  };
+
+  const runIopOperation = async () => {
+    setError("");
+    setSuccess("");
+    setIopRawResponse("");
+    if (!supplierAccountId) {
+      setError("Sélectionne un compte fournisseur.");
+      return;
+    }
+
+    setRunningIop(true);
+    try {
+      let parsedPayload: unknown = iopPayload;
+      if (iopPayload.trim().startsWith("{") || iopPayload.trim().startsWith("[")) {
+        parsedPayload = JSON.parse(iopPayload);
+      }
+
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/iop/${iopOperation}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          request_payload: parsedPayload,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Opération IOP impossible");
+      }
+
+      const payload = await res.json();
+      setIopRawResponse(JSON.stringify(payload?.data?.raw ?? payload?.data ?? {}, null, 2));
+      setSuccess(`Opération IOP ${iopOperation} terminée.`);
+    } catch (err: any) {
+      setError(err?.message ?? "Opération IOP impossible");
+    } finally {
+      setRunningIop(false);
+    }
+  };
+
+  const uploadOrderAttachment = async () => {
+    setError("");
+    setSuccess("");
+    setAttachmentResponse("");
+    if (!supplierAccountId || !attachmentFileName.trim() || !attachmentBase64.trim()) {
+      setError("Renseigne un compte fournisseur, un nom de fichier et un contenu base64.");
+      return;
+    }
+
+    setUploadingAttachment(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/iop/order-attachment-upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          file_name: attachmentFileName.trim(),
+          file_content_base64: attachmentBase64.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.message ?? "Upload pièce jointe impossible");
+      }
+
+      const payload = await res.json();
+      setAttachmentResponse(JSON.stringify(payload?.data ?? {}, null, 2));
+      setSuccess("Pièce jointe de commande uploadée.");
+    } catch (err: any) {
+      setError(err?.message ?? "Upload pièce jointe impossible");
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
   return (
     <AdminShell title="Sourcing" subtitle="Import catalogue fournisseur vers supplier_products et supplier_product_skus">
       <div className="grid gap-6 xl:grid-cols-[520px,1fr]">
@@ -188,9 +931,55 @@ export default function AdminSourcingImportPage() {
                 ))}
               </select>
             </label>
+            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Recherche fournisseur</h3>
+                <p className="text-xs text-slate-500">Interroge `/alibaba/icbu/product/search/v2` via `model_number` ou `sku_code`.</p>
+              </div>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Model number</span>
+                <input value={searchModelNumber} onChange={(e) => setSearchModelNumber(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">SKU code</span>
+                <input value={searchSkuCode} onChange={(e) => setSearchSkuCode(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <button type="button" onClick={searchRemoteProducts} disabled={searchingRemote} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {searchingRemote ? "Recherche..." : "Chercher dans le catalogue fournisseur"}
+              </button>
+              {remoteResults.length ? (
+                <div className="grid gap-2">
+                  {remoteResults.map((result) => (
+                    <button
+                      key={`${result.external_product_id}-${result.sku_code ?? "na"}`}
+                      type="button"
+                      onClick={() => {
+                        setExternalProductId(result.external_product_id || "");
+                        setTitle(result.title || "");
+                        setMainImageUrl(result.main_image_url || "");
+                        setLookupType("product_id");
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left"
+                    >
+                      <div className="text-sm font-medium text-slate-900">{result.title || "Produit"}</div>
+                      <div className="mt-1 text-xs text-slate-500">ID: {result.external_product_id || "—"} · SKU: {result.sku_code || "—"}</div>
+                      <div className="text-xs text-slate-500">{result.category_name || "Sans catégorie"} · {result.status || "statut inconnu"}</div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">External product ID</span>
               <input value={externalProductId} onChange={(e) => setExternalProductId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" required />
+              <span className="text-xs text-slate-500">Pour Alibaba ICBU v2, renseigne le `product_id` ou le `sku_id` selon le mode choisi ci-dessous.</span>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Mode de lecture API</span>
+              <select value={lookupType} onChange={(e) => setLookupType(e.target.value as "product_id" | "sku_id")} className="rounded-xl border border-slate-200 px-3 py-2">
+                <option value="product_id">product_id</option>
+                <option value="sku_id">sku_id</option>
+              </select>
             </label>
             <button type="button" onClick={fetchRemoteProduct} disabled={fetchingRemote} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
               {fetchingRemote ? "Chargement API..." : "Préremplir depuis l’API fournisseur"}
@@ -215,6 +1004,265 @@ export default function AdminSourcingImportPage() {
               <span className="text-slate-600">Image principale</span>
               <input value={mainImageUrl} onChange={(e) => setMainImageUrl(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
             </label>
+            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Prédiction de catégorie</h3>
+                <p className="text-xs text-slate-500">Utilise `/alibaba/icbu/category/predict/v2` avec le titre, la description optionnelle et l’image principale.</p>
+              </div>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Description pour la prédiction</span>
+                <textarea value={predictionDescription} onChange={(e) => setPredictionDescription(e.target.value)} rows={4} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <button type="button" onClick={predictCategory} disabled={predictingCategory} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {predictingCategory ? "Prédiction..." : "Prédire la catégorie Alibaba"}
+              </button>
+              {predictedCategory ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+                  <div className="font-medium">{predictedCategory.category_name || "Catégorie non renvoyée"}</div>
+                  <div className="text-xs text-amber-800">ID: {predictedCategory.category_id || "—"}</div>
+                  <div className="mt-1 text-xs text-amber-800">{predictedCategory.category_path || predictedCategory.message || "Aucun chemin renvoyé"}</div>
+                </div>
+              ) : null}
+            </div>
+            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Vidéos Alibaba</h3>
+                <p className="text-xs text-slate-500">Upload par URL, suivi d’encodage, liste des vidéos et liaison comme vidéo principale du produit.</p>
+              </div>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Video URL</span>
+                <input value={videoPath} onChange={(e) => setVideoPath(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Video name</span>
+                <input value={videoName} onChange={(e) => setVideoName(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Video cover URL</span>
+                <input value={videoCover} onChange={(e) => setVideoCover(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button type="button" onClick={uploadVideo} disabled={uploadingVideo} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  {uploadingVideo ? "Upload vidéo..." : "Envoyer la vidéo"}
+                </button>
+                <button type="button" onClick={queryVideos} disabled={queryingVideos} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  {queryingVideos ? "Chargement vidéos..." : "Lister les vidéos"}
+                </button>
+              </div>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">req_id</span>
+                <input value={videoRequestId} onChange={(e) => setVideoRequestId(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <button type="button" onClick={checkVideoUploadResult} disabled={checkingVideoResult} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {checkingVideoResult ? "Vérification..." : "Vérifier le statut d’upload"}
+              </button>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">video_id</span>
+                <input value={videoId} onChange={(e) => setVideoId(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">product_id Alibaba</span>
+                <input value={videoProductId} onChange={(e) => setVideoProductId(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <button type="button" onClick={attachVideoMain} disabled={attachingVideo} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {attachingVideo ? "Liaison..." : "Lier comme vidéo principale"}
+              </button>
+              {videoUploadResult ? (
+                <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-900">
+                  <div className="font-medium">req_id: {videoUploadResult.request_id || "—"}</div>
+                  <div className="text-xs text-sky-800">Statut: {videoUploadResult.request_status || videoUploadResult.msg_code || "—"}</div>
+                  <div className="text-xs text-sky-800">video_id: {videoUploadResult.video_id || "—"}</div>
+                  <div className="mt-1 text-xs text-sky-800">{videoUploadResult.message || "Aucun message renvoyé"}</div>
+                </div>
+              ) : null}
+              {remoteVideos.length ? (
+                <div className="grid gap-2">
+                  {remoteVideos.map((remoteVideo) => (
+                    <button
+                      key={`${remoteVideo.video_id ?? "na"}-${remoteVideo.title ?? "video"}`}
+                      type="button"
+                      onClick={() => {
+                        setVideoId(remoteVideo.video_id || "");
+                        setVideoCover(remoteVideo.cover_url || "");
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left"
+                    >
+                      <div className="text-sm font-medium text-slate-900">{remoteVideo.title || "Vidéo"}</div>
+                      <div className="mt-1 text-xs text-slate-500">ID: {remoteVideo.video_id || "—"} · {remoteVideo.status || "statut inconnu"}</div>
+                      <div className="text-xs text-slate-500">Qualité: {remoteVideo.quality || "—"} · Durée: {remoteVideo.duration || "—"}</div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Buyer Solution</h3>
+                <p className="text-xs text-slate-500">Appels bruts vers `/eco/buyer/item/add`, `/query`, `/update` et `/delete` avec signature côté backend.</p>
+              </div>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">insertReq JSON</span>
+                <textarea value={buyerInsertReq} onChange={(e) => setBuyerInsertReq(e.target.value)} rows={5} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+              </label>
+              <button type="button" onClick={() => setBuyerInsertReq(BUYER_ITEM_TEMPLATES.add)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                Recharger le modèle add
+              </button>
+              <button type="button" onClick={() => runBuyerAction("add")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {runningBuyerAction === "add" ? "Envoi..." : "Uploader le produit buyer solution"}
+              </button>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">queryReq</span>
+                <textarea value={buyerQueryReq} onChange={(e) => setBuyerQueryReq(e.target.value)} rows={5} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+              </label>
+              <button type="button" onClick={() => setBuyerQueryReq(BUYER_ITEM_TEMPLATES.query)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                Recharger le modèle query
+              </button>
+              <button type="button" onClick={() => runBuyerAction("query")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {runningBuyerAction === "query" ? "Lecture..." : "Lire les produits buyer solution"}
+              </button>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">updateReq JSON</span>
+                <textarea value={buyerUpdateReq} onChange={(e) => setBuyerUpdateReq(e.target.value)} rows={5} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+              </label>
+              <button type="button" onClick={() => setBuyerUpdateReq(BUYER_ITEM_TEMPLATES.update)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                Recharger le modèle update
+              </button>
+              <button type="button" onClick={() => runBuyerAction("update")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {runningBuyerAction === "update" ? "Mise à jour..." : "Mettre à jour le produit buyer solution"}
+              </button>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">deleteReq JSON</span>
+                <textarea value={buyerDeleteReq} onChange={(e) => setBuyerDeleteReq(e.target.value)} rows={4} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+              </label>
+              <button type="button" onClick={() => setBuyerDeleteReq(BUYER_ITEM_TEMPLATES.delete)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                Recharger le modèle delete
+              </button>
+              <button type="button" onClick={() => runBuyerAction("delete")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {runningBuyerAction === "delete" ? "Suppression..." : "Supprimer le produit buyer solution"}
+              </button>
+              {buyerItems.length ? (
+                <div className="grid gap-2">
+                  {buyerItems.map((item) => (
+                    <div key={`${item.item_id ?? "na"}-${item.isv_item_id ?? "na"}`} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left">
+                      <div className="text-sm font-medium text-slate-900">{item.title || "Produit"}</div>
+                      <div className="mt-1 text-xs text-slate-500">item_id: {item.item_id || "—"} · isv_item_id: {item.isv_item_id || "—"}</div>
+                      <div className="text-xs text-slate-500">{item.price || "—"} {item.currency || ""} · stock {item.available_quantity || "—"}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {buyerRawResponse ? (
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">Réponse brute</span>
+                  <textarea value={buyerRawResponse} readOnly rows={10} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                </label>
+              ) : null}
+            </div>
+            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Buyer Discovery & Channel</h3>
+                <p className="text-xs text-slate-500">Explorateur brut pour `eco/buyer/product/*`, `item/rec*`, listes local/crossborder et événements de canal.</p>
+              </div>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Opération</span>
+                <select value={buyerEcoOperation} onChange={(e) => setBuyerEcoOperation(e.target.value as BuyerEcoOperation)} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <option value="product-description">product-description</option>
+                  <option value="product-search">product-search</option>
+                  <option value="product-check">product-check</option>
+                  <option value="product-cert">product-cert</option>
+                  <option value="product-keyattributes">product-keyattributes</option>
+                  <option value="product-inventory">product-inventory</option>
+                  <option value="crossborder-check">crossborder-check</option>
+                  <option value="local-check">local-check</option>
+                  <option value="localregular-check">localregular-check</option>
+                  <option value="item-rec">item-rec</option>
+                  <option value="item-rec-image">item-rec-image</option>
+                  <option value="product-events">product-events</option>
+                  <option value="channel-batch-import">channel-batch-import</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">request_payload JSON</span>
+                <textarea value={buyerEcoPayload} onChange={(e) => setBuyerEcoPayload(e.target.value)} rows={8} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+              </label>
+              <button type="button" onClick={() => setBuyerEcoPayload(BUYER_ECO_TEMPLATES[buyerEcoOperation])} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                Recharger le modèle de l’opération
+              </button>
+              <button type="button" onClick={runBuyerEcoOperation} disabled={runningBuyerEco} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {runningBuyerEco ? "Exécution..." : "Exécuter l’opération buyer eco"}
+              </button>
+              {buyerEcoRawResponse ? (
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">Réponse brute</span>
+                  <textarea value={buyerEcoRawResponse} readOnly rows={12} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                </label>
+              ) : null}
+            </div>
+            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">IOP Orders & Freight</h3>
+                <p className="text-xs text-slate-500">Calcul de fret, création de commande, paiement, suivi logistique, entrepôts et requêtes ordre Alibaba.</p>
+              </div>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Opération IOP</span>
+                <select value={iopOperation} onChange={(e) => setIopOperation(e.target.value as IopOperation)} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <option value="advanced-freight-calculate">advanced-freight-calculate</option>
+                  <option value="basic-freight-calculate">basic-freight-calculate</option>
+                  <option value="merge-pay-query">merge-pay-query</option>
+                  <option value="buynow-order-create">buynow-order-create</option>
+                  <option value="logistics-tracking-get">logistics-tracking-get</option>
+                  <option value="overseas-admittance-check">overseas-admittance-check</option>
+                  <option value="dropshipping-order-pay">dropshipping-order-pay</option>
+                  <option value="order-fund-query">order-fund-query</option>
+                  <option value="ggs-warehouse-list">ggs-warehouse-list</option>
+                  <option value="order-cancel">order-cancel</option>
+                  <option value="order-get">order-get</option>
+                  <option value="order-list">order-list</option>
+                  <option value="order-pay-result-query">order-pay-result-query</option>
+                  <option value="seller-warehouse-list">seller-warehouse-list</option>
+                  <option value="order-logistics-query">order-logistics-query</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">request_payload JSON</span>
+                <textarea value={iopPayload} onChange={(e) => setIopPayload(e.target.value)} rows={10} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+              </label>
+              <button type="button" onClick={() => setIopPayload(IOP_TEMPLATES[iopOperation])} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                Recharger le modèle de l’opération
+              </button>
+              <button type="button" onClick={runIopOperation} disabled={runningIop} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {runningIop ? "Exécution..." : "Exécuter l’opération IOP"}
+              </button>
+              {iopRawResponse ? (
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">Réponse brute</span>
+                  <textarea value={iopRawResponse} readOnly rows={12} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                </label>
+              ) : null}
+              <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-900">Order Attachment Upload</h4>
+                  <p className="text-xs text-slate-500">Colle le contenu du fichier en base64 pour appeler `/alibaba/order/attachment/upload`.</p>
+                </div>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">Nom du fichier</span>
+                  <input value={attachmentFileName} onChange={(e) => setAttachmentFileName(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">Contenu base64</span>
+                  <textarea value={attachmentBase64} onChange={(e) => setAttachmentBase64(e.target.value)} rows={6} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                </label>
+                <button type="button" onClick={uploadOrderAttachment} disabled={uploadingAttachment} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  {uploadingAttachment ? "Upload..." : "Uploader la pièce jointe"}
+                </button>
+                {attachmentResponse ? (
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">Réponse upload</span>
+                    <textarea value={attachmentResponse} readOnly rows={6} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                  </label>
+                ) : null}
+              </div>
+            </div>
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">SKU JSON</span>
               <textarea value={skusJson} onChange={(e) => setSkusJson(e.target.value)} rows={12} className="rounded-xl border border-slate-200 px-3 py-2 font-mono text-xs" />

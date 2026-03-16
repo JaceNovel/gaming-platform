@@ -6,7 +6,6 @@ use App\Models\SupplierAccount;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str as SupportStr;
 use Illuminate\Support\Str;
 
 class SupplierOAuthService
@@ -38,9 +37,8 @@ class SupplierOAuthService
             'response_type' => 'code',
             'scope' => trim((string) ($config['default_scope'] ?? '')) ?: null,
             'state' => $state,
-            'State' => $state,
-            'view' => trim((string) ($config['authorize_view'] ?? '')) ?: null,
-            'sp' => trim((string) ($config['authorize_sp'] ?? '')) ?: null,
+            'force_auth' => filter_var($config['authorize_force_auth'] ?? false, FILTER_VALIDATE_BOOL) ? 'true' : null,
+            'uuid' => trim((string) ($config['authorize_uuid'] ?? '')) ?: null,
         ], static fn ($value) => $value !== null && $value !== '');
 
         return $authorizeUrl . (str_contains($authorizeUrl, '?') ? '&' : '?') . Arr::query($query);
@@ -79,8 +77,7 @@ class SupplierOAuthService
             throw new \RuntimeException('URL OAuth refresh non configurée pour ' . $account->platform);
         }
 
-        $parsed = $this->topRequest($account, $refreshUrl, [
-            'method' => (string) ($config['token_refresh_method'] ?? 'taobao.top.auth.token.refresh'),
+        $parsed = $this->ioRequest($account, $refreshUrl, [
             'refresh_token' => (string) ($account->refresh_token ?? ''),
         ]);
 
@@ -105,105 +102,57 @@ class SupplierOAuthService
             throw new \RuntimeException('URL OAuth token non configurée pour ' . $account->platform);
         }
 
-        return $this->topRequest($account, $tokenUrl, [
-            'method' => (string) ($config['token_create_method'] ?? 'taobao.top.auth.token.create'),
+        return $this->ioRequest($account, $tokenUrl, [
             'code' => $code,
         ]);
     }
 
     private function parseTokenResponse(array $payload): array
     {
-        $tokenResult = $payload['token_result'] ?? $payload['tokenResult'] ?? data_get($payload, 'result.token_result') ?? data_get($payload, 'result.tokenResult');
-        if (is_string($tokenResult) && SupportStr::startsWith(ltrim($tokenResult), '{')) {
-            $decoded = json_decode($tokenResult, true);
-            if (is_array($decoded)) {
-                $payload = array_merge($payload, $decoded);
-            }
-        } elseif (is_array($tokenResult)) {
-            $payload = array_merge($payload, $tokenResult);
-        }
-
-        $accessToken = $payload['access_token'] ?? $payload['accessToken'] ?? data_get($payload, 'result.access_token');
-        $refreshToken = $payload['refresh_token'] ?? $payload['refreshToken'] ?? data_get($payload, 'result.refresh_token');
-        $expireTimeMs = (int) ($payload['expire_time'] ?? data_get($payload, 'result.expire_time') ?? 0);
-        $refreshValidTimeMs = (int) ($payload['refresh_token_valid_time'] ?? data_get($payload, 'result.refresh_token_valid_time') ?? 0);
+        $accessToken = $payload['access_token'] ?? $payload['accessToken'] ?? null;
+        $refreshToken = $payload['refresh_token'] ?? $payload['refreshToken'] ?? null;
+        $expireTimeMs = (int) ($payload['expire_time'] ?? 0);
+        $refreshValidTimeMs = (int) ($payload['refresh_token_valid_time'] ?? 0);
+        $expiresIn = (int) ($payload['expires_in'] ?? 0);
+        $refreshExpiresIn = (int) ($payload['refresh_expires_in'] ?? 0);
 
         return [
             'access_token' => $accessToken,
             'refresh_token' => $refreshToken,
-            'access_token_expires_at' => $expireTimeMs > 0 ? now()->setTimestamp((int) floor($expireTimeMs / 1000)) : null,
-            'refresh_token_expires_at' => $refreshValidTimeMs > 0 ? now()->setTimestamp((int) floor($refreshValidTimeMs / 1000)) : null,
-            'resource_owner' => $payload['user_nick'] ?? $payload['resource_owner'] ?? $payload['resourceOwner'] ?? null,
-            'member_id' => $payload['user_id'] ?? $payload['member_id'] ?? $payload['memberId'] ?? null,
+            'access_token_expires_at' => $expireTimeMs > 0
+                ? now()->setTimestamp((int) floor($expireTimeMs / 1000))
+                : ($expiresIn > 0 ? now()->addSeconds($expiresIn) : null),
+            'refresh_token_expires_at' => $refreshValidTimeMs > 0
+                ? now()->setTimestamp((int) floor($refreshValidTimeMs / 1000))
+                : ($refreshExpiresIn > 0 ? now()->addSeconds($refreshExpiresIn) : null),
+            'resource_owner' => $payload['account'] ?? $payload['user_nick'] ?? null,
+            'member_id' => $payload['seller_id'] ?? $payload['user_id'] ?? $payload['account_id'] ?? null,
             'scopes_json' => array_values(array_filter([
                 $payload['sp'] ?? null,
-                $payload['locale'] ?? null,
+                $payload['country'] ?? null,
+                $payload['account_platform'] ?? null,
             ])),
         ];
     }
 
-    private function topRequest(SupplierAccount $account, string $url, array $params): array
+    private function ioRequest(SupplierAccount $account, string $url, array $params): array
     {
         $config = $this->platformConfig($account->platform);
-        $signMethod = strtolower((string) ($config['top_sign_method'] ?? 'md5'));
-        $requestParams = array_filter([
-            'app_key' => $account->app_key,
-            'timestamp' => now()->timezone('Asia/Shanghai')->format('Y-m-d H:i:s'),
-            'format' => 'json',
-            'v' => (string) ($config['top_version'] ?? '2.0'),
-            'sign_method' => $signMethod,
-            'simplify' => 'true',
-        ] + $params, static fn ($value) => $value !== null && $value !== '');
-
-        $requestParams['sign'] = $this->buildTopSignature($requestParams, (string) ($account->app_secret ?? ''), $signMethod);
-
         $response = Http::asForm()
             ->timeout((int) ($config['timeout'] ?? 20))
             ->acceptJson()
-            ->post($url, $requestParams);
+            ->post($url, array_filter($params, static fn ($value) => $value !== null && $value !== ''));
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Appel TOP échoué (HTTP ' . $response->status() . '): ' . $response->body());
+            throw new \RuntimeException('Appel OAuth IOP échoué (HTTP ' . $response->status() . '): ' . $response->body());
         }
 
         $payload = $response->json() ?? [];
-        if (isset($payload['error_response'])) {
-            $error = $payload['error_response'];
-            throw new \RuntimeException(($error['sub_msg'] ?? $error['msg'] ?? 'Erreur TOP') . ' [' . ($error['sub_code'] ?? $error['code'] ?? 'unknown') . ']');
-        }
-
-        $responseNode = collect($payload)
-            ->filter(fn ($value, $key) => is_string($key) && str_ends_with($key, '_response'))
-            ->first();
-
-        if (is_array($responseNode)) {
-            return $this->parseTokenResponse($responseNode);
+        if ((string) ($payload['code'] ?? '0') !== '0') {
+            throw new \RuntimeException(($payload['message'] ?? 'Erreur OAuth IOP') . ' [' . ($payload['code'] ?? 'unknown') . ']');
         }
 
         return $this->parseTokenResponse($payload);
-    }
-
-    private function buildTopSignature(array $params, string $secret, string $signMethod): string
-    {
-        unset($params['sign']);
-        ksort($params);
-
-        $concatenated = '';
-        foreach ($params as $key => $value) {
-            if (is_array($value)) {
-                $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            }
-            if ($value === null || $value === '') {
-                continue;
-            }
-            $concatenated .= $key . (string) $value;
-        }
-
-        return match ($signMethod) {
-            'hmac', 'hmac-md5' => strtoupper(hash_hmac('md5', $concatenated, $secret)),
-            'hmac-sha256' => strtoupper(hash_hmac('sha256', $concatenated, $secret)),
-            default => strtoupper(md5($secret . $concatenated . $secret)),
-        };
     }
 
     private function callbackUrl(string $platform): string

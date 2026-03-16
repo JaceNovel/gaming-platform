@@ -80,13 +80,296 @@ class AdminSupplierCatalogController extends Controller
         $data = $request->validate([
             'supplier_account_id' => 'required|exists:supplier_accounts,id',
             'external_product_id' => 'required|string|max:255',
+            'lookup_type' => 'nullable|in:product_id,sku_id',
         ]);
 
         $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
-        $normalized = $supplierApiClient->fetchRemoteProduct($account, (string) $data['external_product_id']);
+        $normalized = $supplierApiClient->fetchRemoteProduct($account, (string) $data['external_product_id'], $data['lookup_type'] ?? null);
 
         return response()->json([
             'data' => $normalized,
+        ]);
+    }
+
+    public function searchRemote(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'model_number' => 'nullable|string|max:255',
+            'sku_code' => 'nullable|string|max:255',
+            'page_index' => 'nullable|integer|min:1',
+            'page_size' => 'nullable|integer|min:1|max:20',
+        ]);
+
+        if (!filled($data['model_number'] ?? null) && !filled($data['sku_code'] ?? null)) {
+            return response()->json([
+                'message' => 'Renseigne au moins model_number ou sku_code.',
+            ], 422);
+        }
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $results = $supplierApiClient->searchRemoteProducts($account, $data);
+
+        return response()->json([
+            'data' => $results,
+        ]);
+    }
+
+    public function predictCategory(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string|max:5000',
+            'image' => 'nullable|url|max:2048',
+        ]);
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $prediction = $supplierApiClient->predictCategory($account, $data);
+
+        return response()->json([
+            'data' => $prediction,
+        ]);
+    }
+
+    public function uploadVideo(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'video_path' => 'required|url|max:2048',
+            'video_name' => 'required|string|max:255',
+            'video_cover' => 'nullable|url|max:2048',
+        ]);
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->uploadVideo($account, $data);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function videoUploadResult(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'req_id' => 'required|string|max:255',
+        ]);
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->getVideoUploadResult($account, (string) $data['req_id']);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function queryVideos(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'current_page' => 'nullable|integer|min:1',
+            'page_size' => 'nullable|integer|min:1|max:50',
+            'video_id' => 'nullable|string|max:255',
+        ]);
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->queryVideos($account, $data);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function attachMainVideo(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'video_id' => 'required|string|max:255',
+            'product_id' => 'required|string|max:255',
+        ]);
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->attachVideoToProductMain($account, (string) $data['video_id'], (string) $data['product_id']);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function buyerAddItem(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'insertReq' => 'required|array',
+        ]);
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->buyerAddItem($account, $data['insertReq']);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function buyerUpdateItem(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'updateReq' => 'required|array',
+        ]);
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->buyerUpdateItem($account, $data['updateReq']);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function buyerDeleteItem(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'deleteReq' => 'required|array',
+        ]);
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->buyerDeleteItem($account, $data['deleteReq']);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function buyerQueryItems(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'queryReq' => 'required',
+        ]);
+
+        $queryReq = $data['queryReq'];
+        if (is_string($queryReq)) {
+            $decoded = json_decode($queryReq, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $queryReq = $decoded;
+            }
+        }
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->buyerQueryItems($account, $queryReq);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function buyerEcoOperation(Request $request, string $operation, SupplierApiClient $supplierApiClient)
+    {
+        $allowedOperations = [
+            'product-events',
+            'channel-batch-import',
+            'crossborder-check',
+            'product-cert',
+            'product-description',
+            'product-keyattributes',
+            'product-inventory',
+            'local-check',
+            'localregular-check',
+            'item-rec-image',
+            'product-check',
+            'product-search',
+            'item-rec',
+        ];
+
+        if (!in_array($operation, $allowedOperations, true)) {
+            return response()->json([
+                'message' => 'Opération buyer eco non supportée.',
+            ], 404);
+        }
+
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'request_payload' => 'required',
+        ]);
+
+        $payload = $data['request_payload'];
+        if (is_string($payload)) {
+            $decoded = json_decode($payload, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $payload = $decoded;
+            }
+        }
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->buyerEcoOperation($account, $operation, $payload);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function iopOperation(Request $request, string $operation, SupplierApiClient $supplierApiClient)
+    {
+        $allowedOperations = [
+            'advanced-freight-calculate',
+            'basic-freight-calculate',
+            'merge-pay-query',
+            'buynow-order-create',
+            'logistics-tracking-get',
+            'overseas-admittance-check',
+            'dropshipping-order-pay',
+            'order-fund-query',
+            'ggs-warehouse-list',
+            'order-cancel',
+            'order-get',
+            'order-list',
+            'order-pay-result-query',
+            'seller-warehouse-list',
+            'order-logistics-query',
+        ];
+
+        if (!in_array($operation, $allowedOperations, true)) {
+            return response()->json([
+                'message' => 'Opération IOP non supportée.',
+            ], 404);
+        }
+
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'request_payload' => 'nullable',
+        ]);
+
+        $payload = $data['request_payload'] ?? null;
+        if (is_string($payload)) {
+            $decoded = json_decode($payload, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $payload = $decoded;
+            }
+        }
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->iopOperation($account, $operation, $payload);
+
+        return response()->json([
+            'data' => $result,
+        ]);
+    }
+
+    public function uploadOrderAttachment(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'file_name' => 'required|string|max:255',
+            'file_content_base64' => 'required|string',
+        ]);
+
+        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+        $result = $supplierApiClient->uploadOrderAttachment($account, (string) $data['file_name'], (string) $data['file_content_base64']);
+
+        return response()->json([
+            'data' => $result,
         ]);
     }
 }

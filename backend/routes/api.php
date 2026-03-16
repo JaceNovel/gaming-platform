@@ -561,6 +561,32 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         ->middleware('permission:sourcing.manage');
     Route::post('/sourcing/catalog/fetch-remote', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'fetchRemote'])
         ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/search-remote', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'searchRemote'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/predict-category', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'predictCategory'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/videos/upload', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'uploadVideo'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/videos/upload-result', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'videoUploadResult'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/videos/query', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'queryVideos'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/videos/attach-main', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'attachMainVideo'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/buyer-items/add', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'buyerAddItem'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/buyer-items/update', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'buyerUpdateItem'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/buyer-items/delete', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'buyerDeleteItem'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/buyer-items/query', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'buyerQueryItems'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/buyer-eco/{operation}', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'buyerEcoOperation'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/iop/{operation}', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'iopOperation'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/iop/order-attachment-upload', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'uploadOrderAttachment'])
+        ->middleware('permission:sourcing.manage');
 
     Route::get('/sourcing/dashboard', [\App\Http\Controllers\Api\AdminProcurementController::class, 'dashboard'])
         ->middleware('permission:sourcing.view');
