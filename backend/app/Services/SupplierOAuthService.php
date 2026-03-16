@@ -149,30 +149,20 @@ class SupplierOAuthService
 
         $filteredParams = array_filter($params, static fn ($value) => $value !== null && $value !== '');
         $resolvedUrl = $this->resolveIoAuthUrl($account, $url);
-        $path = (string) (parse_url($resolvedUrl, PHP_URL_PATH) ?: '/auth/token/create');
-        $signedParams = $this->buildIoAuthRequestParams($account, $path, $filteredParams);
-        $headers = $this->buildIoAuthHeaders($signedParams);
+        $apiName = $this->extractIoApiName($resolvedUrl);
+        $commonParams = $this->buildIoAuthCommonParams($account, $apiName, $filteredParams);
+        $requestUrl = $this->appendQueryParams($resolvedUrl, $commonParams);
 
-        $attempt = 'body-post';
-        $response = $request->post($resolvedUrl, $signedParams);
+        $attempt = 'sdk-post';
+        $response = $request->post($requestUrl, $filteredParams);
 
         if ($response->status() === 404 || $response->status() === 405) {
-            $attempt = 'query-get';
-            $response = $request->get($resolvedUrl, $signedParams);
-        }
-
-        if (!$response->successful() && in_array($response->status(), [400, 401, 403, 404, 405], true)) {
-            $attempt = 'header-post';
-            $response = $request->withHeaders($headers)->post($resolvedUrl, $filteredParams);
-        }
-
-        if (!$response->successful() && in_array($response->status(), [400, 401, 403, 404, 405], true)) {
-            $attempt = 'header-get';
-            $response = $request->withHeaders($headers)->get($resolvedUrl, $filteredParams);
+            $attempt = 'sdk-get';
+            $response = $request->get($requestUrl, $filteredParams);
         }
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Appel OAuth IOP échoué (HTTP ' . $response->status() . ', mode ' . $attempt . ', url ' . $resolvedUrl . '): ' . $response->body());
+            throw new \RuntimeException('Appel OAuth IOP échoué (HTTP ' . $response->status() . ', mode ' . $attempt . ', url ' . $requestUrl . '): ' . $response->body());
         }
 
         $payload = $response->json() ?? [];
@@ -188,18 +178,23 @@ class SupplierOAuthService
         $host = (string) (parse_url($url, PHP_URL_HOST) ?? '');
         $path = (string) (parse_url($url, PHP_URL_PATH) ?? '');
 
-        if ($host === 'openapi-auth.alibaba.com') {
-            $apiBaseUrl = rtrim((string) data_get($this->platformConfig($account->platform), 'api_base_url', ''), '/');
-            if ($apiBaseUrl !== '' && $path !== '') {
-                return $this->withIoRestPrefix($apiBaseUrl . $path);
-            }
+        if (in_array($host, ['openapi-auth.alibaba.com', 'openapi.alibaba.com'], true)) {
+            return $this->normalizeAlibabaOauthGatewayUrl($url);
         }
 
-        if ($host === 'openapi.alibaba.com' && $path !== '') {
+        if ($host === 'api.alibaba.com' && $path !== '') {
             return $this->withIoRestPrefix($url);
         }
 
         return $url;
+    }
+
+    private function normalizeAlibabaOauthGatewayUrl(string $url): string
+    {
+        $path = (string) (parse_url($url, PHP_URL_PATH) ?? '');
+        $path = $path === '' ? '/auth/token/create' : $path;
+
+        return $this->withIoRestPrefix('https://api.alibaba.com' . (str_starts_with($path, '/') ? $path : '/' . $path));
     }
 
     private function withIoRestPrefix(string $url): string
@@ -214,7 +209,17 @@ class SupplierOAuthService
         return $base . '/rest' . (str_starts_with($path, '/') ? $path : '/' . $path);
     }
 
-    private function buildIoAuthRequestParams(SupplierAccount $account, string $path, array $params): array
+    private function extractIoApiName(string $url): string
+    {
+        $path = (string) (parse_url($url, PHP_URL_PATH) ?? '');
+        if (str_starts_with($path, '/rest/')) {
+            return substr($path, 5);
+        }
+
+        return $path === '' ? '/auth/token/create' : $path;
+    }
+
+    private function buildIoAuthCommonParams(SupplierAccount $account, string $apiName, array $bizParams): array
     {
         $appKey = trim((string) ($account->app_key ?? ''));
         $appSecret = (string) ($account->app_secret ?? '');
@@ -222,30 +227,33 @@ class SupplierOAuthService
             throw new \RuntimeException('App Key / App Secret manquants pour l’échange OAuth IOP.');
         }
 
-        $requestParams = array_merge($params, [
+        $commonParams = [
             'app_key' => $appKey,
             'timestamp' => (string) round(microtime(true) * 1000),
             'sign_method' => strtolower((string) data_get($this->platformConfig($account->platform), 'sign_method', 'sha256')) === 'md5'
                 ? 'md5'
                 : 'sha256',
-        ]);
+            'partner_id' => 'iop-sdk-php',
+        ];
 
-        ksort($requestParams);
-        $payload = $path;
-        foreach ($requestParams as $key => $value) {
+        $signingParams = array_merge($commonParams, $bizParams);
+        ksort($signingParams);
+
+        $payload = $apiName;
+        foreach ($signingParams as $key => $value) {
             $payload .= $key . $value;
         }
 
-        $algorithm = $requestParams['sign_method'];
+        $algorithm = $commonParams['sign_method'];
 
-        $requestParams['sign'] = strtoupper(hash_hmac($algorithm, $payload, $appSecret));
+        $commonParams['sign'] = strtoupper(hash_hmac($algorithm, $payload, $appSecret));
 
-        return $requestParams;
+        return $commonParams;
     }
 
-    private function buildIoAuthHeaders(array $params): array
+    private function appendQueryParams(string $url, array $params): string
     {
-        return Arr::only($params, ['app_key', 'timestamp', 'sign_method', 'sign']);
+        return $url . (str_contains($url, '?') ? '&' : '?') . Arr::query($params);
     }
 
     private function callbackUrl(string $platform): string
