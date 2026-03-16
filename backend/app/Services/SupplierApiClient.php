@@ -12,13 +12,13 @@ class SupplierApiClient
     public function fetchRemoteProduct(SupplierAccount $account, string $externalProductId): array
     {
         $config = $this->platformConfig($account->platform);
-        $path = trim((string) ($config['product_detail_path'] ?? ''));
+        $methodName = trim((string) ($config['product_detail_method'] ?? $config['product_detail_path'] ?? ''));
         $lookupParam = trim((string) ($config['product_lookup_param'] ?? 'product_id'));
-        if ($path === '') {
-            throw new \RuntimeException('Chemin d’API produit non configuré pour ' . $account->platform);
+        if ($methodName === '') {
+            throw new \RuntimeException('Méthode TOP de détail produit non configurée pour ' . $account->platform);
         }
 
-        $response = $this->request($account, 'GET', $path, [
+        $response = $this->request($account, $methodName, [
             $lookupParam => $externalProductId,
             'product_id' => $externalProductId,
             'external_product_id' => $externalProductId,
@@ -27,40 +27,43 @@ class SupplierApiClient
         return $this->normalizeProductResponse($account, $externalProductId, $response);
     }
 
-    public function request(SupplierAccount $account, string $method, string $path, array $params = [], array $body = []): array
+    public function request(SupplierAccount $account, string $methodName, array $params = []): array
     {
         $config = $this->platformConfig($account->platform);
-        $baseUrl = rtrim((string) ($config['api_base_url'] ?? ''), '/');
-        if ($baseUrl === '') {
+        $url = trim((string) ($config['api_base_url'] ?? ''));
+        if ($url === '') {
             throw new \RuntimeException('Base URL API non configurée pour ' . $account->platform);
         }
 
-        $normalizedPath = '/' . ltrim($path, '/');
-        $timestamp = (string) round(microtime(true) * 1000);
+        $signMethod = strtolower((string) ($config['top_sign_method'] ?? 'md5'));
         $query = array_filter($params, static fn ($value) => $value !== null && $value !== '');
+        $query['method'] = $methodName;
         $query['app_key'] = $account->app_key;
-        $query['timestamp'] = $timestamp;
-        $query['sign_method'] = 'sha256';
+        $query['timestamp'] = now()->timezone('Asia/Shanghai')->format('Y-m-d H:i:s');
+        $query['format'] = 'json';
+        $query['v'] = (string) ($config['top_version'] ?? '2.0');
+        $query['sign_method'] = $signMethod;
+        $query['simplify'] = 'true';
         if (!empty($account->access_token)) {
-            $query['access_token'] = $account->access_token;
+            $query['session'] = $account->access_token;
         }
 
-        $query['sign'] = $this->buildSignature($account, $normalizedPath, $query, $body);
+        $query['sign'] = $this->buildTopSignature($query, (string) ($account->app_secret ?? ''), $signMethod);
 
         $request = $this->baseRequest((int) ($config['timeout'] ?? 20));
-        $url = $baseUrl . $normalizedPath;
-        $upperMethod = strtoupper($method);
-
-        $response = match ($upperMethod) {
-            'POST' => $request->post($url, $body + $query),
-            default => $request->get($url, $query),
-        };
+        $response = $request->asForm()->post($url, $query);
 
         if (!$response->successful()) {
             throw new \RuntimeException('Appel API fournisseur échoué (HTTP ' . $response->status() . '): ' . $response->body());
         }
 
-        return $response->json() ?? [];
+        $payload = $response->json() ?? [];
+        if (isset($payload['error_response'])) {
+            $error = $payload['error_response'];
+            throw new \RuntimeException(($error['sub_msg'] ?? $error['msg'] ?? 'Erreur TOP') . ' [' . ($error['sub_code'] ?? $error['code'] ?? 'unknown') . ']');
+        }
+
+        return $payload;
     }
 
     private function normalizeProductResponse(SupplierAccount $account, string $externalProductId, array $payload): array
@@ -142,31 +145,27 @@ class SupplierApiClient
         ];
     }
 
-    private function buildSignature(SupplierAccount $account, string $path, array $query, array $body): string
+    private function buildTopSignature(array $params, string $secret, string $signMethod): string
     {
-        $signing = $query;
-        unset($signing['sign']);
-        ksort($signing);
+        unset($params['sign']);
+        ksort($params);
 
-        $canonical = $path;
-        foreach ($signing as $key => $value) {
+        $concatenated = '';
+        foreach ($params as $key => $value) {
             if (is_array($value)) {
                 $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             }
-            $canonical .= $key . (string) $value;
-        }
-
-        if (!empty($body)) {
-            ksort($body);
-            foreach ($body as $key => $value) {
-                if (is_array($value)) {
-                    $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                }
-                $canonical .= $key . (string) $value;
+            if ($value === null || $value === '') {
+                continue;
             }
+            $concatenated .= $key . (string) $value;
         }
 
-        return strtoupper(hash_hmac('sha256', $canonical, (string) ($account->app_secret ?? '')));
+        return match ($signMethod) {
+            'hmac', 'hmac-md5' => strtoupper(hash_hmac('md5', $concatenated, $secret)),
+            'hmac-sha256' => strtoupper(hash_hmac('sha256', $concatenated, $secret)),
+            default => strtoupper(md5($secret . $concatenated . $secret)),
+        };
     }
 
     private function baseRequest(int $timeout): PendingRequest

@@ -28,12 +28,16 @@ class AdminSupplierOAuthController extends Controller
     public function callback(string $platform, Request $request, SupplierOAuthService $oauthService)
     {
         $request->validate([
-            'state' => 'required|string',
             'code' => 'required|string',
         ]);
 
+        $state = (string) ($request->query('state') ?? $request->query('State') ?? '');
+        if ($state === '') {
+            abort(422, 'state is required');
+        }
+
         try {
-            $oauthService->handleCallback($platform, (string) $request->query('state'), (string) $request->query('code'));
+            $oauthService->handleCallback($platform, $state, (string) $request->query('code'));
             $front = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
             return redirect()->away($front . '/admin/sourcing/accounts?oauth=success&platform=' . urlencode($platform));
         } catch (\Throwable $e) {
