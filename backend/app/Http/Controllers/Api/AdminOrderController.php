@@ -357,6 +357,11 @@ class AdminOrderController extends Controller
                 }
 
                 if (empty($orderMeta['fulfillment_dispatched_at']) && $order->canBeFulfilled()) {
+                    if ($order->hasPhysicalItems()) {
+                        app(\App\Services\ShippingService::class)->computeShippingForOrder($order);
+                        app(\App\Services\SourcingDemandService::class)->syncForPaidOrder($order);
+                    }
+
                     if ($order->requiresRedeemFulfillment()) {
                         ProcessRedeemFulfillment::dispatchSync($order->id);
                     } else {

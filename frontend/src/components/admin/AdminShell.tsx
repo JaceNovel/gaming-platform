@@ -151,6 +151,21 @@ const MENU_ITEMS: MenuItem[] = [
   { label: "Commandes", icon: ShoppingCart, href: "/admin/orders", permissions: ["orders.view"] },
   { label: "Paiements", icon: CreditCard, href: "/admin/payments", permissions: ["payments.view"] },
   { label: "Stock / Inventaire", icon: Boxes, href: "/admin/stock", permissions: ["stock.manage"] },
+  {
+    label: "Sourcing",
+    icon: Search,
+    href: "/admin/sourcing",
+    permissions: ["sourcing.view", "sourcing.manage"],
+    children: [
+      { label: "Tableau de bord", href: "/admin/sourcing/dashboard", permissions: ["sourcing.view"] },
+      { label: "Comptes fournisseurs", href: "/admin/sourcing/accounts", permissions: ["sourcing.view"] },
+      { label: "Import catalogue", href: "/admin/sourcing/import", permissions: ["sourcing.manage"] },
+      { label: "Mappings produit-source", href: "/admin/sourcing/mappings", permissions: ["sourcing.view"] },
+      { label: "Demandes", href: "/admin/sourcing/demands", permissions: ["sourcing.view"] },
+      { label: "Lots d’achat", href: "/admin/sourcing/batches", permissions: ["sourcing.view"] },
+      { label: "Réceptions", href: "/admin/sourcing/inbound", permissions: ["sourcing.view"] },
+    ],
+  },
 ];
 
 const canAccess = (role: string | null | undefined, permissions?: string[]) => {

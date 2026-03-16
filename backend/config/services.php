@@ -66,4 +66,32 @@ return [
         'base_url' => env('PAYPAL_BASE_URL'),
     ],
 
+    'sourcing' => [
+        'oauth_state_ttl_minutes' => (int) env('SOURCING_OAUTH_STATE_TTL_MINUTES', 15),
+        'platforms' => [
+            'alibaba' => [
+                'authorize_url' => env('ALIBABA_OAUTH_AUTHORIZE_URL'),
+                'token_url' => env('ALIBABA_OAUTH_TOKEN_URL'),
+                'refresh_url' => env('ALIBABA_OAUTH_REFRESH_URL', env('ALIBABA_OAUTH_TOKEN_URL')),
+                'api_base_url' => env('ALIBABA_API_BASE_URL'),
+                'callback_url' => env('ALIBABA_CALLBACK_URL'),
+                'default_scope' => env('ALIBABA_DEFAULT_SCOPE'),
+                'product_detail_path' => env('ALIBABA_PRODUCT_DETAIL_PATH'),
+                'product_lookup_param' => env('ALIBABA_PRODUCT_LOOKUP_PARAM', 'product_id'),
+                'timeout' => (int) env('ALIBABA_REQUEST_TIMEOUT', 20),
+            ],
+            'aliexpress' => [
+                'authorize_url' => env('ALIEXPRESS_OAUTH_AUTHORIZE_URL'),
+                'token_url' => env('ALIEXPRESS_OAUTH_TOKEN_URL'),
+                'refresh_url' => env('ALIEXPRESS_OAUTH_REFRESH_URL', env('ALIEXPRESS_OAUTH_TOKEN_URL')),
+                'api_base_url' => env('ALIEXPRESS_API_BASE_URL'),
+                'callback_url' => env('ALIEXPRESS_CALLBACK_URL'),
+                'default_scope' => env('ALIEXPRESS_DEFAULT_SCOPE'),
+                'product_detail_path' => env('ALIEXPRESS_PRODUCT_DETAIL_PATH'),
+                'product_lookup_param' => env('ALIEXPRESS_PRODUCT_LOOKUP_PARAM', 'product_id'),
+                'timeout' => (int) env('ALIEXPRESS_REQUEST_TIMEOUT', 20),
+            ],
+        ],
+    ],
+
 ];

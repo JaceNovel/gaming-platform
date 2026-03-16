@@ -165,6 +165,7 @@ Route::match(['get', 'post'], '/payments/paypal/return', [PaymentController::cla
 Route::post('/payments/fedapay/webhook', [FedaPayWebhookController::class, 'handle'])->name('api.payments.fedapay.webhook');
 Route::post('/payments/paypal/webhook', [PayPalWebhookController::class, 'handle'])->name('api.payments.paypal.webhook');
 Route::post('/payouts/fedapay/webhook', [FedaPayPayoutWebhookController::class, 'handle'])->name('api.payouts.fedapay.webhook');
+Route::get('/sourcing/oauth/{platform}/callback', [\App\Http\Controllers\Api\AdminSupplierOAuthController::class, 'callback']);
 
 Route::get('/guides/shop2game-freefire', [GuideController::class, 'shop2gameFreeFire']);
 
@@ -542,6 +543,51 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         ->middleware('permission:stock.manage');
     Route::get('/stock/movements/export', [\App\Http\Controllers\Api\AdminStockController::class, 'export'])
         ->middleware('permission:stock.manage');
+
+    Route::get('/sourcing/supplier-accounts', [\App\Http\Controllers\Api\AdminSupplierAccountController::class, 'index'])
+        ->middleware('permission:sourcing.view');
+    Route::post('/sourcing/supplier-accounts', [\App\Http\Controllers\Api\AdminSupplierAccountController::class, 'store'])
+        ->middleware('permission:sourcing.manage');
+    Route::patch('/sourcing/supplier-accounts/{supplierAccount}', [\App\Http\Controllers\Api\AdminSupplierAccountController::class, 'update'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/supplier-accounts/{supplierAccount}/oauth/connect', [\App\Http\Controllers\Api\AdminSupplierOAuthController::class, 'connect'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/supplier-accounts/{supplierAccount}/oauth/refresh', [\App\Http\Controllers\Api\AdminSupplierOAuthController::class, 'refresh'])
+        ->middleware('permission:sourcing.manage');
+
+    Route::get('/sourcing/supplier-products', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'index'])
+        ->middleware('permission:sourcing.view');
+    Route::post('/sourcing/catalog/import', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'import'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/fetch-remote', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'fetchRemote'])
+        ->middleware('permission:sourcing.manage');
+
+    Route::get('/sourcing/dashboard', [\App\Http\Controllers\Api\AdminProcurementController::class, 'dashboard'])
+        ->middleware('permission:sourcing.view');
+    Route::get('/sourcing/mappings', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'mappings'])
+        ->middleware('permission:sourcing.view');
+    Route::get('/sourcing/supplier-skus', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'supplierSkus'])
+        ->middleware('permission:sourcing.view');
+    Route::post('/sourcing/mappings', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'storeMapping'])
+        ->middleware('permission:sourcing.manage');
+
+    Route::get('/sourcing/demands', [\App\Http\Controllers\Api\AdminProcurementController::class, 'demands'])
+        ->middleware('permission:sourcing.view');
+    Route::get('/sourcing/batches', [\App\Http\Controllers\Api\AdminProcurementController::class, 'batches'])
+        ->middleware('permission:sourcing.view');
+    Route::post('/sourcing/batches/draft', [\App\Http\Controllers\Api\AdminProcurementController::class, 'createDraftBatch'])
+        ->middleware('permission:sourcing.manage');
+    Route::patch('/sourcing/batches/{procurementBatch}/approve', [\App\Http\Controllers\Api\AdminProcurementController::class, 'approveBatch'])
+        ->middleware('permission:sourcing.manage');
+    Route::patch('/sourcing/batches/{procurementBatch}/submit', [\App\Http\Controllers\Api\AdminProcurementController::class, 'submitBatch'])
+        ->middleware('permission:sourcing.manage');
+
+    Route::get('/sourcing/inbound-shipments', [\App\Http\Controllers\Api\AdminInboundShipmentController::class, 'index'])
+        ->middleware('permission:sourcing.view');
+    Route::post('/sourcing/inbound-shipments', [\App\Http\Controllers\Api\AdminInboundShipmentController::class, 'store'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/warehouse-receipts', [\App\Http\Controllers\Api\AdminInboundShipmentController::class, 'storeReceipt'])
+        ->middleware('permission:sourcing.manage');
 
     Route::get('/payments', [\App\Http\Controllers\Api\AdminPaymentsController::class, 'index'])
         ->middleware('permission:payments.view');

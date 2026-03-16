@@ -743,6 +743,7 @@ class ProcessFedaPayWebhook implements ShouldQueue
                     if (empty($orderMeta['fulfillment_dispatched_at']) && $order->canBeFulfilled()) {
                         if ($order->hasPhysicalItems()) {
                             $shippingService->computeShippingForOrder($order);
+                            app(\App\Services\SourcingDemandService::class)->syncForPaidOrder($order);
                         }
 
                         if ($order->requiresRedeemFulfillment()) {

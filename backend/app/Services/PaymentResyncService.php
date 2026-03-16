@@ -245,6 +245,7 @@ class PaymentResyncService
                         if (empty($orderMeta['fulfillment_dispatched_at']) && $order->canBeFulfilled()) {
                         if ($order->hasPhysicalItems()) {
                             $this->shippingService->computeShippingForOrder($order);
+                            app(SourcingDemandService::class)->syncForPaidOrder($order);
                         }
 
                         if ($order->requiresRedeemFulfillment()) {

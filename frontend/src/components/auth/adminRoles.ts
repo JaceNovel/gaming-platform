@@ -47,6 +47,8 @@ const ROLE_DEFINITIONS: Record<AdminRole, RoleDefinition> = {
       "redeems.view",
       "redeems.manage",
       "stock.manage",
+      "sourcing.view",
+      "sourcing.manage",
       "email.view",
       "email.manage",
       "notifications.manage",
@@ -95,6 +97,8 @@ const ROLE_DEFINITIONS: Record<AdminRole, RoleDefinition> = {
       "redeems.view",
       "redeems.manage",
       "stock.manage",
+      "sourcing.view",
+      "sourcing.manage",
       "email.view",
       "email.manage",
       "notifications.manage",
@@ -132,7 +136,7 @@ const ROLE_DEFINITIONS: Record<AdminRole, RoleDefinition> = {
   admin_article: {
     label: "Admin article",
     description: "Catalogue et contenus produits.",
-    permissions: ["dashboard.view", "products.view", "products.manage", "tournaments.view"],
+    permissions: ["dashboard.view", "products.view", "products.manage", "sourcing.view", "tournaments.view"],
   },
   admin_client: {
     label: "Admin client",
@@ -142,12 +146,12 @@ const ROLE_DEFINITIONS: Record<AdminRole, RoleDefinition> = {
   staff: {
     label: "Staff",
     description: "Acces partiel legacy.",
-    permissions: ["dashboard.view", "orders.view", "payments.view", "products.view", "marketplace.sellers.view"],
+    permissions: ["dashboard.view", "orders.view", "payments.view", "products.view", "sourcing.view", "marketplace.sellers.view"],
   },
   viewer: {
     label: "Lecteur",
     description: "Lecture seule legacy.",
-    permissions: ["dashboard.view", "stats.view", "orders.view", "payments.view", "products.view", "tournaments.view", "marketplace.sellers.view"],
+    permissions: ["dashboard.view", "stats.view", "orders.view", "payments.view", "products.view", "sourcing.view", "tournaments.view", "marketplace.sellers.view"],
   },
 };
 

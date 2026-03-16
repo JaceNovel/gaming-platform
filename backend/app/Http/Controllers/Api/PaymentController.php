@@ -24,6 +24,8 @@ use App\Services\PayPalPaymentSyncService;
 use App\Services\PayPalService;
 use App\Services\PaymentResyncService;
 use App\Services\ReferralCommissionService;
+use App\Services\ShippingService;
+use App\Services\SourcingDemandService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -774,6 +776,11 @@ class PaymentController extends Controller
                     }
 
                     if (empty($orderMeta['fulfillment_dispatched_at'])) {
+                        if ($order->hasPhysicalItems()) {
+                            app(ShippingService::class)->computeShippingForOrder($order);
+                            app(SourcingDemandService::class)->syncForPaidOrder($order);
+                        }
+
                         if ($order->requiresRedeemFulfillment()) {
                             ProcessRedeemFulfillment::dispatchSync($order->id);
                         } else {
@@ -1053,6 +1060,11 @@ class PaymentController extends Controller
                     }
 
                     if (empty($orderMeta['fulfillment_dispatched_at'])) {
+                        if ($order->hasPhysicalItems()) {
+                            app(ShippingService::class)->computeShippingForOrder($order);
+                            app(SourcingDemandService::class)->syncForPaidOrder($order);
+                        }
+
                         if ($order->requiresRedeemFulfillment()) {
                             ProcessRedeemFulfillment::dispatchSync($order->id);
                         } else {

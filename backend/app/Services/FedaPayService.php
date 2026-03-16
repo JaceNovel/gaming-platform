@@ -643,7 +643,7 @@ class FedaPayService
                     'body' => $snippet,
                 ]);
             }
-            throw new \RuntimeException('FedaPay API request failed (HTTP ' . $response->status() . '): ' . $snippet);
+            throw new \RuntimeException('FedaPay API request failed (HTTP ' . $response->status() . '): ' . $snippet, $response->status());
         }
 
         if ($response->status() === 204) {
@@ -678,11 +678,19 @@ class FedaPayService
         try {
             return $this->postJson($url, $primary);
         } catch (\Throwable $e) {
+            if ($this->shouldAbortFallback($e)) {
+                throw $e;
+            }
+
             $lastError = $e;
             foreach ($fallbacks as $candidate) {
                 try {
                     return $this->postJson($url, $candidate, false);
                 } catch (\Throwable $fallbackError) {
+                    if ($this->shouldAbortFallback($fallbackError)) {
+                        throw $fallbackError;
+                    }
+
                     $lastError = $fallbackError;
                     // keep trying
                 }
@@ -696,6 +704,17 @@ class FedaPayService
 
             throw $lastError;
         }
+    }
+
+    private function shouldAbortFallback(\Throwable $error): bool
+    {
+        $status = (int) $error->getCode();
+        if (in_array($status, [401, 403], true)) {
+            return true;
+        }
+
+        $message = strtolower($error->getMessage());
+        return str_contains($message, 'http 401') || str_contains($message, 'http 403');
     }
 
     private function findFirstUrl(mixed $data): ?string

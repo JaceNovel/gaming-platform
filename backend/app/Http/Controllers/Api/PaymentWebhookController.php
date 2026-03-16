@@ -268,6 +268,7 @@ class PaymentWebhookController extends Controller
 
                 if ($payment->order->hasPhysicalItems()) {
                     app(ShippingService::class)->computeShippingForOrder($payment->order);
+                    app(SourcingDemandService::class)->syncForPaidOrder($payment->order);
                 }
 
                 if ($payment->order->requiresRedeemFulfillment()) {

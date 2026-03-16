@@ -107,6 +107,11 @@ class Product extends Model
         return $this->belongsToMany(ProductTag::class, 'product_tag')->withTimestamps();
     }
 
+    public function productSupplierLinks(): HasMany
+    {
+        return $this->hasMany(ProductSupplierLink::class);
+    }
+
     public function getEstimatedDeliveryMinutesAttribute(): ?int
     {
         // Manual override: if ETA days is set, use it.
