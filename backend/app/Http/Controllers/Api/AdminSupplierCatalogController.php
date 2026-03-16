@@ -8,6 +8,8 @@ use App\Models\SupplierAccount;
 use App\Services\SupplierApiClient;
 use App\Services\SupplierCatalogImportService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class AdminSupplierCatalogController extends Controller
 {
@@ -83,8 +85,21 @@ class AdminSupplierCatalogController extends Controller
             'lookup_type' => 'nullable|in:product_id,sku_id',
         ]);
 
-        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
-        $normalized = $supplierApiClient->fetchRemoteProduct($account, (string) $data['external_product_id'], $data['lookup_type'] ?? null);
+        try {
+            $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+            $normalized = $supplierApiClient->fetchRemoteProduct($account, (string) $data['external_product_id'], $data['lookup_type'] ?? null);
+        } catch (Throwable $exception) {
+            Log::warning('sourcing.fetch_remote_failed', [
+                'supplier_account_id' => (int) $data['supplier_account_id'],
+                'external_product_id' => (string) $data['external_product_id'],
+                'lookup_type' => $data['lookup_type'] ?? null,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 502);
+        }
 
         return response()->json([
             'data' => $normalized,
@@ -107,8 +122,21 @@ class AdminSupplierCatalogController extends Controller
             ], 422);
         }
 
-        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
-        $results = $supplierApiClient->searchRemoteProducts($account, $data);
+        try {
+            $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+            $results = $supplierApiClient->searchRemoteProducts($account, $data);
+        } catch (Throwable $exception) {
+            Log::warning('sourcing.search_remote_failed', [
+                'supplier_account_id' => (int) $data['supplier_account_id'],
+                'model_number' => $data['model_number'] ?? null,
+                'sku_code' => $data['sku_code'] ?? null,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 502);
+        }
 
         return response()->json([
             'data' => $results,
@@ -124,8 +152,20 @@ class AdminSupplierCatalogController extends Controller
             'image' => 'nullable|url|max:2048',
         ]);
 
-        $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
-        $prediction = $supplierApiClient->predictCategory($account, $data);
+        try {
+            $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+            $prediction = $supplierApiClient->predictCategory($account, $data);
+        } catch (Throwable $exception) {
+            Log::warning('sourcing.predict_category_failed', [
+                'supplier_account_id' => (int) $data['supplier_account_id'],
+                'title' => (string) $data['title'],
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 502);
+        }
 
         return response()->json([
             'data' => $prediction,
