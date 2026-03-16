@@ -51,6 +51,7 @@ class WalletController extends Controller
             'transactions' => $transactions,
             'withdraw_fee_amount' => self::WITHDRAW_FEE_AMOUNT,
             'payouts' => $payouts,
+            'payout_support' => $this->fedaPayService->payoutSupport(),
         ]);
     }
 

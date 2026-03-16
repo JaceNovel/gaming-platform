@@ -11,6 +11,29 @@ use Illuminate\Support\Facades\Log;
 
 class FedaPayService
 {
+    private const SUPPORTED_PAYOUT_COUNTRIES = [
+        'BJ' => [
+            'label' => 'Benin',
+            'methods' => ['mtn', 'moov', 'bestcash', 'celtiis', 'coris_money', 'bank'],
+        ],
+        'TG' => [
+            'label' => 'Togo',
+            'methods' => ['moov_tg', 'togocel', 'bank'],
+        ],
+        'CI' => [
+            'label' => 'Cote d\'Ivoire',
+            'methods' => ['mtn_ci', 'bank'],
+        ],
+        'SN' => [
+            'label' => 'Senegal',
+            'methods' => ['free_sn', 'bank'],
+        ],
+        'NE' => [
+            'label' => 'Niger',
+            'methods' => ['airtel_ne', 'bank'],
+        ],
+    ];
+
     private string $secretKey;
     private string $environment;
     private string $baseUrl;
@@ -309,11 +332,9 @@ class FedaPayService
 
         $account = $this->retrieveAccountProfile();
         $currencyId = $this->resolveCurrencyId($currency, $account);
-        $balanceId = $this->resolveBalanceId($mode, $account);
-
-        if (!$currencyId && $currency === 'XOF') {
-            $currencyId = 1;
-        }
+        $balanceMatch = $this->resolveBalance($mode, $account);
+        $balanceId = $balanceMatch['id'] ?? null;
+        $resolvedMode = $balanceMatch['mode'] ?? $mode;
 
         if (!$balanceId) {
             throw new \RuntimeException(sprintf(
@@ -324,24 +345,40 @@ class FedaPayService
 
         $basePayload = array_filter([
             'amount' => $amountInt,
-            'currency_id' => $currencyId,
             'balance_id' => $balanceId,
             'customer' => $customer,
-            'mode' => $mode,
+            'mode' => $resolvedMode,
             'metadata' => is_array($payload['metadata'] ?? null) ? $payload['metadata'] : null,
             'custom_metadata' => is_array($payload['custom_metadata'] ?? null) ? $payload['custom_metadata'] : null,
             'merchant_reference' => (string) ($payload['merchant_reference'] ?? ''),
         ], static fn ($value) => $value !== null && $value !== '');
 
-        return $this->postWithFallback($this->endpoint('/payouts'), $basePayload, [
-            ['payout' => $basePayload],
-            array_merge($basePayload, ['currency' => $currencyId]),
-            ['payout' => array_merge($basePayload, ['currency' => $currencyId])],
-            array_merge($basePayload, ['currency' => $currencyId, 'balance' => $balanceId]),
-            ['payout' => array_merge($basePayload, ['currency' => $currencyId, 'balance' => $balanceId])],
-            array_merge($basePayload, ['currency' => $currency, 'balance' => $balanceId]),
-            ['payout' => array_merge($basePayload, ['currency' => $currency, 'balance' => $balanceId])],
-        ]);
+        $payloadWithCurrencyCode = array_merge($basePayload, ['currency' => ['iso' => $currency]]);
+        $payloadWithCurrencyString = array_merge($basePayload, ['currency' => $currency]);
+        $payloadWithCurrencyAndBalance = array_merge($payloadWithCurrencyString, ['balance' => $balanceId]);
+
+        $fallbacks = [
+            ['payout' => $payloadWithCurrencyCode],
+            $payloadWithCurrencyString,
+            ['payout' => $payloadWithCurrencyString],
+            $payloadWithCurrencyAndBalance,
+            ['payout' => $payloadWithCurrencyAndBalance],
+        ];
+
+        if ($currencyId) {
+            $payloadWithCurrencyId = array_merge($basePayload, ['currency_id' => $currencyId]);
+            $payloadWithCurrencyScalar = array_merge($basePayload, ['currency' => $currencyId]);
+
+            array_unshift(
+                $fallbacks,
+                ['payout' => $payloadWithCurrencyId],
+                $payloadWithCurrencyId,
+                ['payout' => $payloadWithCurrencyScalar],
+                $payloadWithCurrencyScalar
+            );
+        }
+
+        return $this->postWithFallback($this->endpoint('/payouts'), $payloadWithCurrencyCode, $fallbacks);
     }
 
     public function resolvePayoutMode(string $requestedMode, ?string $country = null): string
@@ -360,16 +397,30 @@ class FedaPayService
                 'CI' => 'mtn_ci',
                 default => 'mtn',
             },
+            'mtn_ci', 'mtn' => match ($countryCode) {
+                'CI' => 'mtn_ci',
+                default => 'mtn',
+            },
             'moov_money' => match ($countryCode) {
                 'TG' => 'moov_tg',
                 'BF' => 'moov_bf',
                 'CI' => 'moov_ci',
                 default => 'moov',
             },
+            'moov_tg' => 'moov_tg',
+            'moov_ci' => 'moov_ci',
+            'moov_bf' => 'moov_bf',
+            'moov' => 'moov',
             'wave' => match ($countryCode) {
                 'SN' => 'wave_sn',
                 default => 'wave_ci',
             },
+            'bestcash', 'bestcash_money' => 'bestcash',
+            'celtiis', 'celtiis_cash' => 'celtiis',
+            'coris', 'coris_money' => 'coris_money',
+            'free', 'free_senegal', 'free_sn' => 'free_sn',
+            'airtel', 'airtel_niger', 'airtel_ne' => 'airtel_ne',
+            'togocel_tmoney' => 'togocel',
             'bank', 'bank_transfer' => 'bank_transfer',
             'mobile_money', '' => match ($countryCode) {
                 'TG' => 'togocel',
@@ -517,6 +568,44 @@ class FedaPayService
         return 'processing';
     }
 
+    public function payoutSupport(): array
+    {
+        $configuredModes = collect($this->payoutBalanceIds)
+            ->filter(static fn ($value) => is_numeric($value))
+            ->keys()
+            ->map(static fn ($mode) => strtolower((string) $mode))
+            ->values()
+            ->all();
+
+        $countries = [];
+        foreach (self::SUPPORTED_PAYOUT_COUNTRIES as $code => $entry) {
+            $methods = [];
+            foreach ((array) ($entry['methods'] ?? []) as $method) {
+                $resolvedMode = $this->resolvePayoutMode((string) $method, $code);
+                $aliases = array_values(array_unique(array_merge([$method, $resolvedMode], $this->balanceModeCandidates($resolvedMode))));
+                $enabled = count(array_intersect($configuredModes, $aliases)) > 0;
+
+                $methods[] = [
+                    'value' => $method,
+                    'resolved_mode' => $resolvedMode,
+                    'enabled' => $enabled,
+                    'aliases' => $aliases,
+                ];
+            }
+
+            $countries[] = [
+                'code' => $code,
+                'label' => (string) ($entry['label'] ?? $code),
+                'methods' => $methods,
+            ];
+        }
+
+        return [
+            'configured_modes' => $configuredModes,
+            'countries' => $countries,
+        ];
+    }
+
     private function endpoint(string $path): string
     {
         return rtrim($this->baseUrl, '/') . '/' . ltrim($path, '/');
@@ -530,7 +619,7 @@ class FedaPayService
             ->withToken($this->secretKey);
     }
 
-    private function requestJson(string $method, string $url, array $payload = []): array
+    private function requestJson(string $method, string $url, array $payload = [], bool $logErrors = true): array
     {
         $method = strtolower($method);
         $request = $this->http();
@@ -546,12 +635,14 @@ class FedaPayService
         if (!$response->successful()) {
             $body = $response->body();
             $snippet = mb_substr((string) $body, 0, 1200);
-            Log::error('fedapay:error', [
-                'stage' => $method,
-                'url' => $url,
-                'status' => $response->status(),
-                'body' => $snippet,
-            ]);
+            if ($logErrors) {
+                Log::error('fedapay:error', [
+                    'stage' => $method,
+                    'url' => $url,
+                    'status' => $response->status(),
+                    'body' => $snippet,
+                ]);
+            }
             throw new \RuntimeException('FedaPay API request failed (HTTP ' . $response->status() . '): ' . $snippet);
         }
 
@@ -562,9 +653,9 @@ class FedaPayService
         return (array) ($response->json() ?? []);
     }
 
-    private function postJson(string $url, array $payload): array
+    private function postJson(string $url, array $payload, bool $logErrors = true): array
     {
-        return $this->requestJson('post', $url, $payload);
+        return $this->requestJson('post', $url, $payload, $logErrors);
     }
 
     private function putJson(string $url, array $payload): array
@@ -587,14 +678,23 @@ class FedaPayService
         try {
             return $this->postJson($url, $primary);
         } catch (\Throwable $e) {
+            $lastError = $e;
             foreach ($fallbacks as $candidate) {
                 try {
-                    return $this->postJson($url, $candidate);
-                } catch (\Throwable) {
+                    return $this->postJson($url, $candidate, false);
+                } catch (\Throwable $fallbackError) {
+                    $lastError = $fallbackError;
                     // keep trying
                 }
             }
-            throw $e;
+
+            Log::error('fedapay:error', [
+                'stage' => 'post-fallback-exhausted',
+                'url' => $url,
+                'body' => $lastError->getMessage(),
+            ]);
+
+            throw $lastError;
         }
     }
 
@@ -659,11 +759,16 @@ class FedaPayService
         return null;
     }
 
-    private function resolveBalanceId(string $mode, array $account): ?int
+    private function resolveBalance(string $mode, array $account): array
     {
-        $configured = $this->payoutBalanceIds[$mode] ?? null;
-        if (is_numeric($configured)) {
-            return (int) $configured;
+        foreach ($this->balanceModeCandidates($mode) as $candidate) {
+            $configured = $this->payoutBalanceIds[$candidate] ?? null;
+            if (is_numeric($configured)) {
+                return [
+                    'id' => (int) $configured,
+                    'mode' => $candidate,
+                ];
+            }
         }
 
         foreach ((array) ($account['balances'] ?? []) as $row) {
@@ -671,12 +776,40 @@ class FedaPayService
                 continue;
             }
 
-            if (strtolower((string) ($row['mode'] ?? '')) === $mode && is_numeric($row['id'] ?? null)) {
-                return (int) $row['id'];
+            $rowMode = strtolower((string) ($row['mode'] ?? ''));
+            if (!in_array($rowMode, $this->balanceModeCandidates($mode), true)) {
+                continue;
+            }
+
+            if (is_numeric($row['id'] ?? null)) {
+                return [
+                    'id' => (int) $row['id'],
+                    'mode' => $rowMode,
+                ];
             }
         }
 
-        return null;
+        return [];
+    }
+
+    private function balanceModeCandidates(string $mode): array
+    {
+        $normalized = strtolower(trim($mode));
+
+        return match ($normalized) {
+            'moov_ci', 'moov_tg', 'moov_bf', 'moov', 'moov_bj' => ['moov_ci', 'moov_tg', 'moov_bf', 'moov', 'moov_bj'],
+            'orange_ci', 'orange_bf', 'orange_ml', 'orange_sn', 'orange_money' => ['orange_ci', 'orange_bf', 'orange_ml', 'orange_sn', 'orange_money'],
+            'wave_ci', 'wave_sn', 'wave' => ['wave_ci', 'wave_sn', 'wave'],
+            'mtn_ci', 'mtn', 'mtn_bj' => ['mtn_ci', 'mtn', 'mtn_bj'],
+            'togocel', 'togocel_tmoney', 'mobile_money' => ['togocel', 'togocel_tmoney', 'mobile_money'],
+            'bestcash', 'bestcash_money' => ['bestcash', 'bestcash_money'],
+            'celtiis', 'celtiis_cash' => ['celtiis', 'celtiis_cash'],
+            'coris', 'coris_money' => ['coris', 'coris_money'],
+            'free', 'free_sn', 'free_senegal' => ['free', 'free_sn', 'free_senegal'],
+            'airtel', 'airtel_ne', 'airtel_niger' => ['airtel', 'airtel_ne', 'airtel_niger'],
+            'bank_transfer', 'bank' => ['bank_transfer', 'bank'],
+            default => [$normalized],
+        };
     }
 
     private function retrieveAccountProfile(): array
@@ -708,9 +841,56 @@ class FedaPayService
             $candidate = Arr::get($payload, 'data.account');
         } elseif (is_array($payload['data'] ?? null) && (isset($payload['data']['balances']) || isset($payload['data']['currencies']))) {
             $candidate = $payload['data'];
+        } elseif (is_array(Arr::get($payload, 'v1.account'))) {
+            $candidate = Arr::get($payload, 'v1.account');
+        } elseif (is_array(Arr::get($payload, 'data.v1.account'))) {
+            $candidate = Arr::get($payload, 'data.v1.account');
         }
 
-        return is_array($candidate) ? $candidate : [];
+        if (!is_array($candidate)) {
+            return [];
+        }
+
+        if (!isset($candidate['currencies']) || !is_array($candidate['currencies'])) {
+            $candidate['currencies'] = $this->collectRowsByKeys($payload, ['currencies', 'currency']);
+        }
+
+        if (!isset($candidate['balances']) || !is_array($candidate['balances'])) {
+            $candidate['balances'] = $this->collectRowsByKeys($payload, ['balances', 'balance']);
+        }
+
+        return $candidate;
+    }
+
+    private function collectRowsByKeys(array $payload, array $keys): array
+    {
+        $rows = [];
+
+        $walker = function (mixed $value) use (&$rows, $keys, &$walker): void {
+            if (!is_array($value)) {
+                return;
+            }
+
+            foreach ($value as $key => $child) {
+                if (is_string($key) && in_array(strtolower($key), $keys, true) && is_array($child)) {
+                    if (array_is_list($child)) {
+                        foreach ($child as $row) {
+                            if (is_array($row)) {
+                                $rows[] = $row;
+                            }
+                        }
+                    } else {
+                        $rows[] = $child;
+                    }
+                }
+
+                $walker($child);
+            }
+        };
+
+        $walker($payload);
+
+        return array_values(array_filter($rows, static fn ($row) => is_array($row)));
     }
 
     private function tryGetJson(string $url): ?array

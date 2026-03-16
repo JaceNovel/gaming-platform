@@ -23,6 +23,7 @@ import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
+import { SUPPORTED_FEDAPAY_COUNTRIES, filterWithdrawMethodsBySupport, getDefaultFedaPayCountry, getDefaultWithdrawMethod, type FedaPayPayoutSupport } from "@/lib/fedapayChannels";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type Seller = {
@@ -68,6 +69,7 @@ type PartnerWalletResponse = {
     reserved_withdraw_balance?: number | string | null;
   } | null;
   withdrawRequests?: any[];
+  payout_support?: FedaPayPayoutSupport | null;
 };
 
 type CategoryOption = { id: number; name: string; slug?: string | null };
@@ -2016,6 +2018,8 @@ function SellerPageClient() {
                       disabled={!seller || seller.status !== "approved" || Boolean(seller.partnerWalletFrozen)}
                       busy={walletBusy}
                       available={wallet?.partnerWallet?.available_balance ?? 0}
+                      defaultCountry={getDefaultFedaPayCountry(String(seller?.kycCountry ?? (user as any)?.country_code ?? "BJ"))}
+                      payoutSupport={wallet?.payout_support ?? null}
                       onSubmit={(amount, payoutDetails) => void requestWithdraw({ amount, payoutDetails })}
                     />
 
@@ -2110,16 +2114,22 @@ function WithdrawForm({
   disabled,
   busy,
   available,
+  defaultCountry,
+  payoutSupport,
   onSubmit,
 }: {
   disabled: boolean;
   busy: boolean;
   available: any;
+  defaultCountry: string;
+  payoutSupport?: FedaPayPayoutSupport | null;
   onSubmit: (amount: number, payoutDetails: any) => void;
 }) {
   const WITHDRAW_FEE = 1000;
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("wave");
+  const normalizedDefaultCountry = defaultCountry.trim().toUpperCase() || "CI";
+  const [country, setCountry] = useState(normalizedDefaultCountry);
+  const [method, setMethod] = useState(getDefaultWithdrawMethod(normalizedDefaultCountry));
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
 
@@ -2128,6 +2138,18 @@ function WithdrawForm({
   const maxWithdrawable = Math.max(0, Math.floor(avail - WITHDRAW_FEE));
 
   const parsedAmount = Number(amount);
+  const methodOptions = useMemo(() => filterWithdrawMethodsBySupport(country, payoutSupport), [country, payoutSupport]);
+
+  useEffect(() => {
+    setCountry(normalizedDefaultCountry);
+  }, [normalizedDefaultCountry]);
+
+  useEffect(() => {
+    if (!methodOptions.some((option) => option.value === method)) {
+      setMethod(methodOptions[0]?.value ?? "bank");
+    }
+  }, [method, methodOptions]);
+
   const canSubmit =
     !disabled &&
     !busy &&
@@ -2163,12 +2185,26 @@ function WithdrawForm({
             className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm focus:border-cyan-300 focus:outline-none"
             disabled={disabled}
           >
-            <option value="wave">Wave</option>
-            <option value="orange_money">Orange Money</option>
-            <option value="mtn_mobile_money">MTN MoMo</option>
-            <option value="moov_money">Moov Money</option>
-            <option value="mixbyyas">MixBYYas</option>
-            <option value="bank">Banque</option>
+            {methodOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm text-white/70">
+          Code pays
+          <select
+            value={country}
+            onChange={(e) => setCountry(e.target.value.toUpperCase())}
+            className="mt-2 w-full rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm uppercase focus:border-cyan-300 focus:outline-none"
+            disabled={disabled}
+          >
+            {SUPPORTED_FEDAPAY_COUNTRIES.map((countryOption) => (
+              <option key={countryOption.code} value={countryOption.code}>
+                {countryOption.code} · {countryOption.label}
+              </option>
+            ))}
           </select>
         </label>
         <label className="text-sm text-white/70">
@@ -2200,6 +2236,7 @@ function WithdrawForm({
           const amountNum = Math.round(Number(amount));
           onSubmit(amountNum, {
             method,
+            country,
             phone: phone.trim(),
             name: name.trim() || null,
             withdraw_fee_amount: WITHDRAW_FEE,

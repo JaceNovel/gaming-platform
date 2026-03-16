@@ -12,6 +12,7 @@ import { API_BASE } from "@/lib/config";
 import type { DeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { emitCartUpdated } from "@/lib/cartEvents";
+import { fedapayTopupDescription } from "@/lib/fedapayChannels";
 import { emitWalletUpdated } from "@/lib/walletEvents";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
 
@@ -330,7 +331,7 @@ function CartScreen() {
       {
         key: "fedapay",
         title: "Mobile Money",
-        description: "Orange Money, MTN MoMo et autres moyens mobiles pris en charge.",
+        description: fedapayTopupDescription,
         badge: "FCFA",
         variant: "mobile_money",
       },

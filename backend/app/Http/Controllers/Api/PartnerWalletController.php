@@ -8,6 +8,7 @@ use App\Models\PartnerWallet;
 use App\Models\PartnerWithdrawRequest;
 use App\Models\Seller;
 use App\Services\AdminResponsibilityService;
+use App\Services\FedaPayService;
 use App\Services\LoggedEmailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,10 @@ use Illuminate\Validation\ValidationException;
 class PartnerWalletController extends Controller
 {
     private const WITHDRAW_FEE_AMOUNT = 1000.0;
+
+    public function __construct(private FedaPayService $fedaPayService)
+    {
+    }
 
     private function frontendUrl(string $path = ''): string
     {
@@ -50,6 +55,7 @@ class PartnerWalletController extends Controller
             'partnerWalletFrozen' => (bool) $seller->partner_wallet_frozen,
             'partnerWallet' => $wallet,
             'withdrawRequests' => $withdrawRequests,
+            'payout_support' => $this->fedaPayService->payoutSupport(),
         ]);
     }
 

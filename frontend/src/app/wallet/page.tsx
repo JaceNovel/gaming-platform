@@ -9,6 +9,7 @@ import PaymentMethodModal, { type PaymentMethodOption } from "@/components/payme
 import SectionTitle from "@/components/ui/SectionTitle";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
+import { SUPPORTED_FEDAPAY_COUNTRIES, fedapayTopupDescription, filterWithdrawMethodsBySupport, getDefaultFedaPayCountry, getDefaultWithdrawMethod, type FedaPayPayoutSupport } from "@/lib/fedapayChannels";
 import { openTidioChat } from "@/lib/tidioChat";
 import { emitWalletUpdated } from "@/lib/walletEvents";
 
@@ -110,7 +111,7 @@ function WalletClient() {
   const searchParams = useSearchParams();
   const { authFetch, user } = useAuth();
 
-  const defaultCountry = String((user as any)?.country_code ?? "CI").trim().toUpperCase() || "CI";
+  const defaultCountry = getDefaultFedaPayCountry(String((user as any)?.country_code ?? "BJ"));
   const defaultPhone = String((user as any)?.phone ?? "").trim();
 
   const [loading, setLoading] = useState(HAS_API_ENV);
@@ -131,12 +132,13 @@ function WalletClient() {
   const [topupModalOpen, setTopupModalOpen] = useState(false);
   const [topupProvider, setTopupProvider] = useState<"fedapay" | "paypal" | "bank_card">("fedapay");
   const [withdrawAmount, setWithdrawAmount] = useState<string>("");
-  const [withdrawMethod, setWithdrawMethod] = useState<string>("orange_money");
+  const [withdrawMethod, setWithdrawMethod] = useState<string>(getDefaultWithdrawMethod(defaultCountry));
   const [withdrawPhone, setWithdrawPhone] = useState<string>(defaultPhone);
   const [withdrawCountry, setWithdrawCountry] = useState<string>(defaultCountry);
   const [withdrawName, setWithdrawName] = useState<string>(String(user?.name ?? ""));
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [withdrawFeeAmount, setWithdrawFeeAmount] = useState<number>(1000);
+  const [payoutSupport, setPayoutSupport] = useState<FedaPayPayoutSupport | null>(null);
 
   const [limit, setLimit] = useState<10 | 25 | 50>(25);
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
@@ -148,6 +150,14 @@ function WalletClient() {
     () => transactions.some((t) => String(t.status ?? "").toLowerCase() === "pending"),
     [transactions],
   );
+
+  const withdrawMethodOptions = useMemo(() => filterWithdrawMethodsBySupport(withdrawCountry, payoutSupport), [payoutSupport, withdrawCountry]);
+
+  useEffect(() => {
+    if (!withdrawMethodOptions.some((option) => option.value === withdrawMethod)) {
+      setWithdrawMethod(withdrawMethodOptions[0]?.value ?? "bank");
+    }
+  }, [withdrawMethod, withdrawMethodOptions]);
 
   const loadWallet = async (options?: { silent?: boolean }) => {
     if (!HAS_API_ENV) {
@@ -177,6 +187,7 @@ function WalletClient() {
       setWalletStatus(summary?.status ?? null);
       const nextWithdrawFee = Number(summary?.withdraw_fee_amount ?? 1000);
       setWithdrawFeeAmount(Number.isFinite(nextWithdrawFee) ? nextWithdrawFee : 1000);
+      setPayoutSupport(summary?.payout_support ?? null);
 
       const payoutRows = Array.isArray(summary?.payouts) ? summary.payouts : [];
       setPayouts(
@@ -406,7 +417,7 @@ function WalletClient() {
       {
         key: "fedapay",
         title: "Mobile Money",
-        description: "Recharge le DB Wallet avec Orange Money, MTN MoMo et les moyens mobiles supportés par FedaPay.",
+        description: fedapayTopupDescription,
         badge: "FCFA",
         variant: "mobile_money",
       },
@@ -672,6 +683,19 @@ function WalletClient() {
                       Changer
                     </button>
                   </div>
+
+                  {selectedTopupOption?.key === "fedapay" ? (
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {SUPPORTED_FEDAPAY_COUNTRIES.map((countryOption) => (
+                        <div key={countryOption.code} className="rounded-xl border border-emerald-200/15 bg-white/5 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-100/75">
+                            {countryOption.code} · {countryOption.label}
+                          </p>
+                          <p className="mt-2 text-xs leading-5 text-emerald-50/80">{countryOption.topupChannels.join(" • ")}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -704,11 +728,11 @@ function WalletClient() {
                       onChange={(event) => setWithdrawMethod(event.target.value)}
                       className="mt-2 w-full rounded-xl border border-orange-200/25 bg-black/30 px-3 py-2 text-sm text-white"
                     >
-                      <option value="wave">Wave</option>
-                      <option value="orange_money">Orange Money</option>
-                      <option value="mtn_mobile_money">MTN MoMo</option>
-                      <option value="moov_money">Moov Money</option>
-                      <option value="bank">Banque</option>
+                      {withdrawMethodOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="text-sm text-white/70">
@@ -722,13 +746,17 @@ function WalletClient() {
                   </label>
                   <label className="text-sm text-white/70">
                     Code pays
-                    <input
+                    <select
                       value={withdrawCountry}
                       onChange={(event) => setWithdrawCountry(event.target.value.toUpperCase())}
-                      maxLength={2}
-                      placeholder="CI"
                       className="mt-2 w-full rounded-xl border border-orange-200/25 bg-black/30 px-3 py-2 text-sm text-white uppercase"
-                    />
+                    >
+                      {SUPPORTED_FEDAPAY_COUNTRIES.map((countryOption) => (
+                        <option key={countryOption.code} value={countryOption.code}>
+                          {countryOption.code} · {countryOption.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label className="text-sm text-white/70 sm:col-span-2">
                     Nom bénéficiaire (optionnel)
@@ -744,6 +772,7 @@ function WalletClient() {
                 <p className="mt-3 text-xs text-white/60">
                   Montant + frais doivent rester inférieurs ou égaux à ton solde disponible.
                 </p>
+                <p className="mt-2 text-xs text-white/45">Les méthodes disponibles changent selon le pays sélectionné.</p>
 
                 <div className="mt-3">
                   <GlowButton variant="ghost" onClick={handleWithdraw} disabled={withdrawLoading || withdrawMax < 1}>

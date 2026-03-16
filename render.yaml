@@ -93,7 +93,7 @@ services:
       - key: FEDAPAY_CURRENCY_IDS
         value: '{"XOF":1}'
       - key: FEDAPAY_PAYOUT_BALANCE_IDS
-        sync: false
+        value: '{"mtn":1270177,"mtn_ci":1270180,"moov":0,"moov_tg":1270181,"togocel":1270186,"bestcash":0,"celtiis":0,"coris_money":0,"free_sn":0,"airtel_ne":0,"bank_transfer":2095197}'
 
       # PayPal (set these in Render dashboard)
       - key: PAYPAL_CLIENT_ID
@@ -178,7 +178,7 @@ services:
       - key: FEDAPAY_CURRENCY_IDS
         value: '{"XOF":1}'
       - key: FEDAPAY_PAYOUT_BALANCE_IDS
-        sync: false
+        value: '{"mtn":1270177,"mtn_ci":1270180,"moov":0,"moov_tg":1270181,"togocel":1270186,"bestcash":0,"celtiis":0,"coris_money":0,"free_sn":0,"airtel_ne":0,"bank_transfer":2095197}'
 
       # PayPal (set these in Render dashboard)
       - key: PAYPAL_CLIENT_ID

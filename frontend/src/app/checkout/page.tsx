@@ -8,6 +8,7 @@ import PaymentMethodModal, { type PaymentMethodOption } from "@/components/payme
 import GlowButton from "@/components/ui/GlowButton";
 import SectionTitle from "@/components/ui/SectionTitle";
 import { API_BASE } from "@/lib/config";
+import { fedapayTopupDescription } from "@/lib/fedapayChannels";
 import { emitWalletUpdated } from "@/lib/walletEvents";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
 
@@ -434,7 +435,7 @@ function CheckoutScreen() {
       {
         key: "fedapay",
         title: "Mobile Money",
-        description: "Règlement via FedaPay avec Orange Money, MTN MoMo et autres services mobiles.",
+        description: fedapayTopupDescription,
         badge: "FCFA",
         variant: "mobile_money",
       },
