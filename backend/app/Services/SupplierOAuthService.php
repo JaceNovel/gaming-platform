@@ -23,7 +23,6 @@ class SupplierOAuthService
             throw new \RuntimeException('App Key manquante sur le compte fournisseur.');
         }
 
-        $state = 'supplier-oauth:' . Str::random(40);
         $state = 'supplieroauth' . Str::random(32);
         $ttl = max(1, (int) config('services.sourcing.oauth_state_ttl_minutes', 15));
         Cache::put($state, [
@@ -84,6 +83,9 @@ class SupplierOAuthService
         }
 
         $parsed = $this->ioRequest($account, $refreshUrl, [
+            'client_id' => trim((string) ($account->app_key ?? '')),
+            'client_secret' => (string) ($account->app_secret ?? ''),
+            'grant_type' => 'refresh_token',
             'refresh_token' => (string) ($account->refresh_token ?? ''),
         ]);
 
@@ -109,6 +111,10 @@ class SupplierOAuthService
         }
 
         return $this->ioRequest($account, $tokenUrl, [
+            'client_id' => trim((string) ($account->app_key ?? '')),
+            'client_secret' => (string) ($account->app_secret ?? ''),
+            'grant_type' => 'authorization_code',
+            'redirect_uri' => $this->callbackUrl($account->platform),
             'code' => $code,
         ]);
     }
@@ -144,10 +150,16 @@ class SupplierOAuthService
     private function ioRequest(SupplierAccount $account, string $url, array $params): array
     {
         $config = $this->platformConfig($account->platform);
-        $response = Http::asForm()
+        $request = Http::asForm()
             ->timeout((int) ($config['timeout'] ?? 20))
-            ->acceptJson()
-            ->post($url, array_filter($params, static fn ($value) => $value !== null && $value !== ''));
+            ->acceptJson();
+
+        $filteredParams = array_filter($params, static fn ($value) => $value !== null && $value !== '');
+        $response = $request->post($url, $filteredParams);
+
+        if ($response->status() === 405) {
+            $response = $request->get($url, $filteredParams);
+        }
 
         if (!$response->successful()) {
             throw new \RuntimeException('Appel OAuth IOP échoué (HTTP ' . $response->status() . '): ' . $response->body());
