@@ -1387,29 +1387,30 @@ export default function AdminSourcingImportPage() {
               <span className="text-slate-600">Image principale</span>
               <input value={mainImageUrl} onChange={(e) => setMainImageUrl(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
             </label>
-            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Prédiction de catégorie</h3>
-                <p className="text-xs text-slate-500">Utilise `/alibaba/icbu/category/predict/v2` avec le titre, la description optionnelle et l’image principale.</p>
-              </div>
-              <label className="grid gap-1 text-sm">
-                <span className="text-slate-600">Description pour la prédiction</span>
-                <textarea value={predictionDescription} onChange={(e) => setPredictionDescription(e.target.value)} rows={4} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
-              </label>
-              <button type="button" onClick={predictCategory} disabled={predictingCategory} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {predictingCategory ? "Prédiction..." : "Prédire la catégorie Alibaba"}
-              </button>
-              {predictedCategory ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
-                  <div className="font-medium">{predictedCategory.category_name || "Catégorie non renvoyée"}</div>
-                  <div className="text-xs text-amber-800">ID: {predictedCategory.category_id || "—"}</div>
-                  <div className="mt-1 text-xs text-amber-800">{predictedCategory.category_path || predictedCategory.message || "Aucun chemin renvoyé"}</div>
+            {platform === "alibaba" ? (
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Prédiction de catégorie</h3>
+                  <p className="text-xs text-slate-500">Utilise `/alibaba/icbu/category/predict/v2` avec le titre, la description optionnelle et l’image principale.</p>
                 </div>
-              ) : null}
-            </div>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">Description pour la prédiction</span>
+                  <textarea value={predictionDescription} onChange={(e) => setPredictionDescription(e.target.value)} rows={4} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+                </label>
+                <button type="button" onClick={predictCategory} disabled={predictingCategory} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  {predictingCategory ? "Prédiction..." : "Prédire la catégorie Alibaba"}
+                </button>
+                {predictedCategory ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+                    <div className="font-medium">{predictedCategory.category_name || "Catégorie non renvoyée"}</div>
+                    <div className="text-xs text-amber-800">ID: {predictedCategory.category_id || "—"}</div>
+                    <div className="mt-1 text-xs text-amber-800">{predictedCategory.category_path || predictedCategory.message || "Aucun chemin renvoyé"}</div>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             {platform === "alibaba" ? (
-            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Vidéos Alibaba</h3>
                 <p className="text-xs text-slate-500">Upload par URL, suivi d’encodage, liste des vidéos et liaison comme vidéo principale du produit.</p>
@@ -1479,10 +1480,10 @@ export default function AdminSourcingImportPage() {
                   ))}
                 </div>
               ) : null}
-            </div>
+              </div>
             ) : null}
             {platform === "alibaba" ? (
-            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Buyer Solution</h3>
                 <p className="text-xs text-slate-500">Appels bruts vers `/eco/buyer/item/add`, `/query`, `/update` et `/delete` avec signature côté backend.</p>
@@ -1544,8 +1545,8 @@ export default function AdminSourcingImportPage() {
                   <textarea value={buyerRawResponse} readOnly rows={10} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
                 </label>
               ) : null}
-            </div>
-            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              </div>
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Buyer Discovery & Channel</h3>
                 <p className="text-xs text-slate-500">Explorateur brut pour `eco/buyer/product/*`, `item/rec*`, listes local/crossborder et événements de canal.</p>
@@ -1584,7 +1585,7 @@ export default function AdminSourcingImportPage() {
                   <textarea value={buyerEcoRawResponse} readOnly rows={12} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
                 </label>
               ) : null}
-            </div>
+              </div>
             ) : null}
             <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
