@@ -246,11 +246,11 @@ class SupplierOAuthService
         $host = (string) (parse_url($url, PHP_URL_HOST) ?? '');
         $path = (string) (parse_url($url, PHP_URL_PATH) ?? '');
 
-        if (in_array($host, ['openapi-auth.alibaba.com', 'openapi.alibaba.com'], true)) {
+        if (in_array($host, ['openapi-auth.alibaba.com', 'openapi.alibaba.com', 'api.alibaba.com'], true)) {
             return $this->normalizeAlibabaOauthGatewayUrl($url);
         }
 
-        if ($host === 'api.alibaba.com' && $path !== '') {
+        if ($host === 'openapi-api.alibaba.com' && $path !== '') {
             return $this->withIoRestPrefix($url);
         }
 
@@ -262,7 +262,7 @@ class SupplierOAuthService
         $path = (string) (parse_url($url, PHP_URL_PATH) ?? '');
         $path = $path === '' ? '/auth/token/create' : $path;
 
-        return $this->withIoRestPrefix('https://api.alibaba.com' . (str_starts_with($path, '/') ? $path : '/' . $path));
+        return $this->withIoRestPrefix('https://openapi-api.alibaba.com' . (str_starts_with($path, '/') ? $path : '/' . $path));
     }
 
     private function withIoRestPrefix(string $url): string
@@ -301,6 +301,7 @@ class SupplierOAuthService
             'sign_method' => strtolower((string) data_get($this->platformConfig($account->platform), 'sign_method', 'sha256')) === 'md5'
                 ? 'md5'
                 : 'sha256',
+            'simplify' => 'true',
             'partner_id' => 'iop-sdk-php',
         ];
 
