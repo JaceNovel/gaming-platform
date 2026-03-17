@@ -1483,109 +1483,112 @@ export default function AdminSourcingImportPage() {
               </div>
             ) : null}
             {platform === "alibaba" ? (
-              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Buyer Solution</h3>
-                <p className="text-xs text-slate-500">Appels bruts vers `/eco/buyer/item/add`, `/query`, `/update` et `/delete` avec signature côté backend.</p>
-              </div>
-              <label className="grid gap-1 text-sm">
-                <span className="text-slate-600">insertReq JSON</span>
-                <textarea value={buyerInsertReq} onChange={(e) => setBuyerInsertReq(e.target.value)} rows={5} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
-              </label>
-              <button type="button" onClick={() => setBuyerInsertReq(BUYER_ITEM_TEMPLATES.add)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
-                Recharger le modèle add
-              </button>
-              <button type="button" onClick={() => runBuyerAction("add")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {runningBuyerAction === "add" ? "Envoi..." : "Uploader le produit buyer solution"}
-              </button>
-              <label className="grid gap-1 text-sm">
-                <span className="text-slate-600">queryReq</span>
-                <textarea value={buyerQueryReq} onChange={(e) => setBuyerQueryReq(e.target.value)} rows={5} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
-              </label>
-              <button type="button" onClick={() => setBuyerQueryReq(BUYER_ITEM_TEMPLATES.query)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
-                Recharger le modèle query
-              </button>
-              <button type="button" onClick={() => runBuyerAction("query")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {runningBuyerAction === "query" ? "Lecture..." : "Lire les produits buyer solution"}
-              </button>
-              <label className="grid gap-1 text-sm">
-                <span className="text-slate-600">updateReq JSON</span>
-                <textarea value={buyerUpdateReq} onChange={(e) => setBuyerUpdateReq(e.target.value)} rows={5} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
-              </label>
-              <button type="button" onClick={() => setBuyerUpdateReq(BUYER_ITEM_TEMPLATES.update)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
-                Recharger le modèle update
-              </button>
-              <button type="button" onClick={() => runBuyerAction("update")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {runningBuyerAction === "update" ? "Mise à jour..." : "Mettre à jour le produit buyer solution"}
-              </button>
-              <label className="grid gap-1 text-sm">
-                <span className="text-slate-600">deleteReq JSON</span>
-                <textarea value={buyerDeleteReq} onChange={(e) => setBuyerDeleteReq(e.target.value)} rows={4} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
-              </label>
-              <button type="button" onClick={() => setBuyerDeleteReq(BUYER_ITEM_TEMPLATES.delete)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
-                Recharger le modèle delete
-              </button>
-              <button type="button" onClick={() => runBuyerAction("delete")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {runningBuyerAction === "delete" ? "Suppression..." : "Supprimer le produit buyer solution"}
-              </button>
-              {buyerItems.length ? (
-                <div className="grid gap-2">
-                  {buyerItems.map((item) => (
-                    <div key={`${item.item_id ?? "na"}-${item.isv_item_id ?? "na"}`} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left">
-                      <div className="text-sm font-medium text-slate-900">{item.title || "Produit"}</div>
-                      <div className="mt-1 text-xs text-slate-500">item_id: {item.item_id || "—"} · isv_item_id: {item.isv_item_id || "—"}</div>
-                      <div className="text-xs text-slate-500">{item.price || "—"} {item.currency || ""} · stock {item.available_quantity || "—"}</div>
+              <>
+                <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Buyer Solution</h3>
+                    <p className="text-xs text-slate-500">Appels bruts vers `/eco/buyer/item/add`, `/query`, `/update` et `/delete` avec signature côté backend.</p>
+                  </div>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">insertReq JSON</span>
+                    <textarea value={buyerInsertReq} onChange={(e) => setBuyerInsertReq(e.target.value)} rows={5} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                  </label>
+                  <button type="button" onClick={() => setBuyerInsertReq(BUYER_ITEM_TEMPLATES.add)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                    Recharger le modèle add
+                  </button>
+                  <button type="button" onClick={() => runBuyerAction("add")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    {runningBuyerAction === "add" ? "Envoi..." : "Uploader le produit buyer solution"}
+                  </button>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">queryReq</span>
+                    <textarea value={buyerQueryReq} onChange={(e) => setBuyerQueryReq(e.target.value)} rows={5} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                  </label>
+                  <button type="button" onClick={() => setBuyerQueryReq(BUYER_ITEM_TEMPLATES.query)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                    Recharger le modèle query
+                  </button>
+                  <button type="button" onClick={() => runBuyerAction("query")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    {runningBuyerAction === "query" ? "Lecture..." : "Lire les produits buyer solution"}
+                  </button>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">updateReq JSON</span>
+                    <textarea value={buyerUpdateReq} onChange={(e) => setBuyerUpdateReq(e.target.value)} rows={5} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                  </label>
+                  <button type="button" onClick={() => setBuyerUpdateReq(BUYER_ITEM_TEMPLATES.update)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                    Recharger le modèle update
+                  </button>
+                  <button type="button" onClick={() => runBuyerAction("update")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    {runningBuyerAction === "update" ? "Mise à jour..." : "Mettre à jour le produit buyer solution"}
+                  </button>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">deleteReq JSON</span>
+                    <textarea value={buyerDeleteReq} onChange={(e) => setBuyerDeleteReq(e.target.value)} rows={4} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                  </label>
+                  <button type="button" onClick={() => setBuyerDeleteReq(BUYER_ITEM_TEMPLATES.delete)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                    Recharger le modèle delete
+                  </button>
+                  <button type="button" onClick={() => runBuyerAction("delete")} disabled={runningBuyerAction !== null} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    {runningBuyerAction === "delete" ? "Suppression..." : "Supprimer le produit buyer solution"}
+                  </button>
+                  {buyerItems.length ? (
+                    <div className="grid gap-2">
+                      {buyerItems.map((item) => (
+                        <div key={`${item.item_id ?? "na"}-${item.isv_item_id ?? "na"}`} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left">
+                          <div className="text-sm font-medium text-slate-900">{item.title || "Produit"}</div>
+                          <div className="mt-1 text-xs text-slate-500">item_id: {item.item_id || "—"} · isv_item_id: {item.isv_item_id || "—"}</div>
+                          <div className="text-xs text-slate-500">{item.price || "—"} {item.currency || ""} · stock {item.available_quantity || "—"}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : null}
+                  {buyerRawResponse ? (
+                    <label className="grid gap-1 text-sm">
+                      <span className="text-slate-600">Réponse brute</span>
+                      <textarea value={buyerRawResponse} readOnly rows={10} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                    </label>
+                  ) : null}
                 </div>
-              ) : null}
-              {buyerRawResponse ? (
-                <label className="grid gap-1 text-sm">
-                  <span className="text-slate-600">Réponse brute</span>
-                  <textarea value={buyerRawResponse} readOnly rows={10} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
-                </label>
-              ) : null}
-              </div>
-              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Buyer Discovery & Channel</h3>
-                <p className="text-xs text-slate-500">Explorateur brut pour `eco/buyer/product/*`, `item/rec*`, listes local/crossborder et événements de canal.</p>
-              </div>
-              <label className="grid gap-1 text-sm">
-                <span className="text-slate-600">Opération</span>
-                <select value={buyerEcoOperation} onChange={(e) => setBuyerEcoOperation(e.target.value as BuyerEcoOperation)} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                  <option value="product-description">product-description</option>
-                  <option value="product-search">product-search</option>
-                  <option value="product-check">product-check</option>
-                  <option value="product-cert">product-cert</option>
-                  <option value="product-keyattributes">product-keyattributes</option>
-                  <option value="product-inventory">product-inventory</option>
-                  <option value="crossborder-check">crossborder-check</option>
-                  <option value="local-check">local-check</option>
-                  <option value="localregular-check">localregular-check</option>
-                  <option value="item-rec">item-rec</option>
-                  <option value="item-rec-image">item-rec-image</option>
-                  <option value="product-events">product-events</option>
-                  <option value="channel-batch-import">channel-batch-import</option>
-                </select>
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span className="text-slate-600">request_payload JSON</span>
-                <textarea value={buyerEcoPayload} onChange={(e) => setBuyerEcoPayload(e.target.value)} rows={8} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
-              </label>
-              <button type="button" onClick={() => setBuyerEcoPayload(BUYER_ECO_TEMPLATES[buyerEcoOperation])} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
-                Recharger le modèle de l’opération
-              </button>
-              <button type="button" onClick={runBuyerEcoOperation} disabled={runningBuyerEco} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {runningBuyerEco ? "Exécution..." : "Exécuter l’opération buyer eco"}
-              </button>
-              {buyerEcoRawResponse ? (
-                <label className="grid gap-1 text-sm">
-                  <span className="text-slate-600">Réponse brute</span>
-                  <textarea value={buyerEcoRawResponse} readOnly rows={12} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
-                </label>
-              ) : null}
-              </div>
+
+                <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Buyer Discovery & Channel</h3>
+                    <p className="text-xs text-slate-500">Explorateur brut pour `eco/buyer/product/*`, `item/rec*`, listes local/crossborder et événements de canal.</p>
+                  </div>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">Opération</span>
+                    <select value={buyerEcoOperation} onChange={(e) => setBuyerEcoOperation(e.target.value as BuyerEcoOperation)} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                      <option value="product-description">product-description</option>
+                      <option value="product-search">product-search</option>
+                      <option value="product-check">product-check</option>
+                      <option value="product-cert">product-cert</option>
+                      <option value="product-keyattributes">product-keyattributes</option>
+                      <option value="product-inventory">product-inventory</option>
+                      <option value="crossborder-check">crossborder-check</option>
+                      <option value="local-check">local-check</option>
+                      <option value="localregular-check">localregular-check</option>
+                      <option value="item-rec">item-rec</option>
+                      <option value="item-rec-image">item-rec-image</option>
+                      <option value="product-events">product-events</option>
+                      <option value="channel-batch-import">channel-batch-import</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">request_payload JSON</span>
+                    <textarea value={buyerEcoPayload} onChange={(e) => setBuyerEcoPayload(e.target.value)} rows={8} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                  </label>
+                  <button type="button" onClick={() => setBuyerEcoPayload(BUYER_ECO_TEMPLATES[buyerEcoOperation])} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                    Recharger le modèle de l’opération
+                  </button>
+                  <button type="button" onClick={runBuyerEcoOperation} disabled={runningBuyerEco} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    {runningBuyerEco ? "Exécution..." : "Exécuter l’opération buyer eco"}
+                  </button>
+                  {buyerEcoRawResponse ? (
+                    <label className="grid gap-1 text-sm">
+                      <span className="text-slate-600">Réponse brute</span>
+                      <textarea value={buyerEcoRawResponse} readOnly rows={12} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                    </label>
+                  ) : null}
+                </div>
+              </>
             ) : null}
             <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
