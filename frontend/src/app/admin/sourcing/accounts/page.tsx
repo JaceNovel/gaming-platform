@@ -46,6 +46,7 @@ export default function AdminSourcingAccountsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [editingAccountId, setEditingAccountId] = useState<number | null>(null);
 
   const [platform, setPlatform] = useState<"alibaba" | "aliexpress">("alibaba");
   const [label, setLabel] = useState("");
@@ -56,6 +57,19 @@ export default function AdminSourcingAccountsPage() {
   const [countryCode, setCountryCode] = useState("");
   const [currencyCode, setCurrencyCode] = useState("");
   const [isActive, setIsActive] = useState(true);
+
+  const resetForm = () => {
+    setEditingAccountId(null);
+    setPlatform("alibaba");
+    setLabel("");
+    setMemberId("");
+    setResourceOwner("");
+    setAppKey("");
+    setAppSecret("");
+    setCountryCode("");
+    setCurrencyCode("");
+    setIsActive(true);
+  };
 
   const loadAccounts = useCallback(async () => {
     setLoading(true);
@@ -97,8 +111,10 @@ export default function AdminSourcingAccountsPage() {
     setError("");
     setSuccess("");
     try {
-      const res = await fetch(`${API_BASE}/admin/sourcing/supplier-accounts`, {
-        method: "POST",
+      const isEditing = editingAccountId !== null;
+      const res = await fetch(`${API_BASE}/admin/sourcing/supplier-accounts${isEditing ? `/${editingAccountId}` : ""}`,
+      {
+        method: isEditing ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
@@ -120,19 +136,27 @@ export default function AdminSourcingAccountsPage() {
         const payload = await res.json().catch(() => null);
         throw new Error(payload?.message ?? "Création impossible");
       }
-      setLabel("");
-      setMemberId("");
-      setResourceOwner("");
-      setAppKey("");
-      setAppSecret("");
-      setCountryCode("");
-      setCurrencyCode("");
-      setIsActive(true);
-      setSuccess("Compte fournisseur ajouté.");
+      resetForm();
+      setSuccess(isEditing ? "Compte fournisseur mis à jour." : "Compte fournisseur ajouté.");
       await loadAccounts();
     } catch (err: any) {
-      setError(err?.message ?? "Création impossible");
+      setError(err?.message ?? (editingAccountId !== null ? "Mise à jour impossible" : "Création impossible"));
     }
+  };
+
+  const startEditing = (account: SupplierAccount) => {
+    setError("");
+    setSuccess("");
+    setEditingAccountId(account.id);
+    setPlatform(account.platform);
+    setLabel(account.label || "");
+    setMemberId(account.member_id || "");
+    setResourceOwner(account.resource_owner || "");
+    setAppKey(account.app_key || "");
+    setAppSecret("");
+    setCountryCode(account.country_code || "");
+    setCurrencyCode(account.currency_code || "");
+    setIsActive(Boolean(account.is_active));
   };
 
   const startOauth = async (accountId: number) => {
@@ -184,11 +208,18 @@ export default function AdminSourcingAccountsPage() {
     <AdminShell title="Sourcing" subtitle="Comptes fournisseurs Alibaba / AliExpress">
       <div className="grid gap-6 xl:grid-cols-[420px,1fr]">
         <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Ajouter un compte fournisseur</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-slate-900">{editingAccountId !== null ? "Modifier le compte fournisseur" : "Ajouter un compte fournisseur"}</h2>
+            {editingAccountId !== null ? (
+              <button type="button" onClick={resetForm} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                Annuler
+              </button>
+            ) : null}
+          </div>
           <div className="mt-4 grid gap-4">
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">Plateforme</span>
-              <select value={platform} onChange={(e) => setPlatform(e.target.value as any)} className="rounded-xl border border-slate-200 px-3 py-2">
+              <select value={platform} onChange={(e) => setPlatform(e.target.value as any)} className="rounded-xl border border-slate-200 px-3 py-2" disabled={editingAccountId !== null}>
                 <option value="alibaba">Alibaba</option>
                 <option value="aliexpress">AliExpress</option>
               </select>
@@ -212,6 +243,7 @@ export default function AdminSourcingAccountsPage() {
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">App Secret</span>
               <input type="password" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+              {editingAccountId !== null ? <span className="text-xs text-slate-500">Laisse vide pour conserver le secret actuel.</span> : null}
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="grid gap-1 text-sm">
@@ -228,7 +260,7 @@ export default function AdminSourcingAccountsPage() {
               Actif
             </label>
             <button type="submit" className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white">
-              Enregistrer
+              {editingAccountId !== null ? "Mettre à jour" : "Enregistrer"}
             </button>
             {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
             {success ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</div> : null}
@@ -289,6 +321,9 @@ export default function AdminSourcingAccountsPage() {
                     </td>
                     <td className="py-3 pr-4 align-top">
                       <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => startEditing(account)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700">
+                          Modifier
+                        </button>
                         <button type="button" onClick={() => startOauth(account.id)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700">
                           Connecter OAuth
                         </button>
