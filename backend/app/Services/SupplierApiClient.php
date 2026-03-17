@@ -416,7 +416,7 @@ class SupplierApiClient
         string $errorPrefix
     ): array {
         $config = $this->platformConfig($account->platform);
-        $baseUrl = rtrim((string) ($config['api_base_url'] ?? ''), '/');
+        $baseUrl = $this->normalizeGopBaseUrl((string) ($config['api_base_url'] ?? ''));
         if ($baseUrl === '') {
             throw new \RuntimeException('Base URL API non configurée pour ' . $account->platform);
         }
@@ -436,7 +436,7 @@ class SupplierApiClient
         };
 
         if (!$response->successful()) {
-            throw new \RuntimeException($errorPrefix . ' échoué (HTTP ' . $response->status() . '): ' . $response->body());
+            throw new \RuntimeException($errorPrefix . ' échoué (HTTP ' . $response->status() . ', url ' . $requestUrl . '): ' . $response->body());
         }
 
         $payload = $this->decodeResponseBody($response->body());
@@ -500,6 +500,27 @@ class SupplierApiClient
         $commonParams['sign'] = strtoupper(hash_hmac($signMethod, $payload, $appSecret));
 
         return rtrim($baseUrl, '/') . '/rest' . $methodName . '?' . Arr::query($commonParams);
+    }
+
+    private function normalizeGopBaseUrl(string $baseUrl): string
+    {
+        $trimmed = rtrim(trim($baseUrl), '/');
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $host = (string) (parse_url($trimmed, PHP_URL_HOST) ?? '');
+        $path = (string) (parse_url($trimmed, PHP_URL_PATH) ?? '');
+
+        if (in_array($host, ['openapi.alibaba.com', 'api.alibaba.com', 'openapi-auth.alibaba.com'], true)) {
+            return 'https://openapi-api.alibaba.com';
+        }
+
+        if ($host === 'openapi-api.alibaba.com' && ($path === '' || $path === '/rest')) {
+            return 'https://openapi-api.alibaba.com';
+        }
+
+        return $trimmed;
     }
 
     private function decodeResponseBody(string $body): array
