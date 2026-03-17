@@ -223,6 +223,7 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     Route::get('/wallet/payouts', [WalletController::class, 'payouts']);
     Route::get('/wallet/recipient', [WalletController::class, 'resolveRecipient']);
     Route::post('/wallet/transfer', [WalletController::class, 'transfer']);
+    Route::post('/wallet/topup', [WalletController::class, 'topup']);
 
     // Sensitive actions (Play Integrity required)
     Route::middleware('playIntegrity')->group(function () {
@@ -361,6 +362,14 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         ->middleware('permission:orders.manage');
     Route::post('/orders/{order}/supplier/aliexpress/print-waybill', [AdminOrderController::class, 'aliExpressPrintWaybill'])
         ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/invoice/query-request', [AdminOrderController::class, 'aliExpressQueryInvoiceRequest'])
+        ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/invoice/upload-brazil', [AdminOrderController::class, 'aliExpressUploadBrazilInvoice'])
+        ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/invoice/push-result', [AdminOrderController::class, 'aliExpressPushInvoiceResult'])
+        ->middleware('permission:orders.manage');
+    Route::get('/orders/{order}/supplier/aliexpress/invoice/document', [AdminOrderController::class, 'downloadAliExpressInvoiceDocument'])
+        ->middleware('permission:orders.view');
 
     // Gaming Account Marketplace (DM Partner / Sellers)
     Route::get('/marketplace/sellers', [AdminMarketplaceSellerController::class, 'index'])

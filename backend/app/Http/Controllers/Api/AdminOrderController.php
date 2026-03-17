@@ -121,6 +121,7 @@ class AdminOrderController extends Controller
                 'external_order_id' => 'nullable|string|max:255',
                 'seller_id' => 'nullable|string|max:255',
                 'locale' => 'nullable|string|max:16',
+                'invoice_customer_id' => 'nullable|string|max:255',
                 'shipping_mode' => 'nullable|string|in:dbs,platform_logistics,local2local,local2local_self_pickup,local2local_offline',
                 'shipping_provider_code' => 'nullable|string|max:255',
                 'shipping_provider_name' => 'nullable|string|max:255',
@@ -227,6 +228,105 @@ class AdminOrderController extends Controller
                 'message' => $exception->getMessage(),
             ], 422);
         }
+    }
+
+    public function aliExpressQueryInvoiceRequest(Request $request, Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $data = $request->validate([
+                'customer_id' => 'nullable|string|max:255',
+            ]);
+
+            $result = $service->queryInvoiceRequest($order, $data['customer_id'] ?? null);
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            $service->recordInvoiceFailure($order, 'query', $exception, [
+                'customer_id' => $request->input('customer_id'),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function aliExpressUploadBrazilInvoice(Request $request, Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $data = $request->validate([
+                'file_name' => 'required|string|max:255',
+                'file_content_base64' => 'required|string',
+                'source' => 'nullable|string|max:16',
+            ]);
+
+            $result = $service->uploadBrazilInvoice(
+                $order,
+                (string) $data['file_name'],
+                (string) $data['file_content_base64'],
+                (string) ($data['source'] ?? 'ISV')
+            );
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            $service->recordInvoiceFailure($order, 'upload', $exception, [
+                'file_name' => $request->input('file_name'),
+                'source' => $request->input('source'),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function aliExpressPushInvoiceResult(Request $request, Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $data = $request->validate([
+                'customer_id' => 'nullable|string|max:255',
+                'invoice_no' => 'required|string|max:255',
+                'request_no' => 'nullable|string|max:255',
+                'invoice_date' => 'nullable|integer|min:1',
+                'invoice_file_type' => 'required|string|in:pdf,png',
+                'invoice_direction' => 'required|string|in:BLUE,RED',
+                'invoice_name' => 'nullable|string|max:255',
+                'invoice_content_base64' => 'required|string',
+            ]);
+
+            $result = $service->pushInvoiceResult($order, $data);
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            $service->recordInvoiceFailure($order, 'push', $exception, [
+                'invoice_no' => $request->input('invoice_no'),
+                'request_no' => $request->input('request_no'),
+                'invoice_file_type' => $request->input('invoice_file_type'),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function downloadAliExpressInvoiceDocument(Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        $path = $service->downloadInvoiceDocument($order);
+        if (!$path || !Storage::disk('public')->exists($path)) {
+            abort(404, 'Document de facture introuvable.');
+        }
+
+        return Storage::disk('public')->download($path, basename($path));
     }
 
     public function updateStatus(Request $request, Order $order)

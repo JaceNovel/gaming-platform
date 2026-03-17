@@ -434,6 +434,7 @@ class SupplierApiClient
             throw new \RuntimeException('App Key / App Secret manquants pour les appels TOP.');
         }
 
+        $fileParams = $this->normalizeTopFileParams(Arr::pull($params, '__file_params', []));
         $businessParams = $this->normalizeIopParams($params);
         $signMethod = strtolower((string) ($config['sign_method'] ?? 'sha256')) === 'md5'
             ? 'md5'
@@ -462,7 +463,7 @@ class SupplierApiClient
 
         $response = match ($verb) {
             'GET' => $request->get($url, array_merge($commonParams, $businessParams)),
-            default => $request->asForm()->post($url . '?' . Arr::query($commonParams), $businessParams),
+            default => $this->sendTopPostRequest($request, $url, $commonParams, $businessParams, $fileParams),
         };
 
         if (!$response->successful()) {
@@ -921,7 +922,50 @@ class SupplierApiClient
                 'result' => data_get($response, 'resp_result.result', []),
                 'raw' => $response,
             ],
+            'ae-invoice-request-query', 'ae-invoice-result-push', 'ae-fund-recipet-flowdetail-query', 'ae-freight-seller-intention-query', 'ae-freight-isv-gray-query' => [
+                'data' => $response['data'] ?? null,
+                'success' => $response['succeeded'] ?? $response['success'] ?? null,
+                'errorCode' => $response['errorCode'] ?? $response['error_code'] ?? null,
+                'errorMessage' => $response['errorMsg'] ?? $response['error'] ?? null,
+                'raw' => $response,
+            ],
+            'ae-fund-merchant-orderdetail', 'ae-brazil-invoice-query', 'ae-hscode-regulatory-attributes-query', 'ae-hscode-regulatory-attributes-options', 'ae-customize-product-info-query', 'ae-customize-product-template-query', 'ae-customize-product-info-audit-result-query', 'ae-customize-product-info-create', 'ae-category-child-attributes-query', 'ae-category-tree-list', 'ae-category-item-qualification-list', 'ae-category-cascade-properties-query', 'ae-solution-sku-attribute-query', 'ae-seller-category-tree-query', 'ae-category-qualifications-list', 'ae-freight-template-recommend', 'ae-freight-template-create', 'ae-solution-order-receiptinfo-get', 'ae-solution-order-get', 'ae-asf-local-supply-platform-logistics-document-query', 'ae-asf-local-supply-platform-logistics-rts', 'ae-asf-local-supply-platform-logistics-repack', 'ae-asf-local-supply-seller-address-get' => [
+                'result' => $response['result'] ?? null,
+                'raw' => $response,
+            ],
+            'ae-brazil-invoice-upload', 'ae-fund-recipet-config-query', 'ae-fund-recipet-debt-query', 'ae-freight-template-list' => [
+                'result' => $response['result'] ?? null,
+                'data' => $response['data'] ?? null,
+                'success' => $response['success'] ?? null,
+                'raw' => $response,
+            ],
+            'ae-local-cb-product-prices-edit', 'ae-local-cb-product-status-update', 'ae-local-cb-product-edit', 'ae-local-cb-products-list', 'ae-local-cb-product-post', 'ae-local-cb-products-stock-edit', 'ae-local-cb-product-query' => [
+                'success' => $response['success'] ?? data_get($response, 'result.is_success') ?? null,
+                'error_code' => $response['error_code'] ?? data_get($response, 'result.error_code') ?? null,
+                'error_message' => $response['error_message'] ?? data_get($response, 'result.error_message') ?? null,
+                'data' => $response['local_cb_product_dto'] ?? $response['product_list'] ?? $response['product_id'] ?? $response['result'] ?? null,
+                'raw' => $response,
+            ],
+            'ae-trade-order-decrypt' => [
+                'result_code' => $response['result_code'] ?? null,
+                'result_info' => $response['result_info'] ?? null,
+                'result_obj' => $response['result_obj'] ?? null,
+                'raw' => $response,
+            ],
+            'ae-trade-verifycode', 'ae-trade-confirmshippingmode', 'ae-trade-sendcode' => [
+                'success' => $response['is_success'] ?? null,
+                'error_code' => $response['error_code'] ?? null,
+                'message' => $response['memo'] ?? null,
+                'raw' => $response,
+            ],
             'ae-asf-local2local-sub-declareship', 'ae-asf-local2local-self-pickup-declareship', 'ae-asf-local2local-split-quantity-rts-pack', 'ae-asf-local2local-transfer-to-offline' => [
+                'success' => $response['success'] ?? null,
+                'errorCode' => $response['errorCode'] ?? null,
+                'errorMessage' => $response['errorMessage'] ?? null,
+                'data' => $response['data'] ?? null,
+                'raw' => $response,
+            ],
+            'ae-asf-local-supply-shipping-service-get', 'ae-asf-local-supply-batch-declareship', 'ae-asf-local-supply-declareship-modify', 'ae-asf-local-supply-sub-declareship', 'ae-asf-local-supply-split-quantity-rts-pack' => [
                 'success' => $response['success'] ?? null,
                 'errorCode' => $response['errorCode'] ?? null,
                 'errorMessage' => $response['errorMessage'] ?? null,
@@ -979,6 +1023,60 @@ class SupplierApiClient
         }
 
         return $normalized;
+    }
+
+    private function normalizeTopFileParams(mixed $fileParams): array
+    {
+        if (!is_array($fileParams)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($fileParams as $paramName => $definition) {
+            if (!is_string($paramName) || $paramName === '' || !is_array($definition)) {
+                continue;
+            }
+
+            $contentBase64 = $definition['content_base64'] ?? $definition['base64'] ?? null;
+            if (!is_string($contentBase64) || $contentBase64 === '') {
+                continue;
+            }
+
+            $binary = base64_decode($contentBase64, true);
+            if ($binary === false) {
+                throw new \RuntimeException('Le fichier fourni pour ' . $paramName . ' doit etre un base64 valide.');
+            }
+
+            $fileName = (string) ($definition['file_name'] ?? $definition['filename'] ?? $paramName);
+            $normalized[] = [
+                'name' => $paramName,
+                'contents' => $binary,
+                'filename' => $fileName,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function sendTopPostRequest(
+        PendingRequest $request,
+        string $url,
+        array $commonParams,
+        array $businessParams,
+        array $fileParams
+    ) {
+        $targetUrl = $url . '?' . Arr::query($commonParams);
+
+        if ($fileParams === []) {
+            return $request->asForm()->post($targetUrl, $businessParams);
+        }
+
+        foreach ($fileParams as $fileParam) {
+            $request = $request->attach($fileParam['name'], $fileParam['contents'], $fileParam['filename']);
+        }
+
+        return $request->post($targetUrl, $businessParams);
     }
 
     private function signEcoRequest(string $methodName, array $params, string $secret, string $signMethod): string
@@ -1042,6 +1140,45 @@ class SupplierApiClient
             'ae-affiliate-hotproduct-query' => ['config_key' => 'affiliate_hotproduct_query_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-affiliate-hotproduct-download' => ['config_key' => 'affiliate_hotproduct_download_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-affiliate-product-smartmatch' => ['config_key' => 'affiliate_product_smartmatch_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-invoice-request-query' => ['config_key' => 'seller_invoicing_apply_info_get_method', 'http_method' => 'POST', 'param_key' => 'param0'],
+            'ae-fund-merchant-orderdetail' => ['config_key' => 'fund_merchant_orderdetail_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-brazil-invoice-query' => ['config_key' => 'brazil_invoice_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-brazil-invoice-upload' => ['config_key' => 'brazil_invoice_upload_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-invoice-result-push' => ['config_key' => 'seller_invoicing_result_push_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-hscode-regulatory-attributes-query' => ['config_key' => 'hscode_query_regulatory_attributes_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-hscode-regulatory-attributes-options' => ['config_key' => 'hscode_select_regulatory_attributes_options_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-fund-recipet-flowdetail-query' => ['config_key' => 'fund_recipet_flowdetail_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-fund-recipet-config-query' => ['config_key' => 'fund_recipet_config_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-fund-recipet-debt-query' => ['config_key' => 'fund_recipet_debt_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-customize-product-info-query' => ['config_key' => 'customize_product_info_query_method', 'http_method' => 'GET', 'param_key' => 'param0'],
+            'ae-customize-product-template-query' => ['config_key' => 'customize_product_template_query_method', 'http_method' => 'GET', 'param_key' => 'param0'],
+            'ae-customize-product-info-audit-result-query' => ['config_key' => 'customize_product_info_audit_result_query_method', 'http_method' => 'GET', 'param_key' => 'param0'],
+            'ae-customize-product-info-create' => ['config_key' => 'customize_product_info_create_method', 'http_method' => 'POST', 'param_key' => 'param0'],
+            'ae-local-cb-product-prices-edit' => ['config_key' => 'local_cb_product_prices_edit_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-cb-product-status-update' => ['config_key' => 'local_cb_product_status_update_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-cb-product-edit' => ['config_key' => 'local_cb_product_edit_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-cb-products-list' => ['config_key' => 'local_cb_products_list_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-cb-product-post' => ['config_key' => 'local_cb_product_post_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-cb-products-stock-edit' => ['config_key' => 'local_cb_products_stock_edit_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-cb-product-query' => ['config_key' => 'local_cb_product_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-category-child-attributes-query' => ['config_key' => 'category_child_attributes_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-category-tree-list' => ['config_key' => 'category_tree_list_method', 'http_method' => 'GET', 'param_key' => null],
+            'ae-category-item-qualification-list' => ['config_key' => 'category_item_qualification_list_method', 'http_method' => 'GET', 'param_key' => null],
+            'ae-category-cascade-properties-query' => ['config_key' => 'category_cascade_properties_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-solution-sku-attribute-query' => ['config_key' => 'solution_sku_attribute_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-seller-category-tree-query' => ['config_key' => 'seller_category_tree_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-category-qualifications-list' => ['config_key' => 'category_qualifications_list_method', 'http_method' => 'GET', 'param_key' => null],
+            'ae-freight-seller-intention-query' => ['config_key' => 'freight_seller_intention_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-freight-isv-gray-query' => ['config_key' => 'freight_isv_gray_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-freight-template-recommend' => ['config_key' => 'freight_template_recommend_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-freight-template-create' => ['config_key' => 'freight_template_create_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-freight-template-list' => ['config_key' => 'freight_template_list_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-trade-order-decrypt' => ['config_key' => 'trade_order_decrypt_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-solution-order-receiptinfo-get' => ['config_key' => 'solution_order_receiptinfo_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-solution-order-get' => ['config_key' => 'solution_order_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-trade-verifycode' => ['config_key' => 'trade_verifycode_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-trade-confirmshippingmode' => ['config_key' => 'trade_confirmshippingmode_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-trade-sendcode' => ['config_key' => 'trade_sendcode_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-asf-local2local-sub-declareship' => ['config_key' => 'asf_local2local_sub_declareship_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-asf-dbs-declareship' => ['config_key' => 'asf_dbs_declareship_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-asf-local2local-self-pickup-declareship' => ['config_key' => 'asf_local2local_self_pickup_declareship_method', 'http_method' => 'POST', 'param_key' => null],
@@ -1058,6 +1195,15 @@ class SupplierApiClient
             'ae-asf-local-unreachable-preference-update' => ['config_key' => 'asf_local_unreachable_preference_update_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-asf-local2local-transfer-to-offline' => ['config_key' => 'asf_local2local_transfer_to_offline_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-asf-fulfillment-package-query' => ['config_key' => 'asf_fulfillment_package_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-supply-shipping-service-get' => ['config_key' => 'asf_local_supply_shipping_service_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-supply-batch-declareship' => ['config_key' => 'asf_local_supply_batch_declareship_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-supply-declareship-modify' => ['config_key' => 'asf_local_supply_declareship_modify_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-supply-sub-declareship' => ['config_key' => 'asf_local_supply_sub_declareship_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-supply-split-quantity-rts-pack' => ['config_key' => 'asf_local_supply_split_quantity_rts_pack_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-supply-platform-logistics-document-query' => ['config_key' => 'asf_local_supply_platform_logistics_document_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-supply-platform-logistics-rts' => ['config_key' => 'asf_local_supply_platform_logistics_rts_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-supply-platform-logistics-repack' => ['config_key' => 'asf_local_supply_platform_logistics_repack_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-supply-seller-address-get' => ['config_key' => 'asf_local_supply_seller_address_get_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-local-service-product-stocks-update' => ['config_key' => 'local_service_product_stocks_update_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-local-service-product-stocks-query' => ['config_key' => 'local_service_product_stocks_query_method', 'http_method' => 'POST', 'param_key' => null],
             'ae-local-service-products-list' => ['config_key' => 'local_service_products_list_method', 'http_method' => 'POST', 'param_key' => null],

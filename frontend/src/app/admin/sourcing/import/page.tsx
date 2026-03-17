@@ -111,6 +111,45 @@ type IopOperation =
   | "ae-affiliate-hotproduct-query"
   | "ae-affiliate-hotproduct-download"
   | "ae-affiliate-product-smartmatch"
+  | "ae-invoice-request-query"
+  | "ae-fund-merchant-orderdetail"
+  | "ae-brazil-invoice-query"
+  | "ae-brazil-invoice-upload"
+  | "ae-invoice-result-push"
+  | "ae-hscode-regulatory-attributes-query"
+  | "ae-hscode-regulatory-attributes-options"
+  | "ae-fund-recipet-flowdetail-query"
+  | "ae-fund-recipet-config-query"
+  | "ae-fund-recipet-debt-query"
+  | "ae-customize-product-info-query"
+  | "ae-customize-product-template-query"
+  | "ae-customize-product-info-audit-result-query"
+  | "ae-customize-product-info-create"
+  | "ae-local-cb-product-prices-edit"
+  | "ae-local-cb-product-status-update"
+  | "ae-local-cb-product-edit"
+  | "ae-local-cb-products-list"
+  | "ae-local-cb-product-post"
+  | "ae-local-cb-products-stock-edit"
+  | "ae-local-cb-product-query"
+  | "ae-category-child-attributes-query"
+  | "ae-category-tree-list"
+  | "ae-category-item-qualification-list"
+  | "ae-category-cascade-properties-query"
+  | "ae-solution-sku-attribute-query"
+  | "ae-seller-category-tree-query"
+  | "ae-category-qualifications-list"
+  | "ae-freight-seller-intention-query"
+  | "ae-freight-isv-gray-query"
+  | "ae-freight-template-recommend"
+  | "ae-freight-template-create"
+  | "ae-freight-template-list"
+  | "ae-trade-order-decrypt"
+  | "ae-solution-order-receiptinfo-get"
+  | "ae-solution-order-get"
+  | "ae-trade-verifycode"
+  | "ae-trade-confirmshippingmode"
+  | "ae-trade-sendcode"
   | "ae-asf-local2local-sub-declareship"
   | "ae-asf-dbs-declareship"
   | "ae-asf-local2local-self-pickup-declareship"
@@ -127,6 +166,15 @@ type IopOperation =
   | "ae-asf-local-unreachable-preference-update"
   | "ae-asf-local2local-transfer-to-offline"
   | "ae-asf-fulfillment-package-query"
+  | "ae-asf-local-supply-shipping-service-get"
+  | "ae-asf-local-supply-batch-declareship"
+  | "ae-asf-local-supply-declareship-modify"
+  | "ae-asf-local-supply-sub-declareship"
+  | "ae-asf-local-supply-split-quantity-rts-pack"
+  | "ae-asf-local-supply-platform-logistics-document-query"
+  | "ae-asf-local-supply-platform-logistics-rts"
+  | "ae-asf-local-supply-platform-logistics-repack"
+  | "ae-asf-local-supply-seller-address-get"
   | "ae-local-service-product-stocks-update"
   | "ae-local-service-product-stocks-query"
   | "ae-local-service-products-list"
@@ -167,6 +215,45 @@ const ALIEXPRESS_IOP_OPERATIONS: IopOperation[] = [
   "ae-affiliate-hotproduct-query",
   "ae-affiliate-hotproduct-download",
   "ae-affiliate-product-smartmatch",
+  "ae-invoice-request-query",
+  "ae-fund-merchant-orderdetail",
+  "ae-brazil-invoice-query",
+  "ae-brazil-invoice-upload",
+  "ae-invoice-result-push",
+  "ae-hscode-regulatory-attributes-query",
+  "ae-hscode-regulatory-attributes-options",
+  "ae-fund-recipet-flowdetail-query",
+  "ae-fund-recipet-config-query",
+  "ae-fund-recipet-debt-query",
+  "ae-customize-product-info-query",
+  "ae-customize-product-template-query",
+  "ae-customize-product-info-audit-result-query",
+  "ae-customize-product-info-create",
+  "ae-local-cb-product-prices-edit",
+  "ae-local-cb-product-status-update",
+  "ae-local-cb-product-edit",
+  "ae-local-cb-products-list",
+  "ae-local-cb-product-post",
+  "ae-local-cb-products-stock-edit",
+  "ae-local-cb-product-query",
+  "ae-category-child-attributes-query",
+  "ae-category-tree-list",
+  "ae-category-item-qualification-list",
+  "ae-category-cascade-properties-query",
+  "ae-solution-sku-attribute-query",
+  "ae-seller-category-tree-query",
+  "ae-category-qualifications-list",
+  "ae-freight-seller-intention-query",
+  "ae-freight-isv-gray-query",
+  "ae-freight-template-recommend",
+  "ae-freight-template-create",
+  "ae-freight-template-list",
+  "ae-trade-order-decrypt",
+  "ae-solution-order-receiptinfo-get",
+  "ae-solution-order-get",
+  "ae-trade-verifycode",
+  "ae-trade-confirmshippingmode",
+  "ae-trade-sendcode",
   "ae-asf-local2local-sub-declareship",
   "ae-asf-dbs-declareship",
   "ae-asf-local2local-self-pickup-declareship",
@@ -183,6 +270,15 @@ const ALIEXPRESS_IOP_OPERATIONS: IopOperation[] = [
   "ae-asf-local-unreachable-preference-update",
   "ae-asf-local2local-transfer-to-offline",
   "ae-asf-fulfillment-package-query",
+  "ae-asf-local-supply-shipping-service-get",
+  "ae-asf-local-supply-batch-declareship",
+  "ae-asf-local-supply-declareship-modify",
+  "ae-asf-local-supply-sub-declareship",
+  "ae-asf-local-supply-split-quantity-rts-pack",
+  "ae-asf-local-supply-platform-logistics-document-query",
+  "ae-asf-local-supply-platform-logistics-rts",
+  "ae-asf-local-supply-platform-logistics-repack",
+  "ae-asf-local-supply-seller-address-get",
   "ae-local-service-product-stocks-update",
   "ae-local-service-product-stocks-query",
   "ae-local-service-products-list",
@@ -191,6 +287,133 @@ const ALIEXPRESS_IOP_OPERATIONS: IopOperation[] = [
   "ae-local-service-product-edit",
   "ae-local-service-product-query",
   "ae-local-service-product-status-update",
+];
+
+const ALIEXPRESS_IOP_OPERATION_GROUPS: Array<{ label: string; operations: IopOperation[] }> = [
+  {
+    label: "Affiliate",
+    operations: [
+      "ae-affiliate-product-shipping",
+      "ae-affiliate-sku-detail",
+      "ae-affiliate-product-detail",
+      "ae-affiliate-product-query",
+      "ae-affiliate-category-get",
+      "ae-affiliate-link-generate",
+      "ae-affiliate-order-get",
+      "ae-affiliate-order-list",
+      "ae-affiliate-order-listbyindex",
+      "ae-affiliate-hotproduct-query",
+      "ae-affiliate-hotproduct-download",
+      "ae-affiliate-product-smartmatch",
+    ],
+  },
+  {
+    label: "Invoice & Tax",
+    operations: [
+      "ae-invoice-request-query",
+      "ae-brazil-invoice-query",
+      "ae-brazil-invoice-upload",
+      "ae-invoice-result-push",
+      "ae-hscode-regulatory-attributes-query",
+      "ae-hscode-regulatory-attributes-options",
+    ],
+  },
+  {
+    label: "Funds & Freight",
+    operations: [
+      "ae-fund-merchant-orderdetail",
+      "ae-fund-recipet-flowdetail-query",
+      "ae-fund-recipet-config-query",
+      "ae-fund-recipet-debt-query",
+      "ae-freight-seller-intention-query",
+      "ae-freight-isv-gray-query",
+      "ae-freight-template-recommend",
+      "ae-freight-template-create",
+      "ae-freight-template-list",
+    ],
+  },
+  {
+    label: "Orders & Trade",
+    operations: [
+      "ae-trade-order-decrypt",
+      "ae-solution-order-receiptinfo-get",
+      "ae-solution-order-get",
+      "ae-trade-verifycode",
+      "ae-trade-confirmshippingmode",
+      "ae-trade-sendcode",
+    ],
+  },
+  {
+    label: "Customize & Category",
+    operations: [
+      "ae-customize-product-info-query",
+      "ae-customize-product-template-query",
+      "ae-customize-product-info-audit-result-query",
+      "ae-customize-product-info-create",
+      "ae-category-child-attributes-query",
+      "ae-category-tree-list",
+      "ae-category-item-qualification-list",
+      "ae-category-cascade-properties-query",
+      "ae-solution-sku-attribute-query",
+      "ae-seller-category-tree-query",
+      "ae-category-qualifications-list",
+    ],
+  },
+  {
+    label: "ASF Local Supply",
+    operations: [
+      "ae-asf-local-supply-shipping-service-get",
+      "ae-asf-local-supply-batch-declareship",
+      "ae-asf-local-supply-declareship-modify",
+      "ae-asf-local-supply-sub-declareship",
+      "ae-asf-local-supply-split-quantity-rts-pack",
+      "ae-asf-local-supply-platform-logistics-document-query",
+      "ae-asf-local-supply-platform-logistics-rts",
+      "ae-asf-local-supply-platform-logistics-repack",
+      "ae-asf-local-supply-seller-address-get",
+    ],
+  },
+  {
+    label: "ASF Logistics",
+    operations: [
+      "ae-asf-local2local-sub-declareship",
+      "ae-asf-dbs-declareship",
+      "ae-asf-local2local-self-pickup-declareship",
+      "ae-asf-dbs-declare-ship-modify",
+      "ae-asf-shipment-pack",
+      "ae-asf-order-shipping-service-get",
+      "ae-asf-package-shipping-service-get",
+      "ae-asf-local2local-split-quantity-rts-pack",
+      "ae-asf-platform-logistics-document-query",
+      "ae-asf-platform-logistics-rts",
+      "ae-asf-platform-logistics-repack",
+      "ae-asf-local-unreachable-preference-query",
+      "ae-asf-seller-address-get",
+      "ae-asf-local-unreachable-preference-update",
+      "ae-asf-local2local-transfer-to-offline",
+      "ae-asf-fulfillment-package-query",
+    ],
+  },
+  {
+    label: "Local Service & Crossborder",
+    operations: [
+      "ae-local-cb-product-prices-edit",
+      "ae-local-cb-product-status-update",
+      "ae-local-cb-product-edit",
+      "ae-local-cb-products-list",
+      "ae-local-cb-product-post",
+      "ae-local-cb-products-stock-edit",
+      "ae-local-cb-product-query",
+      "ae-local-service-product-stocks-update",
+      "ae-local-service-product-stocks-query",
+      "ae-local-service-products-list",
+      "ae-local-service-product-prices-edit",
+      "ae-local-service-product-post",
+      "ae-local-service-product-edit",
+      "ae-local-service-product-query",
+      "ae-local-service-product-status-update",
+    ],
+  },
 ];
 
 const stringifyTemplate = (value: unknown) => JSON.stringify(value, null, 2);
@@ -487,6 +710,367 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     target_language: "FR",
     tracking_id: "primegaming",
   }),
+  "ae-invoice-request-query": stringifyTemplate({
+    param0: {
+      orderId: "8197713881212202",
+      customerId: "us1001278184lzaae",
+    },
+  }),
+  "ae-fund-merchant-orderdetail": stringifyTemplate({
+    orderId: "1108202950093697",
+    pageSize: 20,
+    currentPage: 1,
+    timeSelect: {
+      statType: "payTime",
+      startTimestamp: "172900000000",
+      endTimestamp: "172900000000",
+    },
+    settleStatus: "completed",
+    additionalParameter: {
+      orderType: "POP",
+      sellingRegion: "AEG",
+    },
+  }),
+  "ae-brazil-invoice-query": stringifyTemplate({
+    trade_order_id_list: ["1118013810220"],
+    source: "ISV",
+  }),
+  "ae-brazil-invoice-upload": stringifyTemplate({
+    originalFileName: "invoice.xml",
+    source: "ISV",
+    orderId: 1118013810156440,
+    __file_params: {
+      invoiceData: {
+        file_name: "invoice.xml",
+        content_base64: "PHhtbD48aW52b2ljZT48L2ludm9pY2U+PC94bWw+",
+      },
+    },
+  }),
+  "ae-invoice-result-push": stringifyTemplate({
+    invoiceStatus: "GENERATED_SUCCESS",
+    invoiceDate: 1737374768053,
+    invoiceNo: "INV-2026-0001",
+    requestNo: "req-2026-0001",
+    invoiceFileType: "pdf",
+    invoiceDirection: "BLUE",
+    invoiceName: "invoice.pdf",
+    orderId: "15235236246",
+    customerId: "isRich235",
+    __file_params: {
+      invoiceData: {
+        file_name: "invoice.pdf",
+        content_base64: "JVBERi0xLjQKJcTl8uXr",
+      },
+    },
+  }),
+  "ae-hscode-regulatory-attributes-query": stringifyTemplate({
+    image_url: "https://ae-pic-a1.aliexpress-media.com/kf/example.jpg",
+    tax_type: "DUTY",
+    hs_code: "2101112126",
+    language: "zh_CN",
+    source: "ISV",
+    title: "jx test cn and not cn",
+    extend_info: { title_non_english: false },
+    scene: "new_product",
+    item_id: "1005008551953038",
+    category_list_json: JSON.stringify([
+      { categoryId: 21, categoryName: "Office & School Supplies", isLeaf: false },
+      { categoryId: 100003155, categoryName: "Notebooks & Writing Pads", isLeaf: false },
+      { categoryId: 200001789, categoryName: "Planners", isLeaf: true },
+    ]),
+    seller_id: 200042360,
+    element_map: {
+      "Brand Name": "NoEnName_Null",
+      Origin: "Mainland China",
+    },
+  }),
+  "ae-hscode-regulatory-attributes-options": stringifyTemplate({
+    language: "zh_CN",
+    source: "ISV",
+    title: "9-36V24V12V to 12V13.8V15V19V24V28V voltage regulator module",
+    extend_info: { title_non_english: false },
+    scene: "new_product",
+    item_id: "1005008819315485",
+    seller_id: 200042360,
+    image_url: "https://ae01.alicdn.com/kf/example.jpg",
+    tax_type: "DUTY",
+    category_list_json: JSON.stringify([
+      { categoryId: 21, categoryName: "Office & School Supplies", isLeaf: false },
+      { categoryId: 200001789, categoryName: "Planners", isLeaf: true },
+    ]),
+    selected_property_value_list_json: JSON.stringify([
+      {
+        valueId: "3188",
+        valueName: "Notebooks, Memo Pads",
+        propertyName: "Product name",
+        propertyId: "731",
+      },
+    ]),
+    element_map: {
+      "Brand Name": "SZDULI",
+      Origin: "Mainland China",
+    },
+  }),
+  "ae-fund-recipet-flowdetail-query": stringifyTemplate({
+    orderId: "123",
+    pageSize: 20,
+    receiptFlowTypes: [],
+    pageNo: 1,
+    currency: "USD",
+    startTimestamp: 1680862820049,
+    endTimestamp: 1685862820059,
+  }),
+  "ae-fund-recipet-config-query": stringifyTemplate({}),
+  "ae-fund-recipet-debt-query": stringifyTemplate({}),
+  "ae-customize-product-info-query": stringifyTemplate({
+    param0: {
+      locale: "en_US",
+      customize_info_id: "123",
+    },
+  }),
+  "ae-customize-product-template-query": stringifyTemplate({
+    param0: {
+      item_id: "123",
+      sku_id: "123",
+      locale: "en_US",
+    },
+  }),
+  "ae-customize-product-info-audit-result-query": stringifyTemplate({
+    param0: {
+      customize_info_id: "123",
+    },
+  }),
+  "ae-customize-product-info-create": stringifyTemplate({
+    param0: {
+      locale: "en_US",
+      customize_template: {
+        item_id: "123",
+        sku_id: "123",
+        customize_template_id: "1234",
+        pic_url: "https://example.com/template.jpeg",
+        pic_width: "600",
+        pic_height: "600",
+        customize_template_items: [
+          {
+            type: "image",
+            title: "image 1",
+            max_size: "3072",
+            order: "1",
+            limit_rect_f: {
+              container_height: "600",
+              top: "186",
+              left: "165",
+              width: "185",
+              container_width: "600",
+              height: "185",
+            },
+          },
+        ],
+      },
+      customize_info: {
+        customize_pic_url: "https://example.com/result.png",
+        snapshot_customize_template_id: "123",
+        customize_info_id: "12345",
+        customize_info_items: [
+          {
+            type: "text",
+            order: "1",
+            content_value: "hello",
+            lint_text: "Please upload a JPEG or PNG file up to 3 MB.",
+            content_sniping_url: "https://example.com/sniping.png",
+            content_rect_f: {
+              container_height: "600",
+              top: "0",
+              left: "47",
+              width: "87",
+              container_width: "600",
+              height: "185",
+            },
+          },
+        ],
+      },
+    },
+  }),
+  "ae-local-cb-product-prices-edit": stringifyTemplate({
+    product_id: 10123123123,
+    channel: "AE_GLOBAL",
+    channel_seller_id: 6046768601,
+    sku_id2_price_map: {
+      "14:193": "0.6",
+      "14:175": "0.9",
+    },
+  }),
+  "ae-local-cb-product-status-update": stringifyTemplate({
+    channel: "AE_GLOBAL",
+    product_opt_type: "ON_SHELF",
+    channel_seller_id: 6046768601,
+    product_id: 101232323232,
+  }),
+  "ae-local-cb-product-edit": stringifyTemplate({
+    channel: "AE_GLOBAL",
+    channel_seller_id: 6046768601,
+    local_cb_product_dto: {
+      product_info_dto: {
+        product_id: "1001231321",
+        category_id: "349",
+        locale: "ko_KR",
+        currency_code: "USD",
+      },
+      product_property_list: [],
+      product_sku_list: [],
+      detail_source_list: [],
+    },
+  }),
+  "ae-local-cb-products-list": stringifyTemplate({
+    channel_seller_id: 6046768601,
+    channel: "AE_GLOBAL",
+    page_size: 20,
+    current_page: 1,
+    search_condition_do: {
+      product_status: "ONLINE",
+      product_id: "100012313213",
+    },
+  }),
+  "ae-local-cb-product-post": stringifyTemplate({
+    channel_seller_id: "6046768601",
+    channel: "AE_GLOBAL",
+    local_cb_product_dto: {
+      product_info_dto: {
+        category_id: "349",
+        locale: "ko_KR",
+        currency_code: "USD",
+      },
+      product_property_list: [],
+      product_sku_list: [],
+      detail_source_list: [],
+    },
+  }),
+  "ae-local-cb-products-stock-edit": stringifyTemplate({
+    product_id: 100010231231,
+    channel: "AE_GLOBAL",
+    channel_seller_id: 6046768601,
+    sku_stocks: {
+      "14:200003699;5:100014064": 240,
+      "14:200003699;5:361386": 220,
+    },
+  }),
+  "ae-local-cb-product-query": stringifyTemplate({
+    channel_seller_id: 6046768601,
+    product_id: 1005005246838039,
+    channel: "AE_GLOBAL",
+  }),
+  "ae-category-child-attributes-query": stringifyTemplate({
+    channel_seller_id: 2671514005,
+    channel: "AE_GLOBAL",
+    locale: "en_US",
+    product_type: "2",
+    param1: 349,
+    param2: ["219=9441741844"],
+  }),
+  "ae-category-tree-list": stringifyTemplate({
+    channel_seller_id: 2671514005,
+    only_with_permission: true,
+    channel: "AE_GLOBAL",
+    category_id: 0,
+  }),
+  "ae-category-item-qualification-list": stringifyTemplate({
+    category_id: 200001426,
+    local: "zh_CN",
+    channel_seller_id: 2678881002,
+  }),
+  "ae-category-cascade-properties-query": stringifyTemplate({
+    locale: "en_US",
+    category_id: 123,
+  }),
+  "ae-solution-sku-attribute-query": stringifyTemplate({
+    query_sku_attribute_info_request: {
+      category_id: 5090301,
+      channel: "AE_GLOBAL",
+      locale: "en_US",
+    },
+  }),
+  "ae-seller-category-tree-query": stringifyTemplate({
+    category_id: 509,
+    filter_no_permission: true,
+  }),
+  "ae-category-qualifications-list": stringifyTemplate({
+    category_id: 200001426,
+    local: "zh_CN",
+    channel_seller_id: 26710008,
+  }),
+  "ae-freight-seller-intention-query": stringifyTemplate({
+    sellerId: 200042360,
+  }),
+  "ae-freight-isv-gray-query": stringifyTemplate({
+    sellerId: 200042360,
+  }),
+  "ae-freight-template-recommend": stringifyTemplate({
+    sellerId: 200042360,
+    compressFlag: "true",
+    compressedData: "H4sIAAAAAAAAA+3BMQEAAADCoPVPbQ0PoAAAAAAAAAAA",
+  }),
+  "ae-freight-template-create": stringifyTemplate({
+    sellerId: "200042360",
+    compressFlag: "true",
+    itemId: "1005010585507583",
+    freightId: "50164494212",
+    itemTagSet: "1",
+    taxType: "1",
+    baseShippingCountries: "BG,UA,HU,US",
+    freeShippingCountries: "BG,UA,HU,US",
+    itemBlackShippingCountries: "AU",
+    regionalPricingCountries: "BG,UA,HU,US",
+    currency: "USD",
+    compressedData: "1",
+  }),
+  "ae-freight-template-list": stringifyTemplate({
+    channelSellerId: "123",
+  }),
+  "ae-trade-order-decrypt": stringifyTemplate({
+    orderId: "8152891820014001",
+    oaid: "MjAwMDQyMzYw-ssfsvnL3Nv%2B%2B54ABsv%2BaoQ",
+  }),
+  "ae-solution-order-receiptinfo-get": stringifyTemplate({
+    param1: {
+      order_id: "123456789",
+    },
+  }),
+  "ae-solution-order-get": stringifyTemplate({
+    create_date_start: "2017-10-12 12:12:12",
+    create_date_end: "2017-10-12 12:12:12",
+    modified_date_start: "2017-10-12 12:12:12",
+    modified_date_end: "2017-10-12 12:12:12",
+    order_status_list: ["SELLER_PART_SEND_GOODS"],
+    buyer_login_id: "test_id",
+    page_size: 20,
+    current_page: 1,
+    order_status: "SELLER_PART_SEND_GOODS",
+  }),
+  "ae-trade-verifycode": stringifyTemplate({
+    param_1: {
+      code: "1Q2W3E",
+      biz_type: "mart",
+      order_id: "12345678",
+    },
+  }),
+  "ae-trade-confirmshippingmode": stringifyTemplate({
+    order_id: 12345,
+    shipping_mode: "SELF_SHIPPING",
+  }),
+  "ae-trade-sendcode": stringifyTemplate({
+    param_1: {
+      biz_type: "mega",
+      order_id: "1111111",
+      send_code_list: [
+        {
+          order_line_id: "1111112",
+          code_list: [
+            { code: "xxxxx", expire_time: "1744371921000" },
+          ],
+        },
+      ],
+    },
+  }),
   "ae-asf-local2local-sub-declareship": stringifyTemplate({
     tradeOrderId: "tradeOrderId",
     sellerId: 1001,
@@ -601,6 +1185,87 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     createEndTime: "1756349803958",
     current: "1",
     pageSize: "20",
+  }),
+  "ae-asf-local-supply-shipping-service-get": stringifyTemplate({
+    tradeOrderId: 1116072020216440,
+    tradeOrderItemIdList: [1116072020216441],
+    sellerId: 200042360,
+  }),
+  "ae-asf-local-supply-batch-declareship": stringifyTemplate({
+    sellerId: 200042360,
+    declareShipOpenRequestList: [
+      {
+        tradeOrderId: "tradeOrderId",
+        tradeOrderItemIdList: ["tradeOrderItemIdList"],
+        carrierCode: "carrierCode",
+        shippingServiceCode: "shippingServiceCode",
+        trackingNumber: "trackingNumber",
+      },
+    ],
+  }),
+  "ae-asf-local-supply-declareship-modify": stringifyTemplate({
+    tradeOrderId: 1116072020216440,
+    tradeOrderItemIdList: [1116072020216441],
+    trackingNumber: "trackingNumber",
+    modifyTrackingNumber: "modifyTrackingNumber",
+    modifyShippingServiceCode: "modifyShippingServiceCode",
+    sellerId: 200042360,
+    carrierCode: "carrierCode",
+  }),
+  "ae-asf-local-supply-sub-declareship": stringifyTemplate({
+    tradeOrderId: "tradeOrderId",
+    sellerId: 200042360,
+    subTradeOrderList: [
+      {
+        sendType: "sendType",
+        tradeOrderLineId: "tradeOrderLineId",
+        shipmentList: [
+          {
+            carrierCode: "carrierCode",
+            logisticsNo: "logisticsNo",
+            serviceName: "serviceName",
+          },
+        ],
+      },
+    ],
+  }),
+  "ae-asf-local-supply-split-quantity-rts-pack": stringifyTemplate({
+    sellerId: "sellerId",
+    tradeOrderId: 1116072020216440,
+    tradeOrderItemSupportItemDTOS: [
+      { quantity: "1", tradeOrderItemId: "tradeOrderItemId" },
+    ],
+    addressId: 3000012313213,
+    refundAddressId: "refundAddressId",
+    sendOption: "sendOption",
+    solutionCode: "solutionCode",
+  }),
+  "ae-asf-local-supply-platform-logistics-document-query": stringifyTemplate({
+    documentType: "WAY_BILL",
+    queryDocumentRequestList: [
+      {
+        tradeOrderId: "1116072020216440",
+        packageId: "FP1112612851119001",
+        trackingNumber: "AN260041745BR",
+      },
+    ],
+    locale: "es_ES",
+  }),
+  "ae-asf-local-supply-platform-logistics-rts": stringifyTemplate({
+    packageId: "packageId",
+    tradeOrderId: 1116072020216440,
+    locale: "es_ES",
+    trackingNumber: "trackingNumber",
+  }),
+  "ae-asf-local-supply-platform-logistics-repack": stringifyTemplate({
+    packageId: "packageId",
+    tradeOrderId: 1116072020216440,
+    locale: "es_ES",
+    trackingNumber: "trackingNumber",
+  }),
+  "ae-asf-local-supply-seller-address-get": stringifyTemplate({
+    addressType: "pickup,refund",
+    locale: "es_ES",
   }),
   "ae-local-service-product-stocks-update": stringifyTemplate({
     channel_seller_id: 2671514005,
@@ -1598,9 +2263,17 @@ export default function AdminSourcingImportPage() {
               <label className="grid gap-1 text-sm">
                 <span className="text-slate-600">Opération IOP</span>
                 <select value={iopOperation} onChange={(e) => setIopOperation(e.target.value as IopOperation)} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                  {supportedIopOperations.map((operation) => (
-                    <option key={operation} value={operation}>{operation}</option>
-                  ))}
+                  {platform === "aliexpress"
+                    ? ALIEXPRESS_IOP_OPERATION_GROUPS.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.operations.map((operation) => (
+                            <option key={operation} value={operation}>{operation}</option>
+                          ))}
+                        </optgroup>
+                      ))
+                    : supportedIopOperations.map((operation) => (
+                        <option key={operation} value={operation}>{operation}</option>
+                      ))}
                 </select>
               </label>
               <label className="grid gap-1 text-sm">

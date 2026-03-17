@@ -13,6 +13,7 @@ type ProfileHeaderProps = {
   walletDisplay: string;
   walletCurrencyLabel: string;
   onChangeAvatar: () => void;
+  onTopup: () => void;
 };
 
 export default function ProfileHeader({
@@ -23,6 +24,7 @@ export default function ProfileHeader({
   walletDisplay,
   walletCurrencyLabel,
   onChangeAvatar,
+  onTopup,
 }: ProfileHeaderProps) {
   const safeCode = (countryCode ?? "FR").toUpperCase();
   const countryTag = safeCode.length === 2 ? safeCode : "FR";
@@ -72,6 +74,14 @@ export default function ProfileHeader({
                 </div>
                 <div className="mt-2 text-3xl md:text-4xl font-black">{walletDisplay}</div>
                 <p className="mt-2 text-xs text-white/70">Affiché en {walletCurrencyLabel}.</p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={onTopup}
+                  className="px-4 py-2 rounded-2xl bg-cyan-400/10 border border-cyan-300/25 hover:bg-cyan-400/15 transition text-sm text-cyan-100"
+                >
+                  Recharger
+                </button>
               </div>
             </div>
           </div>

@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
+import PaymentMethodModal, { type PaymentMethodOption } from "@/components/payments/PaymentMethodModal";
 import SectionTitle from "@/components/ui/SectionTitle";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
+import { SUPPORTED_FEDAPAY_COUNTRIES, fedapayTopupDescription } from "@/lib/fedapayChannels";
 import { openTidioChat } from "@/lib/tidioChat";
+import { emitWalletUpdated } from "@/lib/walletEvents";
 
 const HAS_API_ENV = Boolean(process.env.NEXT_PUBLIC_API_URL);
 
@@ -79,6 +83,8 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
 };
 
 function WalletClient() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { authFetch, user } = useAuth();
 
   const [loading, setLoading] = useState(HAS_API_ENV);
@@ -91,6 +97,10 @@ function WalletClient() {
   const [walletStatus, setWalletStatus] = useState<string | null>(null);
   const [walletId, setWalletId] = useState("");
   const [walletUsername, setWalletUsername] = useState(String(user?.name ?? ""));
+  const [topupAmount, setTopupAmount] = useState("");
+  const [topupLoading, setTopupLoading] = useState(false);
+  const [topupModalOpen, setTopupModalOpen] = useState(false);
+  const [topupProvider, setTopupProvider] = useState<"fedapay" | "paypal" | "bank_card">("fedapay");
   const [exchangeAmount, setExchangeAmount] = useState("");
   const [exchangeLoading, setExchangeLoading] = useState(false);
   const [limit, setLimit] = useState<10 | 25 | 50>(25);
@@ -237,6 +247,114 @@ function WalletClient() {
   const displayBalance = useMemo(() => formatMoney(balance, currency), [balance, currency]);
   const displayRewardBalance = useMemo(() => formatMoney(rewardBalance, currency), [rewardBalance, currency]);
   const { label: currencyLabel } = useMemo(() => normalizeCurrency(currency), [currency]);
+  const topupAmountValue = useMemo(() => Math.round(Number(topupAmount || 0)), [topupAmount]);
+  const topupPaymentOptions = useMemo<PaymentMethodOption[]>(() => {
+    return [
+      {
+        key: "paypal",
+        title: "PayPal",
+        description: "Recharge le DB Wallet avec PayPal. Le montant est converti automatiquement en EUR côté PayPal.",
+        badge: "EUR",
+        variant: "paypal",
+      },
+      {
+        key: "bank_card",
+        title: "Carte bancaire",
+        description: "Recharge le DB Wallet par carte bancaire via l’interface sécurisée PayPal pour le moment.",
+        badge: "CB",
+        variant: "bank_card",
+      },
+      {
+        key: "fedapay",
+        title: "Mobile Money",
+        description: fedapayTopupDescription,
+        badge: "FCFA",
+        variant: "mobile_money",
+      },
+    ];
+  }, []);
+  const selectedTopupOption = useMemo(
+    () => topupPaymentOptions.find((option) => option.key === topupProvider) ?? topupPaymentOptions[0] ?? null,
+    [topupPaymentOptions, topupProvider],
+  );
+  const topupProviderRequestValue = topupProvider === "bank_card" ? "paypal" : topupProvider;
+
+  useEffect(() => {
+    const walletPaid = String(searchParams.get("wallet_paid") ?? "").toLowerCase();
+    const topupOrder = searchParams.get("topup_order");
+    if (!topupOrder || !HAS_API_ENV) {
+      return;
+    }
+
+    const providerParam = String(searchParams.get("provider") ?? "fedapay").toLowerCase();
+    const provider = providerParam === "paypal" ? "paypal" : "fedapay";
+
+    if (["success", "paid", "completed"].includes(walletPaid)) {
+      setBanner("Recharge wallet validée. Ton solde a été mis à jour.");
+      emitWalletUpdated({ source: "wallet_topup_paid" });
+      void loadWallet({ silent: true });
+      router.replace("/wallet");
+      return;
+    }
+
+    if (["failed", "cancelled", "canceled"].includes(walletPaid)) {
+      setBanner(walletPaid === "failed" ? "La recharge wallet a échoué." : "La recharge wallet a été annulée.");
+      void loadWallet({ silent: true });
+      router.replace("/wallet");
+      return;
+    }
+
+    let active = true;
+    let ticks = 0;
+
+    const checkStatus = async () => {
+      try {
+        const res = await authFetch(`${API_BASE}/payments/${encodeURIComponent(provider)}/status?order_id=${encodeURIComponent(topupOrder)}`);
+        const payload = await res.json().catch(() => null);
+        if (!active || !res.ok) {
+          return;
+        }
+
+        const paymentStatus = String(payload?.data?.payment_status ?? "processing").toLowerCase();
+        if (paymentStatus === "paid") {
+          setBanner("Recharge wallet validée. Ton solde a été mis à jour.");
+          emitWalletUpdated({ source: "wallet_topup_paid" });
+          await loadWallet({ silent: true });
+          router.replace("/wallet");
+          return;
+        }
+
+        if (paymentStatus === "failed") {
+          setBanner("La recharge wallet a échoué.");
+          await loadWallet({ silent: true });
+          router.replace("/wallet");
+          return;
+        }
+
+        if (ticks === 0) {
+          setBanner("Recharge en cours de validation...");
+        }
+      } catch {
+        // ignore best effort polling
+      }
+    };
+
+    void checkStatus();
+
+    const interval = window.setInterval(() => {
+      ticks += 1;
+      if (ticks > 10) {
+        window.clearInterval(interval);
+        return;
+      }
+      void checkStatus();
+    }, 3000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [authFetch, loadWallet, router, searchParams]);
 
   const handleExchangeReward = async () => {
     if (exchangeLoading) {
@@ -266,6 +384,46 @@ function WalletClient() {
       setBanner("Échange impossible.");
     } finally {
       setExchangeLoading(false);
+    }
+  };
+
+  const handleTopup = async () => {
+    if (topupLoading) {
+      return;
+    }
+
+    setBanner(null);
+    const amountValue = Math.round(Number(topupAmount || 0));
+    if (!Number.isFinite(amountValue) || amountValue < 100) {
+      setBanner("Le montant minimum de recharge est 100 FCFA.");
+      return;
+    }
+
+    setTopupLoading(true);
+    try {
+      const res = await authFetch(`${API_BASE}/wallet/topup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: amountValue, provider: topupProviderRequestValue }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setBanner(data?.message ?? "Impossible de démarrer la recharge wallet.");
+        return;
+      }
+
+      const paymentUrl = data?.data?.payment_url;
+      if (!paymentUrl) {
+        setBanner("Lien de paiement indisponible.");
+        return;
+      }
+
+      setTopupModalOpen(false);
+      window.location.href = String(paymentUrl);
+    } catch {
+      setBanner("Impossible de démarrer la recharge wallet.");
+    } finally {
+      setTopupLoading(false);
     }
   };
 
@@ -313,6 +471,16 @@ function WalletClient() {
                   >
                     <span className="block truncate">Support</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const node = document.getElementById("topup-section");
+                      node?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className="min-w-0 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-100 xl:px-4 xl:text-sm"
+                  >
+                    <span className="block truncate">Recharger</span>
+                  </button>
                 </div>
               </div>
 
@@ -341,13 +509,66 @@ function WalletClient() {
                 </div>
               </div>
 
+              <div id="topup-section" className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-4 scroll-mt-24">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.25em] text-emerald-100/80">Recharge wallet</p>
+                    <p className="mt-1 text-sm text-emerald-50/85">Ajoute de l’argent sur ton DB Wallet via PayPal ou Mobile Money.</p>
+                  </div>
+                  <div className="text-xs text-emerald-100/75">Minimum: 100 FCFA</div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    type="number"
+                    min={100}
+                    value={topupAmount}
+                    onChange={(event) => setTopupAmount(event.target.value)}
+                    placeholder="Montant à recharger"
+                    className="w-full max-w-xs rounded-xl border border-emerald-200/25 bg-black/30 px-3 py-2 text-sm text-white"
+                  />
+                  <GlowButton variant="ghost" onClick={() => setTopupModalOpen(true)} disabled={topupLoading}>
+                    {topupLoading ? "Préparation..." : "Choisir le paiement"}
+                  </GlowButton>
+                </div>
+
+                <div className="mt-3 rounded-2xl border border-emerald-200/20 bg-black/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{selectedTopupOption?.title ?? "Choisir un moyen"}</p>
+                      <p className="mt-1 text-xs text-emerald-50/80">{selectedTopupOption?.description ?? "Sélectionne un moyen de recharge sécurisé."}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTopupModalOpen(true)}
+                      className="rounded-xl border border-emerald-200/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
+                    >
+                      Changer
+                    </button>
+                  </div>
+
+                  {selectedTopupOption?.key === "fedapay" ? (
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {SUPPORTED_FEDAPAY_COUNTRIES.map((countryOption) => (
+                        <div key={countryOption.code} className="rounded-xl border border-emerald-200/15 bg-white/5 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-100/75">
+                            {countryOption.code} · {countryOption.label}
+                          </p>
+                          <p className="mt-2 text-xs leading-5 text-emerald-50/80">{countryOption.topupChannels.join(" • ")}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
               <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs uppercase tracking-[0.25em] text-white/55">Wallet simple</p>
+                <p className="text-xs uppercase tracking-[0.25em] text-white/55">Wallet utilisateur</p>
                 <p className="mt-2 text-sm text-white/75">
-                  Le wallet utilisateur affiche uniquement le solde, l’identifiant DB Wallet et l’historique des mouvements.
+                  Le wallet affiche ton solde, ton identifiant DB Wallet, la recharge et l’historique des mouvements.
                 </p>
                 <p className="mt-2 text-xs text-white/55">
-                  Les demandes de recharge et de retrait ne sont plus disponibles sur cet espace.
+                  Le retrait utilisateur reste désactivé sur cet espace.
                 </p>
               </div>
 
@@ -479,6 +700,29 @@ function WalletClient() {
           </div>
         </div>
       </main>
+
+      <PaymentMethodModal
+        open={topupModalOpen}
+        title="Moyens de paiement"
+        subtitle="Nous protégeons vos informations de paiement."
+        amountLabel={
+          Number.isFinite(topupAmountValue) && topupAmountValue > 0
+            ? `Montant à recharger: ${topupAmountValue.toLocaleString("fr-FR")} FCFA`
+            : "Entre un montant avant de confirmer la recharge."
+        }
+        options={topupPaymentOptions}
+        value={topupProvider}
+        loading={topupLoading}
+        status={banner}
+        confirmLabel={
+          Number.isFinite(topupAmountValue) && topupAmountValue > 0
+            ? `Recharger ${topupAmountValue.toLocaleString("fr-FR")} FCFA`
+            : "Confirmer la recharge"
+        }
+        onChange={(key) => setTopupProvider(key as typeof topupProvider)}
+        onClose={() => setTopupModalOpen(false)}
+        onConfirm={handleTopup}
+      />
     </div>
   );
 }

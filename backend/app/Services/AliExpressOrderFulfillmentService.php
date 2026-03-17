@@ -33,6 +33,7 @@ class AliExpressOrderFulfillmentService
             'external_order_id' => $this->nullableString($data['external_order_id'] ?? null),
             'seller_id' => $this->nullableString($data['seller_id'] ?? null),
             'locale' => $this->nullableString($data['locale'] ?? null) ?: 'fr_FR',
+            'invoice_customer_id' => $this->nullableString($data['invoice_customer_id'] ?? null),
             'shipping_mode' => $this->nullableString($data['shipping_mode'] ?? null),
             'shipping_provider_code' => $this->nullableString($data['shipping_provider_code'] ?? null),
             'shipping_provider_name' => $this->nullableString($data['shipping_provider_name'] ?? null),
@@ -326,6 +327,181 @@ class AliExpressOrderFulfillmentService
         ];
     }
 
+    public function queryInvoiceRequest(Order $order, ?string $customerId = null): array
+    {
+        $fulfillment = $this->ensureFulfillment($order);
+        $account = $this->resolveSupplierAccount($order, $fulfillment);
+        $resolvedCustomerId = $this->resolveInvoiceCustomerId($fulfillment, $customerId);
+        $payload = [
+            'orderId' => $this->requireString($fulfillment->external_order_id, 'external_order_id'),
+            'customerId' => $resolvedCustomerId,
+        ];
+
+        $response = $this->supplierApiClient->iopOperation($account, 'ae-invoice-request-query', $payload);
+        $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $metadata = (array) ($fulfillment->metadata_json ?? []);
+        $metadata['invoice_request_data'] = $data;
+
+        $fulfillment->fill([
+            'invoice_customer_id' => $data['customerId'] ?? $resolvedCustomerId,
+            'invoice_status' => 'request_ready',
+            'invoice_latest_request_payload_json' => ['param0' => $payload],
+            'invoice_latest_response_payload_json' => $response['raw'] ?? $response,
+            'invoice_requested_at' => now(),
+            'metadata_json' => $metadata,
+            'last_synced_at' => now(),
+        ]);
+        $fulfillment->save();
+
+        return [
+            'invoice_request' => $data,
+            'fulfillment' => $fulfillment->fresh(['supplierAccount']),
+            'response' => $response,
+        ];
+    }
+
+    public function uploadBrazilInvoice(Order $order, string $fileName, string $fileContentBase64, string $source = 'ISV'): array
+    {
+        $fulfillment = $this->ensureFulfillment($order);
+        $account = $this->resolveSupplierAccount($order, $fulfillment);
+        $this->assertSupportedInvoiceFile($fileName, $fileContentBase64, ['xml'], 3 * 1024 * 1024);
+
+        $payload = [
+            'originalFileName' => $fileName,
+            'source' => $source,
+            'orderId' => $this->requireString($fulfillment->external_order_id, 'external_order_id'),
+            '__file_params' => [
+                'invoiceData' => [
+                    'file_name' => $fileName,
+                    'content_base64' => $fileContentBase64,
+                ],
+            ],
+        ];
+
+        $response = $this->supplierApiClient->iopOperation($account, 'ae-brazil-invoice-upload', $payload);
+        $storagePath = $this->storeInvoiceDocument($order, $fileContentBase64, $fileName, 'brazil');
+
+        $fulfillment->fill([
+            'invoice_status' => 'brazil_xml_uploaded',
+            'invoice_file_name' => $fileName,
+            'invoice_file_type' => strtolower((string) pathinfo($fileName, PATHINFO_EXTENSION)) ?: 'xml',
+            'invoice_file_path' => $storagePath,
+            'invoice_latest_request_payload_json' => [
+                'originalFileName' => $fileName,
+                'source' => $source,
+                'orderId' => $payload['orderId'],
+            ],
+            'invoice_latest_response_payload_json' => $response['raw'] ?? $response,
+            'invoice_uploaded_at' => now(),
+            'last_synced_at' => now(),
+        ]);
+        $fulfillment->save();
+
+        return [
+            'fulfillment' => $fulfillment->fresh(['supplierAccount']),
+            'document_path' => $storagePath,
+            'response' => $response,
+        ];
+    }
+
+    public function pushInvoiceResult(Order $order, array $data): array
+    {
+        $fulfillment = $this->ensureFulfillment($order);
+        $account = $this->resolveSupplierAccount($order, $fulfillment);
+        $normalizedData = $this->normalizePushInvoiceData($order, $data);
+        $customerId = $this->resolveInvoiceCustomerId($fulfillment, $normalizedData['customer_id'] ?? null);
+        $invoiceFileName = (string) $normalizedData['invoice_name'];
+        $this->assertSupportedInvoiceFile($invoiceFileName, (string) $normalizedData['invoice_content_base64'], [(string) $normalizedData['invoice_file_type']], 8 * 1024 * 1024);
+
+        $payload = [
+            'invoiceStatus' => 'GENERATED_SUCCESS',
+            'invoiceDate' => (string) $normalizedData['invoice_date'],
+            'invoiceNo' => (string) $normalizedData['invoice_no'],
+            'requestNo' => (string) $normalizedData['request_no'],
+            'invoiceFileType' => (string) $normalizedData['invoice_file_type'],
+            'invoiceDirection' => (string) $normalizedData['invoice_direction'],
+            'invoiceName' => $invoiceFileName,
+            'orderId' => $this->requireString($fulfillment->external_order_id, 'external_order_id'),
+            'customerId' => $customerId,
+            '__file_params' => [
+                'invoiceData' => [
+                    'file_name' => $invoiceFileName,
+                    'content_base64' => (string) $normalizedData['invoice_content_base64'],
+                ],
+            ],
+        ];
+
+        $response = $this->supplierApiClient->iopOperation($account, 'ae-invoice-result-push', $payload);
+        $storagePath = $this->storeInvoiceDocument($order, (string) $normalizedData['invoice_content_base64'], $invoiceFileName, 'result');
+
+        $fulfillment->fill([
+            'invoice_customer_id' => $customerId,
+            'invoice_status' => 'invoice_synced',
+            'invoice_request_no' => (string) $normalizedData['request_no'],
+            'invoice_no' => (string) $normalizedData['invoice_no'],
+            'invoice_date' => now()->setTimestampMs((int) $normalizedData['invoice_date']),
+            'invoice_file_type' => (string) $normalizedData['invoice_file_type'],
+            'invoice_file_name' => $invoiceFileName,
+            'invoice_direction' => (string) $normalizedData['invoice_direction'],
+            'invoice_file_path' => $storagePath,
+            'invoice_latest_request_payload_json' => [
+                'invoiceStatus' => 'GENERATED_SUCCESS',
+                'invoiceDate' => (string) $normalizedData['invoice_date'],
+                'invoiceNo' => (string) $normalizedData['invoice_no'],
+                'requestNo' => (string) $normalizedData['request_no'],
+                'invoiceFileType' => (string) $normalizedData['invoice_file_type'],
+                'invoiceDirection' => (string) $normalizedData['invoice_direction'],
+                'invoiceName' => $invoiceFileName,
+                'orderId' => $payload['orderId'],
+                'customerId' => $customerId,
+            ],
+            'invoice_latest_response_payload_json' => $response['raw'] ?? $response,
+            'invoice_pushed_at' => now(),
+            'last_synced_at' => now(),
+        ]);
+        $fulfillment->save();
+
+        return [
+            'fulfillment' => $fulfillment->fresh(['supplierAccount']),
+            'document_path' => $storagePath,
+            'response' => $response,
+        ];
+    }
+
+    public function recordInvoiceFailure(Order $order, string $step, \Throwable|string $error, array $context = []): OrderSupplierFulfillment
+    {
+        $fulfillment = $this->ensureFulfillment($order);
+        $metadata = (array) ($fulfillment->metadata_json ?? []);
+        $message = $error instanceof \Throwable ? $error->getMessage() : (string) $error;
+
+        $metadata['invoice_last_error'] = [
+            'step' => $step,
+            'message' => $message,
+            'context' => $context,
+            'at' => now()->toIso8601String(),
+        ];
+
+        $fulfillment->fill([
+            'invoice_status' => 'failed_' . $step,
+            'invoice_latest_response_payload_json' => [
+                'message' => $message,
+                'context' => $context,
+            ],
+            'metadata_json' => $metadata,
+            'last_synced_at' => now(),
+        ]);
+        $fulfillment->save();
+
+        return $fulfillment->fresh(['supplierAccount']);
+    }
+
+    public function downloadInvoiceDocument(Order $order): ?string
+    {
+        $fulfillment = $this->ensureFulfillment($order);
+
+        return $fulfillment->invoice_file_path ?: null;
+    }
+
     public function ensureFulfillment(Order $order): OrderSupplierFulfillment
     {
         return DB::transaction(function () use ($order) {
@@ -427,6 +603,73 @@ class AliExpressOrderFulfillmentService
         }
 
         $order->forceFill($updates)->save();
+    }
+
+    private function normalizePushInvoiceData(Order $order, array $data): array
+    {
+        $invoiceFileType = strtolower((string) ($data['invoice_file_type'] ?? 'pdf'));
+        $invoiceNo = trim((string) ($data['invoice_no'] ?? ''));
+
+        if ($invoiceNo === '') {
+            throw new \RuntimeException('invoice_no est obligatoire.');
+        }
+
+        $requestNo = trim((string) ($data['request_no'] ?? ''));
+        if ($requestNo === '') {
+            $requestNo = 'ae-inv-' . $order->id . '-' . Str::lower(Str::random(10));
+        }
+
+        $invoiceDate = (int) ($data['invoice_date'] ?? 0);
+        if ($invoiceDate <= 0) {
+            $invoiceDate = (int) now()->getTimestampMs();
+        }
+
+        return [
+            'customer_id' => $this->nullableString($data['customer_id'] ?? null),
+            'invoice_no' => $invoiceNo,
+            'request_no' => $requestNo,
+            'invoice_date' => $invoiceDate,
+            'invoice_file_type' => $invoiceFileType,
+            'invoice_direction' => strtoupper((string) ($data['invoice_direction'] ?? 'BLUE')),
+            'invoice_name' => $this->resolveInvoiceFileName($invoiceNo, $invoiceFileType, $data['invoice_name'] ?? null),
+            'invoice_content_base64' => (string) ($data['invoice_content_base64'] ?? ''),
+        ];
+    }
+
+    private function resolveInvoiceFileName(string $invoiceNo, string $invoiceFileType, mixed $rawFileName): string
+    {
+        $fileName = trim((string) $rawFileName);
+        if ($fileName === '') {
+            $fileName = 'invoice-' . Str::slug($invoiceNo, '-') . '.' . $invoiceFileType;
+        }
+
+        $extension = strtolower((string) pathinfo($fileName, PATHINFO_EXTENSION));
+        if ($extension !== $invoiceFileType) {
+            $fileName = pathinfo($fileName, PATHINFO_FILENAME) . '.' . $invoiceFileType;
+        }
+
+        return $fileName;
+    }
+
+    private function assertSupportedInvoiceFile(string $fileName, string $fileContentBase64, array $allowedExtensions, int $maxBytes): void
+    {
+        $extension = strtolower((string) pathinfo($fileName, PATHINFO_EXTENSION));
+        if (!in_array($extension, $allowedExtensions, true)) {
+            throw new \RuntimeException('Extension de fichier facture invalide: ' . $extension . '.');
+        }
+
+        $decoded = base64_decode($fileContentBase64, true);
+        if ($decoded === false) {
+            throw new \RuntimeException('Le contenu du fichier facture n est pas un base64 valide.');
+        }
+
+        if (strlen($decoded) === 0) {
+            throw new \RuntimeException('Le fichier facture est vide.');
+        }
+
+        if (strlen($decoded) > $maxBytes) {
+            throw new \RuntimeException('Le fichier facture depasse la taille autorisee.');
+        }
     }
 
     private function resolveActionableMode(Order $order, OrderSupplierFulfillment $fulfillment): string
@@ -610,6 +853,31 @@ class AliExpressOrderFulfillmentService
         Storage::disk('public')->put($path, $binary);
 
         return $path;
+    }
+
+    private function storeInvoiceDocument(Order $order, string $contentBase64, string $fileName, string $prefix): ?string
+    {
+        $binary = base64_decode($contentBase64, true);
+        if ($binary === false) {
+            return null;
+        }
+
+        $extension = strtolower((string) pathinfo($fileName, PATHINFO_EXTENSION)) ?: 'bin';
+        $baseName = pathinfo($fileName, PATHINFO_FILENAME);
+        $path = 'orders/aliexpress/' . $order->id . '/' . $prefix . '-' . Str::slug($baseName) . '.' . $extension;
+        Storage::disk('public')->put($path, $binary);
+
+        return $path;
+    }
+
+    private function resolveInvoiceCustomerId(OrderSupplierFulfillment $fulfillment, ?string $customerId = null): string
+    {
+        $resolved = trim((string) ($customerId ?: $fulfillment->invoice_customer_id ?: data_get($fulfillment->metadata_json, 'invoice.customer_id')));
+        if ($resolved === '') {
+            throw new \RuntimeException('Champ requis manquant pour la facturation AliExpress: invoice_customer_id.');
+        }
+
+        return $resolved;
     }
 
     private function normalizeExternalOrderLines(mixed $value): array

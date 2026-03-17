@@ -21,6 +21,30 @@ type SupplierAccount = {
   platform?: string | null;
 };
 
+type InvoiceRequestData = {
+  customerId?: string | null;
+  companyName?: string | null;
+  fullName?: string | null;
+  country?: string | null;
+  email?: string | null;
+  mobileNo?: string | null;
+  province?: string | null;
+  city?: string | null;
+  district?: string | null;
+  detailAddress?: string | null;
+  zip?: string | null;
+  taxNumber?: string | null;
+  taxOffice?: string | null;
+  [key: string]: unknown;
+};
+
+type InvoiceLastError = {
+  step?: string | null;
+  message?: string | null;
+  at?: string | null;
+  context?: Record<string, unknown> | null;
+};
+
 type OrderSupplierFulfillment = {
   id: number;
   supplier_account_id?: number | null;
@@ -28,6 +52,24 @@ type OrderSupplierFulfillment = {
   external_order_lines_json?: unknown[] | null;
   seller_id?: string | null;
   locale?: string | null;
+  invoice_customer_id?: string | null;
+  invoice_status?: string | null;
+  invoice_request_no?: string | null;
+  invoice_no?: string | null;
+  invoice_date?: string | null;
+  invoice_file_type?: string | null;
+  invoice_file_name?: string | null;
+  invoice_direction?: string | null;
+  invoice_file_path?: string | null;
+  invoice_document_url?: string | null;
+  invoice_requested_at?: string | null;
+  invoice_uploaded_at?: string | null;
+  invoice_pushed_at?: string | null;
+  metadata_json?: {
+    invoice_request_data?: InvoiceRequestData | null;
+    invoice_last_error?: InvoiceLastError | null;
+    [key: string]: unknown;
+  } | null;
   shipping_mode?: string | null;
   shipping_provider_code?: string | null;
   shipping_provider_name?: string | null;
@@ -106,11 +148,90 @@ const formatAmount = (value?: number | null) => {
   return `${Math.round(value).toLocaleString()} FCFA`;
 };
 
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      const base64 = result.includes(",") ? result.split(",").pop() ?? "" : result;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error("Lecture du fichier impossible"));
+    reader.readAsDataURL(file);
+  });
+
 const toOutcomeLabel = (raw?: string | null) => {
   const v = String(raw ?? "").toLowerCase();
   if (["paid", "completed", "success", "fulfilled"].includes(v)) return "Complétée";
   if (!v) return "—";
   return "Échec";
+};
+
+const generateInvoiceRequestNo = (orderId?: number | null) => `req-ae-${orderId ?? "x"}-${Date.now()}`;
+
+const inferInvoiceFileTypeFromName = (name?: string | null): "pdf" | "png" => {
+  const normalized = String(name ?? "").toLowerCase();
+  return normalized.endsWith(".png") ? "png" : "pdf";
+};
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("fr-FR");
+};
+
+const formatFileSize = (value?: number | null) => {
+  if (!value || value <= 0) return "—";
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} Ko`;
+  return `${(value / (1024 * 1024)).toFixed(1)} Mo`;
+};
+
+const getInvoiceStatusMeta = (status?: string | null) => {
+  switch (status) {
+    case "request_ready":
+      return {
+        label: "Demande récupérée",
+        description: "Les informations de facturation côté AliExpress sont chargées et prêtes pour traitement.",
+        badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
+      };
+    case "brazil_xml_uploaded":
+      return {
+        label: "XML Brésil envoyé",
+        description: "Le XML local a été archivé et envoyé à AliExpress pour les flux Brésil.",
+        badgeClassName: "border-sky-200 bg-sky-50 text-sky-700",
+      };
+    case "invoice_synced":
+      return {
+        label: "Facture synchronisée",
+        description: "La facture finale a été poussée avec succès et la copie locale est disponible.",
+        badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      };
+    case "failed_query":
+      return {
+        label: "Échec récupération",
+        description: "La récupération de la demande a échoué. Une relance peut être faite après correction.",
+        badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+      };
+    case "failed_upload":
+      return {
+        label: "Échec upload XML",
+        description: "Le fichier Brésil n’a pas été accepté. Vérifie le XML puis relance l’upload.",
+        badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+      };
+    case "failed_push":
+      return {
+        label: "Échec synchronisation",
+        description: "La facture finale n’a pas été poussée. Corrige les métadonnées puis relance l’envoi.",
+        badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+      };
+    default:
+      return {
+        label: "Non démarré",
+        description: "Le workflow facture n’a pas encore été lancé pour cette commande.",
+        badgeClassName: "border-slate-200 bg-slate-100 text-slate-700",
+      };
+  }
 };
 
 export default function AdminOrderDetailPage() {
@@ -134,7 +255,7 @@ export default function AdminOrderDetailPage() {
   const [refundMessage, setRefundMessage] = useState<string | null>(null);
   const [supplierAccounts, setSupplierAccounts] = useState<SupplierAccount[]>([]);
   const [supplierMessage, setSupplierMessage] = useState<string | null>(null);
-  const [supplierActionLoading, setSupplierActionLoading] = useState<"save-context" | "resolve-mode" | "pack" | "ship" | "repack" | "print-waybill" | null>(null);
+  const [supplierActionLoading, setSupplierActionLoading] = useState<"save-context" | "resolve-mode" | "pack" | "ship" | "repack" | "print-waybill" | "invoice-query" | "invoice-upload-brazil" | "invoice-push" | "invoice-download" | null>(null);
   const [supplierAccountId, setSupplierAccountId] = useState("");
   const [externalOrderId, setExternalOrderId] = useState("");
   const [sellerId, setSellerId] = useState("");
@@ -149,6 +270,16 @@ export default function AdminOrderDetailPage() {
   const [refundAddressId, setRefundAddressId] = useState("");
   const [externalOrderLinesJson, setExternalOrderLinesJson] = useState("[]");
   const [waybillDocumentType, setWaybillDocumentType] = useState("WAY_BILL");
+  const [invoiceCustomerId, setInvoiceCustomerId] = useState("");
+  const [invoiceNo, setInvoiceNo] = useState("");
+  const [invoiceRequestNo, setInvoiceRequestNo] = useState("");
+  const [invoiceFileType, setInvoiceFileType] = useState<"pdf" | "png">("pdf");
+  const [invoiceDirection, setInvoiceDirection] = useState<"BLUE" | "RED">("BLUE");
+  const [invoiceDate, setInvoiceDate] = useState(() => String(Date.now()));
+  const [invoiceName, setInvoiceName] = useState("invoice.pdf");
+  const [invoiceMessage, setInvoiceMessage] = useState<string | null>(null);
+  const [invoiceUploadFile, setInvoiceUploadFile] = useState<File | null>(null);
+  const [invoiceBrazilFile, setInvoiceBrazilFile] = useState<File | null>(null);
 
   const loadOrder = useCallback(async () => {
     if (!Number.isFinite(orderId)) return;
@@ -203,6 +334,13 @@ export default function AdminOrderDetailPage() {
     setExternalOrderId(fulfillment?.external_order_id ?? order?.supplier_external_order_id ?? "");
     setSellerId(fulfillment?.seller_id ?? "");
     setSupplierLocale(fulfillment?.locale ?? "fr_FR");
+    setInvoiceCustomerId(fulfillment?.invoice_customer_id ?? "");
+    setInvoiceNo(fulfillment?.invoice_no ?? "");
+    setInvoiceRequestNo(fulfillment?.invoice_request_no ?? generateInvoiceRequestNo(order?.id));
+    setInvoiceFileType((fulfillment?.invoice_file_type as "pdf" | "png") ?? "pdf");
+    setInvoiceDirection((fulfillment?.invoice_direction as "BLUE" | "RED") ?? "BLUE");
+    setInvoiceDate(fulfillment?.invoice_date ? String(new Date(fulfillment.invoice_date).getTime()) : String(Date.now()));
+    setInvoiceName(fulfillment?.invoice_file_name ?? "invoice.pdf");
     setSupplierShippingMode(fulfillment?.shipping_mode ?? order?.supplier_shipping_mode ?? "");
     setShippingProviderCode(fulfillment?.shipping_provider_code ?? order?.supplier_shipping_provider_code ?? "");
     setShippingProviderName(fulfillment?.shipping_provider_name ?? order?.supplier_shipping_provider_name ?? "");
@@ -213,6 +351,21 @@ export default function AdminOrderDetailPage() {
     setRefundAddressId(fulfillment?.refund_address_id ?? "");
     setExternalOrderLinesJson(JSON.stringify(fulfillment?.external_order_lines_json ?? [], null, 2));
   }, [order]);
+
+  useEffect(() => {
+    if (!invoiceUploadFile) return;
+
+    const nextType = inferInvoiceFileTypeFromName(invoiceUploadFile.name);
+    setInvoiceFileType(nextType);
+    setInvoiceName(invoiceUploadFile.name);
+  }, [invoiceUploadFile]);
+
+  useEffect(() => {
+    if (invoiceUploadFile) return;
+
+    const normalizedNo = invoiceNo.trim() || `order-${order?.id ?? "draft"}`;
+    setInvoiceName(`invoice-${normalizedNo}.${invoiceFileType}`);
+  }, [invoiceFileType, invoiceNo, invoiceUploadFile, order?.id]);
 
   const items = useMemo(() => order?.order_items ?? order?.orderItems ?? [], [order]);
   const physicalItems = useMemo(
@@ -330,6 +483,54 @@ export default function AdminOrderDetailPage() {
 
   const refunds = useMemo(() => order?.refunds ?? [], [order?.refunds]);
 
+  const fulfillment = useMemo(() => order?.currentSupplierFulfillment ?? null, [order?.currentSupplierFulfillment]);
+  const invoiceRequestData = useMemo(
+    () => (fulfillment?.metadata_json?.invoice_request_data ?? null) as InvoiceRequestData | null,
+    [fulfillment?.metadata_json],
+  );
+  const invoiceLastError = useMemo(
+    () => (fulfillment?.metadata_json?.invoice_last_error ?? null) as InvoiceLastError | null,
+    [fulfillment?.metadata_json],
+  );
+  const invoiceStatusMeta = useMemo(() => getInvoiceStatusMeta(fulfillment?.invoice_status), [fulfillment?.invoice_status]);
+  const invoiceWarnings = useMemo(() => {
+    const warnings: string[] = [];
+
+    if (!externalOrderId.trim()) warnings.push("Trade Order ID manquant.");
+    if (!invoiceCustomerId.trim() && !invoiceRequestData?.customerId) warnings.push("Customer ID facture manquant.");
+    if (!supplierAccountId.trim() && !order?.supplier_account_id) warnings.push("Compte AliExpress non sélectionné.");
+    if (!invoiceNo.trim() && fulfillment?.invoice_status && fulfillment.invoice_status !== "request_ready") {
+      warnings.push("Invoice number absent pour la synchronisation finale.");
+    }
+
+    return warnings;
+  }, [externalOrderId, fulfillment?.invoice_status, invoiceCustomerId, invoiceNo, invoiceRequestData?.customerId, order?.supplier_account_id, supplierAccountId]);
+  const invoiceChecklist = useMemo(
+    () => [
+      {
+        label: "Contexte commande fournisseur",
+        done: Boolean(externalOrderId.trim() && (supplierAccountId.trim() || order?.supplier_account_id)),
+        hint: "Compte AliExpress et Trade Order ID doivent être renseignés.",
+      },
+      {
+        label: "Demande de facture récupérée",
+        done: Boolean(invoiceRequestData || fulfillment?.invoice_requested_at),
+        hint: "Charge la demande pour obtenir les informations client/taxe AliExpress.",
+      },
+      {
+        label: "XML Brésil optionnel prêt",
+        done: Boolean(fulfillment?.invoice_uploaded_at),
+        hint: "À utiliser seulement si le flux fiscal AliExpress l’exige.",
+      },
+      {
+        label: "Facture finale synchronisée",
+        done: Boolean(fulfillment?.invoice_pushed_at && fulfillment?.invoice_file_path),
+        hint: "Le PDF/PNG final doit être poussé puis archivé.",
+      },
+    ],
+    [externalOrderId, fulfillment?.invoice_file_path, fulfillment?.invoice_pushed_at, fulfillment?.invoice_requested_at, fulfillment?.invoice_uploaded_at, invoiceRequestData, order?.supplier_account_id, supplierAccountId],
+  );
+
   const canRefund = useMemo(() => {
     const status = String(order?.status ?? "").toLowerCase();
     const isPaid = status.includes("success") || status.includes("paid") || status.includes("completed");
@@ -398,6 +599,7 @@ export default function AdminOrderDetailPage() {
           external_order_id: externalOrderId || undefined,
           seller_id: sellerId || undefined,
           locale: supplierLocale || undefined,
+          invoice_customer_id: invoiceCustomerId || undefined,
           shipping_mode: supplierShippingMode || undefined,
           shipping_provider_code: shippingProviderCode || undefined,
           shipping_provider_name: shippingProviderName || undefined,
@@ -455,6 +657,122 @@ export default function AdminOrderDetailPage() {
       setSupplierMessage(labels[action]);
     } catch (e: any) {
       setError(e?.message ?? `Action ${action} impossible`);
+    } finally {
+      setSupplierActionLoading(null);
+    }
+  };
+
+  const runInvoiceAction = async (action: "invoice-query" | "invoice-upload-brazil" | "invoice-push" | "invoice-download") => {
+    if (!order) return;
+    setSupplierActionLoading(action);
+    setInvoiceMessage(null);
+    setError("");
+
+    try {
+      if (action === "invoice-download") {
+        const res = await fetch(`${API_BASE}/admin/orders/${order.id}/supplier/aliexpress/invoice/document`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) {
+          const payload = await res.json().catch(() => null);
+          throw new Error(payload?.message ?? "Téléchargement de la facture impossible");
+        }
+        const blob = await res.blob();
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = fulfillment?.invoice_file_name || invoiceName || `invoice-${order.id}.${invoiceFileType}`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        setInvoiceMessage("Facture téléchargée.");
+        return;
+      }
+
+      let body: Record<string, unknown> = {};
+      let endpoint = "";
+
+      if (action === "invoice-query") {
+        endpoint = "query-request";
+        body = {
+          customer_id: invoiceCustomerId || undefined,
+        };
+      }
+
+      if (action === "invoice-upload-brazil") {
+        if (!invoiceBrazilFile) {
+          throw new Error("Sélectionne d’abord un fichier XML Brésil.");
+        }
+        if (!invoiceBrazilFile.name.toLowerCase().endsWith(".xml")) {
+          throw new Error("Le fichier Brésil doit être un XML.");
+        }
+        if (invoiceBrazilFile.size > 3 * 1024 * 1024) {
+          throw new Error("Le XML Brésil dépasse 3 Mo.");
+        }
+
+        endpoint = "upload-brazil";
+        body = {
+          file_name: invoiceBrazilFile.name,
+          file_content_base64: await fileToBase64(invoiceBrazilFile),
+          source: "ISV",
+        };
+      }
+
+      if (action === "invoice-push") {
+        if (!invoiceUploadFile) {
+          throw new Error("Sélectionne d’abord le fichier de facture à pousser.");
+        }
+        if (invoiceUploadFile.size > 8 * 1024 * 1024) {
+          throw new Error("Le fichier final dépasse 8 Mo.");
+        }
+
+        const nextFileType = inferInvoiceFileTypeFromName(invoiceUploadFile.name);
+        const effectiveRequestNo = invoiceRequestNo.trim() || generateInvoiceRequestNo(order.id);
+        const effectiveInvoiceName = invoiceName.trim() || invoiceUploadFile.name;
+        const effectiveInvoiceDate = Number(invoiceDate || Date.now());
+
+        setInvoiceRequestNo(effectiveRequestNo);
+        setInvoiceFileType(nextFileType);
+        setInvoiceName(effectiveInvoiceName);
+        setInvoiceDate(String(effectiveInvoiceDate));
+
+        endpoint = "push-result";
+        body = {
+          customer_id: invoiceCustomerId || undefined,
+          invoice_no: invoiceNo,
+          request_no: effectiveRequestNo,
+          invoice_date: effectiveInvoiceDate,
+          invoice_file_type: nextFileType,
+          invoice_direction: invoiceDirection,
+          invoice_name: effectiveInvoiceName,
+          invoice_content_base64: await fileToBase64(invoiceUploadFile),
+        };
+      }
+
+      const res = await fetch(`${API_BASE}/admin/orders/${order.id}/supplier/aliexpress/invoice/${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify(body),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.message ?? "Action de facturation AliExpress impossible");
+      setOrder(payload?.order ?? order);
+      if (action === "invoice-query") {
+        const resolvedCustomerId = payload?.data?.invoice_request?.customerId ?? payload?.order?.currentSupplierFulfillment?.invoice_customer_id;
+        if (resolvedCustomerId) {
+          setInvoiceCustomerId(String(resolvedCustomerId));
+        }
+      }
+      setInvoiceMessage(
+        action === "invoice-query"
+          ? "Demande de facture AliExpress synchronisée."
+          : action === "invoice-upload-brazil"
+            ? "Facture Brésil uploadée."
+            : "Résultat de facturation poussé à AliExpress."
+      );
+    } catch (e: any) {
+      setError(e?.message ?? "Action de facturation AliExpress impossible");
     } finally {
       setSupplierActionLoading(null);
     }
@@ -673,6 +991,10 @@ export default function AdminOrderDetailPage() {
               <input value={supplierLocale} onChange={(e) => setSupplierLocale(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
             </label>
             <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Customer ID facture</span>
+              <input value={invoiceCustomerId} onChange={(e) => setInvoiceCustomerId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
               <span className="text-slate-600">Mode d’expédition</span>
               <select value={supplierShippingMode} onChange={(e) => setSupplierShippingMode(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2">
                 <option value="">Auto</option>
@@ -752,6 +1074,161 @@ export default function AdminOrderDetailPage() {
             <div>Tracking: {order?.currentSupplierFulfillment?.tracking_number ?? order?.supplier_tracking_number ?? "—"}</div>
             <div>Package ID: {order?.currentSupplierFulfillment?.package_id ?? order?.supplier_package_id ?? "—"}</div>
             <div>Document URL: {order?.currentSupplierFulfillment?.document_url ?? order?.supplier_document_url ?? "—"}</div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">Facturation AliExpress</div>
+                <div className="text-xs text-slate-500">Workflow guidé: récupération de la demande, contrôles, upload XML Brésil si nécessaire, puis synchronisation finale.</div>
+              </div>
+              <div className={`rounded-full border px-3 py-1 text-xs font-medium ${invoiceStatusMeta.badgeClassName}`}>{invoiceStatusMeta.label}</div>
+            </div>
+
+            <div className="mb-4 rounded-2xl bg-slate-900 px-4 py-4 text-white">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Pilotage facture</div>
+                  <div className="mt-2 text-lg font-semibold">{invoiceStatusMeta.description}</div>
+                </div>
+                <div className="grid gap-2 text-right text-xs text-slate-300">
+                  <div>Dernière demande: {formatDateTime(fulfillment?.invoice_requested_at)}</div>
+                  <div>Dernier upload XML: {formatDateTime(fulfillment?.invoice_uploaded_at)}</div>
+                  <div>Dernière synchro finale: {formatDateTime(fulfillment?.invoice_pushed_at)}</div>
+                </div>
+              </div>
+            </div>
+
+            {invoiceMessage ? (
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {invoiceMessage}
+              </div>
+            ) : null}
+
+            {invoiceLastError?.message ? (
+              <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div className="font-medium">Dernier blocage: {invoiceLastError.message}</div>
+                <div className="mt-1 text-xs text-rose-600">Étape: {invoiceLastError.step ?? "—"} • {formatDateTime(invoiceLastError.at)}</div>
+              </div>
+            ) : null}
+
+            {invoiceWarnings.length > 0 ? (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <div className="font-medium">Contrôles avant exécution</div>
+                <div className="mt-2 grid gap-1 text-xs text-amber-700">
+                  {invoiceWarnings.map((warning) => (
+                    <div key={warning}>• {warning}</div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mb-4 grid gap-3 lg:grid-cols-4">
+              {invoiceChecklist.map((item) => (
+                <div key={item.label} className={`rounded-xl border px-3 py-3 ${item.done ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"}`}>
+                  <div className={`text-xs font-semibold uppercase tracking-wide ${item.done ? "text-emerald-700" : "text-slate-500"}`}>{item.done ? "OK" : "À faire"}</div>
+                  <div className="mt-2 text-sm font-medium text-slate-900">{item.label}</div>
+                  <div className="mt-1 text-xs text-slate-500">{item.hint}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Invoice number</span>
+                <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Request number</span>
+                <input value={invoiceRequestNo} onChange={(e) => setInvoiceRequestNo(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+                <span className="text-[11px] text-slate-400">Généré automatiquement si laissé vide au moment de l’envoi.</span>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Invoice date (timestamp ms)</span>
+                <input value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+                <span className="text-[11px] text-slate-400">Prérempli automatiquement avec la date courante si nécessaire.</span>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Invoice name</span>
+                <input value={invoiceName} onChange={(e) => setInvoiceName(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+                <span className="text-[11px] text-slate-400">Synchronisé automatiquement avec le fichier final quand tu le sélectionnes.</span>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">File type</span>
+                <select value={invoiceFileType} onChange={(e) => setInvoiceFileType(e.target.value as "pdf" | "png")} className="rounded-xl border border-slate-200 px-3 py-2">
+                  <option value="pdf">pdf</option>
+                  <option value="png">png</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Direction</span>
+                <select value={invoiceDirection} onChange={(e) => setInvoiceDirection(e.target.value as "BLUE" | "RED")} className="rounded-xl border border-slate-200 px-3 py-2">
+                  <option value="BLUE">BLUE</option>
+                  <option value="RED">RED</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm lg:col-span-2">
+                <span className="text-slate-600">Fichier facture finale (PDF ou PNG)</span>
+                <input type="file" accept=".pdf,.png" onChange={(e) => setInvoiceUploadFile(e.target.files?.[0] ?? null)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                <span className="text-[11px] text-slate-400">Taille max 8 Mo. Le type est détecté automatiquement depuis l’extension.</span>
+              </label>
+              <label className="grid gap-1 text-sm lg:col-span-2">
+                <span className="text-slate-600">Fichier XML Brésil</span>
+                <input type="file" accept=".xml,text/xml,application/xml" onChange={(e) => setInvoiceBrazilFile(e.target.files?.[0] ?? null)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                <span className="text-[11px] text-slate-400">Taille max 3 Mo. Utiliser uniquement pour les obligations fiscales Brésil.</span>
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button onClick={() => runInvoiceAction("invoice-query")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
+                {supplierActionLoading === "invoice-query" ? "Chargement..." : fulfillment?.invoice_status === "failed_query" ? "Relancer la demande" : "Charger la demande de facture"}
+              </button>
+              <button onClick={() => runInvoiceAction("invoice-upload-brazil")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
+                {supplierActionLoading === "invoice-upload-brazil" ? "Upload..." : fulfillment?.invoice_status === "failed_upload" ? "Relancer l’upload XML" : "Uploader XML Brésil"}
+              </button>
+              <button onClick={() => runInvoiceAction("invoice-push")} className="rounded-xl bg-slate-900 px-3 py-2 text-xs text-white" disabled={supplierActionLoading !== null}>
+                {supplierActionLoading === "invoice-push" ? "Envoi..." : fulfillment?.invoice_status === "failed_push" ? "Relancer la synchronisation" : "Pousser le résultat de facture"}
+              </button>
+              <button onClick={() => runInvoiceAction("invoice-download")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
+                {supplierActionLoading === "invoice-download" ? "Téléchargement..." : "Télécharger la facture stockée"}
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Demande client AliExpress</div>
+                {!invoiceRequestData ? (
+                  <div className="mt-3 text-sm text-slate-500">Aucune donnée client chargée pour l’instant.</div>
+                ) : (
+                  <div className="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
+                    <div><span className="text-slate-400">Customer ID:</span> {invoiceRequestData.customerId ?? fulfillment?.invoice_customer_id ?? "—"}</div>
+                    <div><span className="text-slate-400">Société / nom:</span> {invoiceRequestData.companyName ?? invoiceRequestData.fullName ?? "—"}</div>
+                    <div><span className="text-slate-400">Email:</span> {invoiceRequestData.email ?? "—"}</div>
+                    <div><span className="text-slate-400">Téléphone:</span> {invoiceRequestData.mobileNo ?? "—"}</div>
+                    <div><span className="text-slate-400">Pays:</span> {invoiceRequestData.country ?? "—"}</div>
+                    <div><span className="text-slate-400">Ville:</span> {invoiceRequestData.city ?? "—"}</div>
+                    <div className="md:col-span-2"><span className="text-slate-400">Adresse:</span> {[invoiceRequestData.detailAddress, invoiceRequestData.district, invoiceRequestData.province, invoiceRequestData.zip].filter(Boolean).join(", ") || "—"}</div>
+                    <div><span className="text-slate-400">Tax number:</span> {invoiceRequestData.taxNumber ?? "—"}</div>
+                    <div><span className="text-slate-400">Tax office:</span> {invoiceRequestData.taxOffice ?? "—"}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Résumé opératoire</div>
+                <div className="mt-3 grid gap-2 text-xs text-slate-600">
+                  <div>Customer ID: {fulfillment?.invoice_customer_id ?? "—"}</div>
+                  <div>Invoice no: {fulfillment?.invoice_no ?? "—"}</div>
+                  <div>Request no: {fulfillment?.invoice_request_no ?? "—"}</div>
+                  <div>Type: {fulfillment?.invoice_file_type ?? "—"}</div>
+                  <div>Direction: {fulfillment?.invoice_direction ?? "—"}</div>
+                  <div>Date facture: {formatDateTime(fulfillment?.invoice_date ?? null)}</div>
+                  <div>Fichier archivé: {fulfillment?.invoice_file_name ?? "—"}</div>
+                  <div>Poids fichier courant: {formatFileSize(invoiceUploadFile?.size ?? invoiceBrazilFile?.size ?? null)}</div>
+                  <div>Chemin local: {fulfillment?.invoice_file_path ?? "—"}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
