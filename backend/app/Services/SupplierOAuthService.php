@@ -7,6 +7,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use SimpleXMLElement;
 
 class SupplierOAuthService
 {
@@ -120,6 +121,7 @@ class SupplierOAuthService
         $refreshValidTimeMs = (int) ($payload['refresh_token_valid_time'] ?? 0);
         $expiresIn = (int) ($payload['expires_in'] ?? 0);
         $refreshExpiresIn = (int) ($payload['refresh_expires_in'] ?? 0);
+        $userInfo = is_array($payload['user_info'] ?? null) ? $payload['user_info'] : [];
 
         return [
             'access_token' => $accessToken,
@@ -131,7 +133,7 @@ class SupplierOAuthService
                 ? now()->setTimestamp((int) floor($refreshValidTimeMs / 1000))
                 : ($refreshExpiresIn > 0 ? now()->addSeconds($refreshExpiresIn) : null),
             'resource_owner' => $payload['account'] ?? $payload['user_nick'] ?? null,
-            'member_id' => $payload['seller_id'] ?? $payload['user_id'] ?? $payload['account_id'] ?? null,
+            'member_id' => $payload['seller_id'] ?? $payload['user_id'] ?? $userInfo['seller_id'] ?? $userInfo['user_id'] ?? $payload['account_id'] ?? null,
             'scopes_json' => array_values(array_filter([
                 $payload['sp'] ?? null,
                 $payload['country'] ?? null,
@@ -165,12 +167,66 @@ class SupplierOAuthService
             throw new \RuntimeException('Appel OAuth IOP échoué (HTTP ' . $response->status() . ', mode ' . $attempt . ', url ' . $requestUrl . '): ' . $response->body());
         }
 
-        $payload = $response->json() ?? [];
+        $payload = $this->decodeIoAuthResponse($response->body());
         if ((string) ($payload['code'] ?? '0') !== '0') {
             throw new \RuntimeException(($payload['message'] ?? 'Erreur OAuth IOP') . ' [' . ($payload['code'] ?? 'unknown') . ']');
         }
 
+        if (!filled($payload['access_token'] ?? null) && !filled($payload['refresh_token'] ?? null)) {
+            throw new \RuntimeException('Réponse OAuth IOP reçue sans access_token ni refresh_token: ' . Str::limit(trim($response->body()), 500));
+        }
+
         return $this->parseTokenResponse($payload);
+    }
+
+    private function decodeIoAuthResponse(string $body): array
+    {
+        $decodedJson = json_decode($body, true);
+        if (is_array($decodedJson)) {
+            return $decodedJson;
+        }
+
+        $trimmed = trim($body);
+        if ($trimmed === '' || !str_starts_with($trimmed, '<')) {
+            return [];
+        }
+
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($trimmed, SimpleXMLElement::class, LIBXML_NOCDATA);
+        libxml_clear_errors();
+
+        if (!$xml instanceof SimpleXMLElement) {
+            return [];
+        }
+
+        $parsed = $this->xmlElementToArray($xml);
+
+        return is_array($parsed) ? $parsed : [];
+    }
+
+    private function xmlElementToArray(SimpleXMLElement $element): array|string
+    {
+        $children = $element->children();
+        if ($children->count() === 0) {
+            return (string) $element;
+        }
+
+        $result = [];
+        foreach ($children as $name => $child) {
+            $value = $this->xmlElementToArray($child);
+
+            if (array_key_exists($name, $result)) {
+                if (!is_array($result[$name]) || !array_is_list($result[$name])) {
+                    $result[$name] = [$result[$name]];
+                }
+                $result[$name][] = $value;
+                continue;
+            }
+
+            $result[$name] = $value;
+        }
+
+        return $result;
     }
 
     private function resolveIoAuthUrl(SupplierAccount $account, string $url): string
