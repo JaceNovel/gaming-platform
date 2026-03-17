@@ -33,6 +33,13 @@ const getAuthHeaders = (): Record<string, string> => {
   return headers;
 };
 
+const maskAppKey = (value?: string | null) => {
+  const trimmed = value?.trim() || "";
+  if (!trimmed) return "—";
+  if (trimmed.length <= 8) return trimmed;
+  return `${trimmed.slice(0, 4)}...${trimmed.slice(-4)}`;
+};
+
 export default function AdminSourcingAccountsPage() {
   const searchParams = useSearchParams();
   const [accounts, setAccounts] = useState<SupplierAccount[]>([]);
@@ -265,6 +272,7 @@ export default function AdminSourcingAccountsPage() {
                     </td>
                     <td className="py-3 pr-4 align-top text-xs text-slate-600">
                       <div>App Key: {account.app_key ? "Oui" : "Non"}</div>
+                      <div>ID: {maskAppKey(account.app_key)}</div>
                       <div>App Secret: {account.has_app_secret ? "Oui" : "Non"}</div>
                     </td>
                     <td className="py-3 pr-4 align-top text-xs text-slate-600">

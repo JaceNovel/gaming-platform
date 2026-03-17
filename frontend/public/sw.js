@@ -1,6 +1,6 @@
 /* global self */
 
-const RUNTIME_CACHE = "prime-runtime-v1";
+const RUNTIME_CACHE = "prime-runtime-v2";
 const OFFLINE_URL = "/offline.html";
 
 // Take over ASAP and purge any legacy caches from previous SW versions.

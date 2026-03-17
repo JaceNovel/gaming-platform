@@ -169,7 +169,19 @@ class SupplierOAuthService
 
         $payload = $this->decodeIoAuthResponse($response->body());
         if ((string) ($payload['code'] ?? '0') !== '0') {
-            throw new \RuntimeException(($payload['message'] ?? 'Erreur OAuth IOP') . ' [' . ($payload['code'] ?? 'unknown') . ']');
+            $message = (string) ($payload['message'] ?? $payload['msg'] ?? 'Erreur OAuth IOP');
+            $subCode = (string) ($payload['sub_code'] ?? '');
+            $subMessage = (string) ($payload['sub_msg'] ?? '');
+
+            if ($subCode !== '') {
+                $message .= ' (' . $subCode . ')';
+            }
+
+            if ($subMessage !== '') {
+                $message .= ': ' . $subMessage;
+            }
+
+            throw new \RuntimeException($message . ' [' . ($payload['code'] ?? 'unknown') . ']');
         }
 
         if (!filled($payload['access_token'] ?? null) && !filled($payload['refresh_token'] ?? null)) {
