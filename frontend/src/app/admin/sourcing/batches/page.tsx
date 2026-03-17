@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
@@ -25,6 +26,9 @@ const getAuthHeaders = (): Record<string, string> => {
 };
 
 export default function AdminSourcingBatchesPage() {
+  const searchParams = useSearchParams();
+  const platform = searchParams.get("platform") === "aliexpress" ? "aliexpress" : "alibaba";
+  const platformLabel = platform === "aliexpress" ? "AliExpress" : "Alibaba";
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -42,16 +46,16 @@ export default function AdminSourcingBatchesPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/admin/sourcing/batches`, { headers: { Accept: "application/json", ...getAuthHeaders() } });
-      if (!res.ok) throw new Error("Impossible de charger les lots d’achat");
+      const res = await fetch(`${API_BASE}/admin/sourcing/batches?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } });
+      if (!res.ok) throw new Error(`Impossible de charger les lots ${platformLabel}`);
       const payload = await res.json();
       setBatches(Array.isArray(payload?.data) ? payload.data : []);
     } catch (err) {
-      setError("Impossible de charger les lots d’achat");
+      setError(`Impossible de charger les lots ${platformLabel}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [platform, platformLabel]);
 
   useEffect(() => {
     loadBatches();
@@ -144,7 +148,7 @@ export default function AdminSourcingBatchesPage() {
   };
 
   return (
-    <AdminShell title="Sourcing" subtitle="Lots d’achat et préparation des expéditions entrantes">
+    <AdminShell title={platformLabel} subtitle="Lots d’achat et préparation des expéditions entrantes">
       <div className="grid gap-6 xl:grid-cols-[420px,1fr]">
         <form onSubmit={createShipment} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">Créer une expédition entrante</h2>

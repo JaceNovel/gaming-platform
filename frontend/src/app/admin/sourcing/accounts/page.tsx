@@ -42,6 +42,8 @@ const maskAppKey = (value?: string | null) => {
 
 export default function AdminSourcingAccountsPage() {
   const searchParams = useSearchParams();
+  const activePlatform = searchParams.get("platform") === "aliexpress" ? "aliexpress" : "alibaba";
+  const platformLabel = activePlatform === "aliexpress" ? "AliExpress" : "Alibaba";
   const [accounts, setAccounts] = useState<SupplierAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -60,7 +62,7 @@ export default function AdminSourcingAccountsPage() {
 
   const resetForm = () => {
     setEditingAccountId(null);
-    setPlatform("alibaba");
+    setPlatform(activePlatform);
     setLabel("");
     setMemberId("");
     setResourceOwner("");
@@ -75,21 +77,27 @@ export default function AdminSourcingAccountsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/admin/sourcing/supplier-accounts`, {
+      const res = await fetch(`${API_BASE}/admin/sourcing/supplier-accounts?platform=${activePlatform}`, {
         headers: {
           Accept: "application/json",
           ...getAuthHeaders(),
         },
       });
-      if (!res.ok) throw new Error("Impossible de charger les comptes fournisseurs");
+      if (!res.ok) throw new Error(`Impossible de charger les comptes ${platformLabel}`);
       const payload = await res.json();
       setAccounts(Array.isArray(payload?.data) ? payload.data : []);
     } catch (err) {
-      setError("Impossible de charger les comptes fournisseurs");
+      setError(`Impossible de charger les comptes ${platformLabel}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activePlatform, platformLabel]);
+
+  useEffect(() => {
+    if (editingAccountId === null) {
+      setPlatform(activePlatform);
+    }
+  }, [activePlatform, editingAccountId]);
 
   useEffect(() => {
     loadAccounts();
@@ -205,7 +213,7 @@ export default function AdminSourcingAccountsPage() {
   };
 
   return (
-    <AdminShell title="Sourcing" subtitle="Comptes fournisseurs Alibaba / AliExpress">
+    <AdminShell title={platformLabel} subtitle={`Comptes fournisseurs ${platformLabel}`}>
       <div className="grid gap-6 xl:grid-cols-[420px,1fr]">
         <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">

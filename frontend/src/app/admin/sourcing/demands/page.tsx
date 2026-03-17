@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
@@ -26,6 +27,9 @@ const getAuthHeaders = (): Record<string, string> => {
 };
 
 export default function AdminSourcingDemandsPage() {
+  const searchParams = useSearchParams();
+  const platform = searchParams.get("platform") === "aliexpress" ? "aliexpress" : "alibaba";
+  const platformLabel = platform === "aliexpress" ? "AliExpress" : "Alibaba";
   const [demands, setDemands] = useState<Demand[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
@@ -36,16 +40,16 @@ export default function AdminSourcingDemandsPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/admin/sourcing/demands`, { headers: { Accept: "application/json", ...getAuthHeaders() } });
-      if (!res.ok) throw new Error("Impossible de charger les demandes sourcing");
+      const res = await fetch(`${API_BASE}/admin/sourcing/demands?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } });
+      if (!res.ok) throw new Error(`Impossible de charger les demandes ${platformLabel}`);
       const payload = await res.json();
       setDemands(Array.isArray(payload?.data) ? payload.data : []);
     } catch (err) {
-      setError("Impossible de charger les demandes sourcing");
+      setError(`Impossible de charger les demandes ${platformLabel}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [platform, platformLabel]);
 
   useEffect(() => {
     loadDemands();
@@ -84,7 +88,7 @@ export default function AdminSourcingDemandsPage() {
   };
 
   return (
-    <AdminShell title="Sourcing" subtitle="Demandes d’approvisionnement générées automatiquement après paiement">
+    <AdminShell title={platformLabel} subtitle="Demandes d’approvisionnement générées automatiquement après paiement">
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-slate-500">{loading ? "Chargement..." : `${pendingDemands.length} demande(s) en attente`}</div>

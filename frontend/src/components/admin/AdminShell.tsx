@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
@@ -152,18 +152,37 @@ const MENU_ITEMS: MenuItem[] = [
   { label: "Paiements", icon: CreditCard, href: "/admin/payments", permissions: ["payments.view"] },
   { label: "Stock / Inventaire", icon: Boxes, href: "/admin/stock", permissions: ["stock.manage"] },
   {
-    label: "Sourcing",
+    label: "Alibaba",
     icon: Search,
-    href: "/admin/sourcing",
+    href: "/admin/sourcing/dashboard?platform=alibaba",
     permissions: ["sourcing.view", "sourcing.manage"],
     children: [
-      { label: "Tableau de bord", href: "/admin/sourcing/dashboard", permissions: ["sourcing.view"] },
-      { label: "Comptes fournisseurs", href: "/admin/sourcing/accounts", permissions: ["sourcing.view"] },
-      { label: "Import catalogue", href: "/admin/sourcing/import", permissions: ["sourcing.manage"] },
-      { label: "Mappings produit-source", href: "/admin/sourcing/mappings", permissions: ["sourcing.view"] },
-      { label: "Demandes", href: "/admin/sourcing/demands", permissions: ["sourcing.view"] },
-      { label: "Lots d’achat", href: "/admin/sourcing/batches", permissions: ["sourcing.view"] },
-      { label: "Réceptions", href: "/admin/sourcing/inbound", permissions: ["sourcing.view"] },
+      { label: "Tableau de bord", href: "/admin/sourcing/dashboard?platform=alibaba", permissions: ["sourcing.view"] },
+      { label: "Comptes fournisseurs", href: "/admin/sourcing/accounts?platform=alibaba", permissions: ["sourcing.view"] },
+      { label: "Import catalogue", href: "/admin/sourcing/import?platform=alibaba", permissions: ["sourcing.manage"] },
+      { label: "Pays", href: "/admin/sourcing/countries?platform=alibaba", permissions: ["sourcing.view"] },
+      { label: "Adresses reception", href: "/admin/sourcing/receiving-addresses?platform=alibaba", permissions: ["sourcing.view"] },
+      { label: "Mappings produit-source", href: "/admin/sourcing/mappings?platform=alibaba", permissions: ["sourcing.view"] },
+      { label: "Demandes", href: "/admin/sourcing/demands?platform=alibaba", permissions: ["sourcing.view"] },
+      { label: "Lots d’achat", href: "/admin/sourcing/batches?platform=alibaba", permissions: ["sourcing.view"] },
+      { label: "Réceptions", href: "/admin/sourcing/inbound?platform=alibaba", permissions: ["sourcing.view"] },
+    ],
+  },
+  {
+    label: "AliExpress",
+    icon: Search,
+    href: "/admin/sourcing/dashboard?platform=aliexpress",
+    permissions: ["sourcing.view", "sourcing.manage"],
+    children: [
+      { label: "Tableau de bord", href: "/admin/sourcing/dashboard?platform=aliexpress", permissions: ["sourcing.view"] },
+      { label: "Comptes fournisseurs", href: "/admin/sourcing/accounts?platform=aliexpress", permissions: ["sourcing.view"] },
+      { label: "Import catalogue", href: "/admin/sourcing/import?platform=aliexpress", permissions: ["sourcing.manage"] },
+      { label: "Pays", href: "/admin/sourcing/countries?platform=aliexpress", permissions: ["sourcing.view"] },
+      { label: "Adresses reception", href: "/admin/sourcing/receiving-addresses?platform=aliexpress", permissions: ["sourcing.view"] },
+      { label: "Mappings produit-source", href: "/admin/sourcing/mappings?platform=aliexpress", permissions: ["sourcing.view"] },
+      { label: "Demandes", href: "/admin/sourcing/demands?platform=aliexpress", permissions: ["sourcing.view"] },
+      { label: "Lots d’achat", href: "/admin/sourcing/batches?platform=aliexpress", permissions: ["sourcing.view"] },
+      { label: "Réceptions", href: "/admin/sourcing/inbound?platform=aliexpress", permissions: ["sourcing.view"] },
     ],
   },
 ];
@@ -174,6 +193,8 @@ const canAccess = (role: string | null | undefined, permissions?: string[]) => {
 };
 
 function Navigation({ pathname, role, onNavigate }: { pathname: string | null; role?: string | null; onNavigate?: () => void }) {
+  const searchParams = useSearchParams();
+  const currentPlatform = searchParams.get("platform") || "";
   const visibleMenu = useMemo(
     () =>
       MENU_ITEMS.map((item) => ({
@@ -186,7 +207,9 @@ function Navigation({ pathname, role, onNavigate }: { pathname: string | null; r
   return (
     <nav className="mt-6 space-y-1">
       {visibleMenu.map((item) => {
-        const active = pathname?.startsWith(item.href);
+        const [itemPath, itemQuery = ""] = item.href.split("?");
+        const itemPlatform = new URLSearchParams(itemQuery).get("platform") || "";
+        const active = pathname?.startsWith(itemPath) && (itemPlatform === "" || itemPlatform === currentPlatform);
         const hasChildren = Boolean(item.children?.length);
         return (
           <div key={item.label}>
@@ -206,7 +229,9 @@ function Navigation({ pathname, role, onNavigate }: { pathname: string | null; r
             {hasChildren && active ? (
               <div className="ml-8 mt-2 space-y-1">
                 {item.children?.map((child) => {
-                  const childActive = pathname?.startsWith(child.href);
+                  const [childPath, childQuery = ""] = child.href.split("?");
+                  const childPlatform = new URLSearchParams(childQuery).get("platform") || "";
+                  const childActive = pathname?.startsWith(childPath) && (childPlatform === "" || childPlatform === currentPlatform);
                   return (
                     <Link
                       key={child.label}

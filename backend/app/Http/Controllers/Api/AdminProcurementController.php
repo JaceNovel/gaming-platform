@@ -10,20 +10,39 @@ use Illuminate\Http\Request;
 
 class AdminProcurementController extends Controller
 {
-    public function dashboard()
+    public function dashboard(Request $request)
     {
-        $pendingDemands = ProcurementDemand::query()->where('status', 'pending')->get();
+        $platform = trim((string) $request->query('platform'));
 
-        $unmappedProducts = \App\Models\Product::query()
+        $pendingDemandsQuery = ProcurementDemand::query()->where('status', 'pending');
+        if ($platform !== '') {
+            $pendingDemandsQuery->whereHas('supplierProductSku.supplierProduct.supplierAccount', function ($builder) use ($platform) {
+                $builder->where('platform', $platform);
+            });
+        }
+
+        $pendingDemands = $pendingDemandsQuery->get();
+
+        $unmappedProductsQuery = \App\Models\Product::query()
             ->where('type', 'item')
             ->whereNotNull('accessory_category')
             ->where(function ($query) {
                 $query->where('shipping_required', true)
                     ->orWhere('delivery_type', 'preorder');
             })
-            ->doesntHave('productSupplierLinks')
-            ->limit(20)
-            ->get(['id', 'name', 'title', 'stock', 'delivery_type']);
+            ->limit(20);
+
+        if ($platform !== '') {
+            $unmappedProductsQuery->whereDoesntHave('productSupplierLinks', function ($builder) use ($platform) {
+                $builder->whereHas('supplierProductSku.supplierProduct.supplierAccount', function ($inner) use ($platform) {
+                    $inner->where('platform', $platform);
+                });
+            });
+        } else {
+            $unmappedProductsQuery->doesntHave('productSupplierLinks');
+        }
+
+        $unmappedProducts = $unmappedProductsQuery->get(['id', 'name', 'title', 'stock', 'delivery_type']);
 
         $moqBlockers = $pendingDemands
             ->groupBy('supplier_product_sku_id')
@@ -53,16 +72,42 @@ class AdminProcurementController extends Controller
             ->take(20)
             ->all();
 
-        $draftBatches = ProcurementBatch::query()->where('status', 'draft')->count();
-        $submittedBatches = ProcurementBatch::query()->whereIn('status', ['approved', 'submitted', 'shipped', 'partially_received'])->count();
-        $inboundOpen = \App\Models\InboundShipment::query()->whereNotIn('status', ['received', 'closed'])->count();
+        $draftBatchesQuery = ProcurementBatch::query()->where('status', 'draft');
+        $submittedBatchesQuery = ProcurementBatch::query()->whereIn('status', ['approved', 'submitted', 'shipped', 'partially_received']);
+        $inboundOpenQuery = \App\Models\InboundShipment::query()->whereNotIn('status', ['received', 'closed']);
+        $activeSupplierAccountsQuery = \App\Models\SupplierAccount::query()->where('is_active', true);
+        $importedSupplierProductsQuery = \App\Models\SupplierProduct::query();
+        $activeSupplierSkusQuery = \App\Models\SupplierProductSku::query()->where('is_active', true);
+
+        if ($platform !== '') {
+            $draftBatchesQuery->whereHas('supplierAccount', function ($builder) use ($platform) {
+                $builder->where('platform', $platform);
+            });
+            $submittedBatchesQuery->whereHas('supplierAccount', function ($builder) use ($platform) {
+                $builder->where('platform', $platform);
+            });
+            $inboundOpenQuery->whereHas('procurementBatch.supplierAccount', function ($builder) use ($platform) {
+                $builder->where('platform', $platform);
+            });
+            $activeSupplierAccountsQuery->where('platform', $platform);
+            $importedSupplierProductsQuery->whereHas('supplierAccount', function ($builder) use ($platform) {
+                $builder->where('platform', $platform);
+            });
+            $activeSupplierSkusQuery->whereHas('supplierProduct.supplierAccount', function ($builder) use ($platform) {
+                $builder->where('platform', $platform);
+            });
+        }
+
+        $draftBatches = $draftBatchesQuery->count();
+        $submittedBatches = $submittedBatchesQuery->count();
+        $inboundOpen = $inboundOpenQuery->count();
 
         return response()->json([
             'data' => [
                 'kpis' => [
-                    'active_supplier_accounts' => \App\Models\SupplierAccount::query()->where('is_active', true)->count(),
-                    'imported_supplier_products' => \App\Models\SupplierProduct::query()->count(),
-                    'active_supplier_skus' => \App\Models\SupplierProductSku::query()->where('is_active', true)->count(),
+                    'active_supplier_accounts' => $activeSupplierAccountsQuery->count(),
+                    'imported_supplier_products' => $importedSupplierProductsQuery->count(),
+                    'active_supplier_skus' => $activeSupplierSkusQuery->count(),
                     'pending_demands' => $pendingDemands->count(),
                     'pending_quantity_to_procure' => (int) $pendingDemands->sum('quantity_to_procure'),
                     'draft_batches' => $draftBatches,
@@ -90,6 +135,12 @@ class AdminProcurementController extends Controller
             ])
             ->latest('id');
 
+        if ($request->filled('platform')) {
+            $query->whereHas('supplierProductSku.supplierProduct.supplierAccount', function ($builder) use ($request) {
+                $builder->where('platform', $request->query('platform'));
+            });
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
         }
@@ -111,6 +162,12 @@ class AdminProcurementController extends Controller
                 'inboundShipments.receipts',
             ])
             ->latest('id');
+
+        if ($request->filled('platform')) {
+            $query->whereHas('supplierAccount', function ($builder) use ($request) {
+                $builder->where('platform', $request->query('platform'));
+            });
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));

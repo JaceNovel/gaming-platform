@@ -19,6 +19,7 @@ use App\Services\AdminResponsibilityService;
 use App\Services\LoggedEmailService;
 use App\Services\NotificationService;
 use App\Services\ReferralCommissionService;
+use App\Services\AliExpressOrderFulfillmentService;
 use App\Services\WalletService;
 use App\Services\ShippingService;
 use Dompdf\Dompdf;
@@ -106,10 +107,126 @@ class AdminOrderController extends Controller
 
     public function show(Order $order)
     {
-        $order->load(['user', 'payment', 'orderItems.product', 'orderItems.redeemDenomination', 'orderItems.redeemCode']);
+        $order->load(['user', 'payment', 'supplierAccount', 'currentSupplierFulfillment.supplierAccount', 'orderItems.product', 'orderItems.redeemDenomination', 'orderItems.redeemCode']);
         $order->setRelation('refunds', $order->refunds()->latest('id')->get());
 
         return response()->json($order);
+    }
+
+    public function updateAliExpressFulfillmentContext(Request $request, Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $data = $request->validate([
+                'supplier_account_id' => 'nullable|exists:supplier_accounts,id',
+                'external_order_id' => 'nullable|string|max:255',
+                'seller_id' => 'nullable|string|max:255',
+                'locale' => 'nullable|string|max:16',
+                'shipping_mode' => 'nullable|string|in:dbs,platform_logistics,local2local,local2local_self_pickup,local2local_offline',
+                'shipping_provider_code' => 'nullable|string|max:255',
+                'shipping_provider_name' => 'nullable|string|max:255',
+                'carrier_code' => 'nullable|string|max:255',
+                'tracking_number' => 'nullable|string|max:255',
+                'package_id' => 'nullable|string|max:255',
+                'pickup_address_id' => 'nullable|string|max:255',
+                'refund_address_id' => 'nullable|string|max:255',
+                'external_order_lines' => 'nullable|array',
+            ]);
+
+            $fulfillment = $service->saveContext($order, $data);
+
+            return response()->json([
+                'data' => $fulfillment,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function resolveAliExpressShippingMode(Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $result = $service->resolveShippingMode($order);
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function aliExpressPack(Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $result = $service->pack($order);
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function aliExpressShip(Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $result = $service->ship($order);
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function aliExpressRepack(Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $result = $service->repack($order);
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function aliExpressPrintWaybill(Request $request, Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $data = $request->validate([
+                'document_type' => 'nullable|string|in:WAY_BILL,PICKING_ORDER,HANDOVER,PICKING_ORDER_AND_WAY_BILL',
+            ]);
+
+            $result = $service->printWaybill($order, $data['document_type'] ?? 'WAY_BILL');
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
     }
 
     public function updateStatus(Request $request, Order $order)

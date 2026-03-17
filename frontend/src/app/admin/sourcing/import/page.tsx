@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
@@ -97,7 +98,100 @@ type IopOperation =
   | "order-list"
   | "order-pay-result-query"
   | "seller-warehouse-list"
-  | "order-logistics-query";
+  | "order-logistics-query"
+  | "ae-affiliate-product-shipping"
+  | "ae-affiliate-sku-detail"
+  | "ae-affiliate-product-detail"
+  | "ae-affiliate-product-query"
+  | "ae-affiliate-category-get"
+  | "ae-affiliate-link-generate"
+  | "ae-affiliate-order-get"
+  | "ae-affiliate-order-list"
+  | "ae-affiliate-order-listbyindex"
+  | "ae-affiliate-hotproduct-query"
+  | "ae-affiliate-hotproduct-download"
+  | "ae-affiliate-product-smartmatch"
+  | "ae-asf-local2local-sub-declareship"
+  | "ae-asf-dbs-declareship"
+  | "ae-asf-local2local-self-pickup-declareship"
+  | "ae-asf-dbs-declare-ship-modify"
+  | "ae-asf-shipment-pack"
+  | "ae-asf-order-shipping-service-get"
+  | "ae-asf-package-shipping-service-get"
+  | "ae-asf-local2local-split-quantity-rts-pack"
+  | "ae-asf-platform-logistics-document-query"
+  | "ae-asf-platform-logistics-rts"
+  | "ae-asf-platform-logistics-repack"
+  | "ae-asf-local-unreachable-preference-query"
+  | "ae-asf-seller-address-get"
+  | "ae-asf-local-unreachable-preference-update"
+  | "ae-asf-local2local-transfer-to-offline"
+  | "ae-asf-fulfillment-package-query"
+  | "ae-local-service-product-stocks-update"
+  | "ae-local-service-product-stocks-query"
+  | "ae-local-service-products-list"
+  | "ae-local-service-product-prices-edit"
+  | "ae-local-service-product-post"
+  | "ae-local-service-product-edit"
+  | "ae-local-service-product-query"
+  | "ae-local-service-product-status-update";
+
+const ALIBABA_IOP_OPERATIONS: IopOperation[] = [
+  "advanced-freight-calculate",
+  "basic-freight-calculate",
+  "merge-pay-query",
+  "buynow-order-create",
+  "logistics-tracking-get",
+  "overseas-admittance-check",
+  "dropshipping-order-pay",
+  "order-fund-query",
+  "ggs-warehouse-list",
+  "order-cancel",
+  "order-get",
+  "order-list",
+  "order-pay-result-query",
+  "seller-warehouse-list",
+  "order-logistics-query",
+];
+
+const ALIEXPRESS_IOP_OPERATIONS: IopOperation[] = [
+  "ae-affiliate-product-shipping",
+  "ae-affiliate-sku-detail",
+  "ae-affiliate-product-detail",
+  "ae-affiliate-product-query",
+  "ae-affiliate-category-get",
+  "ae-affiliate-link-generate",
+  "ae-affiliate-order-get",
+  "ae-affiliate-order-list",
+  "ae-affiliate-order-listbyindex",
+  "ae-affiliate-hotproduct-query",
+  "ae-affiliate-hotproduct-download",
+  "ae-affiliate-product-smartmatch",
+  "ae-asf-local2local-sub-declareship",
+  "ae-asf-dbs-declareship",
+  "ae-asf-local2local-self-pickup-declareship",
+  "ae-asf-dbs-declare-ship-modify",
+  "ae-asf-shipment-pack",
+  "ae-asf-order-shipping-service-get",
+  "ae-asf-package-shipping-service-get",
+  "ae-asf-local2local-split-quantity-rts-pack",
+  "ae-asf-platform-logistics-document-query",
+  "ae-asf-platform-logistics-rts",
+  "ae-asf-platform-logistics-repack",
+  "ae-asf-local-unreachable-preference-query",
+  "ae-asf-seller-address-get",
+  "ae-asf-local-unreachable-preference-update",
+  "ae-asf-local2local-transfer-to-offline",
+  "ae-asf-fulfillment-package-query",
+  "ae-local-service-product-stocks-update",
+  "ae-local-service-product-stocks-query",
+  "ae-local-service-products-list",
+  "ae-local-service-product-prices-edit",
+  "ae-local-service-product-post",
+  "ae-local-service-product-edit",
+  "ae-local-service-product-query",
+  "ae-local-service-product-status-update",
+];
 
 const stringifyTemplate = (value: unknown) => JSON.stringify(value, null, 2);
 
@@ -302,6 +396,283 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     trade_id: "2134532",
     data_select: "logistic_order",
   }),
+  "ae-affiliate-product-shipping": stringifyTemplate({
+    product_id: "33006951782",
+    sku_id: "12000029786932962",
+    ship_to_country: "TG",
+    target_currency: "USD",
+    target_sale_price: "100.03",
+    target_language: "FR",
+    tax_rate: "0.1",
+  }),
+  "ae-affiliate-sku-detail": stringifyTemplate({
+    ship_to_country: "TG",
+    product_id: "1005007588427363",
+    target_currency: "USD",
+    target_language: "FR",
+    need_deliver_info: "Yes",
+  }),
+  "ae-affiliate-product-detail": stringifyTemplate({
+    fields: "commission_rate,sale_price",
+    product_ids: "33006951782",
+    target_currency: "USD",
+    target_language: "FR",
+    tracking_id: "primegaming",
+    country: "TG",
+  }),
+  "ae-affiliate-product-query": stringifyTemplate({
+    keywords: "gaming headset",
+    page_no: 1,
+    page_size: 20,
+    sort: "SALE_PRICE_ASC",
+    target_currency: "USD",
+    target_language: "FR",
+    tracking_id: "primegaming",
+    ship_to_country: "TG",
+    delivery_days: "10",
+  }),
+  "ae-affiliate-category-get": stringifyTemplate({}),
+  "ae-affiliate-link-generate": stringifyTemplate({
+    ship_to_country: "TG",
+    promotion_link_type: 0,
+    source_values: "https://www.aliexpress.com/item/33006951782.html",
+    tracking_id: "primegaming",
+  }),
+  "ae-affiliate-order-get": stringifyTemplate({
+    fields: "commission_rate,created_time",
+    order_ids: "1111,2222",
+  }),
+  "ae-affiliate-order-list": stringifyTemplate({
+    time_type: "Payment Completed Time",
+    start_time: "2026-03-01 00:00:00",
+    end_time: "2026-03-17 23:59:59",
+    page_no: 1,
+    page_size: 20,
+    status: "Payment Completed",
+  }),
+  "ae-affiliate-order-listbyindex": stringifyTemplate({
+    time_type: "Payment Completed Time",
+    start_time: "2026-03-01 00:00:00",
+    end_time: "2026-03-17 23:59:59",
+    page_size: 20,
+    status: "Payment Completed",
+  }),
+  "ae-affiliate-hotproduct-query": stringifyTemplate({
+    keywords: "gaming mouse",
+    page_no: 1,
+    page_size: 20,
+    sort: "LAST_VOLUME_DESC",
+    target_currency: "USD",
+    target_language: "FR",
+    tracking_id: "primegaming",
+    ship_to_country: "TG",
+  }),
+  "ae-affiliate-hotproduct-download": stringifyTemplate({
+    category_id: "7",
+    fields: "app_sale_price,shop_id",
+    page_no: 1,
+    page_size: 20,
+    target_currency: "USD",
+    target_language: "FR",
+    tracking_id: "primegaming",
+    country: "TG",
+  }),
+  "ae-affiliate-product-smartmatch": stringifyTemplate({
+    page_no: 1,
+    device_id: "primegaming-demo-device",
+    fields: "app_sale_price,shop_id",
+    keywords: "gaming keyboard",
+    country: "TG",
+    target_currency: "USD",
+    target_language: "FR",
+    tracking_id: "primegaming",
+  }),
+  "ae-asf-local2local-sub-declareship": stringifyTemplate({
+    tradeOrderId: "tradeOrderId",
+    sellerId: 1001,
+    subTradeOrderList: [
+      {
+        sendType: "offline",
+        tradeOrderLineId: "tradeOrderLineId",
+        shipmentList: [
+          { carrierCode: "carrierCode", logisticsNo: "logisticsNo", serviceName: "serviceName" },
+        ],
+      },
+    ],
+  }),
+  "ae-asf-dbs-declareship": stringifyTemplate({
+    tradeOrderId: "tradeOrderId",
+    shipmentProviderCode: "shipmentProviderCode",
+    trackingNumber: "trackingNumber",
+    tradeOrderItemIdList: [{ tradeOrderItemId: "tradeOrderItemId" }],
+    locale: "fr_FR",
+    carrierCode: "carrierCode",
+  }),
+  "ae-asf-local2local-self-pickup-declareship": stringifyTemplate({
+    tradeOrderId: "tradeOrderId",
+    tradeOrderLineList: ["1109917450146008"],
+    sellerId: 1001,
+  }),
+  "ae-asf-dbs-declare-ship-modify": stringifyTemplate({
+    tradeOrderId: "tradeOrderId",
+    newShipmentProviderCode: "SPAIN_LOCAL_CORREOORDINARIO",
+    newTrackingNumber: "newTrackingNumber",
+    locale: "es_ES",
+    oldTrackingNumber: "oldTrackingNumber",
+    carrierCode: "carrierCode",
+  }),
+  "ae-asf-shipment-pack": stringifyTemplate({
+    tradeOrderId: 123,
+    tradeOrderItemIdList: [{ tradeOrderItemId: "123" }],
+    addressId: "3000012313213",
+    sendOption: "DOOR_PICKUP",
+    locale: "en_US",
+    solutionCode: "AE_KR_DBS_Hanjin",
+  }),
+  "ae-asf-order-shipping-service-get": stringifyTemplate({
+    tradeOrderId: 123,
+    locale: "fr_FR",
+    tradeOrderItemIdList: [123],
+  }),
+  "ae-asf-package-shipping-service-get": stringifyTemplate({
+    locale: "es_ES",
+    tradeOrderId: 123,
+    tradeOrderItemIdList: [123],
+    pageSize: 20,
+    pageNo: 1,
+  }),
+  "ae-asf-local2local-split-quantity-rts-pack": stringifyTemplate({
+    sellerId: "sellerId",
+    tradeOrderId: 123,
+    tradeOrderItemSupportItemDTOS: [{ quantity: "1", tradeOrderItemId: "tradeOrderItemId" }],
+    addressId: 3000012313213,
+    refundAddressId: "refundAddressId",
+    sendOption: "sendOption",
+    solutionCode: "solutionCode",
+  }),
+  "ae-asf-platform-logistics-document-query": stringifyTemplate({
+    documentType: "WAY_BILL",
+    queryDocumentRequestList: [{ tradeOrderId: "1116072020216440", packageId: "FP1112612851119001", trackingNumber: "AN260041745BR" }],
+    locale: "fr_FR",
+  }),
+  "ae-asf-platform-logistics-rts": stringifyTemplate({
+    packageId: "packageId",
+    tradeOrderId: 123,
+    locale: "es_ES",
+    trackingNumber: "trackingNumber",
+  }),
+  "ae-asf-platform-logistics-repack": stringifyTemplate({
+    tradeOrderId: 123,
+    locale: "es_ES",
+    trackingNumber: "trackingNumber",
+    packageId: "packageId",
+  }),
+  "ae-asf-local-unreachable-preference-query": stringifyTemplate({
+    countryCode: "TG",
+    locale: "fr_FR",
+  }),
+  "ae-asf-seller-address-get": stringifyTemplate({
+    addressType: "pickup,refund",
+    locale: "fr_FR",
+  }),
+  "ae-asf-local-unreachable-preference-update": stringifyTemplate({
+    countryCode: "TG",
+    locale: "fr_FR",
+    dealType: "DESTROY",
+  }),
+  "ae-asf-local2local-transfer-to-offline": stringifyTemplate({
+    tradeOrderId: "tradeOrderId",
+    sellerId: 1001,
+    packageId: "FP23111111879810480",
+    subTradeOrderList: [
+      {
+        tradeOrderLineId: "tradeOrderLineId",
+        shipmentList: [
+          { quantity: "1", carrierCode: "carrierCode", logisticsNo: "logisticsNo", serviceName: "serviceName" },
+        ],
+      },
+    ],
+  }),
+  "ae-asf-fulfillment-package-query": stringifyTemplate({
+    tradeOrderId: "tradeOrderId",
+    locale: "es_ES",
+    packageId: "packageId",
+    createStartTime: "1756349803958",
+    createEndTime: "1756349803958",
+    current: "1",
+    pageSize: "20",
+  }),
+  "ae-local-service-product-stocks-update": stringifyTemplate({
+    channel_seller_id: 2671514005,
+    product_id: 1005005080449315,
+    channel: "AE_GLOBAL",
+    product_sku_stock_list: [
+      {
+        sku_id: "12000031565399476",
+        sku_warehouse_stock_list: [
+          { warehouse_type: "dropshipping", warehouse_code: "dropshipping", sellable_quantity: "100" },
+        ],
+      },
+    ],
+  }),
+  "ae-local-service-product-stocks-query": stringifyTemplate({
+    channel_seller_id: 2678881002,
+    product_id: 1005005080449184,
+    channel: "AE_GLOBAL",
+  }),
+  "ae-local-service-products-list": stringifyTemplate({
+    channel_seller_id: 2678881002,
+    channel: "AE_GLOBAL",
+    page_size: 20,
+    current_page: 1,
+    search_condition_do: {
+      product_status: "ONLINE",
+      product_id: "123423",
+    },
+  }),
+  "ae-local-service-product-prices-edit": stringifyTemplate({
+    channel_seller_id: 2671514005,
+    product_id: 1005005080449315,
+    channel: "AE_GLOBAL",
+    sku_price_model_list: [
+      {
+        sku_id: "1233222211",
+        supply_price: "12.32",
+        dim_supply_price_list: [{ country_code: "ES", country_supply_price: "233.2" }],
+      },
+    ],
+  }),
+  "ae-local-service-product-post": stringifyTemplate({
+    channel: "AE_GLOBAL",
+    channel_seller_id: 2678881002,
+    local_service_product_dto: {
+      product_info_dto: { category_id: "623", locale: "en_US", currency_code: "CNY" },
+      product_sku_list: [],
+      product_property_list: [],
+      detail_source_list: [],
+    },
+  }),
+  "ae-local-service-product-edit": stringifyTemplate({
+    channel: "AE_GLOBAL",
+    channel_seller_id: 2678881002,
+    local_service_product_dto: {
+      product_info_dto: { product_id: "1003222112233", category_id: "623", locale: "en_US", currency_code: "CNY" },
+      product_sku_list: [],
+      product_property_list: [],
+      detail_source_list: [],
+    },
+  }),
+  "ae-local-service-product-query": stringifyTemplate({
+    channel_seller_id: 2678881002,
+    product_id: 1005005246838039,
+    channel: "AE_GLOBAL",
+  }),
+  "ae-local-service-product-status-update": stringifyTemplate({
+    channel_seller_id: "2678881002",
+    product_id: "123",
+    channel: "AE_GLOBAL",
+    product_opt_type: "ON_SHELF",
+  }),
 };
 
 const getAuthHeaders = (): Record<string, string> => {
@@ -313,6 +684,10 @@ const getAuthHeaders = (): Record<string, string> => {
 };
 
 export default function AdminSourcingImportPage() {
+  const searchParams = useSearchParams();
+  const platform = searchParams.get("platform") === "aliexpress" ? "aliexpress" : "alibaba";
+  const platformLabel = platform === "aliexpress" ? "AliExpress" : "Alibaba";
+  const supportedIopOperations = platform === "aliexpress" ? ALIEXPRESS_IOP_OPERATIONS : ALIBABA_IOP_OPERATIONS;
   const [accounts, setAccounts] = useState<SupplierAccount[]>([]);
   const [products, setProducts] = useState<SupplierProduct[]>([]);
   const [loading, setLoading] = useState(false);
@@ -357,8 +732,8 @@ export default function AdminSourcingImportPage() {
   const [buyerEcoPayload, setBuyerEcoPayload] = useState(BUYER_ECO_TEMPLATES["product-description"]);
   const [buyerEcoRawResponse, setBuyerEcoRawResponse] = useState("");
   const [runningBuyerEco, setRunningBuyerEco] = useState(false);
-  const [iopOperation, setIopOperation] = useState<IopOperation>("advanced-freight-calculate");
-  const [iopPayload, setIopPayload] = useState(IOP_TEMPLATES["advanced-freight-calculate"]);
+  const [iopOperation, setIopOperation] = useState<IopOperation>(platform === "aliexpress" ? "ae-affiliate-product-query" : "advanced-freight-calculate");
+  const [iopPayload, setIopPayload] = useState(IOP_TEMPLATES[platform === "aliexpress" ? "ae-affiliate-product-query" : "advanced-freight-calculate"]);
   const [iopRawResponse, setIopRawResponse] = useState("");
   const [runningIop, setRunningIop] = useState(false);
   const [attachmentFileName, setAttachmentFileName] = useState("waybill.jpg");
@@ -391,20 +766,20 @@ export default function AdminSourcingImportPage() {
     setError("");
     try {
       const [accountsRes, productsRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/sourcing/supplier-accounts`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
-        fetch(`${API_BASE}/admin/sourcing/supplier-products`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
+        fetch(`${API_BASE}/admin/sourcing/supplier-accounts?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
+        fetch(`${API_BASE}/admin/sourcing/supplier-products?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
       ]);
-      if (!accountsRes.ok || !productsRes.ok) throw new Error("Impossible de charger les données d’import");
+      if (!accountsRes.ok || !productsRes.ok) throw new Error(`Impossible de charger les données d’import ${platformLabel}`);
       const accountsPayload = await accountsRes.json();
       const productsPayload = await productsRes.json();
       setAccounts(Array.isArray(accountsPayload?.data) ? accountsPayload.data : []);
       setProducts(Array.isArray(productsPayload?.data) ? productsPayload.data : []);
     } catch (err) {
-      setError("Impossible de charger les données d’import");
+      setError(`Impossible de charger les données d’import ${platformLabel}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [platform, platformLabel]);
 
   useEffect(() => {
     loadAll();
@@ -421,6 +796,12 @@ export default function AdminSourcingImportPage() {
   useEffect(() => {
     setIopPayload(IOP_TEMPLATES[iopOperation]);
   }, [iopOperation]);
+
+  useEffect(() => {
+    const defaultOperation = platform === "aliexpress" ? "ae-affiliate-product-query" : "advanced-freight-calculate";
+    setIopOperation(defaultOperation);
+    setIopPayload(IOP_TEMPLATES[defaultOperation]);
+  }, [platform]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -619,7 +1000,7 @@ export default function AdminSourcingImportPage() {
       setVideoUploadResult(payload?.data ?? null);
       setVideoRequestId(payload?.data?.request_id || "");
       setVideoId(payload?.data?.video_id || "");
-      setSuccess("Upload vidéo déclenché côté Alibaba.");
+      setSuccess(`Upload vidéo déclenché côté ${platformLabel}.`);
     } catch (err: any) {
       setError(err?.message ?? "Upload vidéo impossible");
     } finally {
@@ -695,7 +1076,7 @@ export default function AdminSourcingImportPage() {
       }
       const payload = await res.json();
       setRemoteVideos(Array.isArray(payload?.data?.items) ? payload.data.items : []);
-      setSuccess("Liste des vidéos Alibaba récupérée.");
+      setSuccess(`Liste des vidéos ${platformLabel} récupérée.`);
     } catch (err: any) {
       setError(err?.message ?? "Liste vidéo impossible");
     } finally {
@@ -918,7 +1299,7 @@ export default function AdminSourcingImportPage() {
   };
 
   return (
-    <AdminShell title="Sourcing" subtitle="Import catalogue fournisseur vers supplier_products et supplier_product_skus">
+    <AdminShell title={platformLabel} subtitle="Import catalogue fournisseur vers supplier_products et supplier_product_skus">
       <div className="grid gap-6 xl:grid-cols-[520px,1fr]">
         <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">Importer un produit fournisseur</h2>
@@ -931,10 +1312,11 @@ export default function AdminSourcingImportPage() {
                 ))}
               </select>
             </label>
+            {platform === "alibaba" ? (
             <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Recherche fournisseur</h3>
-                <p className="text-xs text-slate-500">Interroge `/alibaba/icbu/product/search/v2` via `model_number` ou `sku_code`.</p>
+                <p className="text-xs text-slate-500">Interroge l’API produit distante du compte {platformLabel} sélectionné.</p>
               </div>
               <label className="grid gap-1 text-sm">
                 <span className="text-slate-600">Model number</span>
@@ -1024,6 +1406,8 @@ export default function AdminSourcingImportPage() {
                 </div>
               ) : null}
             </div>
+            ) : null}
+            {platform === "alibaba" ? (
             <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Vidéos Alibaba</h3>
@@ -1095,6 +1479,8 @@ export default function AdminSourcingImportPage() {
                 </div>
               ) : null}
             </div>
+            ) : null}
+            {platform === "alibaba" ? (
             <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Buyer Solution</h3>
@@ -1198,29 +1584,18 @@ export default function AdminSourcingImportPage() {
                 </label>
               ) : null}
             </div>
+            ) : null}
             <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">IOP Orders & Freight</h3>
-                <p className="text-xs text-slate-500">Calcul de fret, création de commande, paiement, suivi logistique, entrepôts et requêtes ordre Alibaba.</p>
+                <h3 className="text-sm font-semibold text-slate-900">{platform === "aliexpress" ? "AliExpress Affiliate Explorer" : "IOP Orders & Freight"}</h3>
+                <p className="text-xs text-slate-500">{platform === "aliexpress" ? "Tests bruts des APIs affiliate AliExpress pour catalogue, SKU, shipping, liens et commandes." : "Calcul de fret, création de commande, paiement, suivi logistique, entrepôts et requêtes ordre Alibaba."}</p>
               </div>
               <label className="grid gap-1 text-sm">
                 <span className="text-slate-600">Opération IOP</span>
                 <select value={iopOperation} onChange={(e) => setIopOperation(e.target.value as IopOperation)} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                  <option value="advanced-freight-calculate">advanced-freight-calculate</option>
-                  <option value="basic-freight-calculate">basic-freight-calculate</option>
-                  <option value="merge-pay-query">merge-pay-query</option>
-                  <option value="buynow-order-create">buynow-order-create</option>
-                  <option value="logistics-tracking-get">logistics-tracking-get</option>
-                  <option value="overseas-admittance-check">overseas-admittance-check</option>
-                  <option value="dropshipping-order-pay">dropshipping-order-pay</option>
-                  <option value="order-fund-query">order-fund-query</option>
-                  <option value="ggs-warehouse-list">ggs-warehouse-list</option>
-                  <option value="order-cancel">order-cancel</option>
-                  <option value="order-get">order-get</option>
-                  <option value="order-list">order-list</option>
-                  <option value="order-pay-result-query">order-pay-result-query</option>
-                  <option value="seller-warehouse-list">seller-warehouse-list</option>
-                  <option value="order-logistics-query">order-logistics-query</option>
+                  {supportedIopOperations.map((operation) => (
+                    <option key={operation} value={operation}>{operation}</option>
+                  ))}
                 </select>
               </label>
               <label className="grid gap-1 text-sm">
@@ -1239,6 +1614,7 @@ export default function AdminSourcingImportPage() {
                   <textarea value={iopRawResponse} readOnly rows={12} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
                 </label>
               ) : null}
+              {platform === "alibaba" ? (
               <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
                 <div>
                   <h4 className="text-sm font-semibold text-slate-900">Order Attachment Upload</h4>
@@ -1262,6 +1638,7 @@ export default function AdminSourcingImportPage() {
                   </label>
                 ) : null}
               </div>
+              ) : null}
             </div>
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">SKU JSON</span>

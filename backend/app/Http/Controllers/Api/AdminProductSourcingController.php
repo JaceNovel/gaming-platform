@@ -20,6 +20,12 @@ class AdminProductSourcingController extends Controller
             ])
             ->latest('id');
 
+        if ($request->filled('platform')) {
+            $query->whereHas('supplierProductSku.supplierProduct.supplierAccount', function ($builder) use ($request) {
+                $builder->where('platform', $request->query('platform'));
+            });
+        }
+
         if ($request->filled('product_id')) {
             $query->where('product_id', $request->query('product_id'));
         }
@@ -38,6 +44,12 @@ class AdminProductSourcingController extends Controller
             ])
             ->where('is_active', true)
             ->latest('id');
+
+        if ($request->filled('platform')) {
+            $query->whereHas('supplierProduct.supplierAccount', function ($builder) use ($request) {
+                $builder->where('platform', $request->query('platform'));
+            });
+        }
 
         if ($request->filled('supplier_account_id')) {
             $query->whereHas('supplierProduct', function ($builder) use ($request) {

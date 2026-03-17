@@ -341,6 +341,10 @@ class SupplierApiClient
             throw new \RuntimeException('Access token fournisseur manquant. Lance d’abord la connexion OAuth.');
         }
 
+        if ($this->usesTopBusinessApi($methodName)) {
+            return $this->topRequest($account, 'POST', $methodName, $params, 'Appel API fournisseur');
+        }
+
         return $this->gopRequest($account, 'POST', $methodName, $params, true, 'Appel API fournisseur');
     }
 
@@ -404,7 +408,85 @@ class SupplierApiClient
             throw new \RuntimeException('Access token fournisseur manquant. Lance d’abord la connexion OAuth.');
         }
 
+        if ($this->usesTopBusinessApi($methodName)) {
+            return $this->topRequest($account, $httpMethod, $methodName, $params, 'Appel IOP');
+        }
+
         return $this->gopRequest($account, $httpMethod, $methodName, $params, true, 'Appel IOP');
+    }
+
+    private function topRequest(
+        SupplierAccount $account,
+        string $httpMethod,
+        string $methodName,
+        array $params,
+        string $errorPrefix
+    ): array {
+        $config = $this->platformConfig($account->platform);
+        $baseUrl = $this->normalizeTopBaseUrl($account->platform, (string) ($config['api_base_url'] ?? ''));
+        if ($baseUrl === '') {
+            throw new \RuntimeException('Base URL API non configurée pour ' . $account->platform);
+        }
+
+        $appKey = trim((string) ($account->app_key ?? ''));
+        $appSecret = (string) ($account->app_secret ?? '');
+        if ($appKey === '' || $appSecret === '') {
+            throw new \RuntimeException('App Key / App Secret manquants pour les appels TOP.');
+        }
+
+        $businessParams = $this->normalizeIopParams($params);
+        $signMethod = strtolower((string) ($config['sign_method'] ?? 'sha256')) === 'md5'
+            ? 'md5'
+            : 'sha256';
+        $commonParams = [
+            'method' => $methodName,
+            'app_key' => $appKey,
+            'timestamp' => (string) round(microtime(true) * 1000),
+            'sign_method' => $signMethod,
+            'access_token' => (string) $account->access_token,
+        ];
+
+        $signingParams = array_merge($commonParams, $businessParams);
+        ksort($signingParams);
+
+        $payload = '';
+        foreach ($signingParams as $key => $value) {
+            $payload .= $key . $value;
+        }
+
+        $commonParams['sign'] = strtoupper(hash_hmac($signMethod, $payload, $appSecret));
+
+        $request = $this->baseRequest((int) ($config['timeout'] ?? 20));
+        $verb = strtoupper($httpMethod);
+        $url = rtrim($baseUrl, '/') . '/sync';
+
+        $response = match ($verb) {
+            'GET' => $request->get($url, array_merge($commonParams, $businessParams)),
+            default => $request->asForm()->post($url . '?' . Arr::query($commonParams), $businessParams),
+        };
+
+        if (!$response->successful()) {
+            throw new \RuntimeException($errorPrefix . ' échoué (HTTP ' . $response->status() . ', url ' . $url . '): ' . $response->body());
+        }
+
+        $payload = $this->decodeResponseBody($response->body());
+        if ((string) ($payload['code'] ?? '0') !== '0') {
+            $message = (string) ($payload['message'] ?? $payload['msg'] ?? $payload['msg_info'] ?? 'Erreur TOP');
+            $subCode = (string) ($payload['sub_code'] ?? '');
+            $subMessage = (string) ($payload['sub_msg'] ?? '');
+
+            if ($subCode !== '') {
+                $message .= ' (' . $subCode . ')';
+            }
+
+            if ($subMessage !== '') {
+                $message .= ': ' . $subMessage;
+            }
+
+            throw new \RuntimeException($message . ' [' . ($payload['code'] ?? 'unknown') . ']');
+        }
+
+        return $payload;
     }
 
     private function gopRequest(
@@ -518,6 +600,22 @@ class SupplierApiClient
 
         if ($host === 'openapi-api.alibaba.com' && ($path === '' || $path === '/rest')) {
             return 'https://openapi-api.alibaba.com';
+        }
+
+        return $trimmed;
+    }
+
+    private function normalizeTopBaseUrl(string $platform, string $baseUrl): string
+    {
+        $trimmed = rtrim(trim($baseUrl), '/');
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $host = (string) (parse_url($trimmed, PHP_URL_HOST) ?? '');
+
+        if ($platform === 'aliexpress' && in_array($host, ['openapi.alibaba.com', 'api.alibaba.com', 'openapi-api.alibaba.com', 'openapi-auth.alibaba.com'], true)) {
+            return 'https://api-sg.aliexpress.com';
         }
 
         return $trimmed;
@@ -811,6 +909,36 @@ class SupplierApiClient
                 'value' => $response['value'] ?? [],
                 'raw' => $response,
             ],
+            'ae-affiliate-product-shipping' => [
+                'shipping' => data_get($response, 'resp_result.result', []),
+                'raw' => $response,
+            ],
+            'ae-affiliate-sku-detail', 'ae-affiliate-product-detail', 'ae-affiliate-product-query', 'ae-affiliate-hotproduct-query', 'ae-affiliate-hotproduct-download', 'ae-affiliate-product-smartmatch' => [
+                'result' => data_get($response, 'result.result') ?? data_get($response, 'resp_result.result') ?? data_get($response, 'result') ?? [],
+                'raw' => $response,
+            ],
+            'ae-affiliate-category-get', 'ae-affiliate-link-generate', 'ae-affiliate-order-get', 'ae-affiliate-order-list', 'ae-affiliate-order-listbyindex' => [
+                'result' => data_get($response, 'resp_result.result', []),
+                'raw' => $response,
+            ],
+            'ae-asf-local2local-sub-declareship', 'ae-asf-local2local-self-pickup-declareship', 'ae-asf-local2local-split-quantity-rts-pack', 'ae-asf-local2local-transfer-to-offline' => [
+                'success' => $response['success'] ?? null,
+                'errorCode' => $response['errorCode'] ?? null,
+                'errorMessage' => $response['errorMessage'] ?? null,
+                'data' => $response['data'] ?? null,
+                'raw' => $response,
+            ],
+            'ae-asf-dbs-declareship', 'ae-asf-dbs-declare-ship-modify', 'ae-asf-shipment-pack', 'ae-asf-order-shipping-service-get', 'ae-asf-package-shipping-service-get', 'ae-asf-platform-logistics-document-query', 'ae-asf-platform-logistics-rts', 'ae-asf-platform-logistics-repack', 'ae-asf-local-unreachable-preference-query', 'ae-asf-seller-address-get', 'ae-asf-local-unreachable-preference-update', 'ae-asf-fulfillment-package-query', 'ae-local-service-products-list' => [
+                'result' => $response['result'] ?? null,
+                'raw' => $response,
+            ],
+            'ae-local-service-product-stocks-update', 'ae-local-service-product-stocks-query', 'ae-local-service-product-prices-edit', 'ae-local-service-product-post', 'ae-local-service-product-edit', 'ae-local-service-product-query', 'ae-local-service-product-status-update' => [
+                'success' => $response['success'] ?? null,
+                'error_code' => $response['error_code'] ?? null,
+                'error_message' => $response['error_message'] ?? $response['errorMessage'] ?? null,
+                'data' => $response['local_service_product_dto'] ?? $response['product_sku_stock_list'] ?? $response['product_id'] ?? null,
+                'raw' => $response,
+            ],
             default => [
                 'raw' => $response,
             ],
@@ -902,6 +1030,42 @@ class SupplierApiClient
             'order-pay-result-query' => ['config_key' => 'order_pay_result_query_method', 'http_method' => 'POST', 'param_key' => 'trade_id'],
             'seller-warehouse-list' => ['config_key' => 'seller_warehouse_list_method', 'http_method' => 'POST', 'param_key' => null],
             'order-logistics-query' => ['config_key' => 'order_logistics_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-product-shipping' => ['config_key' => 'affiliate_shipping_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-sku-detail' => ['config_key' => 'affiliate_sku_detail_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-product-detail' => ['config_key' => 'affiliate_product_detail_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-product-query' => ['config_key' => 'affiliate_product_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-category-get' => ['config_key' => 'affiliate_category_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-link-generate' => ['config_key' => 'affiliate_link_generate_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-order-get' => ['config_key' => 'affiliate_order_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-order-list' => ['config_key' => 'affiliate_order_list_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-order-listbyindex' => ['config_key' => 'affiliate_order_listbyindex_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-hotproduct-query' => ['config_key' => 'affiliate_hotproduct_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-hotproduct-download' => ['config_key' => 'affiliate_hotproduct_download_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-affiliate-product-smartmatch' => ['config_key' => 'affiliate_product_smartmatch_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local2local-sub-declareship' => ['config_key' => 'asf_local2local_sub_declareship_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-dbs-declareship' => ['config_key' => 'asf_dbs_declareship_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local2local-self-pickup-declareship' => ['config_key' => 'asf_local2local_self_pickup_declareship_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-dbs-declare-ship-modify' => ['config_key' => 'asf_dbs_declare_ship_modify_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-shipment-pack' => ['config_key' => 'asf_shipment_pack_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-order-shipping-service-get' => ['config_key' => 'asf_order_shipping_service_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-package-shipping-service-get' => ['config_key' => 'asf_package_shipping_service_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local2local-split-quantity-rts-pack' => ['config_key' => 'asf_local2local_split_quantity_rts_pack_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-platform-logistics-document-query' => ['config_key' => 'asf_platform_logistics_document_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-platform-logistics-rts' => ['config_key' => 'asf_platform_logistics_rts_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-platform-logistics-repack' => ['config_key' => 'asf_platform_logistics_repack_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-unreachable-preference-query' => ['config_key' => 'asf_local_unreachable_preference_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-seller-address-get' => ['config_key' => 'asf_seller_address_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local-unreachable-preference-update' => ['config_key' => 'asf_local_unreachable_preference_update_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-local2local-transfer-to-offline' => ['config_key' => 'asf_local2local_transfer_to_offline_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-asf-fulfillment-package-query' => ['config_key' => 'asf_fulfillment_package_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-service-product-stocks-update' => ['config_key' => 'local_service_product_stocks_update_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-service-product-stocks-query' => ['config_key' => 'local_service_product_stocks_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-service-products-list' => ['config_key' => 'local_service_products_list_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-service-product-prices-edit' => ['config_key' => 'local_service_product_prices_edit_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-service-product-post' => ['config_key' => 'local_service_product_post_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-service-product-edit' => ['config_key' => 'local_service_product_edit_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-service-product-query' => ['config_key' => 'local_service_product_query_method', 'http_method' => 'POST', 'param_key' => null],
+            'ae-local-service-product-status-update' => ['config_key' => 'local_service_product_status_update_method', 'http_method' => 'POST', 'param_key' => null],
         ];
     }
 
@@ -925,6 +1089,13 @@ class SupplierApiClient
             ];
         }
 
+        if ($methodName === 'aliexpress.solution.product.info.get') {
+            return [
+                'product_id' => $externalProductId,
+                'productId' => $externalProductId,
+            ];
+        }
+
         return [
             'productId' => $lookupType === 'sku_id' ? null : $externalProductId,
             'skuId' => $lookupType === 'sku_id' ? $externalProductId : null,
@@ -932,6 +1103,11 @@ class SupplierApiClient
             'product_id' => $externalProductId,
             'external_product_id' => $externalProductId,
         ];
+    }
+
+    private function usesTopBusinessApi(string $methodName): bool
+    {
+        return !str_starts_with(trim($methodName), '/');
     }
 
     private function baseRequest(int $timeout): PendingRequest

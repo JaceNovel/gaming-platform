@@ -20,6 +20,12 @@ class AdminSupplierCatalogController extends Controller
             ->withCount('skus')
             ->latest('id');
 
+        if ($request->filled('platform')) {
+            $query->whereHas('supplierAccount', function ($builder) use ($request) {
+                $builder->where('platform', $request->query('platform'));
+            });
+        }
+
         if ($request->filled('supplier_account_id')) {
             $query->where('supplier_account_id', $request->query('supplier_account_id'));
         }
@@ -368,6 +374,42 @@ class AdminSupplierCatalogController extends Controller
             'order-pay-result-query',
             'seller-warehouse-list',
             'order-logistics-query',
+            'ae-affiliate-product-shipping',
+            'ae-affiliate-sku-detail',
+            'ae-affiliate-product-detail',
+            'ae-affiliate-product-query',
+            'ae-affiliate-category-get',
+            'ae-affiliate-link-generate',
+            'ae-affiliate-order-get',
+            'ae-affiliate-order-list',
+            'ae-affiliate-order-listbyindex',
+            'ae-affiliate-hotproduct-query',
+            'ae-affiliate-hotproduct-download',
+            'ae-affiliate-product-smartmatch',
+            'ae-asf-local2local-sub-declareship',
+            'ae-asf-dbs-declareship',
+            'ae-asf-local2local-self-pickup-declareship',
+            'ae-asf-dbs-declare-ship-modify',
+            'ae-asf-shipment-pack',
+            'ae-asf-order-shipping-service-get',
+            'ae-asf-package-shipping-service-get',
+            'ae-asf-local2local-split-quantity-rts-pack',
+            'ae-asf-platform-logistics-document-query',
+            'ae-asf-platform-logistics-rts',
+            'ae-asf-platform-logistics-repack',
+            'ae-asf-local-unreachable-preference-query',
+            'ae-asf-seller-address-get',
+            'ae-asf-local-unreachable-preference-update',
+            'ae-asf-local2local-transfer-to-offline',
+            'ae-asf-fulfillment-package-query',
+            'ae-local-service-product-stocks-update',
+            'ae-local-service-product-stocks-query',
+            'ae-local-service-products-list',
+            'ae-local-service-product-prices-edit',
+            'ae-local-service-product-post',
+            'ae-local-service-product-edit',
+            'ae-local-service-product-query',
+            'ae-local-service-product-status-update',
         ];
 
         if (!in_array($operation, $allowedOperations, true)) {

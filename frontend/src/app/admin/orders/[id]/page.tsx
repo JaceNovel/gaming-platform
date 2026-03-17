@@ -15,10 +15,52 @@ type OrderItem = {
   product?: { name?: string | null; sku?: string | null; shipping_required?: boolean | null } | null;
 };
 
+type SupplierAccount = {
+  id: number;
+  label?: string | null;
+  platform?: string | null;
+};
+
+type OrderSupplierFulfillment = {
+  id: number;
+  supplier_account_id?: number | null;
+  external_order_id?: string | null;
+  external_order_lines_json?: unknown[] | null;
+  seller_id?: string | null;
+  locale?: string | null;
+  shipping_mode?: string | null;
+  shipping_provider_code?: string | null;
+  shipping_provider_name?: string | null;
+  carrier_code?: string | null;
+  tracking_number?: string | null;
+  package_id?: string | null;
+  pickup_address_id?: string | null;
+  refund_address_id?: string | null;
+  asf_status?: string | null;
+  asf_sub_status?: string | null;
+  latest_document_type?: string | null;
+  document_url?: string | null;
+  waybill_printed_at?: string | null;
+  packed_at?: string | null;
+  shipped_at?: string | null;
+  repacked_at?: string | null;
+  supplier_account?: SupplierAccount | null;
+};
+
 type Order = {
   id: number;
   reference?: string | null;
   status?: string | null;
+  supplier_platform?: string | null;
+  supplier_account_id?: number | null;
+  supplier_external_order_id?: string | null;
+  supplier_shipping_mode?: string | null;
+  supplier_package_id?: string | null;
+  supplier_tracking_number?: string | null;
+  supplier_shipping_provider_code?: string | null;
+  supplier_shipping_provider_name?: string | null;
+  supplier_document_url?: string | null;
+  supplier_fulfillment_status?: string | null;
   total_price?: number | null;
   refunded_amount?: number | null;
   status_refund?: string | null;
@@ -35,6 +77,8 @@ type Order = {
   shipping_country_code?: string | null;
   shipping_phone?: string | null;
   user?: { name?: string | null; email?: string | null; country_code?: string | null } | null;
+  supplierAccount?: SupplierAccount | null;
+  currentSupplierFulfillment?: OrderSupplierFulfillment | null;
   order_items?: OrderItem[];
   orderItems?: OrderItem[];
   refunds?: RefundRow[];
@@ -88,6 +132,23 @@ export default function AdminOrderDetailPage() {
   const [refundConfirm, setRefundConfirm] = useState(false);
   const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [refundMessage, setRefundMessage] = useState<string | null>(null);
+  const [supplierAccounts, setSupplierAccounts] = useState<SupplierAccount[]>([]);
+  const [supplierMessage, setSupplierMessage] = useState<string | null>(null);
+  const [supplierActionLoading, setSupplierActionLoading] = useState<"save-context" | "resolve-mode" | "pack" | "ship" | "repack" | "print-waybill" | null>(null);
+  const [supplierAccountId, setSupplierAccountId] = useState("");
+  const [externalOrderId, setExternalOrderId] = useState("");
+  const [sellerId, setSellerId] = useState("");
+  const [supplierLocale, setSupplierLocale] = useState("fr_FR");
+  const [supplierShippingMode, setSupplierShippingMode] = useState("");
+  const [shippingProviderCode, setShippingProviderCode] = useState("");
+  const [shippingProviderName, setShippingProviderName] = useState("");
+  const [carrierCode, setCarrierCode] = useState("");
+  const [supplierTrackingNumber, setSupplierTrackingNumber] = useState("");
+  const [supplierPackageId, setSupplierPackageId] = useState("");
+  const [pickupAddressId, setPickupAddressId] = useState("");
+  const [refundAddressId, setRefundAddressId] = useState("");
+  const [externalOrderLinesJson, setExternalOrderLinesJson] = useState("[]");
+  const [waybillDocumentType, setWaybillDocumentType] = useState("WAY_BILL");
 
   const loadOrder = useCallback(async () => {
     if (!Number.isFinite(orderId)) return;
@@ -115,6 +176,43 @@ export default function AdminOrderDetailPage() {
   useEffect(() => {
     loadOrder();
   }, [loadOrder]);
+
+  useEffect(() => {
+    const loadSupplierAccounts = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/admin/sourcing/supplier-accounts?platform=aliexpress`, {
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+        });
+        if (!res.ok) throw new Error();
+        const payload = await res.json();
+        setSupplierAccounts(Array.isArray(payload?.data) ? payload.data : []);
+      } catch {
+        // best effort
+      }
+    };
+
+    loadSupplierAccounts();
+  }, []);
+
+  useEffect(() => {
+    const fulfillment = order?.currentSupplierFulfillment;
+    setSupplierAccountId(String(fulfillment?.supplier_account_id ?? order?.supplier_account_id ?? ""));
+    setExternalOrderId(fulfillment?.external_order_id ?? order?.supplier_external_order_id ?? "");
+    setSellerId(fulfillment?.seller_id ?? "");
+    setSupplierLocale(fulfillment?.locale ?? "fr_FR");
+    setSupplierShippingMode(fulfillment?.shipping_mode ?? order?.supplier_shipping_mode ?? "");
+    setShippingProviderCode(fulfillment?.shipping_provider_code ?? order?.supplier_shipping_provider_code ?? "");
+    setShippingProviderName(fulfillment?.shipping_provider_name ?? order?.supplier_shipping_provider_name ?? "");
+    setCarrierCode(fulfillment?.carrier_code ?? "");
+    setSupplierTrackingNumber(fulfillment?.tracking_number ?? order?.supplier_tracking_number ?? "");
+    setSupplierPackageId(fulfillment?.package_id ?? order?.supplier_package_id ?? "");
+    setPickupAddressId(fulfillment?.pickup_address_id ?? "");
+    setRefundAddressId(fulfillment?.refund_address_id ?? "");
+    setExternalOrderLinesJson(JSON.stringify(fulfillment?.external_order_lines_json ?? [], null, 2));
+  }, [order]);
 
   const items = useMemo(() => order?.order_items ?? order?.orderItems ?? [], [order]);
   const physicalItems = useMemo(
@@ -279,6 +377,86 @@ export default function AdminOrderDetailPage() {
       setRefundMessage(e?.message ?? "Remboursement impossible");
     } finally {
       setRefundSubmitting(false);
+    }
+  };
+
+  const handleSaveSupplierContext = async () => {
+    if (!order) return;
+    setSupplierActionLoading("save-context");
+    setSupplierMessage(null);
+    setError("");
+    try {
+      const externalOrderLines = JSON.parse(externalOrderLinesJson || "[]");
+      const res = await fetch(`${API_BASE}/admin/orders/${order.id}/supplier/aliexpress/context`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: supplierAccountId ? Number(supplierAccountId) : undefined,
+          external_order_id: externalOrderId || undefined,
+          seller_id: sellerId || undefined,
+          locale: supplierLocale || undefined,
+          shipping_mode: supplierShippingMode || undefined,
+          shipping_provider_code: shippingProviderCode || undefined,
+          shipping_provider_name: shippingProviderName || undefined,
+          carrier_code: carrierCode || undefined,
+          tracking_number: supplierTrackingNumber || undefined,
+          package_id: supplierPackageId || undefined,
+          pickup_address_id: pickupAddressId || undefined,
+          refund_address_id: refundAddressId || undefined,
+          external_order_lines: externalOrderLines,
+        }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.message ?? "Impossible d’enregistrer le contexte AliExpress");
+      setOrder(payload?.order ?? order);
+      setSupplierMessage("Contexte AliExpress enregistré.");
+    } catch (e: any) {
+      setError(e?.message ?? "Impossible d’enregistrer le contexte AliExpress");
+    } finally {
+      setSupplierActionLoading(null);
+    }
+  };
+
+  const runSupplierAction = async (action: "resolve-mode" | "pack" | "ship" | "repack" | "print-waybill") => {
+    if (!order) return;
+    setSupplierActionLoading(action);
+    setSupplierMessage(null);
+    setError("");
+    try {
+      const endpoints: Record<typeof action, string> = {
+        "resolve-mode": "resolve-mode",
+        pack: "pack",
+        ship: "ship",
+        repack: "repack",
+        "print-waybill": "print-waybill",
+      };
+
+      const res = await fetch(`${API_BASE}/admin/orders/${order.id}/supplier/aliexpress/${endpoints[action]}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: action === "print-waybill" ? JSON.stringify({ document_type: waybillDocumentType }) : undefined,
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.message ?? `Action ${action} impossible`);
+      setOrder(payload?.order ?? order);
+      const labels: Record<typeof action, string> = {
+        "resolve-mode": "Mode d’expédition AliExpress résolu.",
+        pack: "Pack AliExpress exécuté.",
+        ship: "Expédition AliExpress déclarée.",
+        repack: "Repack AliExpress exécuté.",
+        "print-waybill": "Waybill AliExpress généré et persisté.",
+      };
+      setSupplierMessage(labels[action]);
+    } catch (e: any) {
+      setError(e?.message ?? `Action ${action} impossible`);
+    } finally {
+      setSupplierActionLoading(null);
     }
   };
 
@@ -455,6 +633,128 @@ export default function AdminOrderDetailPage() {
           </div>
         )}
       </div>
+
+      {physicalItems.length > 0 ? (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-slate-700">Fulfillment AliExpress</div>
+              <div className="text-xs text-slate-500">Contexte fournisseur, résolution automatique du mode d’expédition, puis actions Pack / Ship / Repack / Print waybill.</div>
+            </div>
+            <div className="text-xs text-slate-500">Statut fournisseur: {order?.supplier_fulfillment_status ?? "—"}</div>
+          </div>
+
+          {supplierMessage ? (
+            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {supplierMessage}
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Compte AliExpress</span>
+              <select value={supplierAccountId} onChange={(e) => setSupplierAccountId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2">
+                <option value="">Sélectionner</option>
+                {supplierAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.label ?? `Compte #${account.id}`}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Trade Order ID</span>
+              <input value={externalOrderId} onChange={(e) => setExternalOrderId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Seller ID</span>
+              <input value={sellerId} onChange={(e) => setSellerId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Locale</span>
+              <input value={supplierLocale} onChange={(e) => setSupplierLocale(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Mode d’expédition</span>
+              <select value={supplierShippingMode} onChange={(e) => setSupplierShippingMode(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2">
+                <option value="">Auto</option>
+                <option value="dbs">dbs</option>
+                <option value="platform_logistics">platform_logistics</option>
+                <option value="local2local">local2local</option>
+                <option value="local2local_self_pickup">local2local_self_pickup</option>
+                <option value="local2local_offline">local2local_offline</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Shipping provider code</span>
+              <input value={shippingProviderCode} onChange={(e) => setShippingProviderCode(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Shipping provider name</span>
+              <input value={shippingProviderName} onChange={(e) => setShippingProviderName(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Carrier code</span>
+              <input value={carrierCode} onChange={(e) => setCarrierCode(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Tracking number</span>
+              <input value={supplierTrackingNumber} onChange={(e) => setSupplierTrackingNumber(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Package ID</span>
+              <input value={supplierPackageId} onChange={(e) => setSupplierPackageId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Pickup address ID</span>
+              <input value={pickupAddressId} onChange={(e) => setPickupAddressId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Refund address ID</span>
+              <input value={refundAddressId} onChange={(e) => setRefundAddressId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+          </div>
+
+          <label className="mt-3 grid gap-1 text-sm">
+            <span className="text-slate-600">Lignes de commande AliExpress JSON</span>
+            <textarea value={externalOrderLinesJson} onChange={(e) => setExternalOrderLinesJson(e.target.value)} rows={8} className="rounded-xl border border-slate-200 px-3 py-2 font-mono text-xs" />
+          </label>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button onClick={handleSaveSupplierContext} className="rounded-xl bg-slate-900 px-3 py-2 text-xs text-white" disabled={supplierActionLoading !== null}>
+              {supplierActionLoading === "save-context" ? "Enregistrement..." : "Sauvegarder le contexte"}
+            </button>
+            <button onClick={() => runSupplierAction("resolve-mode")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
+              {supplierActionLoading === "resolve-mode" ? "Résolution..." : "Déterminer le mode"}
+            </button>
+            <button onClick={() => runSupplierAction("pack")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
+              {supplierActionLoading === "pack" ? "Pack..." : "Pack"}
+            </button>
+            <button onClick={() => runSupplierAction("ship")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
+              {supplierActionLoading === "ship" ? "Ship..." : "Ship"}
+            </button>
+            <button onClick={() => runSupplierAction("repack")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
+              {supplierActionLoading === "repack" ? "Repack..." : "Repack"}
+            </button>
+            <select value={waybillDocumentType} onChange={(e) => setWaybillDocumentType(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs">
+              <option value="WAY_BILL">WAY_BILL</option>
+              <option value="PICKING_ORDER">PICKING_ORDER</option>
+              <option value="HANDOVER">HANDOVER</option>
+              <option value="PICKING_ORDER_AND_WAY_BILL">PICKING_ORDER_AND_WAY_BILL</option>
+            </select>
+            <button onClick={() => runSupplierAction("print-waybill")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
+              {supplierActionLoading === "print-waybill" ? "Génération..." : "Print waybill"}
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 md:grid-cols-2">
+            <div>Mode courant: {order?.currentSupplierFulfillment?.shipping_mode ?? order?.supplier_shipping_mode ?? "—"}</div>
+            <div>ASF status: {order?.currentSupplierFulfillment?.asf_status ?? "—"}</div>
+            <div>Provider: {order?.currentSupplierFulfillment?.shipping_provider_name ?? order?.supplier_shipping_provider_name ?? "—"}</div>
+            <div>Tracking: {order?.currentSupplierFulfillment?.tracking_number ?? order?.supplier_tracking_number ?? "—"}</div>
+            <div>Package ID: {order?.currentSupplierFulfillment?.package_id ?? order?.supplier_package_id ?? "—"}</div>
+            <div>Document URL: {order?.currentSupplierFulfillment?.document_url ?? order?.supplier_document_url ?? "—"}</div>
+          </div>
+        </div>
+      ) : null}
 
       {refundModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">

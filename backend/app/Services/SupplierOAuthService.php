@@ -77,13 +77,7 @@ class SupplierOAuthService
 
     public function refreshToken(SupplierAccount $account): SupplierAccount
     {
-        $config = $this->platformConfig($account->platform);
-        $refreshUrl = trim((string) ($config['refresh_url'] ?? ''));
-        if ($refreshUrl === '') {
-            throw new \RuntimeException('URL OAuth refresh non configurée pour ' . $account->platform);
-        }
-
-        $parsed = $this->ioRequest($account, $refreshUrl, [
+        $parsed = $this->runIoAuthRequest($account, 'refresh', [
             'refresh_token' => (string) ($account->refresh_token ?? ''),
         ]);
 
@@ -102,15 +96,46 @@ class SupplierOAuthService
 
     private function exchangeCode(SupplierAccount $account, string $code): array
     {
-        $config = $this->platformConfig($account->platform);
-        $tokenUrl = trim((string) ($config['token_url'] ?? ''));
-        if ($tokenUrl === '') {
-            throw new \RuntimeException('URL OAuth token non configurée pour ' . $account->platform);
-        }
-
-        return $this->ioRequest($account, $tokenUrl, [
+        return $this->runIoAuthRequest($account, 'token', [
             'code' => $code,
         ]);
+    }
+
+    private function runIoAuthRequest(SupplierAccount $account, string $type, array $params): array
+    {
+        $urls = $this->resolveIoAuthUrls($account->platform, $type);
+        if ($urls === []) {
+            throw new \RuntimeException('URL OAuth ' . $type . ' non configurée pour ' . $account->platform);
+        }
+
+        $lastException = null;
+        foreach ($urls as $url) {
+            try {
+                return $this->ioRequest($account, $url, $params);
+            } catch (\RuntimeException $exception) {
+                $lastException = $exception;
+            }
+        }
+
+        throw $lastException ?? new \RuntimeException('Échec OAuth ' . $type . ' pour ' . $account->platform);
+    }
+
+    private function resolveIoAuthUrls(string $platform, string $type): array
+    {
+        $config = $this->platformConfig($platform);
+        $preferSecurity = filter_var($config['prefer_security_tokens'] ?? false, FILTER_VALIDATE_BOOL);
+
+        $standardKey = $type === 'refresh' ? 'refresh_url' : 'token_url';
+        $securityKey = $type === 'refresh' ? 'security_refresh_url' : 'security_token_url';
+
+        $standardUrl = trim((string) ($config[$standardKey] ?? ''));
+        $securityUrl = trim((string) ($config[$securityKey] ?? ''));
+
+        $ordered = $preferSecurity
+            ? [$securityUrl, $standardUrl]
+            : [$standardUrl, $securityUrl];
+
+        return array_values(array_unique(array_filter($ordered, static fn ($url) => $url !== '')));
     }
 
     private function parseTokenResponse(array $payload): array

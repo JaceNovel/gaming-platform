@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
@@ -46,6 +47,9 @@ const KPI_LABELS: Array<{ key: string; label: string }> = [
 ];
 
 export default function AdminSourcingDashboardPage() {
+  const searchParams = useSearchParams();
+  const platform = searchParams.get("platform") === "aliexpress" ? "aliexpress" : "alibaba";
+  const platformLabel = platform === "aliexpress" ? "AliExpress" : "Alibaba";
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -54,25 +58,25 @@ export default function AdminSourcingDashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/admin/sourcing/dashboard`, {
+      const res = await fetch(`${API_BASE}/admin/sourcing/dashboard?platform=${platform}`, {
         headers: { Accept: "application/json", ...getAuthHeaders() },
       });
-      if (!res.ok) throw new Error("Impossible de charger le tableau de bord sourcing");
+      if (!res.ok) throw new Error(`Impossible de charger le tableau de bord ${platformLabel}`);
       const payload = await res.json();
       setData(payload?.data ?? null);
     } catch (err: any) {
-      setError(err?.message ?? "Impossible de charger le tableau de bord sourcing");
+      setError(err?.message ?? `Impossible de charger le tableau de bord ${platformLabel}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [platform, platformLabel]);
 
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
 
   return (
-    <AdminShell title="Sourcing" subtitle="KPI, blocages MOQ et produits non mappés">
+    <AdminShell title={platformLabel} subtitle="KPI, blocages MOQ et produits non mappés">
       <div className="space-y-6">
         {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 

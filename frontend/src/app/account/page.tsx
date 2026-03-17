@@ -1012,14 +1012,6 @@ function AccountClient() {
     router.push("/shop");
   };
 
-  const handleWalletWithdraw = () => {
-    router.push("/wallet#withdraw-section");
-  };
-
-  const handleWalletTopup = () => {
-    router.push("/wallet#topup-section");
-  };
-
   const closeTransferModal = () => {
     setTransferModalOpen(false);
     setTransferLookupLoading(false);
@@ -1454,8 +1446,6 @@ function AccountClient() {
                 walletDisplay={walletDisplay}
                 walletCurrencyLabel={walletCurrencyLabel}
                 onChangeAvatar={() => setPickerOpen(true)}
-                onWithdraw={handleWalletWithdraw}
-                onTopup={handleWalletTopup}
               />
             </div>
             {activeMenu !== "Parametres" && (

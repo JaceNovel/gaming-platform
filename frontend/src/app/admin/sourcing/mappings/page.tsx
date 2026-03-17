@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
@@ -63,6 +64,9 @@ const buildUrl = (path: string, params: Record<string, string> = {}) => {
 };
 
 export default function AdminSourcingMappingsPage() {
+  const searchParams = useSearchParams();
+  const platform = searchParams.get("platform") === "aliexpress" ? "aliexpress" : "alibaba";
+  const platformLabel = platform === "aliexpress" ? "AliExpress" : "Alibaba";
   const [products, setProducts] = useState<Product[]>([]);
   const [skus, setSkus] = useState<SupplierSku[]>([]);
   const [mappings, setMappings] = useState<Mapping[]>([]);
@@ -88,12 +92,12 @@ export default function AdminSourcingMappingsPage() {
     try {
       const [productsRes, skusRes, mappingsRes] = await Promise.all([
         fetch(buildUrl("/products", { active: "0", per_page: "200", shop_type: "accessory" }), { headers: { Accept: "application/json" } }),
-        fetch(`${API_BASE}/admin/sourcing/supplier-skus`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
-        fetch(`${API_BASE}/admin/sourcing/mappings`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
+        fetch(`${API_BASE}/admin/sourcing/supplier-skus?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
+        fetch(`${API_BASE}/admin/sourcing/mappings?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
       ]);
 
       if (!productsRes.ok || !skusRes.ok || !mappingsRes.ok) {
-        throw new Error("Impossible de charger les données sourcing");
+        throw new Error(`Impossible de charger les données ${platformLabel}`);
       }
 
       const productsPayload = await productsRes.json();
@@ -104,11 +108,11 @@ export default function AdminSourcingMappingsPage() {
       setSkus(Array.isArray(skusPayload?.data) ? skusPayload.data : []);
       setMappings(Array.isArray(mappingsPayload?.data) ? mappingsPayload.data : []);
     } catch (err) {
-      setError("Impossible de charger les données sourcing");
+      setError(`Impossible de charger les données ${platformLabel}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [platform, platformLabel]);
 
   useEffect(() => {
     loadAll();
@@ -162,7 +166,7 @@ export default function AdminSourcingMappingsPage() {
   };
 
   return (
-    <AdminShell title="Sourcing" subtitle="Mappings produit local vers SKU fournisseur">
+    <AdminShell title={platformLabel} subtitle="Mappings produit local vers SKU fournisseur">
       <div className="grid gap-6 xl:grid-cols-[460px,1fr]">
         <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">Créer un mapping</h2>

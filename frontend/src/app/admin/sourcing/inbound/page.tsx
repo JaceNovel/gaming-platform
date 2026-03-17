@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
@@ -27,6 +28,9 @@ const getAuthHeaders = (): Record<string, string> => {
 };
 
 export default function AdminSourcingInboundPage() {
+  const searchParams = useSearchParams();
+  const platform = searchParams.get("platform") === "aliexpress" ? "aliexpress" : "alibaba";
+  const platformLabel = platform === "aliexpress" ? "AliExpress" : "Alibaba";
   const [shipments, setShipments] = useState<InboundShipment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -43,16 +47,16 @@ export default function AdminSourcingInboundPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/admin/sourcing/inbound-shipments`, { headers: { Accept: "application/json", ...getAuthHeaders() } });
-      if (!res.ok) throw new Error("Impossible de charger les réceptions");
+      const res = await fetch(`${API_BASE}/admin/sourcing/inbound-shipments?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } });
+      if (!res.ok) throw new Error(`Impossible de charger les réceptions ${platformLabel}`);
       const payload = await res.json();
       setShipments(Array.isArray(payload?.data) ? payload.data : []);
     } catch (err) {
-      setError("Impossible de charger les réceptions");
+      setError(`Impossible de charger les réceptions ${platformLabel}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [platform, platformLabel]);
 
   useEffect(() => {
     loadShipments();
@@ -110,7 +114,7 @@ export default function AdminSourcingInboundPage() {
   };
 
   return (
-    <AdminShell title="Sourcing" subtitle="Réceptions d’entrepôt et incrément du stock local">
+    <AdminShell title={platformLabel} subtitle="Réceptions d’entrepôt et incrément du stock local">
       <div className="grid gap-6 xl:grid-cols-[420px,1fr]">
         <form onSubmit={createReceipt} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">Enregistrer une réception</h2>

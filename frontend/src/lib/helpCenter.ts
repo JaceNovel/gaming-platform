@@ -18,10 +18,10 @@ export const HELP_TOPICS: HelpTopic[] = [
   },
   {
     slug: "wallet",
-    title: "Wallet (solde, recharge, paiement)",
-    summary: "Recharger le wallet, vérifier le solde et payer avec le wallet.",
+    title: "Wallet (solde, historique, paiement)",
+    summary: "Vérifier le solde, consulter l'historique et payer avec le wallet.",
     bullets: [
-      "Une recharge wallet créditée apparaît dans l'historique.",
+      "Le wallet affiche ton solde principal et l'historique des mouvements.",
       "Vous pouvez payer avec le wallet si le solde est suffisant.",
       "Si le solde n'apparaît pas tout de suite, revenez sur votre profil et réessayez après quelques secondes.",
     ],

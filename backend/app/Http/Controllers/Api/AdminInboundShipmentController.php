@@ -20,6 +20,12 @@ class AdminInboundShipmentController extends Controller
             ])
             ->latest('id');
 
+        if ($request->filled('platform')) {
+            $query->whereHas('procurementBatch.supplierAccount', function ($builder) use ($request) {
+                $builder->where('platform', $request->query('platform'));
+            });
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
         }

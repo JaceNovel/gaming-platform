@@ -223,8 +223,6 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     Route::get('/wallet/payouts', [WalletController::class, 'payouts']);
     Route::get('/wallet/recipient', [WalletController::class, 'resolveRecipient']);
     Route::post('/wallet/transfer', [WalletController::class, 'transfer']);
-    Route::post('/wallet/topup', [WalletController::class, 'topup']);
-    Route::post('/wallet/withdraw', [WalletController::class, 'requestWithdraw']);
 
     // Sensitive actions (Play Integrity required)
     Route::middleware('playIntegrity')->group(function () {
@@ -350,6 +348,18 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
     Route::get('/orders/{order}/shipping/document', [AdminOrderController::class, 'downloadShippingDocument'])
         ->middleware('permission:orders.view');
     Route::patch('/orders/{order}/shipping/status', [AdminOrderController::class, 'updateShippingStatus'])
+        ->middleware('permission:orders.manage');
+    Route::patch('/orders/{order}/supplier/aliexpress/context', [AdminOrderController::class, 'updateAliExpressFulfillmentContext'])
+        ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/resolve-mode', [AdminOrderController::class, 'resolveAliExpressShippingMode'])
+        ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/pack', [AdminOrderController::class, 'aliExpressPack'])
+        ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/ship', [AdminOrderController::class, 'aliExpressShip'])
+        ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/repack', [AdminOrderController::class, 'aliExpressRepack'])
+        ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/print-waybill', [AdminOrderController::class, 'aliExpressPrintWaybill'])
         ->middleware('permission:orders.manage');
 
     // Gaming Account Marketplace (DM Partner / Sellers)
@@ -613,6 +623,24 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
     Route::post('/sourcing/inbound-shipments', [\App\Http\Controllers\Api\AdminInboundShipmentController::class, 'store'])
         ->middleware('permission:sourcing.manage');
     Route::post('/sourcing/warehouse-receipts', [\App\Http\Controllers\Api\AdminInboundShipmentController::class, 'storeReceipt'])
+        ->middleware('permission:sourcing.manage');
+
+    Route::get('/sourcing/countries', [\App\Http\Controllers\Api\AdminSupplierCountryController::class, 'index'])
+        ->middleware('permission:sourcing.view');
+    Route::post('/sourcing/countries', [\App\Http\Controllers\Api\AdminSupplierCountryController::class, 'store'])
+        ->middleware('permission:sourcing.manage');
+    Route::patch('/sourcing/countries/{supplierCountry}', [\App\Http\Controllers\Api\AdminSupplierCountryController::class, 'update'])
+        ->middleware('permission:sourcing.manage');
+    Route::delete('/sourcing/countries/{supplierCountry}', [\App\Http\Controllers\Api\AdminSupplierCountryController::class, 'destroy'])
+        ->middleware('permission:sourcing.manage');
+
+    Route::get('/sourcing/receiving-addresses', [\App\Http\Controllers\Api\AdminSupplierReceivingAddressController::class, 'index'])
+        ->middleware('permission:sourcing.view');
+    Route::post('/sourcing/receiving-addresses', [\App\Http\Controllers\Api\AdminSupplierReceivingAddressController::class, 'store'])
+        ->middleware('permission:sourcing.manage');
+    Route::patch('/sourcing/receiving-addresses/{supplierReceivingAddress}', [\App\Http\Controllers\Api\AdminSupplierReceivingAddressController::class, 'update'])
+        ->middleware('permission:sourcing.manage');
+    Route::delete('/sourcing/receiving-addresses/{supplierReceivingAddress}', [\App\Http\Controllers\Api\AdminSupplierReceivingAddressController::class, 'destroy'])
         ->middleware('permission:sourcing.manage');
 
     Route::get('/payments', [\App\Http\Controllers\Api\AdminPaymentsController::class, 'index'])

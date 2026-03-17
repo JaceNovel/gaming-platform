@@ -53,6 +53,13 @@ class Product extends Model
         'stock_alert_emails',
         'shipping_required',
         'delivery_type',
+        'preferred_supplier_platform',
+        'supplier_shipping_mode',
+        'grouping_threshold',
+        'grouping_current_count',
+        'supplier_margin_type',
+        'supplier_margin_value',
+        'supplier_shipping_fee',
         'display_section',
         'is_active',
         'details',
@@ -69,7 +76,11 @@ class Product extends Model
         'price_fcfa' => 'integer',
         'redeem_code_delivery' => 'boolean',
         'stock_low_threshold' => 'integer',
+        'grouping_threshold' => 'integer',
+        'grouping_current_count' => 'integer',
         'shipping_required' => 'boolean',
+        'supplier_margin_value' => 'decimal:2',
+        'supplier_shipping_fee' => 'decimal:2',
     ];
 
     public function images()
