@@ -7,6 +7,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use SimpleXMLElement;
 
 class SupplierApiClient
 {
@@ -336,36 +337,11 @@ class SupplierApiClient
 
     public function request(SupplierAccount $account, string $methodName, array $params = []): array
     {
-        $config = $this->platformConfig($account->platform);
-        $baseUrl = rtrim((string) ($config['api_base_url'] ?? ''), '/');
-        if ($baseUrl === '') {
-            throw new \RuntimeException('Base URL API non configurée pour ' . $account->platform);
-        }
-
-        if (!str_starts_with($methodName, '/')) {
-            $methodName = '/' . $methodName;
-        }
-
         if (empty($account->access_token)) {
             throw new \RuntimeException('Access token fournisseur manquant. Lance d’abord la connexion OAuth.');
         }
 
-        $query = array_filter($params, static fn ($value) => $value !== null && $value !== '');
-        $query['access_token'] = $account->access_token;
-
-        $request = $this->baseRequest((int) ($config['timeout'] ?? 20));
-        $response = $request->asForm()->post($baseUrl . $methodName, $query);
-
-        if (!$response->successful()) {
-            throw new \RuntimeException('Appel API fournisseur échoué (HTTP ' . $response->status() . '): ' . $response->body());
-        }
-
-        $payload = $response->json() ?? [];
-        if ((string) ($payload['code'] ?? '0') !== '0') {
-            throw new \RuntimeException(($payload['message'] ?? $payload['msg_info'] ?? 'Erreur API fournisseur') . ' [' . ($payload['code'] ?? 'unknown') . ']');
-        }
-
-        return $payload;
+        return $this->gopRequest($account, 'POST', $methodName, $params, true, 'Appel API fournisseur');
     }
 
     public function ecoRequest(SupplierAccount $account, string $httpMethod, string $methodName, array $params = []): array
@@ -424,6 +400,21 @@ class SupplierApiClient
 
     public function iopRequest(SupplierAccount $account, string $httpMethod, string $methodName, array $params = []): array
     {
+        if (empty($account->access_token)) {
+            throw new \RuntimeException('Access token fournisseur manquant. Lance d’abord la connexion OAuth.');
+        }
+
+        return $this->gopRequest($account, $httpMethod, $methodName, $params, true, 'Appel IOP');
+    }
+
+    private function gopRequest(
+        SupplierAccount $account,
+        string $httpMethod,
+        string $methodName,
+        array $params,
+        bool $includeAccessToken,
+        string $errorPrefix
+    ): array {
         $config = $this->platformConfig($account->platform);
         $baseUrl = rtrim((string) ($config['api_base_url'] ?? ''), '/');
         if ($baseUrl === '') {
@@ -434,31 +425,131 @@ class SupplierApiClient
             $methodName = '/' . $methodName;
         }
 
-        if (empty($account->access_token)) {
-            throw new \RuntimeException('Access token fournisseur manquant. Lance d’abord la connexion OAuth.');
-        }
-
-        $normalizedParams = $this->normalizeIopParams($params);
-        $normalizedParams['access_token'] = (string) $account->access_token;
+        $businessParams = $this->normalizeIopParams($params);
+        $requestUrl = $this->buildGopRequestUrl($account, $baseUrl, $methodName, $businessParams, $includeAccessToken);
         $request = $this->baseRequest((int) ($config['timeout'] ?? 20));
-        $url = $baseUrl . $methodName;
         $verb = strtoupper($httpMethod);
 
         $response = match ($verb) {
-            'GET' => $request->get($url, $normalizedParams),
-            default => $request->asForm()->post($url, $normalizedParams),
+            'GET' => $request->get($requestUrl, $businessParams),
+            default => $request->asForm()->post($requestUrl, $businessParams),
         };
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Appel IOP échoué (HTTP ' . $response->status() . '): ' . $response->body());
+            throw new \RuntimeException($errorPrefix . ' échoué (HTTP ' . $response->status() . '): ' . $response->body());
         }
 
-        $payload = $response->json() ?? [];
+        $payload = $this->decodeResponseBody($response->body());
         if ((string) ($payload['code'] ?? '0') !== '0') {
-            throw new \RuntimeException(($payload['message'] ?? $payload['msg_info'] ?? 'Erreur IOP') . ' [' . ($payload['code'] ?? 'unknown') . ']');
+            $message = (string) ($payload['message'] ?? $payload['msg'] ?? $payload['msg_info'] ?? 'Erreur IOP');
+            $subCode = (string) ($payload['sub_code'] ?? '');
+            $subMessage = (string) ($payload['sub_msg'] ?? '');
+
+            if ($subCode !== '') {
+                $message .= ' (' . $subCode . ')';
+            }
+
+            if ($subMessage !== '') {
+                $message .= ': ' . $subMessage;
+            }
+
+            throw new \RuntimeException($message . ' [' . ($payload['code'] ?? 'unknown') . ']');
         }
 
         return $payload;
+    }
+
+    private function buildGopRequestUrl(
+        SupplierAccount $account,
+        string $baseUrl,
+        string $methodName,
+        array $businessParams,
+        bool $includeAccessToken
+    ): string {
+        $appKey = trim((string) ($account->app_key ?? ''));
+        $appSecret = (string) ($account->app_secret ?? '');
+        if ($appKey === '' || $appSecret === '') {
+            throw new \RuntimeException('App Key / App Secret manquants pour les appels GOP.');
+        }
+
+        $timestamp = (string) round(microtime(true) * 1000);
+        $signMethod = strtolower((string) ($this->platformConfig($account->platform)['sign_method'] ?? 'sha256')) === 'md5'
+            ? 'md5'
+            : 'sha256';
+
+        $commonParams = [
+            'app_key' => $appKey,
+            'timestamp' => $timestamp,
+            'sign_method' => $signMethod,
+            'simplify' => 'true',
+            'partner_id' => 'iop-sdk-php',
+        ];
+
+        if ($includeAccessToken) {
+            $commonParams['access_token'] = (string) $account->access_token;
+        }
+
+        $signingParams = array_merge($commonParams, $businessParams);
+        ksort($signingParams);
+
+        $payload = $methodName;
+        foreach ($signingParams as $key => $value) {
+            $payload .= $key . $value;
+        }
+
+        $commonParams['sign'] = strtoupper(hash_hmac($signMethod, $payload, $appSecret));
+
+        return rtrim($baseUrl, '/') . '/rest' . $methodName . '?' . Arr::query($commonParams);
+    }
+
+    private function decodeResponseBody(string $body): array
+    {
+        $decoded = json_decode($body, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        $trimmed = trim($body);
+        if ($trimmed === '' || !str_starts_with($trimmed, '<')) {
+            return [];
+        }
+
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($trimmed, SimpleXMLElement::class, LIBXML_NOCDATA);
+        libxml_clear_errors();
+
+        if (!$xml instanceof SimpleXMLElement) {
+            return [];
+        }
+
+        $parsed = $this->xmlElementToArray($xml);
+
+        return is_array($parsed) ? $parsed : [];
+    }
+
+    private function xmlElementToArray(SimpleXMLElement $element): array|string
+    {
+        $children = $element->children();
+        if ($children->count() === 0) {
+            return (string) $element;
+        }
+
+        $result = [];
+        foreach ($children as $name => $child) {
+            $value = $this->xmlElementToArray($child);
+
+            if (array_key_exists($name, $result)) {
+                if (!is_array($result[$name]) || !array_is_list($result[$name])) {
+                    $result[$name] = [$result[$name]];
+                }
+                $result[$name][] = $value;
+                continue;
+            }
+
+            $result[$name] = $value;
+        }
+
+        return $result;
     }
 
     private function normalizeProductResponse(SupplierAccount $account, string $externalProductId, array $payload): array
