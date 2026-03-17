@@ -1313,44 +1313,45 @@ export default function AdminSourcingImportPage() {
               </select>
             </label>
             {platform === "alibaba" ? (
-            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Recherche fournisseur</h3>
-                <p className="text-xs text-slate-500">Interroge l’API produit distante du compte {platformLabel} sélectionné.</p>
-              </div>
-              <label className="grid gap-1 text-sm">
-                <span className="text-slate-600">Model number</span>
-                <input value={searchModelNumber} onChange={(e) => setSearchModelNumber(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
-              </label>
-              <label className="grid gap-1 text-sm">
-                <span className="text-slate-600">SKU code</span>
-                <input value={searchSkuCode} onChange={(e) => setSearchSkuCode(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
-              </label>
-              <button type="button" onClick={searchRemoteProducts} disabled={searchingRemote} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
-                {searchingRemote ? "Recherche..." : "Chercher dans le catalogue fournisseur"}
-              </button>
-              {remoteResults.length ? (
-                <div className="grid gap-2">
-                  {remoteResults.map((result) => (
-                    <button
-                      key={`${result.external_product_id}-${result.sku_code ?? "na"}`}
-                      type="button"
-                      onClick={() => {
-                        setExternalProductId(result.external_product_id || "");
-                        setTitle(result.title || "");
-                        setMainImageUrl(result.main_image_url || "");
-                        setLookupType("product_id");
-                      }}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left"
-                    >
-                      <div className="text-sm font-medium text-slate-900">{result.title || "Produit"}</div>
-                      <div className="mt-1 text-xs text-slate-500">ID: {result.external_product_id || "—"} · SKU: {result.sku_code || "—"}</div>
-                      <div className="text-xs text-slate-500">{result.category_name || "Sans catégorie"} · {result.status || "statut inconnu"}</div>
-                    </button>
-                  ))}
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Recherche fournisseur</h3>
+                  <p className="text-xs text-slate-500">Interroge l’API produit distante du compte {platformLabel} sélectionné.</p>
                 </div>
-              ) : null}
-            </div>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">Model number</span>
+                  <input value={searchModelNumber} onChange={(e) => setSearchModelNumber(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">SKU code</span>
+                  <input value={searchSkuCode} onChange={(e) => setSearchSkuCode(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+                </label>
+                <button type="button" onClick={searchRemoteProducts} disabled={searchingRemote} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  {searchingRemote ? "Recherche..." : "Chercher dans le catalogue fournisseur"}
+                </button>
+                {remoteResults.length ? (
+                  <div className="grid gap-2">
+                    {remoteResults.map((result) => (
+                      <button
+                        key={`${result.external_product_id}-${result.sku_code ?? "na"}`}
+                        type="button"
+                        onClick={() => {
+                          setExternalProductId(result.external_product_id || "");
+                          setTitle(result.title || "");
+                          setMainImageUrl(result.main_image_url || "");
+                          setLookupType("product_id");
+                        }}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left"
+                      >
+                        <div className="text-sm font-medium text-slate-900">{result.title || "Produit"}</div>
+                        <div className="mt-1 text-xs text-slate-500">ID: {result.external_product_id || "—"} · SKU: {result.sku_code || "—"}</div>
+                        <div className="text-xs text-slate-500">{result.category_name || "Sans catégorie"} · {result.status || "statut inconnu"}</div>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">External product ID</span>
               <input value={externalProductId} onChange={(e) => setExternalProductId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" required />
