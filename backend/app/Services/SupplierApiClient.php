@@ -908,9 +908,11 @@ class SupplierApiClient
     private function buildProductLookupParams(string $methodName, string $lookupParam, string $externalProductId, ?string $lookupType = null): array
     {
         if ($methodName === '/icbu/product/get') {
+            $resolvedLookupParam = $lookupType === 'sku_id' ? 'skuId' : 'productId';
+
             return [
                 'product_get_request' => json_encode([
-                    $lookupParam => $externalProductId,
+                    $resolvedLookupParam => $externalProductId,
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             ];
         }
@@ -924,6 +926,8 @@ class SupplierApiClient
         }
 
         return [
+            'productId' => $lookupType === 'sku_id' ? null : $externalProductId,
+            'skuId' => $lookupType === 'sku_id' ? $externalProductId : null,
             $lookupParam => $externalProductId,
             'product_id' => $externalProductId,
             'external_product_id' => $externalProductId,
