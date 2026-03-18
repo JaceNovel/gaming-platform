@@ -456,11 +456,11 @@ export default function AdminOrderDetailPage() {
     setInvoiceName(`invoice-${normalizedNo}.${invoiceFileType}`);
   }, [invoiceFileType, invoiceNo, invoiceUploadFile, order?.id]);
 
-  const items = useMemo(() => order?.order_items ?? order?.orderItems ?? [], [order]);
-  const physicalItems = useMemo(
+  const items = useMemo<OrderItem[]>(() => order?.order_items ?? order?.orderItems ?? [], [order]);
+  const physicalItems = useMemo<OrderItem[]>(
     () =>
       items.filter(
-        (item) => item.is_physical || item.product?.shipping_required,
+        (item: OrderItem) => item.is_physical || item.product?.shipping_required,
       ),
     [items],
   );
@@ -472,14 +472,14 @@ export default function AdminOrderDetailPage() {
   }, [dsExtendRequestJson, dsPlaceOrderJson, loadDsDraft, order, physicalItems.length]);
 
   const deliveryType = useMemo(() => {
-    if (physicalItems.some((item) => item.delivery_type === "preorder")) return "preorder";
+    if (physicalItems.some((item: OrderItem) => item.delivery_type === "preorder")) return "preorder";
     if (physicalItems.length > 0) return "in_stock";
     return null;
   }, [physicalItems]);
 
   const etaDays = useMemo(() => {
     if (order?.shipping_eta_days) return order.shipping_eta_days;
-    return physicalItems.reduce((max, item) => Math.max(max, item.delivery_eta_days ?? 0), 0) || null;
+    return physicalItems.reduce((max: number, item: OrderItem) => Math.max(max, item.delivery_eta_days ?? 0), 0) || null;
   }, [order?.shipping_eta_days, physicalItems]);
 
   const handleStatusSave = async () => {
