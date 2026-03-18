@@ -770,7 +770,6 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     product_ids: "33006951782",
     target_currency: "USD",
     target_language: "FR",
-    tracking_id: "primegaming",
     country: "TG",
   }),
   "ae-affiliate-product-query": stringifyTemplate({
@@ -780,7 +779,6 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     sort: "SALE_PRICE_ASC",
     target_currency: "USD",
     target_language: "FR",
-    tracking_id: "primegaming",
     ship_to_country: "TG",
   }),
   "ae-affiliate-category-get": stringifyTemplate({}),
@@ -788,7 +786,6 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     ship_to_country: "TG",
     promotion_link_type: 0,
     source_values: "https://www.aliexpress.com/item/33006951782.html",
-    tracking_id: "primegaming",
   }),
   "ae-affiliate-order-get": stringifyTemplate({
     fields: "commission_rate,created_time",
@@ -816,7 +813,6 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     sort: "LAST_VOLUME_DESC",
     target_currency: "USD",
     target_language: "FR",
-    tracking_id: "primegaming",
     ship_to_country: "TG",
   }),
   "ae-affiliate-hotproduct-download": stringifyTemplate({
@@ -826,7 +822,6 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     page_size: 20,
     target_currency: "USD",
     target_language: "FR",
-    tracking_id: "primegaming",
     country: "TG",
   }),
   "ae-affiliate-product-smartmatch": stringifyTemplate({
@@ -837,7 +832,6 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     country: "TG",
     target_currency: "USD",
     target_language: "FR",
-    tracking_id: "primegaming",
   }),
   "ae-invoice-request-query": stringifyTemplate({
     param0: {

@@ -427,6 +427,13 @@ class AliExpressBulkCatalogImportService
             }
         }
 
+        if (array_key_exists('tracking_id', $sanitized)) {
+            $trackingId = Str::lower((string) $sanitized['tracking_id']);
+            if (in_array($trackingId, ['primegaming', 'primegaming-bulk-import'], true)) {
+                unset($sanitized['tracking_id']);
+            }
+        }
+
         foreach (['ship_to_country', 'country', 'target_currency'] as $key) {
             if (array_key_exists($key, $sanitized)) {
                 $value = strtoupper(trim((string) $sanitized[$key]));
