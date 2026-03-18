@@ -377,7 +377,7 @@ export default function ProductsCatalogPage({
                     </div>
                   ))
                 : items.map((p) => {
-                    const priceValue = Number(p.discount_price ?? p.price ?? 0);
+                  const priceValue = Number(p.computed_final_price ?? p.discount_price ?? p.price ?? 0);
                     const safePrice = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
                     const likesValue = Number(p.likes_count ?? 0);
                     const likes = Number.isFinite(likesValue) ? likesValue : 0;
@@ -413,8 +413,6 @@ export default function ProductsCatalogPage({
                     const isTop = String(p.display_section ?? "").toLowerCase() === "popular" || likes >= 1000;
                     const isInstant = delivery?.tone === "bolt";
                     const showVip = isVipActive(user);
-                    const computedPrice = Number(p.computed_final_price ?? p.discount_price ?? p.price ?? 0);
-                    const safePrice = Number.isFinite(computedPrice) ? Math.max(0, Math.round(computedPrice)) : 0;
 
                     return (
                       <Link
