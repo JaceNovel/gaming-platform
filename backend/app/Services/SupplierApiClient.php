@@ -476,6 +476,7 @@ class SupplierApiClient
         }
 
         $payload = $this->decodeResponseBody($response->body());
+        $this->throwIfApiPayloadHasError($payload, 'Erreur TOP');
         if ((string) ($payload['code'] ?? '0') !== '0') {
             $message = (string) ($payload['message'] ?? $payload['msg'] ?? $payload['msg_info'] ?? 'Erreur TOP');
             $subCode = (string) ($payload['sub_code'] ?? '');
@@ -528,6 +529,7 @@ class SupplierApiClient
         }
 
         $payload = $this->decodeResponseBody($response->body());
+        $this->throwIfApiPayloadHasError($payload, 'Erreur IOP');
         if ((string) ($payload['code'] ?? '0') !== '0') {
             $message = (string) ($payload['message'] ?? $payload['msg'] ?? $payload['msg_info'] ?? 'Erreur IOP');
             $subCode = (string) ($payload['sub_code'] ?? '');
@@ -650,6 +652,46 @@ class SupplierApiClient
         $parsed = $this->xmlElementToArray($xml);
 
         return is_array($parsed) ? $parsed : [];
+    }
+
+    private function throwIfApiPayloadHasError(array $payload, string $defaultMessage): void
+    {
+        $error = $this->extractApiErrorPayload($payload);
+        if ($error === null) {
+            return;
+        }
+
+        $message = (string) ($error['msg'] ?? $error['message'] ?? $error['msg_info'] ?? $defaultMessage);
+        $subCode = (string) ($error['sub_code'] ?? $error['subCode'] ?? '');
+        $subMessage = (string) ($error['sub_msg'] ?? $error['subMessage'] ?? '');
+        $code = (string) ($error['code'] ?? $error['error_code'] ?? 'unknown');
+
+        if ($subCode !== '') {
+            $message .= ' (' . $subCode . ')';
+        }
+
+        if ($subMessage !== '') {
+            $message .= ': ' . $subMessage;
+        }
+
+        throw new \RuntimeException($message . ' [' . $code . ']');
+    }
+
+    private function extractApiErrorPayload(array $payload): ?array
+    {
+        $candidates = [
+            $payload['error_response'] ?? null,
+            data_get($payload, 'response.error_response'),
+            data_get($payload, 'result.error_response'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_array($candidate) && $candidate !== []) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function xmlElementToArray(SimpleXMLElement $element): array|string
