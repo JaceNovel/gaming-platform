@@ -11,6 +11,7 @@ use App\Models\RedeemCode;
 use App\Models\RedeemCodeDelivery;
 use App\Models\Coupon;
 use App\Services\LoggedEmailService;
+use App\Services\AliExpressTransitPricingService;
 use App\Services\ShippingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,10 @@ use Carbon\CarbonImmutable;
 use App\Support\FrontendUrls;
 class OrderController extends Controller
 {
+    public function __construct(private AliExpressTransitPricingService $transitPricing)
+    {
+    }
+
     private function isBooyahPassProduct(Product $product): bool
     {
         $name = strtolower(trim((string) ($product->name ?? '')));
@@ -291,6 +296,7 @@ class OrderController extends Controller
             'items.*.qty' => 'nullable|integer|min:1',
             'items.*.game_id' => 'nullable|string|max:255',
             'items.*.redeem_denomination_id' => 'nullable|exists:redeem_denominations,id',
+            'destination_country_code' => 'nullable|string|size:2',
             'shipping_address_line1' => 'nullable|string|max:255',
             'shipping_city' => 'nullable|string|max:80',
             'shipping_country_code' => 'nullable|string|max:2',
@@ -303,6 +309,7 @@ class OrderController extends Controller
         $validatedItems = [];
         $requiresRedeemFulfillment = false;
         $hasPhysicalItems = false;
+        $destinationCountryCode = strtoupper(trim((string) ($data['destination_country_code'] ?? $data['shipping_country_code'] ?? $user?->country_code ?? '')));
 
         foreach ($data['items'] as $item) {
             $quantity = $item['quantity'] ?? $item['qty'] ?? null;
@@ -427,7 +434,6 @@ class OrderController extends Controller
 
             $unitPrice = $product->discount_price ?? $product->price;
             $lineTotal = $unitPrice * $quantity;
-            $totalAmount += $lineTotal;
 
             $unitShippingFee = (float) ($product->shipping_fee ?? 0);
             if (!is_finite($unitShippingFee) || $unitShippingFee < 0) {
@@ -440,8 +446,21 @@ class OrderController extends Controller
                 || !empty($product->accessory_category);
             if ($isPhysical) {
                 $hasPhysicalItems = true;
-                $shippingAmount += $unitShippingFee * $quantity;
+                if ($destinationCountryCode === '') {
+                    throw ValidationException::withMessages([
+                        'destination_country_code' => 'Le pays de destination est obligatoire pour les produits physiques.',
+                    ]);
+                }
+
+                $country = $this->transitPricing->resolveCountry($destinationCountryCode);
+                $pricing = $this->transitPricing->computeProductPricing($product, $country, 1);
+                $unitPrice = (float) $pricing['final_price'];
+                $unitShippingFee = 0;
+                $lineTotal = $unitPrice * $quantity;
             }
+
+            $totalAmount += $lineTotal;
+            $shippingAmount += $unitShippingFee * $quantity;
 
             $deliveryType = $product->delivery_type;
             if (!$deliveryType && !empty($product->stock_type)) {
@@ -467,10 +486,11 @@ class OrderController extends Controller
                 'is_physical' => $isPhysical,
                 'delivery_type' => $deliveryType,
                 'delivery_eta_days' => $deliveryEtaDays,
+                'destination_country_code' => $destinationCountryCode ?: null,
             ];
         }
 
-        $order = DB::transaction(function () use ($data, $user, $validatedItems, $totalAmount, $shippingAmount, $requiresRedeemFulfillment, $hasPhysicalItems) {
+        $order = DB::transaction(function () use ($data, $user, $validatedItems, $totalAmount, $shippingAmount, $requiresRedeemFulfillment, $hasPhysicalItems, $destinationCountryCode) {
             $promotionSummary = $this->buildPromotionSummary($user, $totalAmount, $validatedItems);
             // VIP/coupons apply only to product amounts (not shipping).
             $finalTotal = max(0, $totalAmount - $promotionSummary['total_discount']) + max(0, $shippingAmount);
@@ -482,12 +502,12 @@ class OrderController extends Controller
                 'status' => Order::STATUS_PAYMENT_PROCESSING,
                 'items' => $validatedItems,
                 'meta' => $requiresRedeemFulfillment
-                    ? array_merge(['requires_redeem' => true], $promotionSummary['meta'])
-                    : $promotionSummary['meta'],
+                    ? array_merge(['requires_redeem' => true, 'destination_country_code' => $destinationCountryCode], $promotionSummary['meta'])
+                    : array_merge(['destination_country_code' => $destinationCountryCode], $promotionSummary['meta']),
                 'reference' => 'ORD-' . strtoupper(uniqid()),
                 'shipping_address_line1' => $data['shipping_address_line1'] ?? null,
                 'shipping_city' => $data['shipping_city'] ?? null,
-                'shipping_country_code' => $data['shipping_country_code'] ?? null,
+                'shipping_country_code' => $destinationCountryCode ?: ($data['shipping_country_code'] ?? null),
                 'shipping_phone' => $data['shipping_phone'] ?? null,
             ];
 
@@ -523,6 +543,7 @@ class OrderController extends Controller
 
         if ($hasPhysicalItems) {
             app(ShippingService::class)->computeShippingForOrder($order);
+            $this->transitPricing->assignOrderTransit($order, $destinationCountryCode);
         }
 
         return response()->json([

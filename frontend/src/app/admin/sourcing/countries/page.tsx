@@ -11,6 +11,12 @@ type SupplierCountry = {
   code: string;
   name: string;
   is_active: boolean;
+  storefront_enabled?: boolean;
+  transit_provider_name?: string | null;
+  transit_city?: string | null;
+  currency_code?: string | null;
+  pricing_rules_json?: Record<string, unknown> | null;
+  customer_notice?: string | null;
   sort_order: number;
 };
 
@@ -35,6 +41,12 @@ export default function AdminSourcingCountriesPage() {
   const [name, setName] = useState("");
   const [sortOrder, setSortOrder] = useState("0");
   const [isActive, setIsActive] = useState(true);
+  const [storefrontEnabled, setStorefrontEnabled] = useState(platform === "aliexpress");
+  const [transitProviderName, setTransitProviderName] = useState("");
+  const [transitCity, setTransitCity] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("XOF");
+  const [pricingRulesJson, setPricingRulesJson] = useState("{}");
+  const [customerNotice, setCustomerNotice] = useState("");
 
   const resetForm = () => {
     setEditingId(null);
@@ -42,6 +54,12 @@ export default function AdminSourcingCountriesPage() {
     setName("");
     setSortOrder("0");
     setIsActive(true);
+    setStorefrontEnabled(platform === "aliexpress");
+    setTransitProviderName("");
+    setTransitCity("");
+    setCurrencyCode("XOF");
+    setPricingRulesJson("{}");
+    setCustomerNotice("");
   };
 
   const loadCountries = useCallback(async () => {
@@ -83,6 +101,12 @@ export default function AdminSourcingCountriesPage() {
           code: code.trim().toUpperCase(),
           name: name.trim(),
           is_active: isActive,
+          storefront_enabled: storefrontEnabled,
+          transit_provider_name: transitProviderName.trim() || undefined,
+          transit_city: transitCity.trim() || undefined,
+          currency_code: currencyCode.trim() || "XOF",
+          pricing_rules_json: pricingRulesJson.trim() ? JSON.parse(pricingRulesJson) : undefined,
+          customer_notice: customerNotice.trim() || undefined,
           sort_order: Number(sortOrder || 0),
         }),
       });
@@ -104,6 +128,12 @@ export default function AdminSourcingCountriesPage() {
     setName(country.name);
     setSortOrder(String(country.sort_order ?? 0));
     setIsActive(Boolean(country.is_active));
+    setStorefrontEnabled(Boolean(country.storefront_enabled));
+    setTransitProviderName(country.transit_provider_name || "");
+    setTransitCity(country.transit_city || "");
+    setCurrencyCode(country.currency_code || "XOF");
+    setPricingRulesJson(JSON.stringify(country.pricing_rules_json ?? {}, null, 2));
+    setCustomerNotice(country.customer_notice || "");
   };
 
   const removeCountry = async (countryId: number) => {
@@ -152,6 +182,32 @@ export default function AdminSourcingCountriesPage() {
               <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
               Actif
             </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={storefrontEnabled} onChange={(e) => setStorefrontEnabled(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+              Disponible sur le storefront
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Nom transitaire</span>
+              <input value={transitProviderName} onChange={(e) => setTransitProviderName(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Ville transit</span>
+                <input value={transitCity} onChange={(e) => setTransitCity(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Devise</span>
+                <input value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())} className="rounded-xl border border-slate-200 px-3 py-2" />
+              </label>
+            </div>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Regles tarifaires JSON</span>
+              <textarea value={pricingRulesJson} onChange={(e) => setPricingRulesJson(e.target.value)} rows={8} className="rounded-xl border border-slate-200 px-3 py-2 font-mono text-xs" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Message client</span>
+              <textarea value={customerNotice} onChange={(e) => setCustomerNotice(e.target.value)} rows={4} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
             <button type="submit" className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white">
               {editingId !== null ? "Mettre a jour" : "Enregistrer"}
             </button>
@@ -178,13 +234,14 @@ export default function AdminSourcingCountriesPage() {
                   <th className="pb-3 pr-4">Code</th>
                   <th className="pb-3 pr-4">Ordre</th>
                   <th className="pb-3 pr-4">Statut</th>
+                  <th className="pb-3 pr-4">Transitaire</th>
                   <th className="pb-3 pr-4">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {!loading && countries.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-4 text-slate-500">Aucun pays configure.</td>
+                    <td colSpan={6} className="py-4 text-slate-500">Aucun pays configure.</td>
                   </tr>
                 ) : null}
                 {countries.map((country) => (
@@ -192,7 +249,8 @@ export default function AdminSourcingCountriesPage() {
                     <td className="py-3 pr-4 font-medium text-slate-900">{country.name}</td>
                     <td className="py-3 pr-4 text-xs text-slate-600">{country.code}</td>
                     <td className="py-3 pr-4 text-xs text-slate-600">{country.sort_order ?? 0}</td>
-                    <td className="py-3 pr-4 text-xs text-slate-600">{country.is_active ? "Actif" : "Inactif"}</td>
+                    <td className="py-3 pr-4 text-xs text-slate-600">{country.is_active ? "Actif" : "Inactif"} / {country.storefront_enabled ? "Storefront" : "Backoffice"}</td>
+                    <td className="py-3 pr-4 text-xs text-slate-600">{country.transit_provider_name || "--"}<br />{country.transit_city || ""}</td>
                     <td className="py-3 pr-4">
                       <div className="flex gap-2">
                         <button type="button" onClick={() => startEditing(country)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700">

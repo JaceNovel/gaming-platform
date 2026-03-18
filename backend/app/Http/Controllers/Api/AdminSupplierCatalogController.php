@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\SupplierProduct;
 use App\Models\SupplierAccount;
+use App\Services\AliExpressBulkCatalogImportService;
 use App\Services\SupplierApiClient;
 use App\Services\SupplierCatalogImportService;
 use Illuminate\Http\Request;
@@ -80,6 +81,47 @@ class AdminSupplierCatalogController extends Controller
 
         return response()->json([
             'data' => $product,
+        ], 201);
+    }
+
+    public function bulkImportAliExpress(Request $request, AliExpressBulkCatalogImportService $bulkImportService)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'operation' => 'nullable|string|in:ae-affiliate-product-query,ae-affiliate-hotproduct-query,ae-affiliate-hotproduct-download,ae-affiliate-product-smartmatch',
+            'limit' => 'nullable|integer|min:1|max:200',
+            'request_payload' => 'required|array',
+            'auto_create_products' => 'sometimes|boolean',
+            'publish_products' => 'sometimes|boolean',
+            'usd_to_xof_rate' => 'nullable|numeric|min:1',
+            'grouping_threshold' => 'nullable|integer|min:1|max:500',
+            'margin_percent' => 'nullable|numeric|min:0|max:1000',
+            'target_moq' => 'nullable|integer|min:1|max:1000',
+            'reorder_quantity' => 'nullable|integer|min:1|max:1000',
+            'delivery_eta_days' => 'nullable|integer|min:1|max:90',
+            'default_country_code' => 'nullable|string|size:2',
+            'source_logistics_profile' => 'nullable|string|in:ordinary,battery',
+            'default_weight_grams' => 'nullable|integer|min:0|max:200000',
+            'default_estimated_cbm' => 'nullable|numeric|min:0|max:10',
+        ]);
+
+        try {
+            $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+            $result = $bulkImportService->import($account, $data);
+        } catch (Throwable $exception) {
+            Log::warning('sourcing.bulk_import_aliexpress_failed', [
+                'supplier_account_id' => (int) $data['supplier_account_id'],
+                'operation' => $data['operation'] ?? 'ae-affiliate-hotproduct-download',
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 502);
+        }
+
+        return response()->json([
+            'data' => $result,
         ], 201);
     }
 

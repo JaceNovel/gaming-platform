@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Models\SupplierReceivingAddress;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Support\Facades\Storage;
@@ -86,6 +87,61 @@ class ShippingService
 
         $order->update([
             'shipping_document_path' => $path,
+        ]);
+
+        return [
+            'path' => $path,
+            'url' => Storage::disk('public')->url($path),
+        ];
+    }
+
+    public function generateShippingMarkPdf(Order $order): array
+    {
+        $order->loadMissing(['user', 'orderItems.product']);
+
+        if (!$order->hasPhysicalItems()) {
+            throw new \RuntimeException('Order has no physical items');
+        }
+
+        $receivingAddress = null;
+        if ($order->supplier_receiving_address_id) {
+            $receivingAddress = SupplierReceivingAddress::query()->find($order->supplier_receiving_address_id);
+        }
+
+        $snapshot = $order->transit_pricing_snapshot_json ?? [];
+        if (($snapshot['direct_delivery'] ?? false) || !$receivingAddress) {
+            throw new \RuntimeException('Direct delivery order has no shipping mark');
+        }
+
+        $qrPayload = rawurlencode(json_encode([
+            'reference' => $order->reference,
+            'order_id' => $order->id,
+            'country' => $order->supplier_country_code,
+            'transit_provider' => $snapshot['transit_provider_name'] ?? null,
+        ]));
+
+        $html = view('shipping-mark', [
+            'order' => $order,
+            'items' => $order->orderItems,
+            'receivingAddress' => $receivingAddress,
+            'snapshot' => $snapshot,
+            'qrCodeUrl' => 'https://quickchart.io/qr?text=' . $qrPayload . '&size=180',
+        ])->render();
+
+        $options = new Options();
+        $options->set('isRemoteEnabled', true);
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4');
+        $dompdf->render();
+
+        $userId = $order->user_id ?? $order->user?->id;
+        $folder = $userId ? ('shipping-marks/user-' . $userId) : 'shipping-marks/unknown-user';
+        $path = $folder . '/order-' . $order->id . '.pdf';
+        Storage::disk('public')->put($path, $dompdf->output());
+
+        $order->update([
+            'shipping_mark_pdf_path' => $path,
         ]);
 
         return [

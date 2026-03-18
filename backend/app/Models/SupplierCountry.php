@@ -15,11 +15,19 @@ class SupplierCountry extends Model
         'code',
         'name',
         'is_active',
+        'storefront_enabled',
+        'transit_provider_name',
+        'transit_city',
+        'currency_code',
+        'pricing_rules_json',
+        'customer_notice',
         'sort_order',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'storefront_enabled' => 'boolean',
+        'pricing_rules_json' => 'array',
         'sort_order' => 'integer',
     ];
 

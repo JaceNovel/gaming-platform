@@ -193,6 +193,11 @@ class PaymentSettlementService
             if ($order->hasPhysicalItems()) {
                 $this->shippingService->computeShippingForOrder($order);
                 app(SourcingDemandService::class)->syncForPaidOrder($order);
+                try {
+                    $this->shippingService->generateShippingMarkPdf($order);
+                } catch (\RuntimeException) {
+                    // Direct-delivery orders do not use transit shipping marks.
+                }
             }
 
             if ($order->requiresRedeemFulfillment()) {

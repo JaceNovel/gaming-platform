@@ -387,7 +387,7 @@ function CartScreen() {
         const info = { mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() };
         const resolved = isValidShippingInfo(info) ? info : readShippingInfo();
         if (!isValidShippingInfo(resolved)) {
-          setStatus("Veuillez renseigner l'adresse (lien Google Maps), la ville et le téléphone.");
+          setStatus("Veuillez renseigner l'adresse client (lien Google Maps), la ville et le téléphone.");
           return;
         }
         if (!isValidShippingInfo(info)) {
@@ -729,7 +729,7 @@ function CartScreen() {
               {hasPhysicalItems ? (
                 <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                   <p className="text-sm font-semibold text-white">Adresse de livraison</p>
-                  <p className="text-xs text-white/60">Lien Google Maps + ville + téléphone (obligatoire).</p>
+                  <p className="text-xs text-white/60">Lien Google Maps + ville + téléphone (obligatoire). Cette adresse reste interne pour votre livraison locale.</p>
 
                   <div className="space-y-2">
                     <label className="text-xs text-white/60">Lien Google Maps *</label>

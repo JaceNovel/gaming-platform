@@ -5,12 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Like;
 use App\Models\Product;
+use App\Services\AliExpressTransitPricingService;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
+    public function __construct(private AliExpressTransitPricingService $transitPricing)
+    {
+    }
+
     public function index(Request $request)
     {
+        $countryCode = $request->input('country_code');
         $query = Product::query()
             ->with(['game', 'images', 'categoryEntity', 'tags'])
             ->withCount('likes');
@@ -89,24 +95,26 @@ class ProductController extends Controller
 
         if ($limit = $request->integer('limit')) {
             $products = $query->limit(min($limit, 100))->get();
-            return response()->json(['data' => $products]);
+            return response()->json(['data' => $this->decorateProducts($products, $countryCode)]);
         }
 
         $perPage = $request->integer('per_page', 20);
         $perPage = max(1, min($perPage, 100));
         $products = $query->paginate($perPage);
+        $products->setCollection(collect($this->decorateProducts($products->getCollection(), $countryCode)));
 
         return response()->json($products);
     }
 
-    public function show(string $product)
+    public function show(Request $request, string $product)
     {
+        $countryCode = $request->input('country_code');
         $item = Product::with(['game', 'images', 'categoryEntity', 'tags'])->withCount('likes')
             ->where('id', $product)
             ->orWhere('slug', $product)
             ->firstOrFail();
 
-        return response()->json($item);
+        return response()->json($this->decorateProduct($item, $countryCode));
     }
 
     public function like(Request $request, Product $product)
@@ -134,5 +142,23 @@ class ProductController extends Controller
             'liked' => $liked,
             'likes_count' => $likesCount,
         ]);
+    }
+
+    private function decorateProducts($products, ?string $countryCode): array
+    {
+        return collect($products)
+            ->map(fn (Product $product) => $this->decorateProduct($product, $countryCode))
+            ->all();
+    }
+
+    private function decorateProduct(Product $product, ?string $countryCode): array
+    {
+        $resolvedCountry = strtoupper(trim((string) ($countryCode ?: 'TG')));
+
+        try {
+            return $this->transitPricing->enrichProduct($product, $resolvedCountry);
+        } catch (\Throwable) {
+            return $product->toArray();
+        }
     }
 }

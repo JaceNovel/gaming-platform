@@ -177,6 +177,7 @@ const MENU_ITEMS: MenuItem[] = [
       { label: "Tableau de bord", href: "/admin/sourcing/dashboard?platform=aliexpress", permissions: ["sourcing.view"] },
       { label: "Comptes fournisseurs", href: "/admin/sourcing/accounts?platform=aliexpress", permissions: ["sourcing.view"] },
       { label: "Import catalogue", href: "/admin/sourcing/import?platform=aliexpress", permissions: ["sourcing.manage"] },
+      { label: "Import 200 produits", href: "/admin/sourcing/aliexpress-bulk-import", permissions: ["sourcing.manage"] },
       { label: "Pays", href: "/admin/sourcing/countries?platform=aliexpress", permissions: ["sourcing.view"] },
       { label: "Adresses reception", href: "/admin/sourcing/receiving-addresses?platform=aliexpress", permissions: ["sourcing.view"] },
       { label: "Mappings produit-source", href: "/admin/sourcing/mappings?platform=aliexpress", permissions: ["sourcing.view"] },

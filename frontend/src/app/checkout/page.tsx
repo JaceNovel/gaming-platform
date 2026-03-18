@@ -11,6 +11,7 @@ import { API_BASE } from "@/lib/config";
 import { fedapayTopupDescription } from "@/lib/fedapayChannels";
 import { emitWalletUpdated } from "@/lib/walletEvents";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
+import { getStoredStorefrontCountry, onStorefrontCountryChanged } from "@/lib/storefrontCountry";
 
 function CheckoutScreen() {
   const { authFetch, user } = useAuth();
@@ -38,14 +39,20 @@ function CheckoutScreen() {
   const [shippingCity, setShippingCity] = useState("");
   const [shippingPhone, setShippingPhone] = useState("");
   const [shippingStatus, setShippingStatus] = useState<string | null>(null);
+  const [destinationCountryCode, setDestinationCountryCode] = useState("TG");
 
   const isValidProduct = useMemo(() => Number.isFinite(productId) && productId > 0, [productId]);
+
+  useEffect(() => {
+    setDestinationCountryCode(getStoredStorefrontCountry());
+    return onStorefrontCountryChanged(setDestinationCountryCode);
+  }, []);
 
   useEffect(() => {
     if (!isValidProduct) return;
     let active = true;
     (async () => {
-      const res = await fetch(`${API_BASE}/products/${productId}`);
+      const res = await fetch(`${API_BASE}/products/${productId}?country_code=${encodeURIComponent(destinationCountryCode)}`);
       if (!res.ok) return;
       const data = await res.json();
       if (!active) return;
@@ -53,7 +60,7 @@ function CheckoutScreen() {
       setProductName(String(data?.name ?? data?.title ?? "").trim());
       setShippingRequired(Boolean(data?.shipping_required ?? false));
 
-      const discountPrice = typeof data?.discount_price === "number" ? data.discount_price : Number(data?.discount_price ?? NaN);
+      const discountPrice = typeof data?.computed_final_price === "number" ? data.computed_final_price : Number(data?.computed_final_price ?? data?.discount_price ?? NaN);
       const basePrice = typeof data?.price === "number" ? data.price : Number(data?.price ?? NaN);
       const priceFcfa = typeof data?.price_fcfa === "number" ? data.price_fcfa : Number(data?.price_fcfa ?? NaN);
       const resolved = Number.isFinite(discountPrice) && discountPrice > 0 ? discountPrice : Number.isFinite(basePrice) && basePrice > 0 ? basePrice : Number.isFinite(priceFcfa) && priceFcfa > 0 ? priceFcfa : 0;
@@ -62,7 +69,7 @@ function CheckoutScreen() {
     return () => {
       active = false;
     };
-  }, [isValidProduct, productId]);
+  }, [destinationCountryCode, isValidProduct, productId]);
 
   const requiresGameId = useMemo(() => {
     const t = String(productType ?? "").toLowerCase();
@@ -184,14 +191,16 @@ function CheckoutScreen() {
       const info = { mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() };
       const resolved = isValidShippingInfo(info) ? info : readShippingInfo();
       if (!isValidShippingInfo(resolved)) {
-        setStatus("Veuillez renseigner l'adresse (lien Google Maps), la ville et le téléphone.");
+        setStatus("Veuillez renseigner l'adresse client (lien Google Maps), la ville et le téléphone.");
         return;
       }
+
       if (!isValidShippingInfo(info)) {
         setShippingMapsUrl(resolved!.mapsUrl);
         setShippingCity(resolved!.city);
         setShippingPhone(resolved!.phone);
       }
+
       persistShipping();
     }
 
@@ -215,8 +224,10 @@ function CheckoutScreen() {
           ],
           ...(shippingRequired
             ? {
+                destination_country_code: destinationCountryCode,
                 shipping_address_line1: shippingMapsUrl.trim(),
                 shipping_city: shippingCity.trim(),
+                shipping_country_code: destinationCountryCode,
                 shipping_phone: shippingPhone.trim(),
               }
             : {}),
@@ -494,6 +505,15 @@ function CheckoutScreen() {
               </div>
             </div>
           </div>
+
+          {shippingRequired ? (
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm text-cyan-50">
+              <p className="font-semibold text-white">Expedition vers {destinationCountryCode} via notre hub logistique</p>
+              <p className="mt-1">Renseignez votre lien Google Maps, votre ville et votre téléphone pour la livraison locale finale.</p>
+              <p className="mt-1 text-xs text-cyan-100/80">Cette adresse client est conservée chez nous uniquement. Le fournisseur AliExpress reçoit uniquement l'adresse du hub France-Lomé.</p>
+              <p className="mt-1 text-xs text-cyan-100/80">Un tracking number est communique des l'expedition.</p>
+            </div>
+          ) : null}
 
           {shippingRequired ? (
             <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">

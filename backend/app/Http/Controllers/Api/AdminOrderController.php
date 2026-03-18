@@ -663,6 +663,30 @@ class AdminOrderController extends Controller
         ]);
     }
 
+    public function generateShippingMarkDocument(Request $request, Order $order, ShippingService $shippingService)
+    {
+        if (!$order->hasPhysicalItems()) {
+            return response()->json(['message' => 'Order has no physical items'], 422);
+        }
+
+        if (!$order->isPaymentSuccess()) {
+            return response()->json(['message' => 'Order not paid'], 422);
+        }
+
+        try {
+            $result = $shippingService->generateShippingMarkPdf($order);
+        } catch (\Throwable) {
+            return response()->json(['message' => 'Unable to generate shipping mark'], 500);
+        }
+
+        return response()->json([
+            'data' => [
+                'path' => $result['path'],
+                'url' => $result['url'],
+            ],
+        ]);
+    }
+
     public function downloadShippingDocument(Request $request, Order $order)
     {
         if (!$order->shipping_document_path) {
@@ -676,6 +700,21 @@ class AdminOrderController extends Controller
         $path = Storage::disk('public')->path($order->shipping_document_path);
 
         return response()->download($path, 'bon-livraison-'.$order->id.'.pdf');
+    }
+
+    public function downloadShippingMarkDocument(Request $request, Order $order)
+    {
+        if (!$order->shipping_mark_pdf_path) {
+            return response()->json(['message' => 'Document not found'], 404);
+        }
+
+        if (!Storage::disk('public')->exists($order->shipping_mark_pdf_path)) {
+            return response()->json(['message' => 'Document not found'], 404);
+        }
+
+        $path = Storage::disk('public')->path($order->shipping_mark_pdf_path);
+
+        return response()->download($path, 'shipping-mark-'.$order->id.'.pdf');
     }
 
     public function updateShippingStatus(Request $request, Order $order)

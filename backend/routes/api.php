@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\PremiumController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\PushController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\StorefrontTransitController;
 use App\Http\Controllers\Api\GuideController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\PhoneChangeRequestController;
@@ -146,6 +147,8 @@ Route::get('/image-proxy', [ImageProxyController::class, 'show']);
 Route::apiResource('games', GameController::class)->only(['index', 'show']);
 Route::get('products/{product}', [ProductController::class, 'show']);
 Route::get('products', [ProductController::class, 'index']);
+Route::get('storefront/countries', [StorefrontTransitController::class, 'countries']);
+Route::get('storefront/countries/resolve', [StorefrontTransitController::class, 'resolve']);
 Route::get('categories', [CategoryController::class, 'index']);
 Route::get('categories/{category}', [CategoryController::class, 'show']);
 Route::get('gaming-accounts/listings', [MarketplaceListingController::class, 'index']);
@@ -346,7 +349,11 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
     Route::post('/orders/{order}/resend-code', [AdminOrderController::class, 'resendCode'])->middleware('permission:orders.manage');
     Route::post('/orders/{order}/shipping/generate-document', [AdminOrderController::class, 'generateShippingDocument'])
         ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/shipping/generate-mark', [AdminOrderController::class, 'generateShippingMarkDocument'])
+        ->middleware('permission:orders.manage');
     Route::get('/orders/{order}/shipping/document', [AdminOrderController::class, 'downloadShippingDocument'])
+        ->middleware('permission:orders.view');
+    Route::get('/orders/{order}/shipping/mark', [AdminOrderController::class, 'downloadShippingMarkDocument'])
         ->middleware('permission:orders.view');
     Route::patch('/orders/{order}/shipping/status', [AdminOrderController::class, 'updateShippingStatus'])
         ->middleware('permission:orders.manage');
@@ -577,6 +584,8 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
     Route::get('/sourcing/supplier-products', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'index'])
         ->middleware('permission:sourcing.view');
     Route::post('/sourcing/catalog/import', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'import'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/aliexpress/bulk-import', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'bulkImportAliExpress'])
         ->middleware('permission:sourcing.manage');
     Route::post('/sourcing/catalog/fetch-remote', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'fetchRemote'])
         ->middleware('permission:sourcing.manage');

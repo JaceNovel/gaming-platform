@@ -7,14 +7,49 @@ use App\Models\OrderItem;
 use App\Models\ProcurementDemand;
 use App\Models\ProductSupplierLink;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
 
 class SourcingDemandService
 {
+    public function __construct(private AliExpressTransitPricingService $transitPricing)
+    {
+    }
+
     public function syncForPaidOrder(Order $order): array
     {
         $order->loadMissing(['orderItems.product.productSupplierLinks.supplierProductSku.supplierProduct.supplierAccount']);
 
         $createdOrUpdated = [];
+
+        DB::transaction(function () use ($order) {
+            $meta = $order->meta ?? [];
+            if (!is_array($meta)) {
+                $meta = [];
+            }
+
+            if (empty($meta['grouping_registered_at'])) {
+                $countryCode = (string) ($order->supplier_country_code ?: $meta['destination_country_code'] ?? '');
+                if ($countryCode !== '') {
+                    $this->transitPricing->assignOrderTransit($order, $countryCode);
+                }
+
+                if ($countryCode !== '' && $this->transitPricing->isDirectDeliveryCountry($countryCode)) {
+                    $meta['grouping_registered_at'] = now()->toIso8601String();
+                    $order->update(['meta' => $meta]);
+                    return;
+                }
+
+                foreach ($order->orderItems as $item) {
+                    if ($this->requiresSourcing($item) && $item->product_id) {
+                        $item->product()->increment('grouping_current_count', max(1, (int) ($item->quantity ?? 1)));
+                        $this->releaseGroupingIfReady($item->product_id, (string) $order->supplier_country_code);
+                    }
+                }
+
+                $meta['grouping_registered_at'] = now()->toIso8601String();
+                $order->update(['meta' => $meta]);
+            }
+        });
 
         foreach ($order->orderItems as $orderItem) {
             if (!$this->requiresSourcing($orderItem)) {
@@ -73,6 +108,42 @@ class SourcingDemandService
         }
 
         return $createdOrUpdated;
+    }
+
+    private function releaseGroupingIfReady(int $productId, string $countryCode): void
+    {
+        if ($countryCode === '') {
+            return;
+        }
+
+        $referenceItem = OrderItem::query()->with('product')->where('product_id', $productId)->latest('id')->first();
+        $threshold = max(1, (int) ($referenceItem?->product?->grouping_threshold ?? 1));
+        $groupedQuantity = (int) OrderItem::query()
+            ->where('product_id', $productId)
+            ->whereHas('order', function ($query) use ($countryCode) {
+                $query->where('status', Order::STATUS_PAYMENT_SUCCESS)
+                    ->where('supplier_country_code', $countryCode)
+                    ->where('supplier_fulfillment_status', Order::SUPPLIER_STATUS_GROUPING)
+                    ->whereNull('grouping_released_at');
+            })
+            ->sum('quantity');
+
+        if ($groupedQuantity < $threshold) {
+            return;
+        }
+
+        Order::query()
+            ->where('status', Order::STATUS_PAYMENT_SUCCESS)
+            ->where('supplier_country_code', $countryCode)
+            ->where('supplier_fulfillment_status', Order::SUPPLIER_STATUS_GROUPING)
+            ->whereNull('grouping_released_at')
+            ->whereHas('orderItems', function ($query) use ($productId) {
+                $query->where('product_id', $productId);
+            })
+            ->update([
+                'supplier_fulfillment_status' => Order::SUPPLIER_STATUS_PENDING,
+                'grouping_released_at' => now(),
+            ]);
     }
 
     private function requiresSourcing(OrderItem $orderItem): bool

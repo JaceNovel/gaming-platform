@@ -50,6 +50,7 @@ class Order extends Model
         'shipping_eta_days',
         'shipping_estimated_date',
         'shipping_document_path',
+        'shipping_mark_pdf_path',
         'delivered_at',
         'shipping_address_line1',
         'shipping_city',
@@ -62,6 +63,7 @@ class Order extends Model
         'payment_id',
         'items',
         'meta',
+        'transit_pricing_snapshot_json',
         'reference',
     ];
 
@@ -70,6 +72,7 @@ class Order extends Model
         'refunded_amount' => 'decimal:2',
         'items' => 'array',
         'meta' => 'array',
+        'transit_pricing_snapshot_json' => 'array',
         'grouping_released_at' => 'datetime',
         'shipping_estimated_date' => 'datetime',
         'delivered_at' => 'datetime',

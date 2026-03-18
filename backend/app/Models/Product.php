@@ -60,6 +60,10 @@ class Product extends Model
         'supplier_margin_type',
         'supplier_margin_value',
         'supplier_shipping_fee',
+        'estimated_weight_grams',
+        'estimated_cbm',
+        'source_logistics_profile',
+        'country_availability_json',
         'display_section',
         'is_active',
         'details',
@@ -81,6 +85,9 @@ class Product extends Model
         'shipping_required' => 'boolean',
         'supplier_margin_value' => 'decimal:2',
         'supplier_shipping_fee' => 'decimal:2',
+        'estimated_weight_grams' => 'integer',
+        'estimated_cbm' => 'decimal:4',
+        'country_availability_json' => 'array',
     ];
 
     public function images()

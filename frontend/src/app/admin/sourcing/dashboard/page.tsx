@@ -7,6 +7,7 @@ import { API_BASE } from "@/lib/config";
 
 type DashboardPayload = {
   kpis: Record<string, number>;
+  logistics_kpis?: Record<string, number>;
   moq_blockers: Array<{
     supplier_product_sku_id?: number | null;
     supplier_account?: string | null;
@@ -22,6 +23,19 @@ type DashboardPayload = {
     title?: string | null;
     stock?: number | null;
     delivery_type?: string | null;
+  }>;
+  logistics_orders?: Array<{
+    id: number;
+    reference?: string | null;
+    status?: string | null;
+    supplier_fulfillment_status?: string | null;
+    supplier_country_code?: string | null;
+    grouping_released_at?: string | null;
+    shipping_mark_ready?: boolean;
+    total_price?: number | null;
+    created_at?: string | null;
+    customer_name?: string | null;
+    customer_email?: string | null;
   }>;
 };
 
@@ -44,6 +58,13 @@ const KPI_LABELS: Array<{ key: string; label: string }> = [
   { key: "open_inbound_shipments", label: "Expéditions ouvertes" },
   { key: "unmapped_products", label: "Produits non mappés" },
   { key: "moq_blockers", label: "Blocages MOQ" },
+];
+
+const LOGISTICS_KPI_LABELS: Array<{ key: string; label: string }> = [
+  { key: "grouping_orders", label: "Commandes en groupage" },
+  { key: "released_groupings", label: "Groupages libérés" },
+  { key: "shipping_marks_ready", label: "Shipping marks prêts" },
+  { key: "warehouse_received_orders", label: "Reçus en entrepôt" },
 ];
 
 export default function AdminSourcingDashboardPage() {
@@ -76,7 +97,7 @@ export default function AdminSourcingDashboardPage() {
   }, [loadDashboard]);
 
   return (
-    <AdminShell title={platformLabel} subtitle="KPI, blocages MOQ et produits non mappés">
+    <AdminShell title={platformLabel} subtitle="KPI sourcing, groupage logistique et produits non mappés">
       <div className="space-y-6">
         {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
@@ -88,6 +109,23 @@ export default function AdminSourcingDashboardPage() {
             </div>
           ))}
         </section>
+
+        {platform === "aliexpress" ? (
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Logistique groupage</h2>
+              <p className="text-sm text-slate-500">Suivi des commandes AliExpress en attente de groupage, libérées ou déjà documentées.</p>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {LOGISTICS_KPI_LABELS.map((item) => (
+                <div key={item.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">{item.label}</div>
+                  <div className="mt-2 text-3xl font-semibold text-slate-900">{data?.logistics_kpis?.[item.key] ?? 0}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <div className="grid gap-6 xl:grid-cols-2">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -167,6 +205,53 @@ export default function AdminSourcingDashboardPage() {
             </div>
           </section>
         </div>
+
+        {platform === "aliexpress" ? (
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">File logistique AliExpress</h2>
+              <p className="text-sm text-slate-500">Dernières commandes en transit avec état de groupage et disponibilité du shipping mark.</p>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase text-slate-400">
+                  <tr>
+                    <th className="pb-3 pr-4">Commande</th>
+                    <th className="pb-3 pr-4">Client</th>
+                    <th className="pb-3 pr-4">Transit</th>
+                    <th className="pb-3 pr-4">Montant</th>
+                    <th className="pb-3 pr-4">Shipping mark</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {!loading && (data?.logistics_orders?.length ?? 0) === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-4 text-slate-500">Aucune commande logistique AliExpress pour le moment.</td>
+                    </tr>
+                  ) : null}
+                  {(data?.logistics_orders ?? []).map((item) => (
+                    <tr key={item.id}>
+                      <td className="py-3 pr-4">
+                        <div className="font-medium text-slate-900">{item.reference || `Commande #${item.id}`}</div>
+                        <div className="text-xs text-slate-500">{item.status || "—"}</div>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <div className="text-slate-700">{item.customer_name || "Client"}</div>
+                        <div className="text-xs text-slate-500">{item.customer_email || "—"}</div>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <div className="text-slate-700">{item.supplier_fulfillment_status || "pending"}</div>
+                        <div className="text-xs text-slate-500">{item.supplier_country_code || "—"}{item.grouping_released_at ? ` · libéré ${new Date(item.grouping_released_at).toLocaleDateString("fr-FR")}` : ""}</div>
+                      </td>
+                      <td className="py-3 pr-4 text-slate-700">{Math.round(Number(item.total_price ?? 0)).toLocaleString("fr-FR")} FCFA</td>
+                      <td className="py-3 pr-4 text-slate-700">{item.shipping_mark_ready ? "Prêt" : "En attente"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
       </div>
     </AdminShell>
   );

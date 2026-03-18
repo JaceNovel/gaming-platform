@@ -12,6 +12,7 @@ import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { isVipActive } from "@/lib/vipPricing";
+import { getStoredStorefrontCountry, onStorefrontCountryChanged } from "@/lib/storefrontCountry";
 
 type MenuKey = "recharge" | "subscription";
 
@@ -43,6 +44,10 @@ type ProductRow = {
   category_entity?: { name?: string | null } | null;
   category?: string | null;
   display_section?: string | null;
+  computed_final_price?: number | string | null;
+  storefront_country_code?: string | null;
+  customer_notice?: string | null;
+  transit_provider_name?: string | null;
 };
 
 type Paginated<T> = {
@@ -137,9 +142,15 @@ export default function ProductsCatalogPage({
 
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"recent" | "popular">("recent");
+  const [countryCode, setCountryCode] = useState("TG");
   const debounceRef = useRef<number | null>(null);
 
   const lastPage = Math.max(1, Number(meta?.last_page ?? 1));
+
+  useEffect(() => {
+    setCountryCode(getStoredStorefrontCountry());
+    return onStorefrontCountryChanged(setCountryCode);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -188,6 +199,7 @@ export default function ProductsCatalogPage({
     qs.set("per_page", "24");
     qs.set("page", String(pageToLoad));
     qs.set("shop_type", shopType);
+    qs.set("country_code", countryCode);
     if (mode === "game" && gameSlug) {
       qs.set("game_slug", gameSlug);
     }
@@ -231,7 +243,7 @@ export default function ProductsCatalogPage({
       void reload();
     }, 250);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, gameSlug, shopType, sort, query]);
+  }, [mode, gameSlug, shopType, sort, query, countryCode]);
 
   useEffect(() => {
     void reload();
@@ -273,6 +285,7 @@ export default function ProductsCatalogPage({
   }, [mode, title, shopType, game?.name, gameSlug]);
 
   const headerTitle = mode === "game" ? `${title}${game?.name ? ` • ${game.name}` : gameSlug ? ` • ${gameSlug}` : ""}` : title;
+  const showStorefrontNotice = items.some((item) => Boolean(item.transit_provider_name || item.customer_notice));
 
   return (
     <main className="min-h-[100dvh] bg-transparent text-white">
@@ -309,6 +322,11 @@ export default function ProductsCatalogPage({
         </div>
 
         <div className="mt-8 rounded-[28px] border border-white/10 bg-black/40 p-4 backdrop-blur">
+          {showStorefrontNotice ? (
+            <div className="mb-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50">
+              Vos colis sont centralises via notre hub logistique principal avant preparation et livraison locale. Votre tracking number sera communique des l'expedition.
+            </div>
+          ) : null}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-white/40" />
@@ -395,6 +413,8 @@ export default function ProductsCatalogPage({
                     const isTop = String(p.display_section ?? "").toLowerCase() === "popular" || likes >= 1000;
                     const isInstant = delivery?.tone === "bolt";
                     const showVip = isVipActive(user);
+                    const computedPrice = Number(p.computed_final_price ?? p.discount_price ?? p.price ?? 0);
+                    const safePrice = Number.isFinite(computedPrice) ? Math.max(0, Math.round(computedPrice)) : 0;
 
                     return (
                       <Link
@@ -479,7 +499,7 @@ export default function ProductsCatalogPage({
                 ))
               ) : items.length ? (
                 items.map((p) => {
-                  const priceValue = Number(p.discount_price ?? p.price ?? 0);
+                  const priceValue = Number(p.computed_final_price ?? p.discount_price ?? p.price ?? 0);
                   const safePrice = Number.isFinite(priceValue) ? Math.max(0, Math.round(priceValue)) : 0;
                   const likesValue = Number(p.likes_count ?? 0);
                   const likes = Number.isFinite(likesValue) ? likesValue : 0;

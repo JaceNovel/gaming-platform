@@ -16,12 +16,14 @@ type ReceivingAddress = {
   platform: "alibaba" | "aliexpress";
   supplier_country_id: number;
   recipient_name: string;
+  contact_name?: string | null;
   address_line1: string;
   address_line2?: string | null;
   city: string;
   postal_code?: string | null;
   phone: string;
   shipping_mark?: string | null;
+  notes?: string | null;
   is_active: boolean;
   is_default: boolean;
   country?: SupplierCountry | null;
@@ -47,12 +49,14 @@ export default function AdminSourcingReceivingAddressesPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [countryId, setCountryId] = useState("");
   const [recipientName, setRecipientName] = useState("");
+  const [contactName, setContactName] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [phone, setPhone] = useState("");
   const [shippingMark, setShippingMark] = useState("");
+  const [notes, setNotes] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isDefault, setIsDefault] = useState(true);
 
@@ -60,12 +64,14 @@ export default function AdminSourcingReceivingAddressesPage() {
     setEditingId(null);
     setCountryId("");
     setRecipientName("");
+    setContactName("");
     setAddressLine1("");
     setAddressLine2("");
     setCity("");
     setPostalCode("");
     setPhone("");
     setShippingMark("");
+    setNotes("");
     setIsActive(true);
     setIsDefault(true);
   };
@@ -113,12 +119,14 @@ export default function AdminSourcingReceivingAddressesPage() {
           platform,
           supplier_country_id: Number(countryId),
           recipient_name: recipientName.trim(),
+          contact_name: contactName.trim() || undefined,
           address_line1: addressLine1.trim(),
           address_line2: addressLine2.trim() || undefined,
           city: city.trim(),
           postal_code: postalCode.trim() || undefined,
           phone: phone.trim(),
           shipping_mark: shippingMark.trim() || undefined,
+          notes: notes.trim() || undefined,
           is_active: isActive,
           is_default: isDefault,
         }),
@@ -139,12 +147,14 @@ export default function AdminSourcingReceivingAddressesPage() {
     setEditingId(address.id);
     setCountryId(String(address.supplier_country_id));
     setRecipientName(address.recipient_name || "");
+    setContactName(address.contact_name || "");
     setAddressLine1(address.address_line1 || "");
     setAddressLine2(address.address_line2 || "");
     setCity(address.city || "");
     setPostalCode(address.postal_code || "");
     setPhone(address.phone || "");
     setShippingMark(address.shipping_mark || "");
+    setNotes(address.notes || "");
     setIsActive(Boolean(address.is_active));
     setIsDefault(Boolean(address.is_default));
   };
@@ -192,6 +202,10 @@ export default function AdminSourcingReceivingAddressesPage() {
               <input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" required />
             </label>
             <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Contact local</span>
+              <input value={contactName} onChange={(e) => setContactName(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
               <span className="text-slate-600">Adresse complete</span>
               <input value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" required />
             </label>
@@ -216,6 +230,10 @@ export default function AdminSourcingReceivingAddressesPage() {
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">Shipping mark</span>
               <input value={shippingMark} onChange={(e) => setShippingMark(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-slate-600">Notes logistiques</span>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="rounded-xl border border-slate-200 px-3 py-2" />
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
@@ -268,12 +286,14 @@ export default function AdminSourcingReceivingAddressesPage() {
                     </td>
                     <td className="py-3 pr-4 align-top text-xs text-slate-600">
                       <div>{address.recipient_name}</div>
+                      <div>{address.contact_name || "Sans contact local"}</div>
                       <div>{address.shipping_mark || "Sans shipping mark"}</div>
                     </td>
                     <td className="py-3 pr-4 align-top text-xs text-slate-600">
                       <div>{address.address_line1}</div>
                       <div>{address.city} {address.postal_code || ""}</div>
                       <div>{address.phone}</div>
+                      <div>{address.notes || ""}</div>
                     </td>
                     <td className="py-3 pr-4 align-top text-xs text-slate-600">
                       <div>{address.is_active ? "Active" : "Inactive"}</div>

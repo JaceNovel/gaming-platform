@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ProcurementBatch;
 use App\Models\ProcurementDemand;
+use App\Models\Order;
 use App\Services\ProcurementBatchService;
 use Illuminate\Http\Request;
 
@@ -102,6 +103,68 @@ class AdminProcurementController extends Controller
         $submittedBatches = $submittedBatchesQuery->count();
         $inboundOpen = $inboundOpenQuery->count();
 
+        $logisticsKpis = [
+            'grouping_orders' => 0,
+            'released_groupings' => 0,
+            'shipping_marks_ready' => 0,
+            'warehouse_received_orders' => 0,
+        ];
+        $logisticsOrders = [];
+
+        if ($platform === '' || $platform === 'aliexpress') {
+            $aliexpressOrders = Order::query()
+                ->with('user:id,name,email')
+                ->where('supplier_platform', 'aliexpress');
+
+            $logisticsKpis = [
+                'grouping_orders' => (clone $aliexpressOrders)
+                    ->where('supplier_fulfillment_status', Order::SUPPLIER_STATUS_GROUPING)
+                    ->whereNull('grouping_released_at')
+                    ->count(),
+                'released_groupings' => (clone $aliexpressOrders)
+                    ->whereNotNull('grouping_released_at')
+                    ->count(),
+                'shipping_marks_ready' => (clone $aliexpressOrders)
+                    ->whereNotNull('shipping_mark_pdf_path')
+                    ->count(),
+                'warehouse_received_orders' => (clone $aliexpressOrders)
+                    ->where('supplier_fulfillment_status', Order::SUPPLIER_STATUS_WAREHOUSE_RECEIVED)
+                    ->count(),
+            ];
+
+            $logisticsOrders = (clone $aliexpressOrders)
+                ->latest('id')
+                ->limit(20)
+                ->get([
+                    'id',
+                    'reference',
+                    'status',
+                    'supplier_fulfillment_status',
+                    'supplier_country_code',
+                    'grouping_released_at',
+                    'shipping_mark_pdf_path',
+                    'total_price',
+                    'created_at',
+                    'user_id',
+                ])
+                ->map(function (Order $order) {
+                    return [
+                        'id' => $order->id,
+                        'reference' => $order->reference,
+                        'status' => $order->status,
+                        'supplier_fulfillment_status' => $order->supplier_fulfillment_status,
+                        'supplier_country_code' => $order->supplier_country_code,
+                        'grouping_released_at' => $order->grouping_released_at?->toIso8601String(),
+                        'shipping_mark_ready' => !empty($order->shipping_mark_pdf_path),
+                        'total_price' => (float) $order->total_price,
+                        'created_at' => $order->created_at?->toIso8601String(),
+                        'customer_name' => $order->user?->name,
+                        'customer_email' => $order->user?->email,
+                    ];
+                })
+                ->all();
+        }
+
         return response()->json([
             'data' => [
                 'kpis' => [
@@ -116,7 +179,9 @@ class AdminProcurementController extends Controller
                     'unmapped_products' => $unmappedProducts->count(),
                     'moq_blockers' => count($moqBlockers),
                 ],
+                'logistics_kpis' => $logisticsKpis,
                 'moq_blockers' => $moqBlockers,
+                'logistics_orders' => $logisticsOrders,
                 'unmapped_products' => $unmappedProducts,
             ],
         ]);

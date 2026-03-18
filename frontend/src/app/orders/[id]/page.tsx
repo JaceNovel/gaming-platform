@@ -37,6 +37,9 @@ type OrderDetail = {
   type?: string;
   total_price?: number;
   created_at?: string;
+  supplier_fulfillment_status?: string | null;
+  supplier_tracking_number?: string | null;
+  supplier_shipping_provider_name?: string | null;
   shipping_status?: string | null;
   shipping_eta_days?: number | null;
   shipping_estimated_date?: string | null;
@@ -85,6 +88,25 @@ const prettyStatus = (status?: string | null) => {
   if (["pending", "processing", "payment_processing", "in_progress"].includes(s)) return "En cours";
   if (["failed", "cancelled", "payment_failed", "expired", "refunded"].includes(s)) return "Échec";
   return status ?? "—";
+};
+
+const prettyLogisticsStatus = (supplierStatus?: string | null, shippingStatus?: string | null, shippingCountryCode?: string | null) => {
+  const supplier = String(supplierStatus ?? "").toLowerCase();
+  const shipping = String(shippingStatus ?? "").toLowerCase();
+
+  if (supplier === "grouping") return "En attente du seuil minimum de commande";
+  if (["pending", "paid", "supplier_ordered"].includes(supplier)) return "Preparation logistique";
+  if (supplier === "warehouse_received") return "Expedition vers adresse locale";
+  if (supplier === "delivering") return "En cours d'expedition";
+  if (supplier === "delivered") return "Expedie";
+
+  if (shipping === "ready_for_pickup") return "Pret pour expedition locale";
+  if (shipping === "out_for_delivery") return "En cours d'expedition";
+  if (shipping === "delivered") return "Livre";
+  if (shipping === "canceled") return "Annule";
+  if (["pending", "processing", "payment_processing", "in_progress"].includes(shipping)) return "Preparation logistique";
+
+  return "Preparation logistique";
 };
 
 const statusBadgeClass = (status?: string | null) => {
@@ -366,11 +388,18 @@ function OrderTrackingClient() {
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p className="text-xs text-white/60">Statut</p>
-                    <p className="mt-1 text-sm font-semibold text-white">{prettyStatus(order.shipping_status)}</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{prettyLogisticsStatus(order.supplier_fulfillment_status, order.shipping_status, order.shipping_country_code)}</p>
                     <p className="mt-2 text-xs text-white/60">
                       ETA: {order.shipping_eta_days ? `${order.shipping_eta_days} jours` : "—"}
                       {order.shipping_estimated_date ? ` • ${order.shipping_estimated_date}` : ""}
                     </p>
+                    {order.supplier_tracking_number ? (
+                      <div className="mt-3 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-100/70">Tracking Number</p>
+                        <p className="mt-1 text-sm font-semibold text-cyan-50">{order.supplier_tracking_number}</p>
+                        {order.supplier_shipping_provider_name ? <p className="mt-1 text-xs text-cyan-100/70">Transporteur: {order.supplier_shipping_provider_name}</p> : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p className="text-xs text-white/60">Adresse</p>

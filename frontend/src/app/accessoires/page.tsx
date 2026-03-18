@@ -297,8 +297,8 @@ export default function AccessoiresPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Livraison</p>
-                <h2 className="mt-1 text-lg font-semibold">Adresse (Google Maps) + Ville + Téléphone</h2>
-                <p className="mt-1 text-sm text-white/60">Obligatoire pour acheter / mettre au panier un accessoire.</p>
+                <h2 className="mt-1 text-lg font-semibold">Lien Google Maps + Ville + Téléphone</h2>
+                <p className="mt-1 text-sm text-white/60">Adresse locale client conservée chez nous pour la livraison finale. Le fournisseur utilise seulement le hub France-Lomé.</p>
               </div>
               <button
                 type="button"
@@ -311,7 +311,7 @@ export default function AccessoiresPage() {
 
             <div className="mt-4 grid gap-3">
               <div className="grid gap-1">
-                <label className="text-xs text-white/70">Lien Google Maps (colle ton lien) *</label>
+                <label className="text-xs text-white/70">Lien Google Maps *</label>
                 <input
                   value={shippingMapsUrl}
                   onChange={(e) => setShippingMapsUrl(e.target.value)}
