@@ -149,12 +149,12 @@ class AliExpressBulkCatalogImportService
             $externalProductId = trim((string) ($item['external_product_id'] ?? ''));
             $title = trim((string) ($item['title'] ?? ''));
 
-            if ($localProductId <= 0 || $externalProductId === '') {
+            if ($localProductId <= 0) {
                 $skipped[] = [
                     'local_product_id' => $localProductId ?: null,
                     'external_product_id' => $externalProductId !== '' ? $externalProductId : null,
                     'title' => $title !== '' ? $title : null,
-                    'reason' => 'Produit local ou external_product_id manquant.',
+                    'reason' => 'Produit local manquant.',
                 ];
                 continue;
             }
@@ -166,6 +166,24 @@ class AliExpressBulkCatalogImportService
                     'external_product_id' => $externalProductId,
                     'title' => $title !== '' ? $title : null,
                     'reason' => 'Produit storefront introuvable.',
+                ];
+                continue;
+            }
+
+            if ($externalProductId === '') {
+                $externalProductId = trim((string) data_get($localProduct->details, 'supplier_external_product_id', ''));
+            }
+
+            if ($title === '') {
+                $title = trim((string) ($localProduct->title ?: $localProduct->name));
+            }
+
+            if ($externalProductId === '') {
+                $skipped[] = [
+                    'local_product_id' => $localProductId,
+                    'external_product_id' => null,
+                    'title' => $title !== '' ? $title : null,
+                    'reason' => 'external_product_id introuvable dans le produit local importé.',
                 ];
                 continue;
             }
@@ -922,7 +940,13 @@ class AliExpressBulkCatalogImportService
             return ['created' => false, 'updated' => true, 'product' => $product->fresh()];
         }
 
-        $product = DB::transaction(function () use ($supplierProduct, $supplierPayload, $options, $publishProducts, $defaultSku) {
+        $existingProduct = $this->findExistingAffiliateStorefrontProduct($supplierProduct);
+        if ($existingProduct) {
+            $this->applyProductDefaults($existingProduct, $supplierPayload, $options, $publishProducts, false);
+            return ['created' => false, 'updated' => true, 'product' => $existingProduct->fresh()];
+        }
+
+        $product = DB::transaction(function () use ($supplierProduct, $supplierPayload, $options, $publishProducts) {
             $defaults = (array) ($supplierPayload['_storefront_defaults'] ?? []);
             $title = (string) $supplierProduct->title;
             $accessoryCategory = $this->inferAccessoryCategory($title);
@@ -971,26 +995,6 @@ class AliExpressBulkCatalogImportService
                 'description' => $this->buildDescription($supplierProduct, $defaults),
             ]);
 
-            ProductSupplierLink::create([
-                'product_id' => $product->id,
-                'supplier_product_sku_id' => $defaultSku->id,
-                'priority' => 1,
-                'is_default' => true,
-                'procurement_mode' => 'auto_batch',
-                'target_moq' => max(1, (int) ($options['target_moq'] ?? 1)),
-                'reorder_point' => 0,
-                'reorder_quantity' => max(1, (int) ($options['reorder_quantity'] ?? 1)),
-                'safety_stock' => 0,
-                'warehouse_destination_label' => 'Hub France-Lome ' . strtoupper((string) ($options['default_country_code'] ?? 'TG')),
-                'expected_inbound_days' => max(1, (int) ($options['delivery_eta_days'] ?? 12)),
-                'pricing_snapshot_json' => [
-                    'import_source' => 'aliexpress_affiliate',
-                    'source_currency' => $defaults['source_currency'] ?? null,
-                    'source_unit_price' => $defaults['source_unit_price'] ?? null,
-                    'imported_price_fcfa' => $defaults['price_fcfa'] ?? 0,
-                ],
-            ]);
-
             $this->syncProductMainImage($product, $defaults['main_image_url'] ?? null);
 
             return $product;
@@ -1035,6 +1039,8 @@ class AliExpressBulkCatalogImportService
         $defaults = (array) ($supplierPayload['_storefront_defaults'] ?? []);
         $productTitle = (string) ($supplierPayload['title'] ?? $product->title ?? $product->name ?? '');
         $resolvedAccessoryCategory = $this->inferAccessoryCategory($productTitle);
+        $supplierExternalProductId = trim((string) ($supplierPayload['external_product_id'] ?? ''));
+        $supplierProductId = $supplierPayload['_supplier_product_id'] ?? null;
 
         $updates = [
             'price' => $defaults['price_fcfa'] ?? $product->price,
@@ -1061,10 +1067,24 @@ class AliExpressBulkCatalogImportService
         $details['source_currency'] = $defaults['source_currency'] ?? ($details['source_currency'] ?? null);
         $details['source_unit_price'] = $defaults['source_unit_price'] ?? ($details['source_unit_price'] ?? null);
         $details['import_source'] = 'aliexpress_affiliate';
+        $details['supplier_product_id'] = $supplierProductId ?? ($details['supplier_product_id'] ?? null);
+        $details['supplier_external_product_id'] = $supplierExternalProductId !== '' ? $supplierExternalProductId : ($details['supplier_external_product_id'] ?? null);
         $updates['details'] = array_filter($details, fn ($value) => $value !== null && $value !== '');
 
         $product->update($updates);
         $this->syncProductMainImage($product, $defaults['main_image_url'] ?? null);
+    }
+
+    private function findExistingAffiliateStorefrontProduct(SupplierProduct $supplierProduct): ?Product
+    {
+        return Product::query()
+            ->where('preferred_supplier_platform', 'aliexpress')
+            ->where(function ($builder) use ($supplierProduct) {
+                $builder->where('details->supplier_external_product_id', $supplierProduct->external_product_id)
+                    ->orWhere('details->supplier_product_id', $supplierProduct->id);
+            })
+            ->latest('id')
+            ->first();
     }
 
     private function syncProductMainImage(Product $product, ?string $mainImageUrl): void

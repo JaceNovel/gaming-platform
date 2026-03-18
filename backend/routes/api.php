@@ -626,6 +626,10 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
 
     Route::get('/sourcing/dashboard', [\App\Http\Controllers\Api\AdminProcurementController::class, 'dashboard'])
         ->middleware('permission:sourcing.view');
+    Route::get('/sourcing/local-products', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'localProducts'])
+        ->middleware('permission:sourcing.view');
+    Route::get('/sourcing/supplier-accounts', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'supplierAccounts'])
+        ->middleware('permission:sourcing.view');
     Route::get('/sourcing/mappings', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'mappings'])
         ->middleware('permission:sourcing.view');
     Route::get('/sourcing/supplier-skus', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'supplierSkus'])

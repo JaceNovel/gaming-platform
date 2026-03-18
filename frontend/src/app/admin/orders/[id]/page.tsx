@@ -52,6 +52,8 @@ type DsOrderCreateState = {
   error_code?: string | null;
   error_message?: string | null;
   remote_error_message?: string | null;
+  request_id?: string | null;
+  payment_warning?: string | null;
   created_at?: string | null;
 };
 
@@ -133,6 +135,7 @@ type OrderSupplierFulfillment = {
   refund_address_id?: string | null;
   asf_status?: string | null;
   asf_sub_status?: string | null;
+  latest_response_payload_json?: unknown;
   latest_document_type?: string | null;
   document_url?: string | null;
   waybill_printed_at?: string | null;
@@ -576,6 +579,19 @@ export default function AdminOrderDetailPage() {
   const refunds = useMemo(() => order?.refunds ?? [], [order?.refunds]);
 
   const fulfillment = useMemo(() => order?.currentSupplierFulfillment ?? null, [order?.currentSupplierFulfillment]);
+  const dsOrderCreate = useMemo(
+    () => (fulfillment?.metadata_json?.ds_order_create ?? null) as DsOrderCreateState | null,
+    [fulfillment?.metadata_json],
+  );
+  const dsRawResponsePreview = useMemo(() => {
+    if (!fulfillment?.latest_response_payload_json) return "";
+
+    try {
+      return JSON.stringify(fulfillment.latest_response_payload_json, null, 2);
+    } catch {
+      return String(fulfillment.latest_response_payload_json);
+    }
+  }, [fulfillment?.latest_response_payload_json]);
   const invoiceRequestData = useMemo(
     () => (fulfillment?.metadata_json?.invoice_request_data ?? null) as InvoiceRequestData | null,
     [fulfillment?.metadata_json],
@@ -1251,18 +1267,27 @@ export default function AdminOrderDetailPage() {
             <div>Tracking: {order?.currentSupplierFulfillment?.tracking_number ?? order?.supplier_tracking_number ?? "—"}</div>
             <div>Package ID: {order?.currentSupplierFulfillment?.package_id ?? order?.supplier_package_id ?? "—"}</div>
             <div>Document URL: {order?.currentSupplierFulfillment?.document_url ?? order?.supplier_document_url ?? "—"}</div>
-            <div>DS create: {order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.success ? `Succès (${order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.order_list?.join(", ") ?? "—"})` : order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.error_message ?? "—"}</div>
-            <div>DS error code: {order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.error_code ?? "—"}</div>
+            <div>DS create: {dsOrderCreate?.success ? `Succès (${dsOrderCreate?.order_list?.join(", ") ?? "—"})` : dsOrderCreate?.error_message ?? "—"}</div>
+            <div>DS error code: {dsOrderCreate?.error_code ?? "—"}</div>
+            <div>DS request_id: {dsOrderCreate?.request_id ?? "—"}</div>
+            <div>DS provider message: {dsOrderCreate?.remote_error_message ?? dsOrderCreate?.payment_warning ?? "—"}</div>
             <div>Source synchro distante: {order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.source ?? "—"}</div>
             <div>Order.get status: {order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.order_status_label ?? order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.order_status ?? "—"}</div>
             <div>Logistics status: {order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.logistics_status_label ?? order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.logistics_status ?? "—"}</div>
             <div>DS tracking: {order?.currentSupplierFulfillment?.metadata_json?.ds_tracking_sync?.tracking_number ?? "—"}</div>
             <div>DS carrier: {order?.currentSupplierFulfillment?.metadata_json?.ds_tracking_sync?.shipping_provider_name ?? "—"}</div>
             <div>Dernier évènement tracking: {order?.currentSupplierFulfillment?.metadata_json?.ds_tracking_sync?.latest_event?.tracking_detail_desc ?? "—"}</div>
-            <div>Dernière création DS: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.created_at)}</div>
+            <div>Dernière création DS: {formatDateTime(dsOrderCreate?.created_at)}</div>
             <div>Dernière synchro Order.get: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.synced_at as string | null | undefined)}</div>
             <div>Dernière synchro tracking DS: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.ds_tracking_sync?.synced_at as string | null | undefined)}</div>
           </div>
+
+          {!dsOrderCreate?.success && dsRawResponsePreview ? (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Dernière réponse brute DS</div>
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">{dsRawResponsePreview}</pre>
+            </div>
+          ) : null}
 
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">

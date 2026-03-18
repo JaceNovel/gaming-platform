@@ -172,7 +172,7 @@ class AdminSupplierCatalogController extends Controller
             'supplier_account_id' => 'required|exists:supplier_accounts,id',
             'items' => 'required|array|min:1|max:200',
             'items.*.local_product_id' => 'required|integer|min:1',
-            'items.*.external_product_id' => 'required|string|max:255',
+            'items.*.external_product_id' => 'nullable|string|max:255',
             'items.*.title' => 'nullable|string|max:255',
             'ship_to_country' => 'nullable|string|size:2',
             'target_currency' => 'nullable|string|max:8',

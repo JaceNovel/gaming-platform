@@ -390,13 +390,13 @@ export default function AdminAliExpressBulkImportPage() {
   };
 
   return (
-    <AdminShell title="AliExpress" subtitle="Import automatique de 200 produits et création des mappings storefront">
+    <AdminShell title="AliExpress" subtitle="Import automatique de 200 produits et création des produits storefront locaux">
       <div className="grid gap-6 xl:grid-cols-[480px,1fr]">
         <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="space-y-5">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Bulk Import</h2>
-              <p className="mt-1 text-sm text-slate-500">Interroge les endpoints affiliés AliExpress, importe le catalogue fournisseur puis crée automatiquement les produits physiques et leur mapping par défaut.</p>
+              <p className="mt-1 text-sm text-slate-500">Interroge les endpoints affiliés AliExpress, importe le catalogue fournisseur puis crée automatiquement les produits physiques locaux, sans les lier au compte affiliation.</p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -501,7 +501,7 @@ export default function AdminAliExpressBulkImportPage() {
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">Résumé d'exécution</h2>
-              <p className="mt-1 text-sm text-slate-500">Le backend importe d'abord le catalogue source, puis crée ou met à jour les produits storefront liés.</p>
+              <p className="mt-1 text-sm text-slate-500">Le backend importe d'abord le catalogue source, puis crée ou met à jour les produits storefront locaux.</p>
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

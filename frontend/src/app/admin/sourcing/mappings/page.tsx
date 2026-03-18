@@ -12,6 +12,24 @@ type Product = {
   stock?: number | null;
 };
 
+type LocalImportedProduct = {
+  id: number;
+  title?: string | null;
+  stock?: number | null;
+  is_active?: boolean;
+  import_source?: string | null;
+  supplier_external_product_id?: string | null;
+  mappings_count?: number;
+};
+
+type SupplierAccount = {
+  id: number;
+  label?: string | null;
+  platform?: string | null;
+  is_active?: boolean;
+  currency_code?: string | null;
+};
+
 type SupplierSku = {
   id: number;
   external_sku_id?: string | null;
@@ -70,9 +88,16 @@ export default function AdminSourcingMappingsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [skus, setSkus] = useState<SupplierSku[]>([]);
   const [mappings, setMappings] = useState<Mapping[]>([]);
+  const [localImportedProducts, setLocalImportedProducts] = useState<LocalImportedProduct[]>([]);
+  const [supplierAccounts, setSupplierAccounts] = useState<SupplierAccount[]>([]);
   const [loading, setLoading] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [bulkError, setBulkError] = useState("");
+  const [bulkSuccess, setBulkSuccess] = useState("");
+  const [selectedLocalProductIds, setSelectedLocalProductIds] = useState<number[]>([]);
+  const [bulkAccountId, setBulkAccountId] = useState("");
 
   const [productId, setProductId] = useState("");
   const [supplierSkuId, setSupplierSkuId] = useState("");
@@ -90,13 +115,24 @@ export default function AdminSourcingMappingsPage() {
     setLoading(true);
     setError("");
     try {
-      const [productsRes, skusRes, mappingsRes] = await Promise.all([
+      const requests: Promise<Response>[] = [
         fetch(buildUrl("/products", { active: "0", per_page: "200", shop_type: "accessory" }), { headers: { Accept: "application/json" } }),
         fetch(`${API_BASE}/admin/sourcing/supplier-skus?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
         fetch(`${API_BASE}/admin/sourcing/mappings?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
-      ]);
+      ];
+
+      if (platform === "aliexpress") {
+        requests.push(fetch(`${API_BASE}/admin/sourcing/local-products?platform=aliexpress&import_source=aliexpress_affiliate`, { headers: { Accept: "application/json", ...getAuthHeaders() } }));
+        requests.push(fetch(`${API_BASE}/admin/sourcing/supplier-accounts?platform=aliexpress&active=1`, { headers: { Accept: "application/json", ...getAuthHeaders() } }));
+      }
+
+      const [productsRes, skusRes, mappingsRes, localProductsRes, supplierAccountsRes] = await Promise.all(requests);
 
       if (!productsRes.ok || !skusRes.ok || !mappingsRes.ok) {
+        throw new Error(`Impossible de charger les données ${platformLabel}`);
+      }
+
+      if (platform === "aliexpress" && (!localProductsRes?.ok || !supplierAccountsRes?.ok)) {
         throw new Error(`Impossible de charger les données ${platformLabel}`);
       }
 
@@ -107,12 +143,27 @@ export default function AdminSourcingMappingsPage() {
       setProducts(Array.isArray(productsPayload?.data) ? productsPayload.data : []);
       setSkus(Array.isArray(skusPayload?.data) ? skusPayload.data : []);
       setMappings(Array.isArray(mappingsPayload?.data) ? mappingsPayload.data : []);
+
+      if (platform === "aliexpress") {
+        const localProductsPayload = await localProductsRes?.json();
+        const supplierAccountsPayload = await supplierAccountsRes?.json();
+        const nextLocalImportedProducts = Array.isArray(localProductsPayload?.data) ? localProductsPayload.data : [];
+        const nextSupplierAccounts = Array.isArray(supplierAccountsPayload?.data) ? supplierAccountsPayload.data : [];
+        setLocalImportedProducts(nextLocalImportedProducts);
+        setSupplierAccounts(nextSupplierAccounts);
+        if (!bulkAccountId && nextSupplierAccounts[0]?.id) {
+          setBulkAccountId(String(nextSupplierAccounts[0].id));
+        }
+      } else {
+        setLocalImportedProducts([]);
+        setSupplierAccounts([]);
+      }
     } catch (err) {
       setError(`Impossible de charger les données ${platformLabel}`);
     } finally {
       setLoading(false);
     }
-  }, [platform, platformLabel]);
+  }, [platform, platformLabel, bulkAccountId]);
 
   useEffect(() => {
     loadAll();
@@ -127,6 +178,15 @@ export default function AdminSourcingMappingsPage() {
   }, [supplierSkuId, skus]);
 
   const selectedSku = useMemo(() => skus.find((item) => String(item.id) === supplierSkuId) ?? null, [skus, supplierSkuId]);
+  const allEligibleSelected = localImportedProducts.length > 0 && selectedLocalProductIds.length === localImportedProducts.length;
+
+  const toggleLocalProduct = (productId: number) => {
+    setSelectedLocalProductIds((current) => current.includes(productId) ? current.filter((item) => item !== productId) : [...current, productId]);
+  };
+
+  const toggleSelectAllLocalProducts = () => {
+    setSelectedLocalProductIds((current) => current.length === localImportedProducts.length ? [] : localImportedProducts.map((item) => item.id));
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -165,9 +225,149 @@ export default function AdminSourcingMappingsPage() {
     }
   };
 
+  const handleBulkLinkToDs = async () => {
+    setBulkError("");
+    setBulkSuccess("");
+
+    if (!bulkAccountId) {
+      setBulkError("Sélectionne le compte DS à lier aux produits cochés.");
+      return;
+    }
+
+    if (!selectedLocalProductIds.length) {
+      setBulkError("Coche au moins un produit local à lier.");
+      return;
+    }
+
+    const selectedProducts = localImportedProducts.filter((item) => selectedLocalProductIds.includes(item.id));
+
+    setBulkLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/aliexpress/auto-map-ds`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(bulkAccountId),
+          items: selectedProducts.map((item) => ({
+            local_product_id: item.id,
+            title: item.title,
+          })),
+          ship_to_country: "TG",
+          target_currency: "USD",
+          target_language: "fr",
+          priority: 1,
+          is_default: true,
+          procurement_mode: "auto_batch",
+          warehouse_destination_label: "Hub France-Lome TG",
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.message ?? "Liaison DS impossible.");
+      }
+
+      const mappedCount = Number(payload?.data?.summary?.mapped ?? 0);
+      const failedCount = Number(payload?.data?.summary?.failed ?? 0);
+      setBulkSuccess(`Liaison DS terminée. ${mappedCount} produit(s) lié(s), ${failedCount} en échec.`);
+      setSelectedLocalProductIds([]);
+      await loadAll();
+    } catch (err: any) {
+      setBulkError(err?.message ?? "Liaison DS impossible.");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   return (
     <AdminShell title={platformLabel} subtitle="Mappings produit local vers SKU fournisseur">
       <div className="grid gap-6 xl:grid-cols-[460px,1fr]">
+        {platform === "aliexpress" ? (
+          <div className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Lier les produits locaux au compte DS</h2>
+                <p className="text-sm text-slate-500">Les produits importés via affiliation restent locaux. Ici tu coches ceux que tu veux lier, puis tu choisis le compte DS pour tous les rattacher en une fois.</p>
+              </div>
+              <button type="button" onClick={loadAll} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                Rafraîchir
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-[320px,1fr]">
+              <div className="space-y-4">
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">Compte DS à lier</span>
+                  <select value={bulkAccountId} onChange={(e) => setBulkAccountId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2">
+                    <option value="">Sélectionner</option>
+                    {supplierAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.label || `Compte #${account.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={allEligibleSelected} onChange={toggleSelectAllLocalProducts} className="h-4 w-4 rounded border-slate-300" />
+                  Tout sélectionner
+                </label>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                  {selectedLocalProductIds.length} produit(s) sélectionné(s)
+                </div>
+
+                <button type="button" onClick={handleBulkLinkToDs} disabled={bulkLoading || loading || localImportedProducts.length === 0} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60">
+                  {bulkLoading ? "Liaison en cours..." : "Lier au compte DS"}
+                </button>
+
+                {bulkError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{bulkError}</div> : null}
+                {bulkSuccess ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{bulkSuccess}</div> : null}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-xs uppercase text-slate-400">
+                    <tr>
+                      <th className="pb-3 pr-4">Choix</th>
+                      <th className="pb-3 pr-4">Produit local</th>
+                      <th className="pb-3 pr-4">Produit source</th>
+                      <th className="pb-3 pr-4">Mappings</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {localImportedProducts.map((product) => (
+                      <tr key={product.id}>
+                        <td className="py-3 pr-4 align-top">
+                          <input type="checkbox" checked={selectedLocalProductIds.includes(product.id)} onChange={() => toggleLocalProduct(product.id)} className="h-4 w-4 rounded border-slate-300" />
+                        </td>
+                        <td className="py-3 pr-4 align-top">
+                          <div className="font-medium text-slate-900">{product.title || `Produit #${product.id}`}</div>
+                          <div className="text-xs text-slate-500">#{product.id} · stock {product.stock ?? 0}</div>
+                        </td>
+                        <td className="py-3 pr-4 align-top text-xs text-slate-600">
+                          <div>{product.import_source || "aliexpress_affiliate"}</div>
+                          <div>{product.supplier_external_product_id || "external_product_id introuvable"}</div>
+                        </td>
+                        <td className="py-3 pr-4 align-top text-xs text-slate-600">{product.mappings_count ?? 0}</td>
+                      </tr>
+                    ))}
+                    {!loading && localImportedProducts.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-4 text-slate-500">Aucun produit local importé via affiliation.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">Créer un mapping</h2>
           <div className="mt-4 grid gap-4">

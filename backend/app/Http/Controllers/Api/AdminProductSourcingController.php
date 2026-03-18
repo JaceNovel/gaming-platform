@@ -3,13 +3,73 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use App\Models\ProductSupplierLink;
+use App\Models\SupplierAccount;
 use App\Models\SupplierProductSku;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AdminProductSourcingController extends Controller
 {
+    public function localProducts(Request $request)
+    {
+        $platform = (string) $request->query('platform', 'aliexpress');
+        $importSource = $request->query('import_source');
+
+        $query = Product::query()
+            ->select(['id', 'name', 'title', 'stock', 'is_active', 'preferred_supplier_platform', 'details'])
+            ->withCount('productSupplierLinks')
+            ->latest('id');
+
+        if ($platform === 'aliexpress') {
+            $query->where('preferred_supplier_platform', 'aliexpress');
+        }
+
+        if (filled($importSource)) {
+            $query->where('details->import_source', $importSource);
+        }
+
+        if ($request->boolean('without_mappings')) {
+            $query->doesntHave('productSupplierLinks');
+        }
+
+        return response()->json([
+            'data' => $query->limit(300)->get()->map(function (Product $product) {
+                $details = is_array($product->details) ? $product->details : [];
+
+                return [
+                    'id' => $product->id,
+                    'title' => $product->title ?: $product->name,
+                    'stock' => $product->stock,
+                    'is_active' => (bool) $product->is_active,
+                    'import_source' => $details['import_source'] ?? null,
+                    'supplier_external_product_id' => $details['supplier_external_product_id'] ?? null,
+                    'supplier_product_id' => $details['supplier_product_id'] ?? null,
+                    'source_url' => $details['source_url'] ?? null,
+                    'mappings_count' => (int) $product->product_supplier_links_count,
+                ];
+            }),
+        ]);
+    }
+
+    public function supplierAccounts(Request $request)
+    {
+        $query = SupplierAccount::query()->latest('id');
+
+        if ($request->filled('platform')) {
+            $query->where('platform', $request->query('platform'));
+        }
+
+        if ($request->boolean('active')) {
+            $query->where('is_active', true);
+        }
+
+        return response()->json([
+            'data' => $query->get(['id', 'label', 'platform', 'is_active', 'currency_code', 'last_sync_at']),
+        ]);
+    }
+
     public function mappings(Request $request)
     {
         $query = ProductSupplierLink::query()
