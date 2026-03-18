@@ -51,6 +51,7 @@ type ApiProduct = {
   stockType?: string | null;
   stock_type?: string | null;
   accessory_category?: string | null;
+  shipping_required?: boolean | null;
   tags?: Array<{ name?: string | null } | string> | string[] | string | null;
 };
 
@@ -444,7 +445,16 @@ export default function ProductDetailsPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE}/products/${id}`);
+        const query = new URLSearchParams();
+        if (storefrontCountryCode) {
+          query.set("country_code", storefrontCountryCode);
+        }
+
+        const url = query.toString()
+          ? `${API_BASE}/products/${id}?${query.toString()}`
+          : `${API_BASE}/products/${id}`;
+
+        const res = await fetch(url);
         if (!active) return;
         if (res.status === 404) {
           setError("Produit introuvable");
@@ -475,7 +485,7 @@ export default function ProductDetailsPage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, storefrontCountryCode]);
 
   useEffect(() => {
     return () => {
@@ -547,7 +557,15 @@ export default function ProductDetailsPage() {
     [product?.display_section]
   );
   const totalValue = priceValue + shippingFeeValue;
-  const isAccessoryProduct = useMemo(() => Boolean(String(product?.accessory_category ?? "").trim()), [product?.accessory_category]);
+  const isAccessoryProduct = useMemo(() => {
+    if (!product) return false;
+
+    if (String(product.accessory_category ?? "").trim() !== "") {
+      return true;
+    }
+
+    return String(product.type ?? "").toLowerCase() === "item" && Boolean(product.shipping_required ?? true);
+  }, [product]);
   const activeStorefrontCountry = useMemo(
     () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
     [storefrontCountries, storefrontCountryCode]
@@ -930,30 +948,6 @@ export default function ProductDetailsPage() {
                           </div>
                         ) : null}
                       </div>
-
-                      {isAccessoryProduct && storefrontCountries.length > 0 ? (
-                        <div className="space-y-3 rounded-[26px] border border-white/10 bg-black/20 p-5 text-sm">
-                          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-white/38">Pays de livraison</div>
-                          <select
-                            value={storefrontCountryCode}
-                            onChange={(event) => {
-                              const next = event.target.value.toUpperCase();
-                              setStorefrontCountryCode(next);
-                              setStoredStorefrontCountry(next);
-                            }}
-                            className="w-full rounded-[20px] border border-white/12 bg-white/6 px-4 py-3 font-semibold text-white outline-none"
-                          >
-                            {storefrontCountries.map((country) => (
-                              <option key={country.code} value={country.code} className="bg-slate-950 text-white">
-                                {country.name}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="text-xs text-white/55">
-                            {activeStorefrontCountry?.customer_notice ?? "Le pays est choisi ici pour la tarification et la livraison locale accessoires."}
-                          </div>
-                        </div>
-                      ) : null}
 
                       <div className="space-y-3 rounded-[26px] border border-white/10 bg-black/20 p-5 text-sm">
                         <div className="flex items-center justify-between gap-3 text-white/74">
