@@ -32,6 +32,7 @@ class AliExpressBulkCatalogImportService
         $requestPayload = is_array($options['request_payload'] ?? null) ? $options['request_payload'] : [];
         $requestPayload['page_size'] = min($limit, max(1, (int) ($requestPayload['page_size'] ?? $limit)));
         $requestPayload = $this->sanitizeAffiliateRequestPayload($operation, $requestPayload);
+        $this->validateAffiliateRequestPayload($operation, $requestPayload);
 
         try {
             $response = $this->supplierApiClient->iopOperation($account, $operation, $requestPayload);
@@ -39,6 +40,8 @@ class AliExpressBulkCatalogImportService
             $this->throwAffiliatePermissionDiagnosticIfNeeded($operation, $requestPayload, $exception);
             throw $exception;
         }
+
+        $this->throwAffiliateProviderResponseDiagnosticIfNeeded($operation, $requestPayload, $response);
 
         $rows = array_slice($this->extractAffiliateProductsFromResponse($response), 0, $limit);
 
@@ -149,6 +152,7 @@ class AliExpressBulkCatalogImportService
     private function buildAffiliateResponseDiagnostic(string $operation, array $requestPayload, array $response): array
     {
         $wrappedRaw = $this->extractAliExpressAffiliateEnvelope($response['raw'] ?? null);
+        $providerStatus = $this->extractAffiliateProviderStatus($response);
 
         $candidateMap = [
             'result' => $response['result'] ?? null,
@@ -170,21 +174,30 @@ class AliExpressBulkCatalogImportService
 
         return [
             'operation' => $operation,
-            'request_payload' => Arr::only($requestPayload, [
-                'keywords',
-                'category_ids',
-                'ship_to_country',
-                'target_currency',
-                'target_language',
-                'page_no',
-                'page_size',
-                'sort',
-                'tracking_id',
-            ]),
+            'request_payload' => $this->summarizeAffiliateRequestPayload($requestPayload),
             'response_top_level_keys' => array_keys($response),
             'candidate_summaries' => $candidateSummaries,
             'discovered_shapes' => $this->discoverAffiliateShapes($response),
+            'provider_status' => $providerStatus,
         ];
+    }
+
+    private function summarizeAffiliateRequestPayload(array $requestPayload): array
+    {
+        return Arr::only($requestPayload, [
+            'keywords',
+            'category_id',
+            'category_ids',
+            'fields',
+            'ship_to_country',
+            'country',
+            'target_currency',
+            'target_language',
+            'page_no',
+            'page_size',
+            'sort',
+            'tracking_id',
+        ]);
     }
 
     private function extractAliExpressAffiliateEnvelope(mixed $raw): ?array
@@ -225,6 +238,7 @@ class AliExpressBulkCatalogImportService
                     'keywords',
                     'category_id',
                     'category_ids',
+                    'fields',
                     'ship_to_country',
                     'country',
                     'target_currency',
@@ -244,6 +258,113 @@ class AliExpressBulkCatalogImportService
                 ],
             ],
             previous: $exception,
+        );
+    }
+
+    private function throwAffiliateProviderResponseDiagnosticIfNeeded(string $operation, array $requestPayload, array $response): void
+    {
+        if (!str_starts_with($operation, 'ae-affiliate-')) {
+            return;
+        }
+
+        $resp = $this->extractAffiliateProviderStatus($response);
+        if (!is_array($resp) || $resp === []) {
+            return;
+        }
+
+        $respCode = (string) ($resp['resp_code'] ?? '');
+        $respMessage = trim((string) ($resp['resp_msg'] ?? ''));
+        $hasOnlyStatus = array_diff(array_keys($resp), ['resp_code', 'resp_msg']) === [];
+
+        if ($respMessage === '' && $respCode === '') {
+            return;
+        }
+
+        if (!$hasOnlyStatus && $respCode !== '' && in_array(strtoupper($respCode), ['200', 'SUCCESS'], true)) {
+            return;
+        }
+
+        throw new BulkImportDiagnosticException(
+            'AliExpress a rejete la requete affiliate avant de retourner des produits.',
+            [
+                'operation' => $operation,
+                'request_payload' => $this->summarizeAffiliateRequestPayload($requestPayload),
+                'provider_code' => $respCode !== '' ? $respCode : null,
+                'provider_message' => $respMessage !== '' ? $respMessage : null,
+                'provider_status' => $resp,
+                'reason' => 'affiliate_provider_rejected_request',
+                'remediation' => [
+                    'Verifier les parametres obligatoires de l\'operation choisie, notamment category_id et fields pour ae-affiliate-hotproduct-download.',
+                    'Si l\'operation est ae-affiliate-hotproduct-download, prefere un payload minimal avec category_id, fields, page_no, page_size, target_currency, target_language, tracking_id et country.',
+                    'Si AliExpress continue a renvoyer resp_msg, utiliser ce message provider comme source d\'autorite pour corriger le payload.',
+                ],
+            ]
+        );
+    }
+
+    private function extractAffiliateProviderStatus(array $response): ?array
+    {
+        $wrappedRaw = $this->extractAliExpressAffiliateEnvelope($response['raw'] ?? null);
+
+        $candidates = [
+            $response['result'] ?? null,
+            data_get($response, 'raw.resp_result'),
+            data_get($wrappedRaw, 'resp_result'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (!is_array($candidate) || $candidate === []) {
+                continue;
+            }
+
+            if (array_intersect(['resp_code', 'resp_msg'], array_keys($candidate)) === []) {
+                continue;
+            }
+
+            return [
+                'resp_code' => isset($candidate['resp_code']) ? (string) $candidate['resp_code'] : null,
+                'resp_msg' => isset($candidate['resp_msg']) ? trim((string) $candidate['resp_msg']) : null,
+                'keys' => array_keys($candidate),
+            ];
+        }
+
+        return null;
+    }
+
+    private function validateAffiliateRequestPayload(string $operation, array $requestPayload): void
+    {
+        $requiredKeys = match ($operation) {
+            'ae-affiliate-hotproduct-download' => ['category_id', 'fields'],
+            'ae-affiliate-product-query', 'ae-affiliate-hotproduct-query' => ['page_no', 'page_size'],
+            default => [],
+        };
+
+        $missingKeys = array_values(array_filter($requiredKeys, static function (string $key) use ($requestPayload): bool {
+            if (!array_key_exists($key, $requestPayload)) {
+                return true;
+            }
+
+            $value = $requestPayload[$key];
+
+            return $value === null || $value === '';
+        }));
+
+        if ($missingKeys === []) {
+            return;
+        }
+
+        throw new BulkImportDiagnosticException(
+            'Le payload du bulk import AliExpress est incomplet pour cette operation.',
+            [
+                'operation' => $operation,
+                'request_payload' => $this->summarizeAffiliateRequestPayload($requestPayload),
+                'missing_keys' => $missingKeys,
+                'reason' => 'affiliate_request_payload_incomplete',
+                'remediation' => [
+                    'Completer les champs obligatoires avant relance.',
+                    'Pour ae-affiliate-hotproduct-download, renseigner au minimum category_id et fields.',
+                ],
+            ]
         );
     }
 
@@ -438,10 +559,17 @@ class AliExpressBulkCatalogImportService
             ];
         }
 
-        return [
+        $summary = [
             'type' => 'object',
             'keys' => array_slice(array_keys($normalized), 0, 25),
         ];
+
+        if (array_key_exists('resp_code', $normalized) || array_key_exists('resp_msg', $normalized)) {
+            $summary['resp_code'] = isset($normalized['resp_code']) ? (string) $normalized['resp_code'] : null;
+            $summary['resp_msg'] = isset($normalized['resp_msg']) ? Str::limit(trim((string) $normalized['resp_msg']), 200) : null;
+        }
+
+        return $summary;
     }
 
     private function discoverAffiliateShapes(array $response): array

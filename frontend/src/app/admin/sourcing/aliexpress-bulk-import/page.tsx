@@ -56,6 +56,8 @@ type BulkImportResponse = {
 type BulkImportDiagnostic = {
   reason?: string;
   provider_message?: string;
+  provider_code?: string;
+  missing_keys?: string[];
   remediation?: string[];
 };
 
@@ -73,6 +75,19 @@ const buildBulkImportErrorMessage = (payloadRes: { message?: string; diagnostic?
       : "";
     const provider = diagnostic.provider_message ? ` Provider: ${diagnostic.provider_message}.` : "";
     return `${message}.${provider}${extra}`.trim();
+  }
+
+  if (diagnostic.reason === "affiliate_provider_rejected_request") {
+    const providerCode = diagnostic.provider_code ? ` Code: ${diagnostic.provider_code}.` : "";
+    const providerMessage = diagnostic.provider_message ? ` Provider: ${diagnostic.provider_message}.` : "";
+    const extra = diagnostic.remediation?.length ? ` ${diagnostic.remediation.join(" ")}` : "";
+    return `${message}. ${providerCode}${providerMessage}${extra}`.trim();
+  }
+
+  if (diagnostic.reason === "affiliate_request_payload_incomplete") {
+    const missing = diagnostic.missing_keys?.length ? ` Champs manquants: ${diagnostic.missing_keys.join(", ")}.` : "";
+    const extra = diagnostic.remediation?.length ? ` ${diagnostic.remediation.join(" ")}` : "";
+    return `${message}. ${missing}${extra}`.trim();
   }
 
   return message;
