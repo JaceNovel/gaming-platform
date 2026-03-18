@@ -182,10 +182,12 @@ class AdminOrderController extends Controller
     {
         try {
             $draft = $service->buildDropshippingOrderDraft($order);
+            $freightCheck = $service->previewDropshippingFreightCheck($order, $draft);
 
             return response()->json([
                 'data' => [
                     'draft' => $draft,
+                    'freight_check' => $freightCheck,
                 ],
                 'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
             ]);

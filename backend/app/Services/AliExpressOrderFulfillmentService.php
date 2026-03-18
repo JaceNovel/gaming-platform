@@ -389,6 +389,15 @@ class AliExpressOrderFulfillmentService
         ];
     }
 
+    public function previewDropshippingFreightCheck(Order $order, ?array $draft = null): array
+    {
+        $fulfillment = $this->ensureFulfillment($order);
+        $account = $this->resolveSupplierAccount($order, $fulfillment);
+        $payload = $draft ?? $this->buildDropshippingOrderDraft($order);
+
+        return $this->runDsFreightPrecheck($order, $account, $payload);
+    }
+
     public function createDropshippingOrder(Order $order, array $data): array
     {
         $fulfillment = $this->ensureFulfillment($order);
@@ -443,6 +452,47 @@ class AliExpressOrderFulfillmentService
             throw $exception;
         }
 
+        $freightCheck = $this->runDsFreightPrecheck($order, $account, $payload);
+        $freightFailureMessage = $this->describeDsFreightCheckFailure($freightCheck);
+        if ($freightFailureMessage !== null) {
+            $normalized = [
+                'success' => false,
+                'is_success' => false,
+                'order_list' => [],
+                'error_code' => 'FREIGHT_VALIDATION_FAILED',
+                'remote_error_message' => $freightFailureMessage,
+                'request_id' => null,
+                'payment_warning' => null,
+                'error_message' => $freightFailureMessage,
+            ];
+
+            $response = [
+                'freight_check' => $freightCheck,
+                'validation_error' => [
+                    'message' => $freightFailureMessage,
+                    'payload_summary' => $this->summarizeDsCreatePayload($payload),
+                ],
+            ];
+
+            $metadata = (array) ($fulfillment->metadata_json ?? []);
+            $metadata['ds_order_create'] = array_merge($normalized, [
+                'created_at' => now()->toIso8601String(),
+            ]);
+            $metadata['ds_freight_check'] = $freightCheck;
+
+            $fulfillment->fill([
+                'latest_request_payload_json' => $payload,
+                'latest_response_payload_json' => $response,
+                'metadata_json' => $metadata,
+                'last_synced_at' => now(),
+                'asf_status' => 'ds_order_failed',
+                'asf_sub_status' => 'FREIGHT_VALIDATION_FAILED',
+            ]);
+            $fulfillment->save();
+
+            throw new \RuntimeException($freightFailureMessage);
+        }
+
         try {
             $response = $this->supplierApiClient->iopOperation($account, 'ds-order-create', $payload);
         } catch (\RuntimeException $exception) {
@@ -457,6 +507,7 @@ class AliExpressOrderFulfillmentService
         $metadata['ds_order_create'] = array_merge($normalized, [
             'created_at' => now()->toIso8601String(),
         ]);
+        $metadata['ds_freight_check'] = $freightCheck;
 
         $fulfillment->fill([
             'latest_request_payload_json' => $payload,
@@ -1047,6 +1098,149 @@ class AliExpressOrderFulfillmentService
                 ], static fn ($value) => $value !== null && $value !== '');
             }, $items),
         ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function runDsFreightPrecheck(Order $order, SupplierAccount $account, array $payload): array
+    {
+        $request = is_array($payload['param_place_order_request4_open_api_d_t_o'] ?? null)
+            ? $payload['param_place_order_request4_open_api_d_t_o']
+            : [];
+        $items = array_values(array_filter(
+            is_array($request['product_items'] ?? null) ? $request['product_items'] : [],
+            static fn ($item) => is_array($item)
+        ));
+
+        $order->loadMissing(['orderItems.product.productSupplierLinks.supplierProductSku.supplierProduct.supplierAccount']);
+        $physicalItems = [];
+        foreach ($order->orderItems as $orderItem) {
+            $product = $orderItem->product;
+            if (! $product || (! $orderItem->is_physical && ! $product->shipping_required)) {
+                continue;
+            }
+
+            $physicalItems[] = $orderItem;
+        }
+
+        $checks = [];
+        foreach ($items as $index => $item) {
+            $orderItem = $physicalItems[$index] ?? null;
+            $link = $orderItem ? $this->resolveDsProductLink($orderItem, $account->id) : null;
+            $supplierSku = $link?->supplierProductSku;
+            $productLabel = $orderItem?->product?->name ?: ('Ligne DS #' . ($index + 1));
+            $requestedService = $this->nullableString($item['logistics_service_name'] ?? null);
+            $skuId = $this->nullableString($supplierSku?->external_sku_id ?? null);
+            $productId = $this->nullableString($item['product_id'] ?? null);
+            $shipToCountry = $this->nullableString($order->shipping_country_code ?: null) ?: self::DS_HUB_COUNTRY_CODE;
+
+            $freightPayload = array_filter([
+                'queryDeliveryReq' => array_filter([
+                    'shipToCountry' => $shipToCountry,
+                    'productId' => $productId,
+                    'selectedSkuId' => $skuId,
+                    'quantity' => (int) ($item['product_count'] ?? 1) > 0 ? (int) $item['product_count'] : 1,
+                ], static fn ($value) => $value !== null && $value !== ''),
+            ], static fn ($value) => $value !== null && $value !== '');
+
+            if ($productId === null || $skuId === null) {
+                $checks[] = [
+                    'product_name' => $productLabel,
+                    'requested_logistics_service_name' => $requestedService,
+                    'success' => false,
+                    'error_message' => 'Precheck freight impossible: product_id ou sku_id manquant.',
+                    'available_services' => [],
+                ];
+                continue;
+            }
+
+            try {
+                $response = $this->supplierApiClient->iopOperation($account, 'ds-freight-query', $freightPayload);
+                $availableServices = $this->extractFreightServiceNames($response);
+                $checks[] = [
+                    'product_name' => $productLabel,
+                    'product_id' => $productId,
+                    'sku_id' => $skuId,
+                    'requested_logistics_service_name' => $requestedService,
+                    'available_services' => $availableServices,
+                    'is_valid' => $requestedService === null ? null : in_array($requestedService, $availableServices, true),
+                    'success' => true,
+                    'request_payload' => $freightPayload,
+                    'response' => $response,
+                ];
+            } catch (\Throwable $exception) {
+                $checks[] = [
+                    'product_name' => $productLabel,
+                    'product_id' => $productId,
+                    'sku_id' => $skuId,
+                    'requested_logistics_service_name' => $requestedService,
+                    'available_services' => [],
+                    'success' => false,
+                    'error_message' => $exception->getMessage(),
+                    'request_payload' => $freightPayload,
+                ];
+            }
+        }
+
+        return [
+            'checked_at' => now()->toIso8601String(),
+            'items' => $checks,
+        ];
+    }
+
+    private function describeDsFreightCheckFailure(array $freightCheck): ?string
+    {
+        foreach (Arr::wrap($freightCheck['items'] ?? []) as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            if (($item['success'] ?? true) === false) {
+                return trim((string) (($item['product_name'] ?? 'Produit') . ': ' . ($item['error_message'] ?? 'Precheck freight impossible.')));
+            }
+
+            if (($item['is_valid'] ?? null) === false) {
+                $available = implode(', ', array_slice(array_values(array_filter(Arr::wrap($item['available_services'] ?? []), 'is_string')), 0, 8));
+
+                return trim((string) (($item['product_name'] ?? 'Produit') . ': logistics_service_name invalide pour ce SKU DS.' . ($available !== '' ? ' Services disponibles: ' . $available : '')));
+            }
+        }
+
+        return null;
+    }
+
+    private function extractFreightServiceNames(array $payload): array
+    {
+        $serviceNames = [];
+        $queue = [$payload];
+
+        while ($queue !== []) {
+            $node = array_shift($queue);
+            if (!is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $key => $value) {
+                if (is_array($value)) {
+                    $queue[] = $value;
+                    continue;
+                }
+
+                if (!is_string($key)) {
+                    continue;
+                }
+
+                $normalizedKey = strtolower($key);
+                if (!in_array($normalizedKey, ['service_name', 'servicename', 'logistics_service_name', 'logisticsservicename', 'company', 'company_name'], true)) {
+                    continue;
+                }
+
+                $stringValue = trim((string) $value);
+                if ($stringValue !== '') {
+                    $serviceNames[] = $stringValue;
+                }
+            }
+        }
+
+        return array_values(array_unique($serviceNames));
     }
 
     private function resolveDsProductLink(OrderItem $orderItem, int $supplierAccountId): ?ProductSupplierLink

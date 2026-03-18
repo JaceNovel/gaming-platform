@@ -57,6 +57,24 @@ type DsOrderCreateState = {
   created_at?: string | null;
 };
 
+type DsFreightCheckItem = {
+  product_name?: string | null;
+  product_id?: string | null;
+  sku_id?: string | null;
+  requested_logistics_service_name?: string | null;
+  available_services?: string[] | null;
+  success?: boolean | null;
+  is_valid?: boolean | null;
+  error_message?: string | null;
+  request_payload?: unknown;
+  response?: unknown;
+};
+
+type DsFreightCheckState = {
+  checked_at?: string | null;
+  items?: DsFreightCheckItem[] | null;
+};
+
 type SupplierActionLoadingState =
   | "save-context"
   | "create-order"
@@ -330,6 +348,7 @@ export default function AdminOrderDetailPage() {
   const [externalOrderLinesJson, setExternalOrderLinesJson] = useState("[]");
   const [dsExtendRequestJson, setDsExtendRequestJson] = useState("");
   const [dsPlaceOrderJson, setDsPlaceOrderJson] = useState("");
+  const [dsFreightCheck, setDsFreightCheck] = useState<DsFreightCheckState | null>(null);
   const [waybillDocumentType, setWaybillDocumentType] = useState("WAY_BILL");
   const [invoiceCustomerId, setInvoiceCustomerId] = useState("");
   const [invoiceNo, setInvoiceNo] = useState("");
@@ -432,6 +451,7 @@ export default function AdminOrderDetailPage() {
       const draft = payload?.data?.draft ?? {};
       setDsExtendRequestJson(JSON.stringify(draft?.ds_extend_request ?? {}, null, 2));
       setDsPlaceOrderJson(JSON.stringify(draft?.param_place_order_request4_open_api_d_t_o ?? {}, null, 2));
+      setDsFreightCheck((payload?.data?.freight_check ?? null) as DsFreightCheckState | null);
       if (force) {
         setSupplierMessage("Draft DS chargé depuis la commande locale.");
       }
@@ -584,6 +604,11 @@ export default function AdminOrderDetailPage() {
     () => (fulfillment?.metadata_json?.ds_order_create ?? null) as DsOrderCreateState | null,
     [fulfillment?.metadata_json],
   );
+  const dsSavedFreightCheck = useMemo(
+    () => (fulfillment?.metadata_json?.ds_freight_check ?? null) as DsFreightCheckState | null,
+    [fulfillment?.metadata_json],
+  );
+  const effectiveDsFreightCheck = dsFreightCheck ?? dsSavedFreightCheck;
   const dsRawResponsePreview = useMemo(() => {
     if (!fulfillment?.latest_response_payload_json) return "";
 
@@ -1238,6 +1263,27 @@ export default function AdminOrderDetailPage() {
                 {supplierActionLoading === "create-order" ? "Création..." : "Créer la commande DS"}
               </button>
             </div>
+
+            {effectiveDsFreightCheck?.items?.length ? (
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Précheck freight DS</div>
+                  <div className="text-[11px] text-slate-400">{formatDateTime(effectiveDsFreightCheck.checked_at)}</div>
+                </div>
+                <div className="space-y-3">
+                  {effectiveDsFreightCheck.items.map((item, index) => (
+                    <div key={`${item.product_id ?? "item"}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                      <div className="font-semibold text-slate-900">{item.product_name ?? `Ligne DS #${index + 1}`}</div>
+                      <div className="mt-1">Service demandé: {item.requested_logistics_service_name ?? "—"}</div>
+                      <div>SKU DS: {item.sku_id ?? "—"}</div>
+                      <div>Résultat: {item.success === false ? "Échec appel freight" : item.is_valid === false ? "Service refusé" : item.is_valid === true ? "Service valide" : "Réponse à vérifier"}</div>
+                      {item.error_message ? <div className="mt-1 text-rose-600">{item.error_message}</div> : null}
+                      <div className="mt-1">Services disponibles: {(item.available_services ?? []).length ? (item.available_services ?? []).join(", ") : "—"}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">

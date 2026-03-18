@@ -101,11 +101,15 @@ type IopOperation =
   | "basic-freight-calculate"
   | "ds-order-create"
   | "ds-product-get"
+  | "ds-product-specialinfo-get"
   | "ds-product-wholesale-get"
+  | "ds-text-search"
+  | "ds-search-event-report"
   | "ds-image-search-v2"
   | "ds-category-get"
   | "ds-feed-itemids-get"
   | "ds-member-benefit-get"
+  | "ds-freight-query"
   | "buyer-freight-calculate"
   | "ds-trade-order-get"
   | "ds-order-tracking-get"
@@ -228,11 +232,15 @@ const ALIBABA_IOP_OPERATIONS: IopOperation[] = [
 const ALIEXPRESS_IOP_OPERATIONS: IopOperation[] = [
   "ds-order-create",
   "ds-product-get",
+  "ds-product-specialinfo-get",
   "ds-product-wholesale-get",
+  "ds-text-search",
+  "ds-search-event-report",
   "ds-image-search-v2",
   "ds-category-get",
   "ds-feed-itemids-get",
   "ds-member-benefit-get",
+  "ds-freight-query",
   "buyer-freight-calculate",
   "ds-trade-order-get",
   "ds-order-tracking-get",
@@ -327,11 +335,15 @@ const ALIEXPRESS_IOP_OPERATION_GROUPS: Array<{ label: string; operations: IopOpe
     label: "DS Catalog & Orders",
     operations: [
       "ds-product-get",
+      "ds-product-specialinfo-get",
       "ds-product-wholesale-get",
+      "ds-text-search",
+      "ds-search-event-report",
       "ds-image-search-v2",
       "ds-category-get",
       "ds-feed-itemids-get",
       "ds-member-benefit-get",
+      "ds-freight-query",
       "buyer-freight-calculate",
       "ds-order-create",
       "ds-trade-order-get",
@@ -632,12 +644,29 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     target_language: "fr",
     remove_personal_benefit: false,
   }),
+  "ds-product-specialinfo-get": stringifyTemplate({
+    itemId: "1005003784285827",
+    countryCodes: ["TG"],
+    appKey: "your-app-key",
+  }),
   "ds-product-wholesale-get": stringifyTemplate({
     ship_to_country: "TG",
     product_id: "1005003784285827",
     target_currency: "USD",
     target_language: "fr",
     remove_personal_benefit: false,
+  }),
+  "ds-text-search": stringifyTemplate({
+    keyWord: "manette",
+    local: "fr_FR",
+    countryCode: "TG",
+    currency: "USD",
+    pageSize: 20,
+    pageIndex: 1,
+    sortBy: "orders,desc",
+  }),
+  "ds-search-event-report": stringifyTemplate({
+    report_text: "time=1640966400123&event=EXP",
   }),
   "ds-image-search-v2": stringifyTemplate({
     param0: {
@@ -660,6 +689,14 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     feed_name: "DS bestseller",
   }),
   "ds-member-benefit-get": stringifyTemplate({}),
+  "ds-freight-query": stringifyTemplate({
+    queryDeliveryReq: {
+      shipToCountry: "TG",
+      productId: "1005003784285827",
+      selectedSkuId: "12000027158136202",
+      quantity: 1,
+    },
+  }),
   "buyer-freight-calculate": stringifyTemplate({
     param_aeop_freight_calculate_for_buyer_d_t_o: {
       country_code: "TG",
