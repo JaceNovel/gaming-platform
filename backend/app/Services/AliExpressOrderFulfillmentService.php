@@ -395,7 +395,7 @@ class AliExpressOrderFulfillmentService
         $account = $this->resolveSupplierAccount($order, $fulfillment);
         $payload = $draft ?? $this->buildDropshippingOrderDraft($order);
 
-        return $this->runDsFreightPrecheck($order, $account, $payload);
+        return $this->runDsFreightPrecheck($order, $account, $payload, $fulfillment);
     }
 
     public function createDropshippingOrder(Order $order, array $data): array
@@ -452,7 +452,7 @@ class AliExpressOrderFulfillmentService
             throw $exception;
         }
 
-        $freightCheck = $this->runDsFreightPrecheck($order, $account, $payload);
+        $freightCheck = $this->runDsFreightPrecheck($order, $account, $payload, $fulfillment);
         $freightFailureMessage = $this->describeDsFreightCheckFailure($freightCheck);
         if ($freightFailureMessage !== null) {
             $normalized = [
@@ -1100,8 +1100,9 @@ class AliExpressOrderFulfillmentService
         ], static fn ($value) => $value !== null && $value !== '');
     }
 
-    private function runDsFreightPrecheck(Order $order, SupplierAccount $account, array $payload): array
+    private function runDsFreightPrecheck(Order $order, SupplierAccount $account, array $payload, ?OrderSupplierFulfillment $fulfillment = null): array
     {
+        $locale = $fulfillment ? $this->resolveLocale($fulfillment) : 'fr_FR';
         $request = is_array($payload['param_place_order_request4_open_api_d_t_o'] ?? null)
             ? $payload['param_place_order_request4_open_api_d_t_o']
             : [];
@@ -1134,6 +1135,7 @@ class AliExpressOrderFulfillmentService
 
             $freightPayload = array_filter([
                 'queryDeliveryReq' => array_filter([
+                    'locale' => $locale,
                     'shipToCountry' => $shipToCountry,
                     'productId' => $productId,
                     'selectedSkuId' => $skuId,
