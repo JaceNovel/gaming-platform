@@ -53,6 +53,31 @@ type BulkImportResponse = {
   }>;
 };
 
+type BulkImportDiagnostic = {
+  reason?: string;
+  provider_message?: string;
+  remediation?: string[];
+};
+
+const buildBulkImportErrorMessage = (payloadRes: { message?: string; diagnostic?: BulkImportDiagnostic } | null): string => {
+  const message = payloadRes?.message ?? "Import automatique impossible.";
+  const diagnostic = payloadRes?.diagnostic;
+
+  if (!diagnostic) {
+    return message;
+  }
+
+  if (diagnostic.reason === "affiliate_permission_missing") {
+    const extra = diagnostic.remediation?.length
+      ? ` ${diagnostic.remediation.join(" ")}`
+      : "";
+    const provider = diagnostic.provider_message ? ` Provider: ${diagnostic.provider_message}.` : "";
+    return `${message}.${provider}${extra}`.trim();
+  }
+
+  return message;
+};
+
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
   if (typeof window === "undefined") return headers;
@@ -227,7 +252,7 @@ export default function AdminAliExpressBulkImportPage() {
 
       const payloadRes = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(payloadRes?.message ?? "Import automatique impossible.");
+        throw new Error(buildBulkImportErrorMessage(payloadRes));
       }
 
       setResult(payloadRes?.data ?? null);

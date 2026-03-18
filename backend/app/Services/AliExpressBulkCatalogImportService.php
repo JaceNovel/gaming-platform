@@ -33,7 +33,13 @@ class AliExpressBulkCatalogImportService
         $requestPayload['page_size'] = min($limit, max(1, (int) ($requestPayload['page_size'] ?? $limit)));
         $requestPayload = $this->sanitizeAffiliateRequestPayload($operation, $requestPayload);
 
-        $response = $this->supplierApiClient->iopOperation($account, $operation, $requestPayload);
+        try {
+            $response = $this->supplierApiClient->iopOperation($account, $operation, $requestPayload);
+        } catch (\RuntimeException $exception) {
+            $this->throwAffiliatePermissionDiagnosticIfNeeded($operation, $requestPayload, $exception);
+            throw $exception;
+        }
+
         $rows = array_slice($this->extractAffiliateProductsFromResponse($response), 0, $limit);
 
         if ($rows === []) {
@@ -114,13 +120,20 @@ class AliExpressBulkCatalogImportService
 
     private function extractAffiliateProductsFromResponse(array $response): array
     {
+        $wrappedRaw = $this->extractAliExpressAffiliateEnvelope($response['raw'] ?? null);
+
         $candidates = [
             $response['result'] ?? null,
             data_get($response, 'raw.result.result'),
             data_get($response, 'raw.resp_result.result'),
+            data_get($wrappedRaw, 'result.result'),
+            data_get($wrappedRaw, 'resp_result.result'),
             data_get($response, 'raw.result'),
             data_get($response, 'raw.resp_result'),
+            data_get($wrappedRaw, 'result'),
+            data_get($wrappedRaw, 'resp_result'),
             $response['raw'] ?? null,
+            $wrappedRaw,
         ];
 
         foreach ($candidates as $candidate) {
@@ -135,12 +148,18 @@ class AliExpressBulkCatalogImportService
 
     private function buildAffiliateResponseDiagnostic(string $operation, array $requestPayload, array $response): array
     {
+        $wrappedRaw = $this->extractAliExpressAffiliateEnvelope($response['raw'] ?? null);
+
         $candidateMap = [
             'result' => $response['result'] ?? null,
             'raw.result.result' => data_get($response, 'raw.result.result'),
             'raw.resp_result.result' => data_get($response, 'raw.resp_result.result'),
+            'raw.wrapper.result.result' => data_get($wrappedRaw, 'result.result'),
+            'raw.wrapper.resp_result.result' => data_get($wrappedRaw, 'resp_result.result'),
             'raw.result' => data_get($response, 'raw.result'),
             'raw.resp_result' => data_get($response, 'raw.resp_result'),
+            'raw.wrapper.result' => data_get($wrappedRaw, 'result'),
+            'raw.wrapper.resp_result' => data_get($wrappedRaw, 'resp_result'),
             'raw' => $response['raw'] ?? null,
         ];
 
@@ -166,6 +185,66 @@ class AliExpressBulkCatalogImportService
             'candidate_summaries' => $candidateSummaries,
             'discovered_shapes' => $this->discoverAffiliateShapes($response),
         ];
+    }
+
+    private function extractAliExpressAffiliateEnvelope(mixed $raw): ?array
+    {
+        if (!is_array($raw)) {
+            return null;
+        }
+
+        foreach ($raw as $key => $value) {
+            if (!is_string($key) || !is_array($value)) {
+                continue;
+            }
+
+            if (preg_match('/^aliexpress_affiliate_.*_response$/', $key) === 1) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function throwAffiliatePermissionDiagnosticIfNeeded(string $operation, array $requestPayload, \RuntimeException $exception): void
+    {
+        if (!str_starts_with($operation, 'ae-affiliate-')) {
+            return;
+        }
+
+        $message = (string) $exception->getMessage();
+        if (!str_contains($message, 'InsufficientPermission')) {
+            return;
+        }
+
+        throw new BulkImportDiagnosticException(
+            'Le compte AliExpress utilise pour le bulk import n\'a pas la permission API Affiliate pour cette operation.',
+            [
+                'operation' => $operation,
+                'request_payload' => Arr::only($requestPayload, [
+                    'keywords',
+                    'category_id',
+                    'category_ids',
+                    'ship_to_country',
+                    'country',
+                    'target_currency',
+                    'target_language',
+                    'page_no',
+                    'page_size',
+                    'sort',
+                    'tracking_id',
+                ]),
+                'provider_message' => $message,
+                'reason' => 'affiliate_permission_missing',
+                'remediation' => [
+                    'Activer les permissions AE Affiliate sur l\'application AliExpress liee au compte fournisseur.',
+                    'Reconnecter le compte fournisseur apres mise a jour des scopes OAuth.',
+                    'Utiliser un autre compte AliExpress deja autorise pour les endpoints affiliate.',
+                    'Les endpoints DS comme ds-product-get ne remplacent pas le bulk import affiliate, ils servent surtout aux recherches produit ciblees.',
+                ],
+            ],
+            previous: $exception,
+        );
     }
 
     private function sanitizeAffiliateRequestPayload(string $operation, array $requestPayload): array

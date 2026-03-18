@@ -1148,15 +1148,26 @@ class SupplierApiClient
                 'raw' => $response,
             ],
             'ae-affiliate-product-shipping' => [
-                'shipping' => data_get($response, 'resp_result.result', []),
+                'shipping' => data_get($response, 'resp_result.result')
+                    ?? data_get($this->extractAliExpressResponseEnvelope($response), 'resp_result.result')
+                    ?? [],
                 'raw' => $response,
             ],
             'ae-affiliate-sku-detail', 'ae-affiliate-product-detail', 'ae-affiliate-product-query', 'ae-affiliate-hotproduct-query', 'ae-affiliate-hotproduct-download', 'ae-affiliate-product-smartmatch' => [
-                'result' => data_get($response, 'result.result') ?? data_get($response, 'resp_result.result') ?? data_get($response, 'result') ?? [],
+                'result' => data_get($response, 'result.result')
+                    ?? data_get($response, 'resp_result.result')
+                    ?? data_get($this->extractAliExpressResponseEnvelope($response), 'result.result')
+                    ?? data_get($this->extractAliExpressResponseEnvelope($response), 'resp_result.result')
+                    ?? data_get($response, 'result')
+                    ?? data_get($this->extractAliExpressResponseEnvelope($response), 'result')
+                    ?? data_get($this->extractAliExpressResponseEnvelope($response), 'resp_result')
+                    ?? [],
                 'raw' => $response,
             ],
             'ae-affiliate-category-get', 'ae-affiliate-link-generate', 'ae-affiliate-order-get', 'ae-affiliate-order-list', 'ae-affiliate-order-listbyindex' => [
-                'result' => data_get($response, 'resp_result.result', []),
+                'result' => data_get($response, 'resp_result.result')
+                    ?? data_get($this->extractAliExpressResponseEnvelope($response), 'resp_result.result')
+                    ?? [],
                 'raw' => $response,
             ],
             'ae-invoice-request-query', 'ae-invoice-result-push', 'ae-fund-recipet-flowdetail-query', 'ae-freight-seller-intention-query', 'ae-freight-isv-gray-query' => [
@@ -1260,6 +1271,21 @@ class SupplierApiClient
         }
 
         return $normalized;
+    }
+
+    private function extractAliExpressResponseEnvelope(array $response): ?array
+    {
+        foreach ($response as $key => $value) {
+            if (!is_string($key) || !is_array($value)) {
+                continue;
+            }
+
+            if (preg_match('/^aliexpress_.*_response$/', $key) === 1) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private function normalizeTopFileParams(mixed $fileParams): array
