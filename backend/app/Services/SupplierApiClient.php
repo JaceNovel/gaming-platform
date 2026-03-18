@@ -314,14 +314,15 @@ class SupplierApiClient
         if ($binary === false) {
             throw new \RuntimeException('Le contenu du fichier doit être un base64 valide.');
         }
-        if (empty($account->access_token)) {
+        $accessToken = $this->resolveAccountAccessToken($account);
+        if ($accessToken === '') {
             throw new \RuntimeException('Access token fournisseur manquant. Lance d’abord la connexion OAuth.');
         }
 
         $response = $this->baseRequest((int) ($this->platformConfig($account->platform)['timeout'] ?? 20))
             ->attach('data', $binary, $fileName)
             ->post($baseUrl . $methodName, [
-                'access_token' => (string) $account->access_token,
+                'access_token' => $accessToken,
                 'file_name' => $fileName,
             ]);
 
@@ -342,7 +343,7 @@ class SupplierApiClient
 
     public function request(SupplierAccount $account, string $methodName, array $params = []): array
     {
-        if (empty($account->access_token)) {
+        if ($this->resolveAccountAccessToken($account) === '') {
             throw new \RuntimeException('Access token fournisseur manquant. Lance d’abord la connexion OAuth.');
         }
 
@@ -365,12 +366,13 @@ class SupplierApiClient
             $methodName = '/' . $methodName;
         }
 
-        $appKey = trim((string) ($account->app_key ?? ''));
-        $appSecret = (string) ($account->app_secret ?? '');
+        $appKey = $this->resolveAccountAppKey($account);
+        $appSecret = $this->resolveAccountAppSecret($account);
         if ($appKey === '' || $appSecret === '') {
             throw new \RuntimeException('App Key / App Secret manquants pour les endpoints buyer solution.');
         }
-        if (empty($account->access_token)) {
+        $accessToken = $this->resolveAccountAccessToken($account);
+        if ($accessToken === '') {
             throw new \RuntimeException('Access token fournisseur manquant. Lance d’abord la connexion OAuth.');
         }
 
@@ -380,7 +382,7 @@ class SupplierApiClient
         $headers = [
             'app_key' => $appKey,
             'timestamp' => $timestamp,
-            'access_token' => (string) $account->access_token,
+            'access_token' => $accessToken,
             'sign_method' => strtolower($signMethod),
             'sign' => $this->signEcoRequest($methodName, $normalizedParams, $appSecret, $signMethod),
         ];
@@ -409,7 +411,7 @@ class SupplierApiClient
 
     public function iopRequest(SupplierAccount $account, string $httpMethod, string $methodName, array $params = []): array
     {
-        if (empty($account->access_token)) {
+        if ($this->resolveAccountAccessToken($account) === '') {
             throw new \RuntimeException('Access token fournisseur manquant. Lance d’abord la connexion OAuth.');
         }
 
@@ -433,8 +435,9 @@ class SupplierApiClient
             throw new \RuntimeException('Base URL API non configurée pour ' . $account->platform);
         }
 
-        $appKey = trim((string) ($account->app_key ?? ''));
-        $appSecret = (string) ($account->app_secret ?? '');
+        $appKey = $this->resolveAccountAppKey($account);
+        $appSecret = $this->resolveAccountAppSecret($account);
+        $accessToken = $this->resolveAccountAccessToken($account);
         if ($appKey === '' || $appSecret === '') {
             throw new \RuntimeException('App Key / App Secret manquants pour les appels TOP.');
         }
@@ -449,7 +452,7 @@ class SupplierApiClient
             'app_key' => $appKey,
             'timestamp' => (string) round(microtime(true) * 1000),
             'sign_method' => $signMethod,
-            'access_token' => (string) $account->access_token,
+            'access_token' => $accessToken,
         ];
 
         $signingParams = array_merge($commonParams, $businessParams);
@@ -556,8 +559,8 @@ class SupplierApiClient
         array $businessParams,
         bool $includeAccessToken
     ): string {
-        $appKey = trim((string) ($account->app_key ?? ''));
-        $appSecret = (string) ($account->app_secret ?? '');
+        $appKey = $this->resolveAccountAppKey($account);
+        $appSecret = $this->resolveAccountAppSecret($account);
         if ($appKey === '' || $appSecret === '') {
             throw new \RuntimeException('App Key / App Secret manquants pour les appels GOP.');
         }
@@ -576,7 +579,7 @@ class SupplierApiClient
         ];
 
         if ($includeAccessToken) {
-            $commonParams['access_token'] = (string) $account->access_token;
+            $commonParams['access_token'] = $this->resolveAccountAccessToken($account);
         }
 
         $signingParams = array_merge($commonParams, $businessParams);
@@ -1599,6 +1602,45 @@ class SupplierApiClient
     private function platformConfig(string $platform): array
     {
         return (array) data_get(config('services.sourcing.platforms'), $platform, []);
+    }
+
+    private function resolveAccountAppKey(SupplierAccount $account): string
+    {
+        $config = $this->platformConfig($account->platform);
+        $fallback = trim((string) ($config['local_test_app_key'] ?? ''));
+        $primary = trim((string) ($account->app_key ?? ''));
+
+        if ((bool) ($config['local_test_force_credentials'] ?? false) && $fallback !== '') {
+            return $fallback;
+        }
+
+        return $primary !== '' ? $primary : $fallback;
+    }
+
+    private function resolveAccountAppSecret(SupplierAccount $account): string
+    {
+        $config = $this->platformConfig($account->platform);
+        $fallback = (string) ($config['local_test_app_secret'] ?? '');
+        $primary = (string) ($account->app_secret ?? '');
+
+        if ((bool) ($config['local_test_force_credentials'] ?? false) && $fallback !== '') {
+            return $fallback;
+        }
+
+        return $primary !== '' ? $primary : $fallback;
+    }
+
+    private function resolveAccountAccessToken(SupplierAccount $account): string
+    {
+        $config = $this->platformConfig($account->platform);
+        $fallback = trim((string) ($config['local_test_access_token'] ?? ''));
+        $primary = trim((string) ($account->access_token ?? ''));
+
+        if ((bool) ($config['local_test_force_credentials'] ?? false) && $fallback !== '') {
+            return $fallback;
+        }
+
+        return $primary !== '' ? $primary : $fallback;
     }
 
     private function normalizeMoney(mixed $value): ?float

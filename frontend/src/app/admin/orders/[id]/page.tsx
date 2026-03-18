@@ -135,6 +135,7 @@ type OrderSupplierFulfillment = {
   refund_address_id?: string | null;
   asf_status?: string | null;
   asf_sub_status?: string | null;
+  latest_request_payload_json?: unknown;
   latest_response_payload_json?: unknown;
   latest_document_type?: string | null;
   document_url?: string | null;
@@ -592,6 +593,15 @@ export default function AdminOrderDetailPage() {
       return String(fulfillment.latest_response_payload_json);
     }
   }, [fulfillment?.latest_response_payload_json]);
+  const dsRawRequestPreview = useMemo(() => {
+    if (!fulfillment?.latest_request_payload_json) return "";
+
+    try {
+      return JSON.stringify(fulfillment.latest_request_payload_json, null, 2);
+    } catch {
+      return String(fulfillment.latest_request_payload_json);
+    }
+  }, [fulfillment?.latest_request_payload_json]);
   const invoiceRequestData = useMemo(
     () => (fulfillment?.metadata_json?.invoice_request_data ?? null) as InvoiceRequestData | null,
     [fulfillment?.metadata_json],
@@ -1263,6 +1273,7 @@ export default function AdminOrderDetailPage() {
           <div className="mt-4 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 md:grid-cols-2">
             <div>Mode courant: {order?.currentSupplierFulfillment?.shipping_mode ?? order?.supplier_shipping_mode ?? "—"}</div>
             <div>ASF status: {order?.currentSupplierFulfillment?.asf_status ?? "—"}</div>
+            <div>Compte DS: {order?.currentSupplierFulfillment?.supplier_account?.label ?? (order?.currentSupplierFulfillment?.supplier_account_id ? `#${order.currentSupplierFulfillment.supplier_account_id}` : "—")}</div>
             <div>Provider: {order?.currentSupplierFulfillment?.shipping_provider_name ?? order?.supplier_shipping_provider_name ?? "—"}</div>
             <div>Tracking: {order?.currentSupplierFulfillment?.tracking_number ?? order?.supplier_tracking_number ?? "—"}</div>
             <div>Package ID: {order?.currentSupplierFulfillment?.package_id ?? order?.supplier_package_id ?? "—"}</div>
@@ -1281,6 +1292,13 @@ export default function AdminOrderDetailPage() {
             <div>Dernière synchro Order.get: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.synced_at as string | null | undefined)}</div>
             <div>Dernière synchro tracking DS: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.ds_tracking_sync?.synced_at as string | null | undefined)}</div>
           </div>
+
+          {!dsOrderCreate?.success && dsRawRequestPreview ? (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Dernière requête DS envoyée</div>
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">{dsRawRequestPreview}</pre>
+            </div>
+          ) : null}
 
           {!dsOrderCreate?.success && dsRawResponsePreview ? (
             <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">

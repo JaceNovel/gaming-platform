@@ -67,6 +67,7 @@ class SupplierOAuthService
             'refresh_token_expires_at' => $tokens['refresh_token_expires_at'] ?? $account->refresh_token_expires_at,
             'resource_owner' => $tokens['resource_owner'] ?? $account->resource_owner,
             'member_id' => $tokens['member_id'] ?? $account->member_id,
+            'scopes_json' => $tokens['scopes_json'] ?? $account->scopes_json,
             'last_sync_at' => now(),
             'last_error_at' => null,
             'last_error_message' => null,
@@ -86,6 +87,7 @@ class SupplierOAuthService
             'refresh_token' => $parsed['refresh_token'] ?? $account->refresh_token,
             'access_token_expires_at' => $parsed['access_token_expires_at'] ?? $account->access_token_expires_at,
             'refresh_token_expires_at' => $parsed['refresh_token_expires_at'] ?? $account->refresh_token_expires_at,
+            'scopes_json' => $parsed['scopes_json'] ?? $account->scopes_json,
             'last_sync_at' => now(),
             'last_error_at' => null,
             'last_error_message' => null,
@@ -314,8 +316,17 @@ class SupplierOAuthService
 
     private function buildIoAuthCommonParams(SupplierAccount $account, string $apiName, array $bizParams): array
     {
-        $appKey = trim((string) ($account->app_key ?? ''));
-        $appSecret = (string) ($account->app_secret ?? '');
+        $config = (array) data_get(config('services.sourcing.platforms'), $account->platform, []);
+        $fallbackAppKey = trim((string) ($config['local_test_app_key'] ?? ''));
+        $fallbackAppSecret = (string) ($config['local_test_app_secret'] ?? '');
+        $forceLocalCredentials = (bool) ($config['local_test_force_credentials'] ?? false);
+
+        $appKey = $forceLocalCredentials && $fallbackAppKey !== ''
+            ? $fallbackAppKey
+            : (trim((string) ($account->app_key ?? '')) ?: $fallbackAppKey);
+        $appSecret = $forceLocalCredentials && $fallbackAppSecret !== ''
+            ? $fallbackAppSecret
+            : ((string) ($account->app_secret ?? '') ?: $fallbackAppSecret);
         if ($appKey === '' || $appSecret === '') {
             throw new \RuntimeException('App Key / App Secret manquants pour l’échange OAuth IOP.');
         }
