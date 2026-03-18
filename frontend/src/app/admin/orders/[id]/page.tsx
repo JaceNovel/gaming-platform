@@ -61,12 +61,10 @@ type DsFreightCheckItem = {
   product_name?: string | null;
   product_id?: string | null;
   sku_id?: string | null;
-  raw_sku_id?: string | null;
   requested_logistics_service_name?: string | null;
   available_services?: string[] | null;
   success?: boolean | null;
   is_valid?: boolean | null;
-  no_services_returned?: boolean | null;
   error_message?: string | null;
   request_payload?: unknown;
   response?: unknown;
@@ -1277,8 +1275,8 @@ export default function AdminOrderDetailPage() {
                     <div key={`${item.product_id ?? "item"}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
                       <div className="font-semibold text-slate-900">{item.product_name ?? `Ligne DS #${index + 1}`}</div>
                       <div className="mt-1">Service demandé: {item.requested_logistics_service_name ?? "—"}</div>
-                      <div>SKU DS: {item.sku_id ?? item.raw_sku_id ?? "—"}</div>
-                      <div>Résultat: {item.success === false ? "Échec appel freight" : item.no_services_returned ? "Aucun service retourné" : item.is_valid === false ? "Service refusé" : item.is_valid === true ? "Service valide" : "Réponse à vérifier"}</div>
+                      <div>SKU DS: {item.sku_id ?? "—"}</div>
+                      <div>Résultat: {item.success === false ? "Échec appel freight" : item.is_valid === false ? "Service refusé" : item.is_valid === true ? "Service valide" : "Réponse à vérifier"}</div>
                       {item.error_message ? <div className="mt-1 text-rose-600">{item.error_message}</div> : null}
                       <div className="mt-1">Services disponibles: {(item.available_services ?? []).length ? (item.available_services ?? []).join(", ") : "—"}</div>
                     </div>
