@@ -1083,11 +1083,6 @@ class AliExpressOrderFulfillmentService
 
     private function resolveDsSkuAttr(array $skuPayload, array $variantAttributes): ?string
     {
-        $direct = $this->nullableString($skuPayload['skuAttr'] ?? $skuPayload['sku_attr'] ?? null);
-        if ($direct) {
-            return $direct;
-        }
-
         $pairs = [];
         foreach ($variantAttributes as $key => $value) {
             if (is_array($value)) {
@@ -1105,7 +1100,33 @@ class AliExpressOrderFulfillmentService
             }
         }
 
-        return $pairs !== [] ? implode(';', $pairs) : null;
+        if ($pairs !== []) {
+            return implode(';', $pairs);
+        }
+
+        $direct = $this->nullableString($skuPayload['skuAttr'] ?? $skuPayload['sku_attr'] ?? null);
+        if (! $direct) {
+            return null;
+        }
+
+        $normalizedSegments = [];
+        foreach (preg_split('/\s*;\s*/', $direct) ?: [] as $segment) {
+            $segment = trim((string) $segment);
+            if ($segment === '') {
+                continue;
+            }
+
+            $segment = trim((string) preg_replace('/#.*/', '', $segment));
+            if (preg_match('/^\d+:\d+$/', $segment) === 1) {
+                $normalizedSegments[] = $segment;
+            }
+        }
+
+        if ($normalizedSegments !== []) {
+            return implode(';', $normalizedSegments);
+        }
+
+        return $direct;
     }
 
     private function buildDsOutOrderId(Order $order): string
