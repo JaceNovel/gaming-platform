@@ -32,10 +32,10 @@ class AliExpressBulkCatalogImportService
         $requestPayload['page_size'] = min($limit, max(1, (int) ($requestPayload['page_size'] ?? $limit)));
 
         $response = $this->supplierApiClient->iopOperation($account, $operation, $requestPayload);
-        $rows = array_slice($this->extractAffiliateProducts((array) ($response['result'] ?? [])), 0, $limit);
+        $rows = array_slice($this->extractAffiliateProductsFromResponse($response), 0, $limit);
 
         if ($rows === []) {
-            throw new \RuntimeException('Aucun produit exploitable n\'a ete retourne par l\'operation AliExpress.');
+            throw new \RuntimeException('Aucun produit exploitable n\'a ete retourne par l\'operation AliExpress. Verifie les mots-cles, le pays de destination et la structure reponse du provider.');
         }
 
         $autoCreateProducts = (bool) ($options['auto_create_products'] ?? true);
@@ -107,24 +107,57 @@ class AliExpressBulkCatalogImportService
         return $this->syncLocalProduct($supplierProduct, $resolvedPayload, $options, $publishProducts);
     }
 
-    private function extractAffiliateProducts(array $result): array
+    private function extractAffiliateProductsFromResponse(array $response): array
     {
-        $queue = [$result];
+        $candidates = [
+            $response['result'] ?? null,
+            data_get($response, 'raw.result.result'),
+            data_get($response, 'raw.resp_result.result'),
+            data_get($response, 'raw.result'),
+            data_get($response, 'raw.resp_result'),
+            $response['raw'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $rows = $this->extractAffiliateProducts($candidate);
+            if ($rows !== []) {
+                return $rows;
+            }
+        }
+
+        return [];
+    }
+
+    private function extractAffiliateProducts(mixed $result): array
+    {
+        $queue = [$this->normalizeAffiliateNode($result)];
 
         while ($queue !== []) {
-            $node = array_shift($queue);
+            $node = $this->normalizeAffiliateNode(array_shift($queue));
 
             if (!is_array($node)) {
                 continue;
             }
 
-            if (array_is_list($node) && $node !== [] && $this->looksLikeAffiliateProductRow($node[0] ?? null)) {
-                return array_values(array_filter($node, fn ($item) => $this->looksLikeAffiliateProductRow($item)));
+            if ($this->looksLikeAffiliateProductRow($node)) {
+                return [$node];
+            }
+
+            if (array_is_list($node) && $node !== []) {
+                $rows = array_values(array_filter(array_map(
+                    fn ($item) => $this->normalizeAffiliateNode($item),
+                    $node
+                ), fn ($item) => $this->looksLikeAffiliateProductRow($item)));
+
+                if ($rows !== []) {
+                    return $rows;
+                }
             }
 
             foreach ($node as $value) {
-                if (is_array($value)) {
-                    $queue[] = $value;
+                $normalized = $this->normalizeAffiliateNode($value);
+                if (is_array($normalized)) {
+                    $queue[] = $normalized;
                 }
             }
         }
@@ -140,15 +173,54 @@ class AliExpressBulkCatalogImportService
 
         $keys = array_keys($value);
 
-        return collect([
+        $identityKeys = [
             'product_id',
             'item_id',
             'productId',
+            'itemId',
+        ];
+        $descriptorKeys = [
             'product_title',
             'productTitle',
+            'title',
+            'product_name',
             'promotion_link',
             'product_detail_url',
-        ])->contains(fn ($key) => in_array($key, $keys, true));
+            'product_main_image_url',
+            'app_sale_price',
+            'sale_price',
+            'target_sale_price',
+        ];
+
+        $hasIdentity = collect($identityKeys)->contains(fn ($key) => in_array($key, $keys, true));
+        $hasDescriptor = collect($descriptorKeys)->contains(fn ($key) => in_array($key, $keys, true));
+
+        return $hasIdentity && $hasDescriptor;
+    }
+
+    private function normalizeAffiliateNode(mixed $node): mixed
+    {
+        $current = $node;
+
+        for ($i = 0; $i < 2; $i++) {
+            if (!is_string($current)) {
+                break;
+            }
+
+            $trimmed = trim($current);
+            if ($trimmed === '' || (!str_starts_with($trimmed, '{') && !str_starts_with($trimmed, '['))) {
+                break;
+            }
+
+            $decoded = json_decode($trimmed, true);
+            if (!is_array($decoded)) {
+                break;
+            }
+
+            $current = $decoded;
+        }
+
+        return $current;
     }
 
     private function normalizeAffiliateRow(SupplierAccount $account, array $row, array $options): ?array
