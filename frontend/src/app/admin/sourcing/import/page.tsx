@@ -692,6 +692,7 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
   "ds-freight-query": stringifyTemplate({
     queryDeliveryReq: {
       locale: "fr_FR",
+      currency: "USD",
       shipToCountry: "TG",
       productId: "1005003784285827",
       selectedSkuId: "12000027158136202",
