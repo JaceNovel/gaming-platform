@@ -4,7 +4,7 @@ import type { MouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, ChevronLeft, ShieldCheck, ShoppingCart, Store, Truck } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
@@ -128,111 +128,6 @@ const getDelivery = (product: ApiProduct | null) =>
     display_section: product?.display_section ?? null,
     delivery_estimate_label: product?.delivery_estimate_label ?? null,
   });
-
-const getDelayText = (label?: string | null) => {
-  const raw = String(label ?? "").trim();
-  if (!raw) return null;
-  return raw.replace(/^⏱️\s*/, "").replace(/^Livraison estimée\s*:\s*/i, "").trim();
-};
-
-const getAvailabilityTone = (product: ApiProduct | null, stockCount: number, delayText?: string | null) => {
-  const stockMode = String(product?.stockType ?? product?.stock_type ?? "").toUpperCase();
-
-  if (stockMode === "IN_STOCK" && stockCount > 0) {
-    return {
-      label: "En stock immédiat",
-      className: "border-emerald-300/35 bg-emerald-400/12 text-emerald-100",
-      dotClassName: "bg-emerald-300",
-    };
-  }
-
-  if (delayText) {
-    return {
-      label: `Disponible sous ${delayText}`,
-      className: "border-cyan-300/25 bg-cyan-400/10 text-cyan-100",
-      dotClassName: "bg-cyan-300",
-    };
-  }
-
-  if (stockCount > 0) {
-    return {
-      label: "Disponible en boutique",
-      className: "border-emerald-300/35 bg-emerald-400/12 text-emerald-100",
-      dotClassName: "bg-emerald-300",
-    };
-  }
-
-  return {
-    label: "Disponibilité à confirmer",
-    className: "border-white/15 bg-white/8 text-white/80",
-    dotClassName: "bg-white/55",
-  };
-};
-
-function DesktopProductGallery({
-  images,
-  name,
-  activeIndex,
-  onActiveIndex,
-  onOpenLightbox,
-}: {
-  images: string[];
-  name: string;
-  activeIndex: number;
-  onActiveIndex: (idx: number) => void;
-  onOpenLightbox?: (src: string) => void;
-}) {
-  if (!images.length) {
-    return (
-      <div className="rounded-[34px] border border-white/10 bg-black/25 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.4)]">
-        <div className="flex aspect-[1.14/1] items-center justify-center rounded-[28px] border border-dashed border-white/15 bg-white/5 text-base font-semibold text-white/55">
-          Aucune image
-        </div>
-      </div>
-    );
-  }
-
-  const currentImage = toDisplayImageSrc(images[activeIndex] ?? images[0]) ?? images[activeIndex] ?? images[0];
-
-  return (
-    <div className="grid gap-5 xl:grid-cols-[88px_minmax(0,1fr)]">
-      <div className="flex max-h-[720px] flex-col gap-4 overflow-y-auto pr-1 scrollbar-soft">
-        {images.map((image, idx) => {
-          const thumb = toDisplayImageSrc(image) ?? image;
-          const active = idx === activeIndex;
-
-          return (
-            <button
-              key={`${image}-${idx}`}
-              type="button"
-              onClick={() => onActiveIndex(idx)}
-              className={
-                "group relative overflow-hidden rounded-[22px] border bg-white/5 transition " +
-                (active
-                  ? "border-cyan-300/60 shadow-[0_0_0_1px_rgba(125,211,252,0.35),0_24px_60px_rgba(8,145,178,0.22)]"
-                  : "border-white/10 hover:border-white/25")
-              }
-            >
-              <img src={thumb} alt="" className="h-20 w-full object-cover transition duration-300 group-hover:scale-[1.04]" loading="lazy" />
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,14,35,0.92),rgba(10,11,22,0.92))] p-6 shadow-[0_45px_120px_rgba(0,0,0,0.45)]">
-        <button
-          type="button"
-          className="group relative block w-full overflow-hidden rounded-[28px] border border-white/10 bg-black/30"
-          onClick={() => onOpenLightbox?.(currentImage)}
-          aria-label="Agrandir l'image"
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,0.2),transparent_30%)]" />
-          <img src={currentImage} alt={name} className="relative aspect-[1.14/1] w-full object-cover transition duration-500 group-hover:scale-[1.025]" loading="eager" />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function ImageCarousel({
   images,
@@ -527,9 +422,6 @@ export default function ProductDetailsPage() {
     () => Number(product?.discount_price ?? product?.price ?? 0) || 0,
     [product]
   );
-  const basePriceValue = useMemo(() => Number(product?.price ?? priceValue) || priceValue, [product?.price, priceValue]);
-  const shippingFeeValue = useMemo(() => Number(product?.shipping_fee ?? 0) || 0, [product?.shipping_fee]);
-
   const description =
     product?.description ?? product?.details?.description ??
     "Offre spéciale disponible dans la boutique PRIME Gaming.";
@@ -547,16 +439,10 @@ export default function ProductDetailsPage() {
   }, [product]);
   const tagsLabel = tags.length ? tags.join(", ") : "Aucun tag";
   const delivery = useMemo(() => getDelivery(product), [product]);
-  const delayText = useMemo(
-    () => getDelayText(delivery?.desktopLabel ?? product?.estimated_delivery_label ?? product?.delivery_estimate_label ?? null),
-    [delivery?.desktopLabel, product?.delivery_estimate_label, product?.estimated_delivery_label]
-  );
-  const availability = useMemo(() => getAvailabilityTone(product, stockCount, delayText), [delayText, product, stockCount]);
   const isRechargeDirect = useMemo(
     () => String(product?.display_section ?? "").toLowerCase() === "recharge_direct",
     [product?.display_section]
   );
-  const totalValue = priceValue + shippingFeeValue;
   const isAccessoryProduct = useMemo(() => {
     if (!product) return false;
 
@@ -570,10 +456,6 @@ export default function ProductDetailsPage() {
     () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
     [storefrontCountries, storefrontCountryCode]
   );
-  const galleryLabel = useMemo(() => {
-    if (brandLabel && brandLabel !== "N/A") return brandLabel;
-    return categoryLabel;
-  }, [brandLabel, categoryLabel]);
 
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
@@ -826,182 +708,65 @@ export default function ProductDetailsPage() {
             </div>
 
             <div className="mt-10 hidden gap-10 md:grid lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="relative md:col-span-2 lg:col-span-2">
-                <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_18%,rgba(34,211,238,0.14),transparent_22%),radial-gradient(circle_at_75%_10%,rgba(225,29,72,0.16),transparent_22%),radial-gradient(circle_at_62%_82%,rgba(99,102,241,0.14),transparent_22%)]" />
-                <div className="grid gap-8 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.9fr)_360px]">
-                  <div className="space-y-5">
-                    {displayVideo && mergedCarouselImages.length === 0 ? (
-                      <AutoLoopVideo
-                        src={displayVideo}
-                        title={product.name ?? product.title ?? "Produit"}
-                        aspectClass="aspect-[1.14/1]"
-                      />
-                    ) : (
-                      <DesktopProductGallery
-                        images={mergedCarouselImages}
-                        name={product.name ?? product.title ?? "Produit"}
-                        activeIndex={activeImageIndex}
-                        onActiveIndex={setActiveImageIndex}
-                        onOpenLightbox={setLightboxSrc}
-                      />
-                    )}
+              {displayVideo ? (
+                <AutoLoopVideo
+                  src={displayVideo}
+                  title={product.name ?? product.title ?? "Produit"}
+                  aspectClass="aspect-[4/3]"
+                />
+              ) : (
+                <ImageCarousel
+                  images={mergedCarouselImages}
+                  name={product.name ?? product.title ?? "Produit"}
+                  activeIndex={activeImageIndex}
+                  onActiveIndex={setActiveImageIndex}
+                  aspectClass="aspect-[4/3]"
+                  onOpenLightbox={setLightboxSrc}
+                />
+              )}
+
+              <div className="space-y-6">
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+                  <h1 className="text-3xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
+                  <p className="mt-3 text-3xl font-bold text-[#ff4b63]">{formatPrice(priceValue)}</p>
+                  <p className="mt-4 text-base text-white/70">{description}</p>
+
+                  <div className="mt-6">
+                    <h2 className="text-lg font-semibold text-white">Informations</h2>
+                    <div className="mt-4 divide-y divide-white/10 text-sm">
+                      {infoRows.map((row) => (
+                        <div key={row.label} className="flex items-center justify-between py-3">
+                          <span className="text-white/60">{row.label}</span>
+                          <span className="text-right font-semibold text-white">{row.value}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="space-y-6 rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(19,13,35,0.9),rgba(11,11,22,0.88))] p-8 shadow-[0_45px_120px_rgba(0,0,0,0.46)]">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.32em] text-white/45">
-                        <span>{galleryLabel}</span>
-                        <span className="text-white/20">•</span>
-                        <span>{categoryLabel}</span>
-                      </div>
-
-                      <h1 className="text-[2rem] font-black leading-[1.08] text-white">
-                        {product.name ?? product.title ?? "Produit"}
-                      </h1>
-
-                      <div className="flex flex-wrap items-center gap-3 text-sm text-white/70">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-amber-100">
-                          <div className="flex gap-1 text-[13px] leading-none">
-                            <span>★</span>
-                            <span>★</span>
-                            <span>★</span>
-                            <span>★</span>
-                            <span className="text-white/35">★</span>
-                          </div>
-                          <span className="font-semibold">Sélection gaming PRIME</span>
-                        </div>
-
-                        {delivery ? <DeliveryBadge delivery={delivery} /> : null}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[28px] border border-rose-400/20 bg-[linear-gradient(180deg,rgba(255,29,93,0.16),rgba(255,255,255,0.04))] p-6 shadow-[0_30px_80px_rgba(120,15,45,0.2)]">
-                      <div className="flex flex-wrap items-end justify-between gap-4">
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-100/75">Offre boutique</div>
-                          <div className="mt-3 flex items-end gap-3">
-                            <p className="text-5xl font-black leading-none text-white">{formatPrice(priceValue)}</p>
-                            {basePriceValue > priceValue ? (
-                              <p className="pb-1 text-base text-white/45 line-through">{formatPrice(basePriceValue)}</p>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        {basePriceValue > priceValue ? (
-                          <div className="rounded-full border border-rose-300/25 bg-rose-400/14 px-3 py-1.5 text-sm font-semibold text-rose-100">
-                            Économie {formatPrice(basePriceValue - priceValue)}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <p className="text-[15px] leading-7 text-white/72">{description}</p>
-
-                    {tags.length > 0 ? (
-                      <div className="space-y-3">
-                        <div className="text-sm font-semibold text-white">Univers du produit</div>
-                        <div className="flex flex-wrap gap-2.5">
-                          {tags.slice(0, 8).map((tag) => (
-                            <span key={tag} className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-xs font-semibold text-white/75">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    {!isRechargeDirect ? (
+                      <button
+                        type="button"
+                        onClick={handleAddToCart}
+                        className="rounded-full bg-[#d71933] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:bg-[#b51229]"
+                      >
+                        Ajouter au panier
+                      </button>
                     ) : null}
-
-                    <div className="space-y-3 rounded-[28px] border border-white/10 bg-black/22 p-5">
-                      <div className="text-xs font-semibold uppercase tracking-[0.28em] text-white/38">Détails</div>
-                      <div className="grid gap-3 text-sm text-white/76">
-                        {infoRows.map((row) => (
-                          <div key={row.label} className="flex items-center justify-between gap-4 border-b border-white/7 pb-3 last:border-b-0 last:pb-0">
-                            <span className="text-white/48">{row.label}</span>
-                            <span className="text-right font-semibold text-white">{row.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleBuyNow}
+                      className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-700"
+                    >
+                      {isRechargeDirect ? "Ouvrir le chat" : "Acheter maintenant"}
+                    </button>
                   </div>
 
-                  <aside className="h-fit rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(20,19,36,0.94),rgba(10,10,18,0.96))] p-7 shadow-[0_50px_140px_rgba(0,0,0,0.5)] xl:sticky xl:top-28">
-                    <div className="space-y-5">
-                      <div className="border-b border-white/8 pb-4">
-                        <div className="flex items-center justify-between gap-3 text-sm">
-                          <span className="text-white/55">Vendu par</span>
-                          <span className="inline-flex items-center gap-2 font-semibold text-white">
-                            <Store className="h-4 w-4 text-cyan-300" />
-                            PRIME Gaming
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${availability.className}`}>
-                          <span className={`h-2.5 w-2.5 rounded-full ${availability.dotClassName}`} />
-                          <span>{availability.label}</span>
-                        </div>
-
-                        {delayText ? (
-                          <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-4 py-2 text-sm font-semibold text-white/84">
-                            <Truck className="h-4 w-4 text-cyan-300" />
-                            <span>Délai: {delayText}</span>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <div className="space-y-3 rounded-[26px] border border-white/10 bg-black/20 p-5 text-sm">
-                        <div className="flex items-center justify-between gap-3 text-white/74">
-                          <span>Prix</span>
-                          <span className="font-semibold text-white">{formatPrice(priceValue)}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3 text-white/74">
-                          <span>Livraison</span>
-                          <span className="font-semibold text-white">{shippingFeeValue > 0 ? formatPrice(shippingFeeValue) : "0 FCFA"}</span>
-                        </div>
-                        <div className="border-t border-white/10 pt-3">
-                          <div className="flex items-center justify-between gap-3 text-base font-bold text-white">
-                            <span>Total</span>
-                            <span className="text-cyan-300">{formatPrice(totalValue)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3">
-                        <button
-                          type="button"
-                          onClick={handleBuyNow}
-                          className="rounded-[24px] bg-[linear-gradient(135deg,#0b4f62,#0f2434)] px-6 py-4 text-base font-bold text-cyan-50 shadow-[0_24px_60px_rgba(5,95,128,0.28)] transition hover:brightness-110"
-                        >
-                          {isRechargeDirect ? "Ouvrir le chat" : "Acheter"}
-                        </button>
-
-                        {!isRechargeDirect ? (
-                          <button
-                            type="button"
-                            onClick={handleAddToCart}
-                            className="rounded-[24px] border border-white/12 bg-white/6 px-6 py-4 text-base font-bold text-white transition hover:bg-white/10"
-                          >
-                            Panier
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <div className="space-y-3 rounded-[26px] border border-white/10 bg-white/5 p-5 text-sm text-white/72">
-                        <div className="flex items-center gap-3">
-                          <ShieldCheck className="h-4 w-4 text-cyan-300" />
-                          <span>Paiement suivi et support boutique réactif</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Check className="h-4 w-4 text-emerald-300" />
-                          <span>Contrôle qualité et disponibilité avant expédition</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Truck className="h-4 w-4 text-amber-300" />
-                          <span>Livraison adaptée au type de produit et au flux gaming</span>
-                        </div>
-                      </div>
+                  {delivery ? (
+                    <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                      <DeliveryBadge delivery={delivery} />
                     </div>
-                  </aside>
+                  ) : null}
                 </div>
               </div>
             </div>
