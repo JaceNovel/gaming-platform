@@ -412,8 +412,7 @@ class AliExpressOrderFulfillmentService
             throw $exception;
         }
 
-        $result = is_array($response['result'] ?? null) ? $response['result'] : [];
-        $normalized = $this->normalizeDsCreateResult($result);
+        $normalized = $this->normalizeDsCreateResult($response);
 
         $metadata = (array) ($fulfillment->metadata_json ?? []);
         $metadata['ds_order_create'] = array_merge($normalized, [
@@ -435,7 +434,7 @@ class AliExpressOrderFulfillmentService
             throw new \RuntimeException($normalized['error_message'] ?: 'La creation de commande DS AliExpress a echoue.');
         }
 
-        $externalOrderId = $normalized['order_list'][0] ?? $this->findFirstStringByKeys($result, ['order_id', 'orderId', 'trade_order_id', 'tradeOrderId']);
+        $externalOrderId = $normalized['order_list'][0] ?? $this->findFirstStringByKeys($response, ['order_id', 'orderId', 'trade_order_id', 'tradeOrderId']);
         $supplierStatus = $normalized['payment_warning']
             ? Order::SUPPLIER_STATUS_PENDING
             : Order::SUPPLIER_STATUS_PAID;
@@ -970,16 +969,29 @@ class AliExpressOrderFulfillmentService
         return Str::limit('gp-' . $order->id . '-' . $reference, 64, '');
     }
 
-    private function normalizeDsCreateResult(array $result): array
+    private function normalizeDsCreateResult(array $payload): array
     {
         $orderList = array_values(array_filter(array_map(
             static fn ($value) => trim((string) $value),
-            Arr::wrap($result['order_list'] ?? $result['orderList'] ?? [])
+            Arr::wrap($this->findFirstArrayByKeys($payload, ['order_list', 'orderList']) ?? [])
         )));
-        $rawSuccess = filter_var($result['is_success'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-        $errorCode = $this->nullableString($result['error_code'] ?? $result['errorCode'] ?? null);
-        $remoteErrorMessage = $this->nullableString($result['error_msg'] ?? $result['errorMessage'] ?? null);
+
+        if ($orderList === []) {
+            $singleOrderId = $this->findFirstStringByKeys($payload, ['order_id', 'orderId', 'trade_order_id', 'tradeOrderId']);
+            if ($singleOrderId !== null) {
+                $orderList = [$singleOrderId];
+            }
+        }
+
+        $rawSuccess = $this->findFirstBooleanByKeys($payload, ['is_success', 'isSuccess', 'success']);
+        $errorCode = $this->findFirstStringByKeys($payload, ['error_code', 'errorCode']);
+        $remoteErrorMessage = $this->findFirstStringByKeys($payload, ['error_msg', 'errorMessage', 'error_message', 'sub_msg', 'subMessage']);
+        $requestId = $this->findFirstStringByKeys($payload, ['request_id', 'requestId']);
         $success = $orderList !== [] || ($rawSuccess === true && $errorCode === null && $remoteErrorMessage === null);
+
+        $resolvedErrorMessage = $success
+            ? null
+            : $this->describeDsCreateError($errorCode, $remoteErrorMessage, $requestId);
 
         return [
             'success' => $success,
@@ -987,16 +999,17 @@ class AliExpressOrderFulfillmentService
             'order_list' => $orderList,
             'error_code' => $errorCode,
             'remote_error_message' => $remoteErrorMessage,
+            'request_id' => $requestId,
             'payment_warning' => $success && ($errorCode !== null || $remoteErrorMessage !== null)
                 ? ($remoteErrorMessage ?: $errorCode)
                 : null,
-            'error_message' => $success ? null : $this->describeDsCreateError($errorCode, $remoteErrorMessage),
+            'error_message' => $resolvedErrorMessage,
         ];
     }
 
-    private function describeDsCreateError(?string $errorCode, ?string $remoteMessage): string
+    private function describeDsCreateError(?string $errorCode, ?string $remoteMessage, ?string $requestId = null): string
     {
-        return match ($errorCode) {
+        $message = match ($errorCode) {
             'B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL' => 'Adresse fournisseur hub invalide pour AliExpress. Verifie le draft d adresse France.',
             'B_DROPSHIPPER_DELIVERY_ADDRESS_CPF_CN_INVALID', 'B_DROPSHIPPER_DELIVERY_ADDRESS_CPF_NOT_MATCH' => 'Le document fiscal demande par AliExpress est invalide pour cette destination.',
             'BLACKLIST_BUYER_IN_LIST', 'USER_ACCOUNT_DISABLED' => 'Le compte AliExpress connecte est invalide ou desactive. Essaie un autre compte fournisseur.',
@@ -1007,6 +1020,12 @@ class AliExpressOrderFulfillmentService
             'ERROR_WHEN_BUILD_FOR_PLACE_ORDER', 'A001_ORDER_CANNOT_BE_PLACED', 'A002_INVALID_ZONE', 'A003_SUSPICIOUS_BUYER', 'A004_CANNOT_USER_COUPON', 'A005_INVALID_COUNTRIES', 'A006_INVALID_ACCOUNT_INFO' => 'AliExpress refuse la creation de commande DS pour cette combinaison compte/zone/promotion.',
             default => $remoteMessage ?: 'La creation de commande DS AliExpress a echoue.',
         };
+
+        if ($requestId !== null && !str_contains($message, 'request_id')) {
+            $message .= ' request_id=' . $requestId;
+        }
+
+        return $message;
     }
 
     private function throwDropshippingPermissionExceptionIfNeeded(string $operation, SupplierAccount $account, \RuntimeException $exception): void
@@ -1207,6 +1226,59 @@ class AliExpressOrderFulfillmentService
                     $stringValue = trim((string) $value);
                     if ($stringValue !== '') {
                         return $stringValue;
+                    }
+                }
+
+                if (is_array($value)) {
+                    $queue[] = $value;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function findFirstArrayByKeys(array $payload, array $keys): ?array
+    {
+        $needle = array_flip(array_map(static fn ($key) => strtolower($key), $keys));
+        $queue = [$payload];
+
+        while ($queue !== []) {
+            $node = array_shift($queue);
+            if (!is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $key => $value) {
+                if (is_string($key) && isset($needle[strtolower($key)]) && is_array($value)) {
+                    return $value;
+                }
+
+                if (is_array($value)) {
+                    $queue[] = $value;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function findFirstBooleanByKeys(array $payload, array $keys): ?bool
+    {
+        $needle = array_flip(array_map(static fn ($key) => strtolower($key), $keys));
+        $queue = [$payload];
+
+        while ($queue !== []) {
+            $node = array_shift($queue);
+            if (!is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $key => $value) {
+                if (is_string($key) && isset($needle[strtolower($key)]) && !is_array($value)) {
+                    $resolved = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                    if ($resolved !== null) {
+                        return $resolved;
                     }
                 }
 
