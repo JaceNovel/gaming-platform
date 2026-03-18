@@ -57,6 +57,25 @@ type ApiProduct = {
 
 const formatPrice = (value: number) => `${new Intl.NumberFormat("fr-FR").format(Math.max(0, value))} FCFA`;
 
+const sanitizeCustomerDescription = (value: string | null | undefined): string => {
+  const cleaned = String(value ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => {
+      const normalized = line.toLowerCase();
+
+      return !(
+        normalized.startsWith("import automatique aliexpress")
+        || normalized.startsWith("source:")
+        || normalized.startsWith("prix source:")
+      );
+    })
+    .join("\n")
+    .trim();
+
+  return cleaned;
+};
+
 const extractImage = (product: ApiProduct | null): string | null => {
   if (!product) return null;
   if (product.image_url) return product.image_url;
@@ -299,6 +318,7 @@ export default function ProductDetailsPage() {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [storefrontCountries, setStorefrontCountries] = useState<StorefrontCountry[]>([]);
   const [storefrontCountryCode, setStorefrontCountryCode] = useState("TG");
+  const [redirectingToAccessories, setRedirectingToAccessories] = useState(false);
   const id = params?.id;
 
   useEffect(() => {
@@ -423,8 +443,8 @@ export default function ProductDetailsPage() {
     [product]
   );
   const description =
-    product?.description ?? product?.details?.description ??
-    "Offre spéciale disponible dans la boutique PRIME Gaming.";
+    sanitizeCustomerDescription(product?.description ?? product?.details?.description)
+    || "Offre spéciale disponible dans la boutique PRIME Gaming.";
   const categoryLabel = product?.category_entity?.name ?? product?.category ?? "—";
   const brandLabel = product?.brand ?? product?.details?.brand ?? "N/A";
   const stockCount = useMemo(() => {
@@ -452,6 +472,15 @@ export default function ProductDetailsPage() {
 
     return String(product.type ?? "").toLowerCase() === "item" && Boolean(product.shipping_required ?? true);
   }, [product]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!product || !isAccessoryProduct) return;
+    if (!window.matchMedia("(min-width: 768px)").matches) return;
+
+    setRedirectingToAccessories(true);
+    router.replace("/accessoires");
+  }, [isAccessoryProduct, product, router]);
   const activeStorefrontCountry = useMemo(
     () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
     [storefrontCountries, storefrontCountryCode]
@@ -557,7 +586,7 @@ export default function ProductDetailsPage() {
 
   const infoRows: Array<{ label: string; value: React.ReactNode }> = [
     { label: "Catégorie", value: categoryLabel },
-    ...(delivery ? [{ label: "Livraison", value: <DeliveryBadge delivery={delivery} /> }] : []),
+    ...(delivery ? [{ label: "Livraison", value: isAccessoryProduct ? "Livraison disponible" : <DeliveryBadge delivery={delivery} /> }] : []),
     { label: "Marque", value: brandLabel ?? "N/A" },
     { label: "Stock", value: `${stockCount} unité${stockCount > 1 ? "s" : ""}` },
     { label: "Tags", value: tagsLabel },
@@ -615,7 +644,7 @@ export default function ProductDetailsPage() {
           </div>
         )}
 
-        {!loading && !error && product && (
+        {!loading && !error && product && !redirectingToAccessories && (
           <>
             <div className="mt-8 space-y-5 md:hidden">
               <div className="rounded-[32px] border border-white/10 bg-white/5 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">

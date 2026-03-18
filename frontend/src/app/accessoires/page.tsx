@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Search, Sparkles } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { emitCartUpdated } from "@/lib/cartEvents";
@@ -45,6 +46,13 @@ const parseNumber = (value: any): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const normalizeSearchText = (value: any): string =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
 const productDisplayName = (p: AccessoryProduct) => String(p.title ?? p.name ?? "Produit").trim() || "Produit";
 
 const extractImage = (p: AccessoryProduct): string | null => {
@@ -70,6 +78,24 @@ const normalizeCategoryKey = (value: any): AccessoryCategoryKey | null => {
   if (key === "mobile") return "mobile";
   if (key === "setup_comfort" || key === "setup" || key === "comfort") return "setup_comfort";
   return null;
+};
+
+const getCustomerDeliveryText = (): string => "Livraison disponible";
+
+const matchesSearch = (product: AccessoryProduct, query: string): boolean => {
+  if (!query) return true;
+
+  const haystack = [
+    product.title,
+    product.name,
+    product.accessory_subcategory,
+    product.accessory_category,
+  ]
+    .map((value) => normalizeSearchText(value))
+    .filter(Boolean)
+    .join(" ");
+
+  return haystack.includes(query);
 };
 
 const defaultDeliveryEstimate = (p: AccessoryProduct): string => {
@@ -153,6 +179,8 @@ export default function AccessoiresPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<AccessoryProduct[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const [shippingOpen, setShippingOpen] = useState(false);
   const [shippingMapsUrl, setShippingMapsUrl] = useState("");
@@ -162,6 +190,8 @@ export default function AccessoiresPage() {
   const [pendingAction, setPendingAction] = useState<{ kind: "buy" | "cart"; product: AccessoryProduct } | null>(null);
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const searchCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   useEffect(() => {
     const existing = readShippingInfo();
@@ -169,6 +199,14 @@ export default function AccessoiresPage() {
     setShippingMapsUrl(existing.mapsUrl ?? "");
     setShippingCity(existing.city ?? "");
     setShippingPhone(existing.phone ?? "");
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (searchCloseTimeoutRef.current) {
+        clearTimeout(searchCloseTimeoutRef.current);
+      }
+    };
   }, []);
 
   const persistShipping = () => {
@@ -266,6 +304,11 @@ export default function AccessoiresPage() {
     };
   }, []);
 
+  const filteredProducts = useMemo(() => {
+    const query = normalizeSearchText(deferredSearchQuery);
+    return products.filter((product) => matchesSearch(product, query));
+  }, [deferredSearchQuery, products]);
+
   const grouped = useMemo(() => {
     const byCat: Record<AccessoryCategoryKey, AccessoryProduct[]> = {
       audio: [],
@@ -273,17 +316,50 @@ export default function AccessoiresPage() {
       mobile: [],
       setup_comfort: [],
     };
-    for (const p of products) {
+    for (const p of filteredProducts) {
       const key = normalizeCategoryKey(p.accessory_category);
       if (!key) continue;
       byCat[key].push(p);
     }
     return byCat;
-  }, [products]);
+  }, [filteredProducts]);
+
+  const searchSuggestions = useMemo(() => {
+    const query = normalizeSearchText(searchQuery);
+    if (!query) return [] as AccessoryProduct[];
+
+    return filteredProducts
+      .slice()
+      .sort((left, right) => {
+        const leftName = normalizeSearchText(productDisplayName(left));
+        const rightName = normalizeSearchText(productDisplayName(right));
+        const leftStarts = leftName.startsWith(query) ? 1 : 0;
+        const rightStarts = rightName.startsWith(query) ? 1 : 0;
+
+        if (leftStarts !== rightStarts) return rightStarts - leftStarts;
+        return leftName.localeCompare(rightName);
+      })
+      .slice(0, 6);
+  }, [filteredProducts, searchQuery]);
 
   const handleScrollTo = (key: AccessoryCategoryKey) => {
     const el = sectionRefs.current[key];
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleSuggestionSelect = (product: AccessoryProduct) => {
+    const category = normalizeCategoryKey(product.accessory_category);
+
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches) {
+      setSearchQuery(productDisplayName(product));
+      setSearchOpen(false);
+      if (category) {
+        window.setTimeout(() => handleScrollTo(category), 0);
+      }
+      return;
+    }
+
+    router.push(`/produits/${encodeURIComponent(String(product.id))}`);
   };
 
   return (
@@ -298,7 +374,7 @@ export default function AccessoiresPage() {
               <div>
                 <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Livraison</p>
                 <h2 className="mt-1 text-lg font-semibold">Lien Google Maps + Ville + Téléphone</h2>
-                <p className="mt-1 text-sm text-white/60">Adresse locale client conservée chez nous pour la livraison finale. Le fournisseur utilise seulement le hub France-Lomé.</p>
+                <p className="mt-1 text-sm text-white/60">Renseigne une adresse locale claire pour faciliter la livraison finale.</p>
               </div>
               <button
                 type="button"
@@ -399,9 +475,92 @@ export default function AccessoiresPage() {
                 ))}
               </div>
             </div>
+
+            <div className="relative mt-5 max-w-2xl">
+              <div className="flex items-center gap-3 rounded-[24px] border border-white/12 bg-white/8 px-4 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+                <Search className="h-5 w-5 text-cyan-200/85" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onFocus={() => {
+                    if (searchCloseTimeoutRef.current) {
+                      clearTimeout(searchCloseTimeoutRef.current);
+                    }
+                    setSearchOpen(true);
+                  }}
+                  onBlur={() => {
+                    searchCloseTimeoutRef.current = setTimeout(() => setSearchOpen(false), 120);
+                  }}
+                  placeholder="Rechercher un casque, clavier, manette, support..."
+                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35 md:text-base"
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSearchOpen(false);
+                    }}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/75 transition hover:bg-white/10"
+                  >
+                    Effacer
+                  </button>
+                ) : (
+                  <span className="hidden items-center gap-1 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100 md:inline-flex">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Suggestions en direct
+                  </span>
+                )}
+              </div>
+
+              {searchOpen && searchSuggestions.length > 0 ? (
+                <div className="absolute z-20 mt-3 w-full overflow-hidden rounded-[24px] border border-white/12 bg-[#0a0715]/95 p-2 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+                  {searchSuggestions.map((product) => {
+                    const image = extractImage(product);
+                    const imageSrc = image ? (toDisplayImageSrc(image) ?? image) : null;
+                    const name = productDisplayName(product);
+                    const category = normalizeCategoryKey(product.accessory_category);
+
+                    return (
+                      <button
+                        key={`suggestion-${product.id}`}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => handleSuggestionSelect(product)}
+                        className="flex w-full items-center gap-3 rounded-[18px] px-3 py-2.5 text-left transition hover:bg-white/8"
+                      >
+                        <div className="h-12 w-12 flex-none overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                          {imageSrc ? (
+                            <img src={imageSrc} alt={name} className="h-full w-full object-cover" loading="lazy" />
+                          ) : (
+                            <div className="grid h-full w-full place-items-center text-xs text-white/55">PG</div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-white">{name}</div>
+                          <div className="mt-0.5 flex items-center gap-2 text-xs text-white/55">
+                            <span>{CATEGORY_ORDER.find((item) => item.key === category)?.label ?? "Accessoire"}</span>
+                            <span className="text-cyan-200">{formatFcfa(parseNumber(product.discount_price ?? product.price))}</span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           </header>
 
           <div className="mt-6 space-y-8">
+            {!loading && searchQuery.trim() && filteredProducts.length === 0 ? (
+              <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 text-sm text-white/70">
+                Aucun produit ne correspond à ta recherche.
+              </div>
+            ) : null}
+
             {error && (
               <div className="rounded-[28px] border border-rose-300/30 bg-rose-500/10 p-5 text-sm text-rose-100">
                 {error}
@@ -480,7 +639,7 @@ export default function AccessoiresPage() {
                                   ) : null}
                                   <div className="mt-2 flex items-end justify-between gap-2">
                                     <p className="text-base font-black text-cyan-200">{formatFcfa(price)}</p>
-                                    <p className="text-[11px] text-white/55">{defaultDeliveryEstimate(p)}</p>
+                                    <p className="text-[11px] text-white/55">{getCustomerDeliveryText()}</p>
                                   </div>
                                 </div>
 
@@ -503,13 +662,6 @@ export default function AccessoiresPage() {
                             const price = parseNumber(p.discount_price ?? p.price);
                             const fee = parseNumber(p.shipping_fee);
                             const total = price + fee;
-                            const badge = logisticsBadge(p.accessory_stock_mode);
-                            const badgeClass =
-                              badge.tone === "green"
-                                ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
-                                : badge.tone === "cyan"
-                                  ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-100"
-                                  : "border-amber-300/30 bg-amber-400/10 text-amber-100";
 
                             return (
                               <div
@@ -519,9 +671,7 @@ export default function AccessoiresPage() {
                                 <div className="flex gap-4">
                                   <div className="min-w-0 flex-1">
                                     <p className="text-xs uppercase tracking-[0.35em] text-white/45">{cat.label}</p>
-                                    <Link href={`/produits/${encodeURIComponent(String(p.id))}`} className="mt-2 block">
-                                      <h3 className="text-base font-semibold text-white line-clamp-2">{name}</h3>
-                                    </Link>
+                                    <h3 className="mt-2 text-base font-semibold text-white line-clamp-2">{name}</h3>
 
                                     {p.accessory_subcategory ? (
                                       <p className="mt-1 text-xs text-white/60">{p.accessory_subcategory}</p>
@@ -529,12 +679,12 @@ export default function AccessoiresPage() {
 
                                     <div className="mt-3 flex flex-wrap gap-2">
                                       <span
-                                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass}`}
+                                        className="inline-flex items-center rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100"
                                       >
-                                        {badge.label}
+                                        Livraison disponible
                                       </span>
                                       <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
-                                        Délai: {defaultDeliveryEstimate(p)}
+                                        Prix affiché avant paiement
                                       </span>
                                     </div>
 
@@ -583,10 +733,7 @@ export default function AccessoiresPage() {
                                     </div>
                                   </div>
 
-                                  <Link
-                                    href={`/produits/${encodeURIComponent(String(p.id))}`}
-                                    className="relative h-28 w-28 flex-none overflow-hidden rounded-2xl border border-white/10 bg-black/30"
-                                  >
+                                  <div className="relative h-28 w-28 flex-none overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                                     {imgSrc ? (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={imgSrc} alt={name} className="h-full w-full object-cover" loading="lazy" />
@@ -594,7 +741,7 @@ export default function AccessoiresPage() {
                                       <div className="grid h-full w-full place-items-center bg-white/10 text-xs text-white/60">Image</div>
                                     )}
                                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-l from-transparent to-black/15" />
-                                  </Link>
+                                  </div>
                                 </div>
                               </div>
                             );

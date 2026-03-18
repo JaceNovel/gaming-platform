@@ -1070,13 +1070,7 @@ class AliExpressBulkCatalogImportService
 
     private function buildDescription(SupplierProduct $supplierProduct, array $defaults): string
     {
-        $parts = [
-            'Import automatique AliExpress.',
-            $supplierProduct->source_url ? 'Source: ' . $supplierProduct->source_url : null,
-            !empty($defaults['source_unit_price']) ? 'Prix source: ' . $defaults['source_unit_price'] . ' ' . ($defaults['source_currency'] ?? 'USD') : null,
-        ];
-
-        return implode("\n", array_values(array_filter($parts)));
+        return '';
     }
 
     private function normalizeMoney(mixed $value): float
