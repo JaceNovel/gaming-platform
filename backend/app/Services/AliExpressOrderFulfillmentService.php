@@ -405,6 +405,45 @@ class AliExpressOrderFulfillmentService
         ];
 
         try {
+            $this->validateDsCreatePayload($order, $account, $payload);
+        } catch (\RuntimeException $exception) {
+            $normalized = [
+                'success' => false,
+                'is_success' => false,
+                'order_list' => [],
+                'error_code' => 'DRAFT_VALIDATION_FAILED',
+                'remote_error_message' => $exception->getMessage(),
+                'request_id' => null,
+                'payment_warning' => null,
+                'error_message' => $exception->getMessage(),
+            ];
+
+            $response = [
+                'validation_error' => [
+                    'message' => $exception->getMessage(),
+                    'payload_summary' => $this->summarizeDsCreatePayload($payload),
+                ],
+            ];
+
+            $metadata = (array) ($fulfillment->metadata_json ?? []);
+            $metadata['ds_order_create'] = array_merge($normalized, [
+                'created_at' => now()->toIso8601String(),
+            ]);
+
+            $fulfillment->fill([
+                'latest_request_payload_json' => $payload,
+                'latest_response_payload_json' => $response,
+                'metadata_json' => $metadata,
+                'last_synced_at' => now(),
+                'asf_status' => 'ds_order_failed',
+                'asf_sub_status' => 'DRAFT_VALIDATION_FAILED',
+            ]);
+            $fulfillment->save();
+
+            throw $exception;
+        }
+
+        try {
             $response = $this->supplierApiClient->iopOperation($account, 'ds-order-create', $payload);
         } catch (\RuntimeException $exception) {
             $this->throwDropshippingPermissionExceptionIfNeeded('ds-order-create', $account, $exception);
@@ -903,6 +942,94 @@ class AliExpressOrderFulfillmentService
         return array_values($items);
     }
 
+    private function validateDsCreatePayload(Order $order, SupplierAccount $account, array $payload): void
+    {
+        $request = is_array($payload['param_place_order_request4_open_api_d_t_o'] ?? null)
+            ? $payload['param_place_order_request4_open_api_d_t_o']
+            : [];
+        $items = array_values(array_filter(
+            is_array($request['product_items'] ?? null) ? $request['product_items'] : [],
+            static fn ($item) => is_array($item)
+        ));
+
+        if ($items === []) {
+            throw new \RuntimeException('Le draft DS ne contient aucun product_items exploitable.');
+        }
+
+        $order->loadMissing(['orderItems.product.productSupplierLinks.supplierProductSku.supplierProduct.supplierAccount']);
+
+        $physicalItems = [];
+        foreach ($order->orderItems as $orderItem) {
+            $product = $orderItem->product;
+            if (! $product || (! $orderItem->is_physical && ! $product->shipping_required)) {
+                continue;
+            }
+
+            $physicalItems[] = $orderItem;
+        }
+
+        $issues = [];
+        foreach ($items as $index => $item) {
+            $orderItem = $physicalItems[$index] ?? null;
+            $productLabel = $orderItem?->product?->name ?: ('Ligne DS #' . ($index + 1));
+
+            $productId = $this->nullableString($item['product_id'] ?? null);
+            if ($productId === null) {
+                $issues[] = $productLabel . ': product_id manquant.';
+            }
+
+            $logisticsServiceName = $this->nullableString($item['logistics_service_name'] ?? null);
+            if ($logisticsServiceName === null) {
+                $issues[] = $productLabel . ': logistics_service_name manquant. Ouvre le draft DS et choisis un service logistique AliExpress valide avant de creer la commande.';
+            }
+
+            if ($orderItem !== null) {
+                $link = $this->resolveDsProductLink($orderItem, $account->id);
+                $variantAttributes = is_array($link?->supplierProductSku?->variant_attributes_json ?? null)
+                    ? $link->supplierProductSku->variant_attributes_json
+                    : [];
+                $skuAttr = $this->nullableString($item['sku_attr'] ?? null);
+
+                if ($skuAttr === null && $variantAttributes !== []) {
+                    $issues[] = $productLabel . ': sku_attr manquant alors que le SKU DS contient des variations. Relie le produit au bon SKU DS puis regenere le draft.';
+                }
+            }
+        }
+
+        $payCurrency = $this->nullableString(data_get($payload, 'ds_extend_request.payment.pay_currency'));
+        if ($payCurrency !== null && strtoupper($payCurrency) !== 'USD') {
+            $issues[] = 'La devise DS doit rester USD pour la creation de commande AliExpress.';
+        }
+
+        if ($issues !== []) {
+            throw new \RuntimeException('Le draft DS est incomplet: ' . implode(' ', $issues));
+        }
+    }
+
+    private function summarizeDsCreatePayload(array $payload): array
+    {
+        $request = is_array($payload['param_place_order_request4_open_api_d_t_o'] ?? null)
+            ? $payload['param_place_order_request4_open_api_d_t_o']
+            : [];
+        $items = array_values(array_filter(
+            is_array($request['product_items'] ?? null) ? $request['product_items'] : [],
+            static fn ($item) => is_array($item)
+        ));
+
+        return array_filter([
+            'out_order_id' => $this->nullableString($request['out_order_id'] ?? null),
+            'pay_currency' => $this->nullableString(data_get($payload, 'ds_extend_request.payment.pay_currency')),
+            'product_items' => array_map(function (array $item): array {
+                return array_filter([
+                    'product_id' => $this->nullableString($item['product_id'] ?? null),
+                    'sku_attr' => $this->nullableString($item['sku_attr'] ?? null),
+                    'product_count' => $this->nullableString($item['product_count'] ?? null),
+                    'logistics_service_name' => $this->nullableString($item['logistics_service_name'] ?? null),
+                ], static fn ($value) => $value !== null && $value !== '');
+            }, $items),
+        ], static fn ($value) => $value !== null && $value !== '');
+    }
+
     private function resolveDsProductLink(OrderItem $orderItem, int $supplierAccountId): ?ProductSupplierLink
     {
         $product = $orderItem->product;
@@ -1018,7 +1145,7 @@ class AliExpressOrderFulfillmentService
             'INVENTORY_HOLD_ERROR' => 'Stock insuffisant ou indisponible cote AliExpress.',
             'REPEATED_ORDER_ERROR' => 'Commande dupliquee detectee par AliExpress.',
             'ERROR_WHEN_BUILD_FOR_PLACE_ORDER', 'A001_ORDER_CANNOT_BE_PLACED', 'A002_INVALID_ZONE', 'A003_SUSPICIOUS_BUYER', 'A004_CANNOT_USER_COUPON', 'A005_INVALID_COUNTRIES', 'A006_INVALID_ACCOUNT_INFO' => 'AliExpress refuse la creation de commande DS pour cette combinaison compte/zone/promotion.',
-            default => $remoteMessage ?: 'La creation de commande DS AliExpress a echoue.',
+            default => $remoteMessage ?: 'La creation de commande DS AliExpress a echoue. Verifie logistics_service_name, sku_attr et le compte DS utilise.',
         };
 
         if ($requestId !== null && !str_contains($message, 'request_id')) {
