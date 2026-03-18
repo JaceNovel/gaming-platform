@@ -102,6 +102,7 @@ type IopOperation =
   | "ds-order-create"
   | "ds-product-get"
   | "ds-product-wholesale-get"
+  | "ds-image-search-v2"
   | "ds-category-get"
   | "ds-feed-itemids-get"
   | "buyer-freight-calculate"
@@ -227,6 +228,7 @@ const ALIEXPRESS_IOP_OPERATIONS: IopOperation[] = [
   "ds-order-create",
   "ds-product-get",
   "ds-product-wholesale-get",
+  "ds-image-search-v2",
   "ds-category-get",
   "ds-feed-itemids-get",
   "buyer-freight-calculate",
@@ -324,6 +326,7 @@ const ALIEXPRESS_IOP_OPERATION_GROUPS: Array<{ label: string; operations: IopOpe
     operations: [
       "ds-product-get",
       "ds-product-wholesale-get",
+      "ds-image-search-v2",
       "ds-category-get",
       "ds-feed-itemids-get",
       "buyer-freight-calculate",
@@ -632,6 +635,17 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     target_currency: "USD",
     target_language: "fr",
     remove_personal_benefit: false,
+  }),
+  "ds-image-search-v2": stringifyTemplate({
+    param0: {
+      search_type: "similar",
+      image_base64: "BASE64_IMAGE_HERE",
+      currency: "USD",
+      lang: "en",
+      sort_type: "price",
+      sort_order: "ASC",
+      ship_to: "US",
+    },
   }),
   "ds-category-get": stringifyTemplate({
     categoryId: "21",

@@ -1102,6 +1102,17 @@ class SupplierApiClient
                 'request_id' => $response['request_id'] ?? null,
                 'raw' => $response,
             ],
+            'ds-image-search-v2' => [
+                'result' => $response['result'] ?? data_get($response, 'aliexpress_ds_image_searchV2_response.result') ?? null,
+                'products' => data_get($response, 'result.data.products')
+                    ?? data_get($response, 'result.data')
+                    ?? data_get($response, 'aliexpress_ds_image_searchV2_response.result.data.products')
+                    ?? data_get($response, 'aliexpress_ds_image_searchV2_response.result.data')
+                    ?? [],
+                'code' => $response['code'] ?? data_get($response, 'result.code') ?? data_get($response, 'aliexpress_ds_image_searchV2_response.result.code') ?? null,
+                'request_id' => $response['request_id'] ?? data_get($response, 'aliexpress_ds_image_searchV2_response.request_id') ?? null,
+                'raw' => $response,
+            ],
             'ds-category-get' => [
                 'result' => $response['result'] ?? null,
                 'code' => $response['code'] ?? null,
@@ -1344,6 +1355,7 @@ class SupplierApiClient
             'ds-order-create' => ['config_key' => 'ds_order_create_method', 'http_method' => 'POST', 'param_key' => null],
             'ds-product-get' => ['config_key' => 'ds_product_get_method', 'http_method' => 'POST', 'param_key' => null],
             'ds-product-wholesale-get' => ['config_key' => 'ds_product_wholesale_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ds-image-search-v2' => ['config_key' => 'ds_image_search_v2_method', 'http_method' => 'POST', 'param_key' => 'param0'],
             'ds-category-get' => ['config_key' => 'ds_category_get_method', 'http_method' => 'POST', 'param_key' => null],
             'ds-feed-itemids-get' => ['config_key' => 'ds_feed_itemids_get_method', 'http_method' => 'POST', 'param_key' => null],
             'buyer-freight-calculate' => ['config_key' => 'buyer_freight_calculate_method', 'http_method' => 'POST', 'param_key' => null],

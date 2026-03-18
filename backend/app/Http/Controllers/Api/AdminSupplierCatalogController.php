@@ -464,6 +464,7 @@ class AdminSupplierCatalogController extends Controller
             'ds-order-create',
             'ds-product-get',
             'ds-product-wholesale-get',
+            'ds-image-search-v2',
             'ds-category-get',
             'ds-feed-itemids-get',
             'buyer-freight-calculate',

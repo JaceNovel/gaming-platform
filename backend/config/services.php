@@ -146,6 +146,7 @@ return [
                 'ds_order_create_method' => env('ALIEXPRESS_DS_ORDER_CREATE_METHOD', 'aliexpress.ds.order.create'),
                 'ds_product_get_method' => env('ALIEXPRESS_DS_PRODUCT_GET_METHOD', 'aliexpress.ds.product.get'),
                 'ds_product_wholesale_get_method' => env('ALIEXPRESS_DS_PRODUCT_WHOLESALE_GET_METHOD', 'aliexpress.ds.product.wholesale.get'),
+                'ds_image_search_v2_method' => env('ALIEXPRESS_DS_IMAGE_SEARCH_V2_METHOD', 'aliexpress.ds.image.searchV2'),
                 'ds_category_get_method' => env('ALIEXPRESS_DS_CATEGORY_GET_METHOD', 'aliexpress.ds.category.get'),
                 'ds_feed_itemids_get_method' => env('ALIEXPRESS_DS_FEED_ITEMIDS_GET_METHOD', 'aliexpress.ds.feed.itemids.get'),
                 'buyer_freight_calculate_method' => env('ALIEXPRESS_BUYER_FREIGHT_CALCULATE_METHOD', 'aliexpress.logistics.buyer.freight.calculate'),
