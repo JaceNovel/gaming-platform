@@ -490,162 +490,197 @@ function CheckoutScreen() {
 
   return (
     <div className="min-h-screen pb-24">
-      <div className="mobile-shell py-6 space-y-6">
+      <div className="px-4 py-6 sm:px-6 lg:px-10 xl:px-14">
         <SectionTitle eyebrow="Checkout" label="Finaliser l'achat" />
 
-        <div className="glass-card rounded-2xl p-5 border border-white/10 space-y-3">
-          <p className="text-sm text-white/70">Produit sélectionné: #{isValidProduct ? productId : "-"}</p>
-
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-            <p className="text-sm font-semibold text-white">Récapitulatif</p>
-            <div className="mt-3 grid gap-1 text-sm">
-              <div className="flex items-center justify-between text-white/70">
-                <span>Montant</span>
-                <span className="font-semibold text-white">{Math.floor(estimatedTotal)} FCFA</span>
-              </div>
-            </div>
-          </div>
-
-          {shippingRequired ? (
-            <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm text-cyan-50">
-              <p className="font-semibold text-white">Expedition vers {destinationCountryCode} via notre hub logistique</p>
-              <p className="mt-1">Renseignez votre lien Google Maps, votre ville et votre téléphone pour la livraison locale finale.</p>
-              <p className="mt-1 text-xs text-cyan-100/80">Cette adresse client est conservée chez nous uniquement. Le fournisseur AliExpress reçoit uniquement l'adresse du hub France-Lomé.</p>
-              <p className="mt-1 text-xs text-cyan-100/80">Un tracking number est communique des l'expedition.</p>
-            </div>
-          ) : null}
-
-          {shippingRequired ? (
-            <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
-              <p className="text-sm font-semibold text-white">Adresse de livraison</p>
-              <p className="text-xs text-white/60">Lien Google Maps + ville + téléphone (obligatoire).</p>
-
-              <div className="space-y-2">
-                <label className="text-sm text-white/70">Lien Google Maps *</label>
-                <input
-                  type="text"
-                  value={shippingMapsUrl}
-                  onChange={(e) => {
-                    setShippingMapsUrl(e.target.value);
-                    setShippingStatus(null);
-                  }}
-                  placeholder="https://maps.google.com/..."
-                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-                />
-                <button
-                  type="button"
-                  onClick={fillCurrentPosition}
-                  className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/15"
-                >
-                  Ma position actuelle
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm text-white/70">Ville *</label>
-                <input
-                  type="text"
-                  value={shippingCity}
-                  onChange={(e) => setShippingCity(e.target.value)}
-                  placeholder="Ex: Douala"
-                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm text-white/70">Téléphone (WhatsApp) *</label>
-                <input
-                  type="text"
-                  value={shippingPhone}
-                  onChange={(e) => setShippingPhone(e.target.value)}
-                  placeholder="Ex: 690000000"
-                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-                />
-              </div>
-
-              {shippingStatus ? <p className="text-xs text-white/60">{shippingStatus}</p> : null}
-              {!isValidShippingInfo({ mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() }) ? (
-                <p className="text-xs text-amber-200">Merci de renseigner tous les champs.</p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-start justify-between gap-3">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)] xl:items-start">
+          <div className="glass-card rounded-[28px] border border-white/10 p-5 sm:p-6 xl:p-7">
+            <div className="mb-6 flex flex-col gap-3 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-white">Mode de paiement</p>
-                <p className="mt-1 text-xs text-white/60">Choisis dans la fenêtre PayPal, Wallet ou Mobile Money.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/70">Commande</p>
+                <p className="mt-2 text-lg font-semibold text-white">Produit sélectionné: #{isValidProduct ? productId : "-"}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setPaymentModalOpen(true)}
-                className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
-              >
-                Changer
-              </button>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left sm:min-w-[220px]">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/45">Montant</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{Math.floor(estimatedTotal)} FCFA</p>
+              </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-white">{selectedPaymentOption?.title ?? "Choisir un moyen"}</p>
-                  <p className="mt-1 text-xs text-white/60">{selectedPaymentOption?.description ?? "Sélectionne un mode de paiement avant de confirmer."}</p>
+            <div className="space-y-5">
+              {shippingRequired ? (
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:p-5 xl:p-6">
+                  <div className="flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-base font-semibold text-white">Adresse de livraison</p>
+                      <p className="mt-1 text-sm text-white/60">Lien Google Maps, ville et téléphone obligatoires.</p>
+                    </div>
+                    <span className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100">
+                      {destinationCountryCode}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(260px,0.75fr)]">
+                    <div className="space-y-2">
+                      <label className="text-sm text-white/70">Lien Google Maps *</label>
+                      <input
+                        type="text"
+                        value={shippingMapsUrl}
+                        onChange={(e) => {
+                          setShippingMapsUrl(e.target.value);
+                          setShippingStatus(null);
+                        }}
+                        placeholder="https://maps.google.com/..."
+                        className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={fillCurrentPosition}
+                      className="rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 xl:self-end"
+                    >
+                      Ma position actuelle
+                    </button>
+
+                    <div className="space-y-2">
+                      <label className="text-sm text-white/70">Ville *</label>
+                      <input
+                        type="text"
+                        value={shippingCity}
+                        onChange={(e) => setShippingCity(e.target.value)}
+                        placeholder="Ex: Lomé"
+                        className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm text-white/70">Téléphone (WhatsApp) *</label>
+                      <input
+                        type="text"
+                        value={shippingPhone}
+                        onChange={(e) => setShippingPhone(e.target.value)}
+                        placeholder="Ex: 90000000"
+                        className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                      />
+                    </div>
+                  </div>
+
+                  {shippingStatus ? <p className="mt-4 text-xs text-white/60">{shippingStatus}</p> : null}
+                  {!isValidShippingInfo({ mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() }) ? (
+                    <p className="mt-2 text-xs text-amber-200">Merci de renseigner tous les champs.</p>
+                  ) : null}
                 </div>
-                {selectedPaymentOption?.badge ? (
-                  <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                    {selectedPaymentOption.badge}
-                  </span>
+              ) : null}
+
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:p-5 xl:p-6">
+                <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-base font-semibold text-white">Mode de paiement</p>
+                    <p className="mt-1 text-sm text-white/60">Choisis dans la fenêtre PayPal, Wallet ou Mobile Money.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModalOpen(true)}
+                    className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15"
+                  >
+                    Changer
+                  </button>
+                </div>
+
+                <div className="mt-4 rounded-[22px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{selectedPaymentOption?.title ?? "Choisir un moyen"}</p>
+                      <p className="mt-1 text-xs text-white/60">{selectedPaymentOption?.description ?? "Sélectionne un mode de paiement avant de confirmer."}</p>
+                    </div>
+                    {selectedPaymentOption?.badge ? (
+                      <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                        {selectedPaymentOption.badge}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                <div className="space-y-2 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+                  <label className="text-sm text-white/70">Quantité</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={quantity}
+                    onChange={(e) => setQuantity(Number(e.target.value) || 1)}
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                  />
+                </div>
+
+                {String(productType ?? "").toLowerCase() === "subscription" && (
+                  <div className="space-y-2 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+                    <label className="text-sm text-white/70">ID (obligatoire)</label>
+                    <input
+                      type="text"
+                      value={gameId}
+                      onChange={(e) => setGameId(e.target.value)}
+                      placeholder="Ex: votre Game ID / User ID"
+                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                    />
+                    <p className="text-xs text-white/50">Cet ID est requis pour activer l'abonnement.</p>
+                  </div>
+                )}
+
+                {!String(productType ?? "").toLowerCase().includes("subscription") && String(productName ?? "").trim().toLowerCase() === "booyah pass" ? (
+                  <div className="space-y-2 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 sm:p-5 lg:col-span-2">
+                    <label className="text-sm text-white/70">ID Free Fire (obligatoire)</label>
+                    <input
+                      type="text"
+                      value={gameId}
+                      onChange={(e) => setGameId(e.target.value)}
+                      placeholder="Ex: votre ID Free Fire"
+                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                    />
+                    <p className="text-xs text-white/50">Cet ID est requis pour traiter le BOOYAH PASS.</p>
+                  </div>
                 ) : null}
               </div>
+
+              {status && <p className="text-sm text-amber-200">{status}</p>}
             </div>
           </div>
 
-          <label className="text-sm text-white/70">Quantité</label>
-          <input
-            type="number"
-            min={1}
-            value={quantity}
-            onChange={(e) => setQuantity(Number(e.target.value) || 1)}
-            className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-          />
+          <aside className="glass-card rounded-[28px] border border-white/10 p-5 sm:p-6 xl:sticky xl:top-24">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200/70">Récapitulatif</p>
+            <div className="mt-5 space-y-4">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-sm text-white/60">Produit</p>
+                <p className="mt-2 text-lg font-semibold text-white">{productName || `Produit #${isValidProduct ? productId : "-"}`}</p>
+              </div>
 
-          {String(productType ?? "").toLowerCase() === "subscription" && (
-            <div className="space-y-2">
-              <label className="text-sm text-white/70">ID (obligatoire)</label>
-              <input
-                type="text"
-                value={gameId}
-                onChange={(e) => setGameId(e.target.value)}
-                placeholder="Ex: votre Game ID / User ID"
-                className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-              />
-              <p className="text-xs text-white/50">Cet ID est requis pour activer l'abonnement.</p>
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 text-sm">
+                <div className="flex items-center justify-between text-white/65">
+                  <span>Quantité</span>
+                  <span className="font-semibold text-white">{Math.max(1, Number(quantity || 1))}</span>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-white/65">
+                  <span>Total</span>
+                  <span className="text-xl font-semibold text-white">{Math.floor(estimatedTotal)} FCFA</span>
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                <p className="text-sm text-white/60">Paiement sélectionné</p>
+                <p className="mt-2 text-base font-semibold text-white">{selectedPaymentOption?.title ?? "Choisir un moyen"}</p>
+              </div>
+
+              <GlowButton onClick={() => setPaymentModalOpen(true)} disabled={loading} className="w-full justify-center">
+                {loading ? "Création..." : "Confirmer et choisir le paiement"}
+              </GlowButton>
+
+              <GlowButton variant="secondary" className="w-full justify-center" onClick={() => router.back()}>
+                Retour boutique
+              </GlowButton>
             </div>
-          )}
-
-          {!String(productType ?? "").toLowerCase().includes("subscription") && String(productName ?? "").trim().toLowerCase() === "booyah pass" ? (
-            <div className="space-y-2">
-              <label className="text-sm text-white/70">ID Free Fire (obligatoire)</label>
-              <input
-                type="text"
-                value={gameId}
-                onChange={(e) => setGameId(e.target.value)}
-                placeholder="Ex: votre ID Free Fire"
-                className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2"
-              />
-              <p className="text-xs text-white/50">Cet ID est requis pour traiter le BOOYAH PASS.</p>
-            </div>
-          ) : null}
-
-          <GlowButton onClick={() => setPaymentModalOpen(true)} disabled={loading} className="w-full justify-center">
-            {loading ? "Création..." : "Confirmer et choisir le paiement"}
-          </GlowButton>
-          {status && <p className="text-sm text-amber-200">{status}</p>}
+          </aside>
         </div>
-
-        <GlowButton variant="secondary" className="w-full justify-center" onClick={() => router.back()}>
-          Retour boutique
-        </GlowButton>
       </div>
 
       <PaymentMethodModal

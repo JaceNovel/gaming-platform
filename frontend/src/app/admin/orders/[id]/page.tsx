@@ -406,12 +406,6 @@ export default function AdminOrderDetailPage() {
   }, [dsExtendRequestJson, dsPlaceOrderJson, order]);
 
   useEffect(() => {
-    if (!order || physicalItems.length === 0) return;
-    if (dsExtendRequestJson.trim() || dsPlaceOrderJson.trim()) return;
-    loadDsDraft(false);
-  }, [dsExtendRequestJson, dsPlaceOrderJson, loadDsDraft, order, physicalItems.length]);
-
-  useEffect(() => {
     if (!invoiceUploadFile) return;
 
     const nextType = inferInvoiceFileTypeFromName(invoiceUploadFile.name);
@@ -434,6 +428,12 @@ export default function AdminOrderDetailPage() {
       ),
     [items],
   );
+
+  useEffect(() => {
+    if (!order || physicalItems.length === 0) return;
+    if (dsExtendRequestJson.trim() || dsPlaceOrderJson.trim()) return;
+    loadDsDraft(false);
+  }, [dsExtendRequestJson, dsPlaceOrderJson, loadDsDraft, order, physicalItems.length]);
 
   const deliveryType = useMemo(() => {
     if (physicalItems.some((item) => item.delivery_type === "preorder")) return "preorder";
