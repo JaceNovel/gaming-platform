@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\BulkImportDiagnosticException;
 use App\Http\Controllers\Controller;
 use App\Models\SupplierProduct;
 use App\Models\SupplierAccount;
@@ -143,14 +144,20 @@ class AdminSupplierCatalogController extends Controller
             $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
             $result = $bulkImportService->import($account, $data);
         } catch (Throwable $exception) {
+            $diagnostic = $exception instanceof BulkImportDiagnosticException
+                ? $exception->diagnostic()
+                : null;
+
             Log::warning('sourcing.bulk_import_aliexpress_failed', [
                 'supplier_account_id' => (int) $data['supplier_account_id'],
                 'operation' => $data['operation'] ?? 'ae-affiliate-hotproduct-download',
                 'message' => $exception->getMessage(),
+                'diagnostic' => $diagnostic,
             ]);
 
             return response()->json([
                 'message' => $exception->getMessage(),
+                'diagnostic' => $diagnostic,
             ], 502);
         }
 

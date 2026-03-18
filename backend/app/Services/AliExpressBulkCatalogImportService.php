@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\BulkImportDiagnosticException;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductSupplierLink;
@@ -35,7 +36,10 @@ class AliExpressBulkCatalogImportService
         $rows = array_slice($this->extractAffiliateProductsFromResponse($response), 0, $limit);
 
         if ($rows === []) {
-            throw new \RuntimeException('Aucun produit exploitable n\'a ete retourne par l\'operation AliExpress. Verifie les mots-cles, le pays de destination et la structure reponse du provider.');
+            throw new BulkImportDiagnosticException(
+                'Aucun produit exploitable n\'a ete retourne par l\'operation AliExpress. Verifie les mots-cles, le pays de destination et la structure reponse du provider.',
+                $this->buildAffiliateResponseDiagnostic($operation, $requestPayload, $response)
+            );
         }
 
         $autoCreateProducts = (bool) ($options['auto_create_products'] ?? true);
@@ -126,6 +130,41 @@ class AliExpressBulkCatalogImportService
         }
 
         return [];
+    }
+
+    private function buildAffiliateResponseDiagnostic(string $operation, array $requestPayload, array $response): array
+    {
+        $candidateMap = [
+            'result' => $response['result'] ?? null,
+            'raw.result.result' => data_get($response, 'raw.result.result'),
+            'raw.resp_result.result' => data_get($response, 'raw.resp_result.result'),
+            'raw.result' => data_get($response, 'raw.result'),
+            'raw.resp_result' => data_get($response, 'raw.resp_result'),
+            'raw' => $response['raw'] ?? null,
+        ];
+
+        $candidateSummaries = [];
+        foreach ($candidateMap as $path => $candidate) {
+            $candidateSummaries[$path] = $this->summarizeAffiliateNode($candidate);
+        }
+
+        return [
+            'operation' => $operation,
+            'request_payload' => Arr::only($requestPayload, [
+                'keywords',
+                'category_ids',
+                'ship_to_country',
+                'target_currency',
+                'target_language',
+                'page_no',
+                'page_size',
+                'sort',
+                'tracking_id',
+            ]),
+            'response_top_level_keys' => array_keys($response),
+            'candidate_summaries' => $candidateSummaries,
+            'discovered_shapes' => $this->discoverAffiliateShapes($response),
+        ];
     }
 
     private function extractAffiliateProducts(mixed $result): array
@@ -221,6 +260,114 @@ class AliExpressBulkCatalogImportService
         }
 
         return $current;
+    }
+
+    private function summarizeAffiliateNode(mixed $node): array
+    {
+        $normalized = $this->normalizeAffiliateNode($node);
+
+        if (!is_array($normalized)) {
+            return [
+                'type' => gettype($normalized),
+                'preview' => is_scalar($normalized) ? Str::limit((string) $normalized, 160) : null,
+            ];
+        }
+
+        if (array_is_list($normalized)) {
+            $first = $normalized[0] ?? null;
+
+            return [
+                'type' => 'list',
+                'count' => count($normalized),
+                'first_item_keys' => is_array($first) ? array_slice(array_keys($first), 0, 20) : [],
+            ];
+        }
+
+        return [
+            'type' => 'object',
+            'keys' => array_slice(array_keys($normalized), 0, 25),
+        ];
+    }
+
+    private function discoverAffiliateShapes(array $response): array
+    {
+        $shapes = [];
+        $queue = [
+            ['path' => 'result', 'node' => $response['result'] ?? null],
+            ['path' => 'raw', 'node' => $response['raw'] ?? null],
+        ];
+
+        while ($queue !== [] && count($shapes) < 6) {
+            $current = array_shift($queue);
+            $path = (string) ($current['path'] ?? 'unknown');
+            $node = $this->normalizeAffiliateNode($current['node'] ?? null);
+
+            if (!is_array($node)) {
+                continue;
+            }
+
+            if (array_is_list($node)) {
+                $first = $node[0] ?? null;
+                if (is_array($first)) {
+                    $score = count(array_intersect(array_keys($first), [
+                        'product_id',
+                        'item_id',
+                        'product_title',
+                        'product_main_image_url',
+                        'product_detail_url',
+                        'target_sale_price',
+                        'sale_price',
+                    ]));
+
+                    if ($score > 0) {
+                        $shapes[] = [
+                            'path' => $path,
+                            'type' => 'list',
+                            'count' => count($node),
+                            'first_item_keys' => array_slice(array_keys($first), 0, 20),
+                        ];
+                    }
+                }
+
+                foreach (array_slice($node, 0, 3) as $index => $child) {
+                    if (is_array($child)) {
+                        $queue[] = ['path' => $path . '[' . $index . ']', 'node' => $child];
+                    }
+                }
+
+                continue;
+            }
+
+            $interestingKeys = array_intersect(array_keys($node), [
+                'products',
+                'product_list',
+                'items',
+                'records',
+                'list',
+                'data',
+                'result',
+                'resp_result',
+                'product_id',
+                'item_id',
+                'product_title',
+            ]);
+
+            if ($interestingKeys !== []) {
+                $shapes[] = [
+                    'path' => $path,
+                    'type' => 'object',
+                    'keys' => array_slice(array_keys($node), 0, 20),
+                ];
+            }
+
+            foreach (array_slice($node, 0, 8, true) as $key => $child) {
+                if (is_array($child) || is_string($child)) {
+                    $queue[] = ['path' => $path . '.' . $key, 'node' => $child];
+                }
+            }
+        }
+
+        return $shapes;
     }
 
     private function normalizeAffiliateRow(SupplierAccount $account, array $row, array $options): ?array
