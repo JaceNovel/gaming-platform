@@ -1132,7 +1132,8 @@ class AliExpressOrderFulfillmentService
             $supplierSku = $link?->supplierProductSku;
             $productLabel = $orderItem?->product?->name ?: ('Ligne DS #' . ($index + 1));
             $requestedService = $this->nullableString($item['logistics_service_name'] ?? null);
-            $skuId = $this->nullableString($supplierSku?->external_sku_id ?? null);
+            $skuId = $this->resolveDsSelectedSkuId($supplierSku);
+            $rawSkuId = $this->nullableString($supplierSku?->external_sku_id ?? null);
             $productId = $this->nullableString($item['product_id'] ?? null);
             $shipToCountry = $this->nullableString($order->shipping_country_code ?: null) ?: self::DS_HUB_COUNTRY_CODE;
 
@@ -1148,12 +1149,12 @@ class AliExpressOrderFulfillmentService
                 ], static fn ($value) => $value !== null && $value !== ''),
             ], static fn ($value) => $value !== null && $value !== '');
 
-            if ($productId === null || $skuId === null) {
+            if ($productId === null) {
                 $checks[] = [
                     'product_name' => $productLabel,
                     'requested_logistics_service_name' => $requestedService,
                     'success' => false,
-                    'error_message' => 'Precheck freight impossible: product_id ou sku_id manquant.',
+                    'error_message' => 'Precheck freight impossible: product_id manquant.',
                     'available_services' => [],
                 ];
                 continue;
@@ -1162,14 +1163,18 @@ class AliExpressOrderFulfillmentService
             try {
                 $response = $this->supplierApiClient->iopOperation($account, 'ds-freight-query', $freightPayload);
                 $availableServices = $this->extractFreightServiceNames($response);
+                $noServicesReturned = $availableServices === [];
                 $checks[] = [
                     'product_name' => $productLabel,
                     'product_id' => $productId,
                     'sku_id' => $skuId,
+                    'raw_sku_id' => $rawSkuId,
                     'requested_logistics_service_name' => $requestedService,
                     'available_services' => $availableServices,
-                    'is_valid' => $requestedService === null ? null : in_array($requestedService, $availableServices, true),
+                    'is_valid' => $requestedService === null || $noServicesReturned ? null : in_array($requestedService, $availableServices, true),
                     'success' => true,
+                    'no_services_returned' => $noServicesReturned,
+                    'error_message' => $noServicesReturned ? 'AliExpress n a retourne aucun service freight pour ce produit et ce pays avec le SKU DS resolu.' : null,
                     'request_payload' => $freightPayload,
                     'response' => $response,
                 ];
@@ -1178,6 +1183,7 @@ class AliExpressOrderFulfillmentService
                     'product_name' => $productLabel,
                     'product_id' => $productId,
                     'sku_id' => $skuId,
+                    'raw_sku_id' => $rawSkuId,
                     'requested_logistics_service_name' => $requestedService,
                     'available_services' => [],
                     'success' => false,
@@ -1202,6 +1208,10 @@ class AliExpressOrderFulfillmentService
 
             if (($item['success'] ?? true) === false) {
                 return trim((string) (($item['product_name'] ?? 'Produit') . ': ' . ($item['error_message'] ?? 'Precheck freight impossible.')));
+            }
+
+            if (($item['no_services_returned'] ?? false) === true) {
+                return trim((string) (($item['product_name'] ?? 'Produit') . ': aucun service freight n a ete retourne par AliExpress pour ce produit/pays.' . (!empty($item['raw_sku_id']) ? ' SKU mappe actuel: ' . $item['raw_sku_id'] : '')));
             }
 
             if (($item['is_valid'] ?? null) === false) {
@@ -1248,6 +1258,34 @@ class AliExpressOrderFulfillmentService
         }
 
         return array_values(array_unique($serviceNames));
+    }
+
+    private function resolveDsSelectedSkuId(?SupplierProductSku $supplierSku): ?string
+    {
+        if (! $supplierSku) {
+            return null;
+        }
+
+        $candidates = [
+            $supplierSku->external_sku_id,
+            data_get($supplierSku->sku_payload_json, 'sku_id'),
+            data_get($supplierSku->sku_payload_json, 'skuId'),
+            data_get($supplierSku->sku_payload_json, 'sl_related_skuId'),
+            data_get($supplierSku->sku_payload_json, 'sl_related_sku_id'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $value = $this->nullableString($candidate);
+            if ($value === null) {
+                continue;
+            }
+
+            if (preg_match('/^\d+$/', $value) === 1) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private function resolveDsProductLink(OrderItem $orderItem, int $supplierAccountId): ?ProductSupplierLink
