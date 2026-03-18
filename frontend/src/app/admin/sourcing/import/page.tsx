@@ -768,7 +768,6 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     target_language: "FR",
     tracking_id: "primegaming",
     ship_to_country: "TG",
-    delivery_days: "10",
   }),
   "ae-affiliate-category-get": stringifyTemplate({}),
   "ae-affiliate-link-generate": stringifyTemplate({

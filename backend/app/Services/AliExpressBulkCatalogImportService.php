@@ -31,6 +31,7 @@ class AliExpressBulkCatalogImportService
         $limit = min(200, max(1, (int) ($options['limit'] ?? 50)));
         $requestPayload = is_array($options['request_payload'] ?? null) ? $options['request_payload'] : [];
         $requestPayload['page_size'] = min($limit, max(1, (int) ($requestPayload['page_size'] ?? $limit)));
+        $requestPayload = $this->sanitizeAffiliateRequestPayload($operation, $requestPayload);
 
         $response = $this->supplierApiClient->iopOperation($account, $operation, $requestPayload);
         $rows = array_slice($this->extractAffiliateProductsFromResponse($response), 0, $limit);
@@ -165,6 +166,81 @@ class AliExpressBulkCatalogImportService
             'candidate_summaries' => $candidateSummaries,
             'discovered_shapes' => $this->discoverAffiliateShapes($response),
         ];
+    }
+
+    private function sanitizeAffiliateRequestPayload(string $operation, array $requestPayload): array
+    {
+        $allowedKeys = match ($operation) {
+            'ae-affiliate-product-query' => [
+                'keywords',
+                'category_ids',
+                'page_no',
+                'page_size',
+                'sort',
+                'target_currency',
+                'target_language',
+                'tracking_id',
+                'ship_to_country',
+                'min_sale_price',
+                'max_sale_price',
+                'platform_product_type',
+            ],
+            'ae-affiliate-hotproduct-query' => [
+                'keywords',
+                'category_ids',
+                'page_no',
+                'page_size',
+                'sort',
+                'target_currency',
+                'target_language',
+                'tracking_id',
+                'ship_to_country',
+            ],
+            'ae-affiliate-hotproduct-download' => [
+                'category_id',
+                'fields',
+                'page_no',
+                'page_size',
+                'target_currency',
+                'target_language',
+                'tracking_id',
+                'country',
+            ],
+            'ae-affiliate-product-smartmatch' => [
+                'page_no',
+                'page_size',
+                'sort',
+                'target_currency',
+                'target_language',
+                'tracking_id',
+                'ship_to_country',
+            ],
+            default => array_keys($requestPayload),
+        };
+
+        $sanitized = Arr::only($requestPayload, $allowedKeys);
+
+        foreach (['keywords', 'tracking_id', 'target_language'] as $key) {
+            if (array_key_exists($key, $sanitized)) {
+                $value = trim((string) $sanitized[$key]);
+                $sanitized[$key] = $value === '' ? null : $value;
+            }
+        }
+
+        foreach (['ship_to_country', 'country', 'target_currency'] as $key) {
+            if (array_key_exists($key, $sanitized)) {
+                $value = strtoupper(trim((string) $sanitized[$key]));
+                $sanitized[$key] = $value === '' ? null : $value;
+            }
+        }
+
+        foreach (['page_no', 'page_size'] as $key) {
+            if (array_key_exists($key, $sanitized)) {
+                $sanitized[$key] = max(1, (int) $sanitized[$key]);
+            }
+        }
+
+        return array_filter($sanitized, static fn ($value) => $value !== null && $value !== '');
     }
 
     private function extractAffiliateProducts(mixed $result): array

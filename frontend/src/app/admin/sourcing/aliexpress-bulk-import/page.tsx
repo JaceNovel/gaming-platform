@@ -100,7 +100,6 @@ const TEMPLATES: Record<string, string> = {
       target_language: "FR",
       tracking_id: "primegaming",
       ship_to_country: "TG",
-      delivery_days: "15",
     },
     null,
     2,
