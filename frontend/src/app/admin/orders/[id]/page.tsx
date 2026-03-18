@@ -45,6 +45,16 @@ type InvoiceLastError = {
   context?: Record<string, unknown> | null;
 };
 
+type DsOrderCreateState = {
+  success?: boolean | null;
+  is_success?: boolean | null;
+  order_list?: string[] | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  remote_error_message?: string | null;
+  created_at?: string | null;
+};
+
 type OrderSupplierFulfillment = {
   id: number;
   supplier_account_id?: number | null;
@@ -68,6 +78,17 @@ type OrderSupplierFulfillment = {
   metadata_json?: {
     invoice_request_data?: InvoiceRequestData | null;
     invoice_last_error?: InvoiceLastError | null;
+    ds_order_create?: DsOrderCreateState | null;
+    remote_order_sync?: {
+      order_status?: string | null;
+      order_status_label?: string | null;
+      logistics_status?: string | null;
+      logistics_status_label?: string | null;
+      tracking_number?: string | null;
+      shipping_provider_name?: string | null;
+      synced_at?: string | null;
+      [key: string]: unknown;
+    } | null;
     [key: string]: unknown;
   } | null;
   shipping_mode?: string | null;
@@ -255,7 +276,8 @@ export default function AdminOrderDetailPage() {
   const [refundMessage, setRefundMessage] = useState<string | null>(null);
   const [supplierAccounts, setSupplierAccounts] = useState<SupplierAccount[]>([]);
   const [supplierMessage, setSupplierMessage] = useState<string | null>(null);
-  const [supplierActionLoading, setSupplierActionLoading] = useState<"save-context" | "resolve-mode" | "pack" | "ship" | "repack" | "print-waybill" | "invoice-query" | "invoice-upload-brazil" | "invoice-push" | "invoice-download" | null>(null);
+  const [supplierActionLoading, setSupplierActionLoading] = useState<"save-context" | "create-order" | "resolve-mode" | "pack" | "ship" | "repack" | "print-waybill" | "invoice-query" | "invoice-upload-brazil" | "invoice-push" | "invoice-download" | null>(null);
+  const [dsDraftLoading, setDsDraftLoading] = useState(false);
   const [supplierAccountId, setSupplierAccountId] = useState("");
   const [externalOrderId, setExternalOrderId] = useState("");
   const [sellerId, setSellerId] = useState("");
@@ -269,6 +291,8 @@ export default function AdminOrderDetailPage() {
   const [pickupAddressId, setPickupAddressId] = useState("");
   const [refundAddressId, setRefundAddressId] = useState("");
   const [externalOrderLinesJson, setExternalOrderLinesJson] = useState("[]");
+  const [dsExtendRequestJson, setDsExtendRequestJson] = useState("");
+  const [dsPlaceOrderJson, setDsPlaceOrderJson] = useState("");
   const [waybillDocumentType, setWaybillDocumentType] = useState("WAY_BILL");
   const [invoiceCustomerId, setInvoiceCustomerId] = useState("");
   const [invoiceNo, setInvoiceNo] = useState("");
@@ -351,6 +375,41 @@ export default function AdminOrderDetailPage() {
     setRefundAddressId(fulfillment?.refund_address_id ?? "");
     setExternalOrderLinesJson(JSON.stringify(fulfillment?.external_order_lines_json ?? [], null, 2));
   }, [order]);
+
+  const loadDsDraft = useCallback(async (force = false) => {
+    if (!order) return;
+    if (!force && (dsExtendRequestJson.trim() || dsPlaceOrderJson.trim())) return;
+
+    setDsDraftLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/admin/orders/${order.id}/supplier/aliexpress/ds-draft`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.message ?? "Impossible de préparer le draft DS");
+
+      const draft = payload?.data?.draft ?? {};
+      setDsExtendRequestJson(JSON.stringify(draft?.ds_extend_request ?? {}, null, 2));
+      setDsPlaceOrderJson(JSON.stringify(draft?.param_place_order_request4_open_api_d_t_o ?? {}, null, 2));
+      if (force) {
+        setSupplierMessage("Draft DS chargé depuis la commande locale.");
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Impossible de préparer le draft DS");
+    } finally {
+      setDsDraftLoading(false);
+    }
+  }, [dsExtendRequestJson, dsPlaceOrderJson, order]);
+
+  useEffect(() => {
+    if (!order || physicalItems.length === 0) return;
+    if (dsExtendRequestJson.trim() || dsPlaceOrderJson.trim()) return;
+    loadDsDraft(false);
+  }, [dsExtendRequestJson, dsPlaceOrderJson, loadDsDraft, order, physicalItems.length]);
 
   useEffect(() => {
     if (!invoiceUploadFile) return;
@@ -622,13 +681,14 @@ export default function AdminOrderDetailPage() {
     }
   };
 
-  const runSupplierAction = async (action: "resolve-mode" | "pack" | "ship" | "repack" | "print-waybill") => {
+  const runSupplierAction = async (action: "sync-order" | "resolve-mode" | "pack" | "ship" | "repack" | "print-waybill") => {
     if (!order) return;
     setSupplierActionLoading(action);
     setSupplierMessage(null);
     setError("");
     try {
       const endpoints: Record<typeof action, string> = {
+        "sync-order": "sync-order",
         "resolve-mode": "resolve-mode",
         pack: "pack",
         ship: "ship",
@@ -648,6 +708,7 @@ export default function AdminOrderDetailPage() {
       if (!res.ok) throw new Error(payload?.message ?? `Action ${action} impossible`);
       setOrder(payload?.order ?? order);
       const labels: Record<typeof action, string> = {
+        "sync-order": "Statut Order.get synchronisé.",
         "resolve-mode": "Mode d’expédition AliExpress résolu.",
         pack: "Pack AliExpress exécuté.",
         ship: "Expédition AliExpress déclarée.",
@@ -657,6 +718,39 @@ export default function AdminOrderDetailPage() {
       setSupplierMessage(labels[action]);
     } catch (e: any) {
       setError(e?.message ?? `Action ${action} impossible`);
+    } finally {
+      setSupplierActionLoading(null);
+    }
+  };
+
+  const handleCreateDsOrder = async () => {
+    if (!order) return;
+    setSupplierActionLoading("create-order");
+    setSupplierMessage(null);
+    setError("");
+
+    try {
+      const dsExtendRequest = dsExtendRequestJson.trim() ? JSON.parse(dsExtendRequestJson) : {};
+      const placeOrderRequest = JSON.parse(dsPlaceOrderJson || "{}");
+
+      const res = await fetch(`${API_BASE}/admin/orders/${order.id}/supplier/aliexpress/create-order`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          ds_extend_request: dsExtendRequest,
+          param_place_order_request4_open_api_d_t_o: placeOrderRequest,
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.message ?? "Création commande DS impossible");
+      setOrder(payload?.order ?? order);
+      setSupplierMessage("Commande DS AliExpress créée et enregistrée.");
+    } catch (e: any) {
+      setError(e?.message ?? "Création commande DS impossible");
     } finally {
       setSupplierActionLoading(null);
     }
@@ -1040,9 +1134,41 @@ export default function AdminOrderDetailPage() {
             <textarea value={externalOrderLinesJson} onChange={(e) => setExternalOrderLinesJson(e.target.value)} rows={8} className="rounded-xl border border-slate-200 px-3 py-2 font-mono text-xs" />
           </label>
 
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">Création commande DS</div>
+                <div className="text-xs text-slate-500">Le draft utilise uniquement l’adresse hub France fournisseur. Vérifie surtout `logistics_service_name` avant exécution.</div>
+              </div>
+              <button onClick={() => loadDsDraft(true)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={dsDraftLoading || supplierActionLoading !== null}>
+                {dsDraftLoading ? "Préparation..." : "Régénérer le draft DS"}
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">ds_extend_request JSON</span>
+                <textarea value={dsExtendRequestJson} onChange={(e) => setDsExtendRequestJson(e.target.value)} rows={12} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">param_place_order_request4_open_api_d_t_o JSON</span>
+                <textarea value={dsPlaceOrderJson} onChange={(e) => setDsPlaceOrderJson(e.target.value)} rows={12} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+              </label>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={handleCreateDsOrder} className="rounded-xl bg-slate-900 px-3 py-2 text-xs text-white" disabled={supplierActionLoading !== null || dsDraftLoading}>
+                {supplierActionLoading === "create-order" ? "Création..." : "Créer la commande DS"}
+              </button>
+            </div>
+          </div>
+
           <div className="mt-4 flex flex-wrap gap-2">
             <button onClick={handleSaveSupplierContext} className="rounded-xl bg-slate-900 px-3 py-2 text-xs text-white" disabled={supplierActionLoading !== null}>
               {supplierActionLoading === "save-context" ? "Enregistrement..." : "Sauvegarder le contexte"}
+            </button>
+            <button onClick={() => runSupplierAction("sync-order")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
+              {supplierActionLoading === "sync-order" ? "Sync..." : "Sync Order.get"}
             </button>
             <button onClick={() => runSupplierAction("resolve-mode")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
               {supplierActionLoading === "resolve-mode" ? "Résolution..." : "Déterminer le mode"}
@@ -1074,6 +1200,12 @@ export default function AdminOrderDetailPage() {
             <div>Tracking: {order?.currentSupplierFulfillment?.tracking_number ?? order?.supplier_tracking_number ?? "—"}</div>
             <div>Package ID: {order?.currentSupplierFulfillment?.package_id ?? order?.supplier_package_id ?? "—"}</div>
             <div>Document URL: {order?.currentSupplierFulfillment?.document_url ?? order?.supplier_document_url ?? "—"}</div>
+            <div>DS create: {order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.success ? `Succès (${order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.order_list?.join(", ") ?? "—"})` : order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.error_message ?? "—"}</div>
+            <div>DS error code: {order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.error_code ?? "—"}</div>
+            <div>Order.get status: {order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.order_status_label ?? order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.order_status ?? "—"}</div>
+            <div>Logistics status: {order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.logistics_status_label ?? order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.logistics_status ?? "—"}</div>
+            <div>Dernière création DS: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.created_at)}</div>
+            <div>Dernière synchro Order.get: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.synced_at as string | null | undefined)}</div>
           </div>
 
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">

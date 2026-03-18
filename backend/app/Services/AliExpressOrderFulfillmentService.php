@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\OrderSupplierFulfillment;
 use App\Models\ProductSupplierLink;
 use App\Models\SupplierAccount;
+use App\Models\SupplierReceivingAddress;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -13,6 +15,45 @@ use Illuminate\Support\Str;
 
 class AliExpressOrderFulfillmentService
 {
+    private const DS_HUB_COUNTRY_CODE = 'FR';
+
+    private const DS_HUB_PROVINCE = 'Yvelines';
+
+    private const REMOTE_ORDER_STATUS_GROUPING = [
+        'WAIT_GROUP',
+    ];
+
+    private const REMOTE_ORDER_STATUS_PENDING = [
+        'PLACE_ORDER_SUCCESS',
+        'PAYMENT_PROCESSING',
+        'WAIT_SELLER_EXAMINE_MONEY',
+        'RISK_CONTROL',
+        'RISK_CONTROL_HOLD',
+        'WAIT_SELLER_SEND_GOODS',
+        'WAIT_COMPLETE_ADDRESS',
+    ];
+
+    private const REMOTE_ORDER_STATUS_DELIVERING = [
+        'SELLER_PART_SEND_GOODS',
+        'SELLER_SEND_PART_GOODS',
+        'WAIT_BUYER_ACCEPT_GOODS',
+    ];
+
+    private const REMOTE_ORDER_STATUS_DELIVERED = [
+        'FIN',
+    ];
+
+    private const REMOTE_LOGISTICS_STATUS_DELIVERING = [
+        'WAIT_SELLER_SEND_GOODS',
+        'SELLER_SEND_PART_GOODS',
+        'SELLER_SEND_GOODS',
+        'NO_LOGISTICS',
+    ];
+
+    private const REMOTE_LOGISTICS_STATUS_DELIVERED = [
+        'BUYER_ACCEPT_GOODS',
+    ];
+
     public function __construct(private readonly SupplierApiClient $supplierApiClient)
     {
     }
@@ -327,6 +368,129 @@ class AliExpressOrderFulfillmentService
         ];
     }
 
+    public function buildDropshippingOrderDraft(Order $order): array
+    {
+        $fulfillment = $this->ensureFulfillment($order);
+        $account = $this->resolveSupplierAccount($order, $fulfillment);
+        $address = $this->resolveSupplierReceivingAddress($order);
+
+        return [
+            'ds_extend_request' => [
+                'payment' => [
+                    'pay_currency' => 'USD',
+                    'try_to_pay' => 'false',
+                ],
+            ],
+            'param_place_order_request4_open_api_d_t_o' => [
+                'out_order_id' => $this->buildDsOutOrderId($order),
+                'logistics_address' => $this->buildDsLogisticsAddress($address, $this->resolveLocale($fulfillment)),
+                'product_items' => $this->buildDsProductItems($order, $account, $fulfillment),
+            ],
+        ];
+    }
+
+    public function createDropshippingOrder(Order $order, array $data): array
+    {
+        $fulfillment = $this->ensureFulfillment($order);
+        $account = $this->resolveSupplierAccount($order, $fulfillment);
+        $draft = $this->buildDropshippingOrderDraft($order);
+
+        $payload = [
+            'ds_extend_request' => is_array($data['ds_extend_request'] ?? null)
+                ? $data['ds_extend_request']
+                : $draft['ds_extend_request'],
+            'param_place_order_request4_open_api_d_t_o' => is_array($data['param_place_order_request4_open_api_d_t_o'] ?? null)
+                ? $data['param_place_order_request4_open_api_d_t_o']
+                : $draft['param_place_order_request4_open_api_d_t_o'],
+        ];
+
+        $response = $this->supplierApiClient->iopOperation($account, 'ds-order-create', $payload);
+        $result = is_array($response['result'] ?? null) ? $response['result'] : [];
+        $normalized = $this->normalizeDsCreateResult($result);
+
+        $metadata = (array) ($fulfillment->metadata_json ?? []);
+        $metadata['ds_order_create'] = array_merge($normalized, [
+            'created_at' => now()->toIso8601String(),
+        ]);
+
+        $fulfillment->fill([
+            'latest_request_payload_json' => $payload,
+            'latest_response_payload_json' => $response,
+            'metadata_json' => $metadata,
+            'last_synced_at' => now(),
+        ]);
+
+        if (! $normalized['success']) {
+            $fulfillment->asf_status = 'ds_order_failed';
+            $fulfillment->asf_sub_status = $normalized['error_code'] ?: 'ds_order_failed';
+            $fulfillment->save();
+
+            throw new \RuntimeException($normalized['error_message'] ?: 'La creation de commande DS AliExpress a echoue.');
+        }
+
+        $externalOrderId = $normalized['order_list'][0] ?? $this->findFirstStringByKeys($result, ['order_id', 'orderId', 'trade_order_id', 'tradeOrderId']);
+        $fulfillment->fill([
+            'external_order_id' => $externalOrderId,
+            'asf_status' => 'ds_order_created',
+            'asf_sub_status' => $externalOrderId,
+        ]);
+        $fulfillment->save();
+
+        $this->syncOrderSummary($order->fresh(), $fulfillment->fresh(), Order::SUPPLIER_STATUS_PAID);
+
+        return [
+            'fulfillment' => $fulfillment->fresh(['supplierAccount']),
+            'result' => $normalized,
+            'response' => $response,
+        ];
+    }
+
+    public function syncRemoteOrderStatus(Order $order): array
+    {
+        $fulfillment = $this->ensureFulfillment($order);
+        $account = $this->resolveSupplierAccount($order, $fulfillment);
+        $payload = [
+            'tradeOrderId' => $this->requireString($fulfillment->external_order_id, 'external_order_id'),
+            'locale' => $this->resolveLocale($fulfillment),
+        ];
+
+        $response = $this->supplierApiClient->iopOperation($account, 'order-get', $payload);
+        $snapshot = $this->extractRemoteOrderSnapshot($response);
+        $supplierStatus = $this->mapRemoteSupplierStatus(
+            $snapshot['order_status'] ?? null,
+            $snapshot['logistics_status'] ?? null,
+            $order->supplier_fulfillment_status,
+        );
+
+        $metadata = (array) ($fulfillment->metadata_json ?? []);
+        $metadata['remote_order_sync'] = array_merge($snapshot, [
+            'synced_at' => now()->toIso8601String(),
+        ]);
+
+        $fulfillment->fill([
+            'shipping_provider_code' => $snapshot['shipping_provider_code'] ?? $fulfillment->shipping_provider_code,
+            'shipping_provider_name' => $snapshot['shipping_provider_name'] ?? $fulfillment->shipping_provider_name,
+            'tracking_number' => $snapshot['tracking_number'] ?? $fulfillment->tracking_number,
+            'package_id' => $snapshot['package_id'] ?? $fulfillment->package_id,
+            'latest_request_payload_json' => $payload,
+            'latest_response_payload_json' => $response,
+            'metadata_json' => $metadata,
+            'asf_status' => 'remote_order_synced',
+            'asf_sub_status' => $snapshot['order_status'] ?? $fulfillment->asf_sub_status,
+            'last_synced_at' => now(),
+        ]);
+        $fulfillment->save();
+
+        $this->syncOrderSummary($order->fresh(), $fulfillment->fresh(), $supplierStatus);
+
+        return [
+            'fulfillment' => $fulfillment->fresh(['supplierAccount']),
+            'remote' => $snapshot,
+            'response' => $response,
+            'supplier_status' => $supplierStatus,
+        ];
+    }
+
     public function queryInvoiceRequest(Order $order, ?string $customerId = null): array
     {
         $fulfillment = $this->ensureFulfillment($order);
@@ -603,6 +767,321 @@ class AliExpressOrderFulfillmentService
         }
 
         $order->forceFill($updates)->save();
+    }
+
+    private function resolveSupplierReceivingAddress(Order $order): SupplierReceivingAddress
+    {
+        if ($order->supplier_receiving_address_id) {
+            $address = SupplierReceivingAddress::query()->find($order->supplier_receiving_address_id);
+            if ($address) {
+                return $address;
+            }
+        }
+
+        $address = SupplierReceivingAddress::query()
+            ->where('platform', 'aliexpress')
+            ->where('recipient_name', 'LAWSON-BODY')
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->first();
+
+        if (! $address) {
+            throw new \RuntimeException('Aucune adresse hub AliExpress active n est configuree pour la creation de commande DS.');
+        }
+
+        return $address;
+    }
+
+    private function buildDsLogisticsAddress(SupplierReceivingAddress $address, string $locale): array
+    {
+        $mobile = $this->normalizeFrenchPhoneNumber($address->phone);
+        $contactName = trim((string) ($address->contact_name ?: $address->recipient_name));
+
+        return array_filter([
+            'country' => self::DS_HUB_COUNTRY_CODE,
+            'province' => self::DS_HUB_PROVINCE,
+            'city' => $address->city,
+            'address' => $address->address_line1,
+            'address2' => $address->address_line2,
+            'zip' => $address->postal_code,
+            'contact_person' => $contactName,
+            'full_name' => $contactName,
+            'mobile_no' => $mobile,
+            'phone' => $mobile,
+            'phone_country' => '+33',
+            'locale' => $locale,
+        ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function normalizeFrenchPhoneNumber(?string $phone): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $phone);
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '33')) {
+            $digits = substr($digits, 2);
+        }
+
+        if (str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+
+        return $digits !== '' ? $digits : null;
+    }
+
+    private function buildDsProductItems(Order $order, SupplierAccount $account, OrderSupplierFulfillment $fulfillment): array
+    {
+        $order->loadMissing(['orderItems.product.productSupplierLinks.supplierProductSku.supplierProduct.supplierAccount']);
+
+        $items = [];
+        foreach ($order->orderItems as $orderItem) {
+            $product = $orderItem->product;
+            if (! $product || (! $orderItem->is_physical && ! $product->shipping_required)) {
+                continue;
+            }
+
+            $link = $this->resolveDsProductLink($orderItem, $account->id);
+            if (! $link) {
+                throw new \RuntimeException('Aucun mapping AliExpress actif trouve pour le produit: ' . ($product->name ?? ('#' . $product->id)) . '.');
+            }
+
+            $supplierSku = $link->supplierProductSku;
+            $supplierProduct = $supplierSku?->supplierProduct;
+            $productId = trim((string) ($supplierProduct?->external_product_id ?? ''));
+            if ($productId === '') {
+                throw new \RuntimeException('Le produit fournisseur AliExpress n a pas de product_id externe pour: ' . ($product->name ?? ('#' . $product->id)) . '.');
+            }
+
+            $item = array_filter([
+                'product_id' => $productId,
+                'sku_attr' => $supplierSku ? $this->resolveDsSkuAttr($supplierSku->sku_payload_json ?? [], $supplierSku->variant_attributes_json ?? []) : null,
+                'product_count' => (string) max(1, (int) ($orderItem->quantity ?? 1)),
+                'logistics_service_name' => $this->nullableString(
+                    data_get($supplierSku?->sku_payload_json, 'logistics_service_name')
+                    ?? data_get($link->pricing_snapshot_json, 'logistics_service_name')
+                    ?? $fulfillment->shipping_provider_name
+                ),
+                'order_memo' => 'Hub France-Lome seulement. Reference interne: ' . ($order->reference ?? ('order-' . $order->id)),
+            ], static fn ($value) => $value !== null && $value !== '');
+
+            $items[] = $item;
+        }
+
+        if ($items === []) {
+            throw new \RuntimeException('Aucune ligne physique exploitable n est disponible pour la creation de commande DS.');
+        }
+
+        return array_values($items);
+    }
+
+    private function resolveDsProductLink(OrderItem $orderItem, int $supplierAccountId): ?ProductSupplierLink
+    {
+        $product = $orderItem->product;
+        if (! $product) {
+            return null;
+        }
+
+        $links = [];
+        foreach ($product->productSupplierLinks as $link) {
+            $account = $link->supplierProductSku?->supplierProduct?->supplierAccount;
+            if (! $account || (int) $account->id !== $supplierAccountId || (string) $account->platform !== 'aliexpress') {
+                continue;
+            }
+
+            $links[] = $link;
+        }
+
+        if ($links === []) {
+            return null;
+        }
+
+        usort($links, function (ProductSupplierLink $left, ProductSupplierLink $right) {
+            if ($left->is_default !== $right->is_default) {
+                return $left->is_default ? -1 : 1;
+            }
+
+            return (int) ($left->priority ?? 1) <=> (int) ($right->priority ?? 1);
+        });
+
+        return $links[0];
+    }
+
+    private function resolveDsSkuAttr(array $skuPayload, array $variantAttributes): ?string
+    {
+        $direct = $this->nullableString($skuPayload['skuAttr'] ?? $skuPayload['sku_attr'] ?? null);
+        if ($direct) {
+            return $direct;
+        }
+
+        $pairs = [];
+        foreach ($variantAttributes as $key => $value) {
+            if (is_array($value)) {
+                $propertyId = $value['property_id'] ?? $value['attr_id'] ?? $value['id'] ?? null;
+                $propertyValueId = $value['property_value_id'] ?? $value['value_id'] ?? $value['vid'] ?? null;
+                if ($propertyId !== null && $propertyValueId !== null) {
+                    $pairs[] = $propertyId . ':' . $propertyValueId;
+                }
+
+                continue;
+            }
+
+            if ($key !== '' && $value !== null && $value !== '') {
+                $pairs[] = $key . ':' . $value;
+            }
+        }
+
+        return $pairs !== [] ? implode(';', $pairs) : null;
+    }
+
+    private function buildDsOutOrderId(Order $order): string
+    {
+        $reference = Str::slug((string) ($order->reference ?? ('order-' . $order->id)), '-');
+
+        return Str::limit('gp-' . $order->id . '-' . $reference, 64, '');
+    }
+
+    private function normalizeDsCreateResult(array $result): array
+    {
+        $orderList = array_values(array_filter(array_map(
+            static fn ($value) => trim((string) $value),
+            Arr::wrap($result['order_list'] ?? $result['orderList'] ?? [])
+        )));
+        $rawSuccess = filter_var($result['is_success'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        $errorCode = $this->nullableString($result['error_code'] ?? $result['errorCode'] ?? null);
+        $remoteErrorMessage = $this->nullableString($result['error_msg'] ?? $result['errorMessage'] ?? null);
+        $success = $orderList !== [] || ($rawSuccess === true && $errorCode === null && $remoteErrorMessage === null);
+
+        return [
+            'success' => $success,
+            'is_success' => $rawSuccess,
+            'order_list' => $orderList,
+            'error_code' => $errorCode,
+            'remote_error_message' => $remoteErrorMessage,
+            'error_message' => $success ? null : $this->describeDsCreateError($errorCode, $remoteErrorMessage),
+        ];
+    }
+
+    private function describeDsCreateError(?string $errorCode, ?string $remoteMessage): string
+    {
+        return match ($errorCode) {
+            'B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL' => 'Adresse fournisseur hub invalide pour AliExpress. Verifie le draft d adresse France.',
+            'B_DROPSHIPPER_DELIVERY_ADDRESS_CPF_CN_INVALID', 'B_DROPSHIPPER_DELIVERY_ADDRESS_CPF_NOT_MATCH' => 'Le document fiscal demande par AliExpress est invalide pour cette destination.',
+            'BLACKLIST_BUYER_IN_LIST', 'USER_ACCOUNT_DISABLED' => 'Le compte AliExpress connecte est invalide ou desactive. Essaie un autre compte fournisseur.',
+            'PRICE_PAY_CURRENCY_ERROR' => 'Tous les articles de la commande DS doivent utiliser la meme devise de paiement.',
+            'DELIVERY_METHOD_NOT_EXIST' => 'Le logistics_service_name est invalide. Lance d abord une verification freight puis corrige le draft.',
+            'INVENTORY_HOLD_ERROR' => 'Stock insuffisant ou indisponible cote AliExpress.',
+            'REPEATED_ORDER_ERROR' => 'Commande dupliquee detectee par AliExpress.',
+            'ERROR_WHEN_BUILD_FOR_PLACE_ORDER', 'A001_ORDER_CANNOT_BE_PLACED', 'A002_INVALID_ZONE', 'A003_SUSPICIOUS_BUYER', 'A004_CANNOT_USER_COUPON', 'A005_INVALID_COUNTRIES', 'A006_INVALID_ACCOUNT_INFO' => 'AliExpress refuse la creation de commande DS pour cette combinaison compte/zone/promotion.',
+            default => $remoteMessage ?: 'La creation de commande DS AliExpress a echoue.',
+        };
+    }
+
+    private function extractRemoteOrderSnapshot(array $response): array
+    {
+        $orderStatus = $this->findFirstStringByKeys($response, ['order_status', 'orderStatus']);
+        $logisticsStatus = $this->findFirstStringByKeys($response, ['logistics_status', 'logisticsStatus']);
+
+        return array_filter([
+            'order_status' => $orderStatus,
+            'order_status_label' => $this->describeRemoteOrderStatus($orderStatus),
+            'logistics_status' => $logisticsStatus,
+            'logistics_status_label' => $this->describeRemoteLogisticsStatus($logisticsStatus),
+            'tracking_number' => $this->findFirstStringByKeys($response, ['tracking_number', 'trackingNumber', 'logistics_no', 'logisticsNo', 'mail_no', 'mailNo']),
+            'shipping_provider_code' => $this->findFirstStringByKeys($response, ['service_provider', 'serviceProvider', 'logistics_company_code', 'logisticsCompanyCode']),
+            'shipping_provider_name' => $this->findFirstStringByKeys($response, ['service_name', 'serviceName', 'logistics_company_name', 'logisticsCompanyName', 'shipping_provider_name']),
+            'package_id' => $this->findFirstStringByKeys($response, ['package_id', 'packageId']),
+        ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function mapRemoteSupplierStatus(?string $orderStatus, ?string $logisticsStatus, ?string $currentStatus = null): ?string
+    {
+        $normalizedOrder = strtoupper(trim((string) $orderStatus));
+        $normalizedLogistics = strtoupper(trim((string) $logisticsStatus));
+
+        if (in_array($normalizedOrder, self::REMOTE_ORDER_STATUS_GROUPING, true)) {
+            return Order::SUPPLIER_STATUS_GROUPING;
+        }
+
+        if (in_array($normalizedOrder, self::REMOTE_ORDER_STATUS_DELIVERED, true)
+            || in_array($normalizedLogistics, self::REMOTE_LOGISTICS_STATUS_DELIVERED, true)) {
+            return Order::SUPPLIER_STATUS_DELIVERED;
+        }
+
+        if (in_array($normalizedOrder, self::REMOTE_ORDER_STATUS_DELIVERING, true)
+            || in_array($normalizedLogistics, self::REMOTE_LOGISTICS_STATUS_DELIVERING, true)) {
+            return Order::SUPPLIER_STATUS_DELIVERING;
+        }
+
+        if (in_array($normalizedOrder, self::REMOTE_ORDER_STATUS_PENDING, true)) {
+            return Order::SUPPLIER_STATUS_PENDING;
+        }
+
+        if ($normalizedOrder === 'IN_CANCEL') {
+            return $currentStatus ?: Order::SUPPLIER_STATUS_PENDING;
+        }
+
+        return $currentStatus;
+    }
+
+    private function describeRemoteOrderStatus(?string $status): ?string
+    {
+        return match (strtoupper(trim((string) $status))) {
+            'PLACE_ORDER_SUCCESS' => 'Commande passee avec succes',
+            'PAYMENT_PROCESSING' => 'Traitement des paiements',
+            'WAIT_SELLER_EXAMINE_MONEY' => 'En attente de validation vendeur du montant',
+            'RISK_CONTROL' => 'Controle des risques en cours',
+            'RISK_CONTROL_HOLD' => 'Controle des risques maintenu',
+            'WAIT_SELLER_SEND_GOODS' => 'En attente que le vendeur expedie',
+            'SELLER_PART_SEND_GOODS', 'SELLER_SEND_PART_GOODS' => 'Expedition partielle',
+            'WAIT_BUYER_ACCEPT_GOODS' => 'En attente de reception acheteur',
+            'FIN' => 'Commande terminee',
+            'IN_CANCEL' => 'Commande annulee',
+            'WAIT_GROUP' => 'En attente de formation du groupe',
+            'WAIT_COMPLETE_ADDRESS' => 'En attente de completion adresse',
+            default => $status ?: null,
+        };
+    }
+
+    private function describeRemoteLogisticsStatus(?string $status): ?string
+    {
+        return match (strtoupper(trim((string) $status))) {
+            'WAIT_SELLER_SEND_GOODS' => 'En attente expedition vendeur',
+            'SELLER_SEND_PART_GOODS' => 'Expedition partielle',
+            'SELLER_SEND_GOODS' => 'Expedie par le vendeur',
+            'BUYER_ACCEPT_GOODS' => 'Reception acheteur',
+            'NO_LOGISTICS' => 'Aucune logistique',
+            default => $status ?: null,
+        };
+    }
+
+    private function findFirstStringByKeys(array $payload, array $keys): ?string
+    {
+        $needle = array_flip(array_map(static fn ($key) => strtolower($key), $keys));
+        $queue = [$payload];
+
+        while ($queue !== []) {
+            $node = array_shift($queue);
+            if (!is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $key => $value) {
+                if (is_string($key) && isset($needle[strtolower($key)]) && !is_array($value)) {
+                    $stringValue = trim((string) $value);
+                    if ($stringValue !== '') {
+                        return $stringValue;
+                    }
+                }
+
+                if (is_array($value)) {
+                    $queue[] = $value;
+                }
+            }
+        }
+
+        return null;
     }
 
     private function normalizePushInvoiceData(Order $order, array $data): array

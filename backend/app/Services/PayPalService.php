@@ -58,6 +58,8 @@ class PayPalService
 
     public function createCheckoutOrder(Order $order, User $user, array $meta = []): array
     {
+        $startedAt = microtime(true);
+
         if (!$this->isConfigured()) {
             throw new \RuntimeException('PayPal not configured (missing: PAYPAL_CLIENT_ID or PAYPAL_CLIENT_SECRET)');
         }
@@ -96,9 +98,24 @@ class PayPalService
             ]),
         ];
 
+        $token = $this->getAccessToken();
+        $apiCallStartedAt = microtime(true);
+
         $response = $this->api()
-            ->withToken($this->getAccessToken())
+            ->withToken($token)
             ->post($this->endpoint('/v2/checkout/orders'), $payload);
+
+        $apiCallDurationMs = (int) round((microtime(true) - $apiCallStartedAt) * 1000);
+        $totalDurationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        if ($totalDurationMs >= 1000 || $apiCallDurationMs >= 1000) {
+            Log::warning('paypal:create-order-slow', [
+                'order_id' => $order->id,
+                'api_call_ms' => $apiCallDurationMs,
+                'total_ms' => $totalDurationMs,
+                'provider_currency' => $currency,
+                'source_currency' => $sourceCurrency,
+            ]);
+        }
 
         $data = $this->decodeResponse($response->status(), $response->body());
 
@@ -238,6 +255,7 @@ class PayPalService
     private function getAccessToken(): string
     {
         $cacheKey = 'paypal_access_token_' . md5($this->baseUrl . '|' . $this->clientId);
+        $startedAt = microtime(true);
 
         $cached = Cache::get($cacheKey);
         if (is_string($cached) && trim($cached) !== '') {
@@ -260,6 +278,15 @@ class PayPalService
         }
 
         Cache::put($cacheKey, $token, now()->addSeconds(max(60, $expiresIn - 120)));
+
+        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        if ($durationMs >= 1000) {
+            Log::warning('paypal:access-token-slow', [
+                'duration_ms' => $durationMs,
+                'environment' => $this->environment,
+                'base_url' => $this->baseUrl,
+            ]);
+        }
 
         return $token;
     }

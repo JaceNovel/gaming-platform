@@ -16,6 +16,7 @@ use App\Services\FedaPayService;
 use App\Services\PayPalService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -560,9 +561,18 @@ class WalletController extends Controller
             ->limit(3)
             ->pluck('id');
 
+        if ($pendingIds->isEmpty()) {
+            return;
+        }
+
+        $throttleKey = 'wallet:payout-sync:' . $wallet->id;
+        if (!Cache::add($throttleKey, now()->toIso8601String(), now()->addSeconds(30))) {
+            return;
+        }
+
         foreach ($pendingIds as $pendingId) {
             try {
-                ProcessPayout::dispatchSync((string) $pendingId);
+                ProcessPayout::dispatch((string) $pendingId)->afterResponse();
             } catch (\Throwable) {
                 // best effort sync on read
             }

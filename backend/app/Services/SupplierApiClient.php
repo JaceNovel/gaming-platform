@@ -894,6 +894,12 @@ class SupplierApiClient
                 'value' => $response['value'] ?? [],
                 'raw' => $response,
             ],
+            'ds-order-create' => [
+                'result' => $response['result'] ?? data_get($response, 'value.result') ?? null,
+                'code' => $response['code'] ?? null,
+                'request_id' => $response['request_id'] ?? null,
+                'raw' => $response,
+            ],
             'merge-pay-query', 'buynow-order-create', 'dropshipping-order-pay', 'order-fund-query', 'order-get', 'order-list', 'order-pay-result-query', 'order-logistics-query', 'seller-warehouse-list' => [
                 'value' => $response['value'] ?? $response['response'] ?? null,
                 'raw' => $response,
@@ -1115,6 +1121,7 @@ class SupplierApiClient
         return [
             'advanced-freight-calculate' => ['config_key' => 'advanced_freight_calculate_method', 'http_method' => 'POST', 'param_key' => null],
             'basic-freight-calculate' => ['config_key' => 'basic_freight_calculate_method', 'http_method' => 'POST', 'param_key' => null],
+            'ds-order-create' => ['config_key' => 'ds_order_create_method', 'http_method' => 'POST', 'param_key' => null],
             'merge-pay-query' => ['config_key' => 'merge_pay_query_method', 'http_method' => 'POST', 'param_key' => 'order_ids'],
             'buynow-order-create' => ['config_key' => 'buynow_order_create_method', 'http_method' => 'POST', 'param_key' => null],
             'logistics-tracking-get' => ['config_key' => 'logistics_tracking_get_method', 'http_method' => 'POST', 'param_key' => 'trade_id'],

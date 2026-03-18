@@ -13,6 +13,7 @@ import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getStoredStorefrontCountry, onStorefrontCountryChanged, setStoredStorefrontCountry, type StorefrontCountry } from "@/lib/storefrontCountry";
 
 type ApiProduct = {
   id: number | string;
@@ -49,6 +50,7 @@ type ApiProduct = {
   stock_quantity?: number | null;
   stockType?: string | null;
   stock_type?: string | null;
+  accessory_category?: string | null;
   tags?: Array<{ name?: string | null } | string> | string[] | string | null;
 };
 
@@ -399,7 +401,42 @@ export default function ProductDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [storefrontCountries, setStorefrontCountries] = useState<StorefrontCountry[]>([]);
+  const [storefrontCountryCode, setStorefrontCountryCode] = useState("TG");
   const id = params?.id;
+
+  useEffect(() => {
+    setStorefrontCountryCode(getStoredStorefrontCountry());
+    return onStorefrontCountryChanged(setStorefrontCountryCode);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadStorefrontCountries = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/storefront/countries`, { headers: { Accept: "application/json" } });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || !active) return;
+
+        const next = Array.isArray(payload?.data) ? payload.data : [];
+        setStorefrontCountries(next);
+        if (next.length > 0 && !next.some((country: StorefrontCountry) => country.code === storefrontCountryCode)) {
+          const fallback = String(next[0]?.code ?? "TG").toUpperCase();
+          setStorefrontCountryCode(fallback);
+          setStoredStorefrontCountry(fallback);
+        }
+      } catch {
+        if (!active) return;
+        setStorefrontCountries([]);
+      }
+    };
+
+    loadStorefrontCountries();
+    return () => {
+      active = false;
+    };
+  }, [storefrontCountryCode]);
 
   useEffect(() => {
     let active = true;
@@ -510,6 +547,11 @@ export default function ProductDetailsPage() {
     [product?.display_section]
   );
   const totalValue = priceValue + shippingFeeValue;
+  const isAccessoryProduct = useMemo(() => Boolean(String(product?.accessory_category ?? "").trim()), [product?.accessory_category]);
+  const activeStorefrontCountry = useMemo(
+    () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
+    [storefrontCountries, storefrontCountryCode]
+  );
   const galleryLabel = useMemo(() => {
     if (brandLabel && brandLabel !== "N/A") return brandLabel;
     return categoryLabel;
@@ -696,6 +738,31 @@ export default function ProductDetailsPage() {
                   <h1 className="text-2xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
                   <p className="text-2xl font-black text-[#ff4b63]">{formatPrice(priceValue)}</p>
                 </div>
+
+                {isAccessoryProduct && storefrontCountries.length > 0 ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/75">
+                    <div className="mb-2 text-[11px] uppercase tracking-[0.32em] text-white/40">Pays de livraison</div>
+                    <select
+                      value={storefrontCountryCode}
+                      onChange={(event) => {
+                        const next = event.target.value.toUpperCase();
+                        setStorefrontCountryCode(next);
+                        setStoredStorefrontCountry(next);
+                      }}
+                      className="w-full rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm font-semibold text-white outline-none"
+                    >
+                      {storefrontCountries.map((country) => (
+                        <option key={country.code} value={country.code} className="bg-slate-950 text-white">
+                          {country.name}
+                        </option>
+                      ))}
+                    </select>
+                    {activeStorefrontCountry?.customer_notice ? (
+                      <p className="mt-2 text-xs text-white/55">{activeStorefrontCountry.customer_notice}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <p className="text-sm text-white/70">{description}</p>
 
                 {tags.length > 0 && (
@@ -863,6 +930,30 @@ export default function ProductDetailsPage() {
                           </div>
                         ) : null}
                       </div>
+
+                      {isAccessoryProduct && storefrontCountries.length > 0 ? (
+                        <div className="space-y-3 rounded-[26px] border border-white/10 bg-black/20 p-5 text-sm">
+                          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-white/38">Pays de livraison</div>
+                          <select
+                            value={storefrontCountryCode}
+                            onChange={(event) => {
+                              const next = event.target.value.toUpperCase();
+                              setStorefrontCountryCode(next);
+                              setStoredStorefrontCountry(next);
+                            }}
+                            className="w-full rounded-[20px] border border-white/12 bg-white/6 px-4 py-3 font-semibold text-white outline-none"
+                          >
+                            {storefrontCountries.map((country) => (
+                              <option key={country.code} value={country.code} className="bg-slate-950 text-white">
+                                {country.name}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="text-xs text-white/55">
+                            {activeStorefrontCountry?.customer_notice ?? "Le pays est choisi ici pour la tarification et la livraison locale accessoires."}
+                          </div>
+                        </div>
+                      ) : null}
 
                       <div className="space-y-3 rounded-[26px] border border-white/10 bg-black/20 p-5 text-sm">
                         <div className="flex items-center justify-between gap-3 text-white/74">

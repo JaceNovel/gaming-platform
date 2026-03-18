@@ -143,6 +143,7 @@ return [
                 'product_detail_method' => env('ALIEXPRESS_PRODUCT_DETAIL_METHOD', env('ALIEXPRESS_PRODUCT_DETAIL_PATH', 'aliexpress.solution.product.info.get')),
                 'product_search_method' => env('ALIEXPRESS_PRODUCT_SEARCH_METHOD', 'aliexpress.solution.product.list.get'),
                 'category_tree_method' => env('ALIEXPRESS_CATEGORY_TREE_METHOD', 'aliexpress.solution.seller.category.tree.query'),
+                'ds_order_create_method' => env('ALIEXPRESS_DS_ORDER_CREATE_METHOD', 'aliexpress.ds.order.create'),
                 'order_get_method' => env('ALIEXPRESS_ORDER_GET_METHOD', 'aliexpress.trade.new.redefining.findorderbyid'),
                 'order_list_method' => env('ALIEXPRESS_ORDER_LIST_METHOD', 'aliexpress.trade.seller.orderlist.get'),
                 'affiliate_shipping_method' => env('ALIEXPRESS_AFFILIATE_SHIPPING_METHOD', 'aliexpress.affiliate.product.shipping.get'),

@@ -162,6 +162,61 @@ class AdminOrderController extends Controller
         }
     }
 
+    public function syncAliExpressRemoteOrder(Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $result = $service->syncRemoteOrderStatus($order);
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function aliExpressDropshippingDraft(Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $draft = $service->buildDropshippingOrderDraft($order);
+
+            return response()->json([
+                'data' => [
+                    'draft' => $draft,
+                ],
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function aliExpressCreateDropshippingOrder(Request $request, Order $order, AliExpressOrderFulfillmentService $service)
+    {
+        try {
+            $data = $request->validate([
+                'ds_extend_request' => 'nullable|array',
+                'param_place_order_request4_open_api_d_t_o' => 'required|array',
+            ]);
+
+            $result = $service->createDropshippingOrder($order, $data);
+
+            return response()->json([
+                'data' => $result,
+                'order' => $order->fresh(['supplierAccount', 'currentSupplierFulfillment.supplierAccount']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
     public function aliExpressPack(Order $order, AliExpressOrderFulfillmentService $service)
     {
         try {

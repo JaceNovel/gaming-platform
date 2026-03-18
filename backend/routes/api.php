@@ -359,6 +359,12 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         ->middleware('permission:orders.manage');
     Route::patch('/orders/{order}/supplier/aliexpress/context', [AdminOrderController::class, 'updateAliExpressFulfillmentContext'])
         ->middleware('permission:orders.manage');
+    Route::get('/orders/{order}/supplier/aliexpress/ds-draft', [AdminOrderController::class, 'aliExpressDropshippingDraft'])
+        ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/create-order', [AdminOrderController::class, 'aliExpressCreateDropshippingOrder'])
+        ->middleware('permission:orders.manage');
+    Route::post('/orders/{order}/supplier/aliexpress/sync-order', [AdminOrderController::class, 'syncAliExpressRemoteOrder'])
+        ->middleware('permission:orders.manage');
     Route::post('/orders/{order}/supplier/aliexpress/resolve-mode', [AdminOrderController::class, 'resolveAliExpressShippingMode'])
         ->middleware('permission:orders.manage');
     Route::post('/orders/{order}/supplier/aliexpress/pack', [AdminOrderController::class, 'aliExpressPack'])

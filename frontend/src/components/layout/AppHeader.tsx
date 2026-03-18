@@ -11,7 +11,6 @@ import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { onWalletUpdated } from "@/lib/walletEvents";
 import { onNotificationsPrefChanged, readNotificationsEnabled } from "@/lib/notificationPrefs";
 import { getCachedRemoteConfig } from "@/lib/remoteConfig";
-import { getStoredStorefrontCountry, setStoredStorefrontCountry, type StorefrontCountry } from "@/lib/storefrontCountry";
 
 type NotificationItem = {
   id: number;
@@ -76,40 +75,6 @@ export default function AppHeader() {
     subscription: [],
     marketplace: [],
   });
-  const [storefrontCountries, setStorefrontCountries] = useState<StorefrontCountry[]>([]);
-  const [storefrontCountryCode, setStorefrontCountryCode] = useState("TG");
-
-  useEffect(() => {
-    setStorefrontCountryCode(getStoredStorefrontCountry());
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadStorefrontCountries = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/storefront/countries`, { headers: { Accept: "application/json" } });
-        if (!res.ok) return;
-        const payload = await res.json().catch(() => null);
-        if (!active) return;
-        const next = Array.isArray(payload?.data) ? payload.data : [];
-        setStorefrontCountries(next);
-        if (next.length > 0 && !next.some((country: StorefrontCountry) => country.code === storefrontCountryCode)) {
-          const fallback = String(next[0]?.code ?? "TG").toUpperCase();
-          setStorefrontCountryCode(fallback);
-          setStoredStorefrontCountry(fallback);
-        }
-      } catch {
-        if (!active) return;
-        setStorefrontCountries([]);
-      }
-    };
-
-    loadStorefrontCountries();
-    return () => {
-      active = false;
-    };
-  }, [storefrontCountryCode]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -436,8 +401,6 @@ export default function AppHeader() {
 
   const promoActive =
     remoteConfig.marketingEnabled && remoteConfig.promoEnabled && remoteConfig.promoBannerText.trim() !== "";
-  const activeStorefrontCountry = storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null;
-
   return (
     <>
       <header
@@ -587,24 +550,6 @@ export default function AppHeader() {
             </nav>
 
             <div className="flex flex-nowrap items-center gap-2">
-              <label className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10">
-                <span className="text-[11px] uppercase tracking-[0.25em] text-white/45">Pays</span>
-                <select
-                  value={storefrontCountryCode}
-                  onChange={(event) => {
-                    const next = event.target.value.toUpperCase();
-                    setStorefrontCountryCode(next);
-                    setStoredStorefrontCountry(next);
-                  }}
-                  className="bg-transparent text-sm text-white outline-none"
-                >
-                  {storefrontCountries.map((country) => (
-                    <option key={country.code} value={country.code} className="bg-slate-900 text-white">
-                      {country.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <Link
                 href="/help"
                 className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
@@ -678,24 +623,6 @@ export default function AppHeader() {
           </Link>
 
           <div className="flex items-center gap-2">
-            <label className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/90 sm:inline-flex">
-              <span className="text-white/55">Pays</span>
-              <select
-                value={storefrontCountryCode}
-                onChange={(event) => {
-                  const next = event.target.value.toUpperCase();
-                  setStorefrontCountryCode(next);
-                  setStoredStorefrontCountry(next);
-                }}
-                className="bg-transparent text-[11px] text-white outline-none"
-              >
-                {storefrontCountries.map((country) => (
-                  <option key={country.code} value={country.code} className="bg-slate-900 text-white">
-                    {country.name}
-                  </option>
-                ))}
-              </select>
-            </label>
             <div className="hidden sm:inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/90">
               <span className="grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 text-black shadow-[0_6px_14px_rgba(251,191,36,0.4)]">
                 <Coins className="h-3 w-3" />
