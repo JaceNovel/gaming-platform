@@ -1104,6 +1104,7 @@ class AliExpressOrderFulfillmentService
     private function runDsFreightPrecheck(Order $order, SupplierAccount $account, array $payload, ?OrderSupplierFulfillment $fulfillment = null): array
     {
         $locale = $fulfillment ? $this->resolveLocale($fulfillment) : 'fr_FR';
+        $language = $this->resolveLanguageFromLocale($locale);
         $request = is_array($payload['param_place_order_request4_open_api_d_t_o'] ?? null)
             ? $payload['param_place_order_request4_open_api_d_t_o']
             : [];
@@ -1138,6 +1139,7 @@ class AliExpressOrderFulfillmentService
             $freightPayload = array_filter([
                 'queryDeliveryReq' => array_filter([
                     'locale' => $locale,
+                    'language' => $language,
                     'currency' => $payCurrency,
                     'shipToCountry' => $shipToCountry,
                     'productId' => $productId,
@@ -1737,6 +1739,19 @@ class AliExpressOrderFulfillmentService
     private function resolveLocale(OrderSupplierFulfillment $fulfillment): string
     {
         return $fulfillment->locale ?: 'fr_FR';
+    }
+
+    private function resolveLanguageFromLocale(string $locale): string
+    {
+        $normalized = trim($locale);
+        if ($normalized === '') {
+            return 'fr';
+        }
+
+        $parts = preg_split('/[-_]/', $normalized);
+        $language = strtolower(trim((string) ($parts[0] ?? '')));
+
+        return $language !== '' ? $language : 'fr';
     }
 
     private function resolveSellerId(SupplierAccount $account, OrderSupplierFulfillment $fulfillment): string
