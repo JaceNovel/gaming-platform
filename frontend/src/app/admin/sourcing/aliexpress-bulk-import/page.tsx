@@ -177,7 +177,7 @@ export default function AdminAliExpressBulkImportPage() {
   const [reorderQuantity, setReorderQuantity] = useState(1);
   const [defaultWeightGrams, setDefaultWeightGrams] = useState(350);
   const [defaultEstimatedCbm, setDefaultEstimatedCbm] = useState(0.003);
-  const [publishProducts, setPublishProducts] = useState(false);
+  const [publishProducts, setPublishProducts] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");

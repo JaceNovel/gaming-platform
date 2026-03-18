@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\BulkImportDiagnosticException;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\ProductSupplierLink;
 use App\Models\SupplierAccount;
 use App\Models\SupplierProduct;
@@ -783,6 +784,7 @@ class AliExpressBulkCatalogImportService
         $product = DB::transaction(function () use ($supplierProduct, $supplierPayload, $options, $publishProducts, $defaultSku) {
             $defaults = (array) ($supplierPayload['_storefront_defaults'] ?? []);
             $title = (string) $supplierProduct->title;
+            $accessoryCategory = $this->inferAccessoryCategory($title);
 
             $product = Product::create([
                 'game_id' => null,
@@ -792,7 +794,7 @@ class AliExpressBulkCatalogImportService
                 'sku' => $this->generateUniqueProductSku($supplierProduct->external_product_id),
                 'type' => 'item',
                 'category' => 'accessory',
-                'accessory_category' => 'gaming',
+                'accessory_category' => $accessoryCategory,
                 'accessory_subcategory' => $this->inferAccessorySubcategory($title),
                 'accessory_stock_mode' => 'air',
                 'price' => $defaults['price_fcfa'] ?? 0,
@@ -848,6 +850,8 @@ class AliExpressBulkCatalogImportService
                 ],
             ]);
 
+            $this->syncProductMainImage($product, $defaults['main_image_url'] ?? null);
+
             return $product;
         });
 
@@ -888,6 +892,8 @@ class AliExpressBulkCatalogImportService
     private function applyProductDefaults(Product $product, array $supplierPayload, array $options, bool $publishProducts, bool $onlyFillMissing): void
     {
         $defaults = (array) ($supplierPayload['_storefront_defaults'] ?? []);
+        $productTitle = (string) ($supplierPayload['title'] ?? $product->title ?? $product->name ?? '');
+        $resolvedAccessoryCategory = $this->inferAccessoryCategory($productTitle);
 
         $updates = [
             'price' => $defaults['price_fcfa'] ?? $product->price,
@@ -898,6 +904,9 @@ class AliExpressBulkCatalogImportService
             'source_logistics_profile' => $defaults['source_logistics_profile'] ?? $product->source_logistics_profile,
             'grouping_threshold' => max(1, (int) ($options['grouping_threshold'] ?? $product->grouping_threshold ?? 3)),
             'supplier_margin_value' => (float) ($options['margin_percent'] ?? $product->supplier_margin_value ?? 17),
+            'category' => 'accessory',
+            'accessory_category' => $resolvedAccessoryCategory,
+            'accessory_subcategory' => $this->inferAccessorySubcategory($productTitle),
         ];
 
         if (!$onlyFillMissing) {
@@ -906,6 +915,7 @@ class AliExpressBulkCatalogImportService
 
         $details = is_array($product->details) ? $product->details : [];
         $details['image'] = $defaults['main_image_url'] ?? ($details['image'] ?? null);
+        $details['cover'] = $defaults['main_image_url'] ?? ($details['cover'] ?? null);
         $details['source_url'] = $defaults['source_url'] ?? ($details['source_url'] ?? null);
         $details['source_currency'] = $defaults['source_currency'] ?? ($details['source_currency'] ?? null);
         $details['source_unit_price'] = $defaults['source_unit_price'] ?? ($details['source_unit_price'] ?? null);
@@ -913,6 +923,72 @@ class AliExpressBulkCatalogImportService
         $updates['details'] = array_filter($details, fn ($value) => $value !== null && $value !== '');
 
         $product->update($updates);
+        $this->syncProductMainImage($product, $defaults['main_image_url'] ?? null);
+    }
+
+    private function syncProductMainImage(Product $product, ?string $mainImageUrl): void
+    {
+        $url = trim((string) $mainImageUrl);
+        if ($url === '') {
+            return;
+        }
+
+        $firstImage = $product->images()->orderBy('position')->orderBy('id')->first();
+        if ($firstImage) {
+            if ((string) $firstImage->url !== $url || (int) $firstImage->position !== 1) {
+                $firstImage->update([
+                    'url' => $url,
+                    'position' => 1,
+                ]);
+            }
+
+            ProductImage::query()
+                ->where('product_id', $product->id)
+                ->where('id', '!=', $firstImage->id)
+                ->where('url', $url)
+                ->delete();
+
+            return;
+        }
+
+        ProductImage::create([
+            'product_id' => $product->id,
+            'url' => $url,
+            'position' => 1,
+        ]);
+    }
+
+    private function inferAccessoryCategory(string $title): string
+    {
+        $normalized = Str::lower($title);
+
+        return match (true) {
+            str_contains($normalized, 'headset'),
+            str_contains($normalized, 'earbud'),
+            str_contains($normalized, 'casque'),
+            str_contains($normalized, 'speaker'),
+            str_contains($normalized, 'microphone'),
+            str_contains($normalized, 'mic') => 'audio',
+
+            str_contains($normalized, 'keyboard'),
+            str_contains($normalized, 'clavier'),
+            str_contains($normalized, 'mouse'),
+            str_contains($normalized, 'souris'),
+            str_contains($normalized, 'mousepad') => 'keyboard_mouse',
+
+            str_contains($normalized, 'mobile'),
+            str_contains($normalized, 'phone'),
+            str_contains($normalized, 'android'),
+            str_contains($normalized, 'iphone'),
+            str_contains($normalized, 'tablet'),
+            str_contains($normalized, 'cooler'),
+            str_contains($normalized, 'trigger'),
+            str_contains($normalized, 'gamepad'),
+            str_contains($normalized, 'controller'),
+            str_contains($normalized, 'manette') => 'mobile',
+
+            default => 'setup_comfort',
+        };
     }
 
     private function summarizeProduct(Product $product): array
