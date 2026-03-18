@@ -101,6 +101,23 @@ type OrderSupplierFulfillment = {
       logistics_status_label?: string | null;
       tracking_number?: string | null;
       shipping_provider_name?: string | null;
+      source?: string | null;
+      synced_at?: string | null;
+      [key: string]: unknown;
+    } | null;
+    ds_tracking_sync?: {
+      success?: boolean | null;
+      code?: string | null;
+      message?: string | null;
+      tracking_number?: string | null;
+      shipping_provider_name?: string | null;
+      eta_timestamp?: string | null;
+      latest_event?: {
+        tracking_name?: string | null;
+        tracking_detail_desc?: string | null;
+        time_stamp?: string | null;
+        [key: string]: unknown;
+      } | null;
       synced_at?: string | null;
       [key: string]: unknown;
     } | null;
@@ -723,7 +740,7 @@ export default function AdminOrderDetailPage() {
       if (!res.ok) throw new Error(payload?.message ?? `Action ${action} impossible`);
       setOrder(payload?.order ?? order);
       const labels: Record<typeof action, string> = {
-        "sync-order": "Statut Order.get synchronisé.",
+        "sync-order": "Statut distant AliExpress synchronisé.",
         "resolve-mode": "Mode d’expédition AliExpress résolu.",
         pack: "Pack AliExpress exécuté.",
         ship: "Expédition AliExpress déclarée.",
@@ -1183,7 +1200,7 @@ export default function AdminOrderDetailPage() {
               {supplierActionLoading === "save-context" ? "Enregistrement..." : "Sauvegarder le contexte"}
             </button>
             <button onClick={() => runSupplierAction("sync-order")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
-              {supplierActionLoading === "sync-order" ? "Sync..." : "Sync Order.get"}
+              {supplierActionLoading === "sync-order" ? "Sync..." : "Sync statut distant"}
             </button>
             <button onClick={() => runSupplierAction("resolve-mode")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" disabled={supplierActionLoading !== null}>
               {supplierActionLoading === "resolve-mode" ? "Résolution..." : "Déterminer le mode"}
@@ -1217,10 +1234,15 @@ export default function AdminOrderDetailPage() {
             <div>Document URL: {order?.currentSupplierFulfillment?.document_url ?? order?.supplier_document_url ?? "—"}</div>
             <div>DS create: {order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.success ? `Succès (${order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.order_list?.join(", ") ?? "—"})` : order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.error_message ?? "—"}</div>
             <div>DS error code: {order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.error_code ?? "—"}</div>
+            <div>Source synchro distante: {order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.source ?? "—"}</div>
             <div>Order.get status: {order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.order_status_label ?? order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.order_status ?? "—"}</div>
             <div>Logistics status: {order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.logistics_status_label ?? order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.logistics_status ?? "—"}</div>
+            <div>DS tracking: {order?.currentSupplierFulfillment?.metadata_json?.ds_tracking_sync?.tracking_number ?? "—"}</div>
+            <div>DS carrier: {order?.currentSupplierFulfillment?.metadata_json?.ds_tracking_sync?.shipping_provider_name ?? "—"}</div>
+            <div>Dernier évènement tracking: {order?.currentSupplierFulfillment?.metadata_json?.ds_tracking_sync?.latest_event?.tracking_detail_desc ?? "—"}</div>
             <div>Dernière création DS: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.ds_order_create?.created_at)}</div>
             <div>Dernière synchro Order.get: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.remote_order_sync?.synced_at as string | null | undefined)}</div>
+            <div>Dernière synchro tracking DS: {formatDateTime(order?.currentSupplierFulfillment?.metadata_json?.ds_tracking_sync?.synced_at as string | null | undefined)}</div>
           </div>
 
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">

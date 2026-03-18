@@ -13,7 +13,7 @@ import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { getStoredStorefrontCountry, onStorefrontCountryChanged, setStoredStorefrontCountry, type StorefrontCountry } from "@/lib/storefrontCountry";
+import { getStoredStorefrontCountry, onStorefrontCountryChanged, sanitizeStorefrontCustomerNotice, setStoredStorefrontCountry, type StorefrontCountry } from "@/lib/storefrontCountry";
 
 type ApiProduct = {
   id: number | string;
@@ -456,6 +456,10 @@ export default function ProductDetailsPage() {
     () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
     [storefrontCountries, storefrontCountryCode]
   );
+  const activeStorefrontNotice = useMemo(
+    () => sanitizeStorefrontCustomerNotice(activeStorefrontCountry?.customer_notice),
+    [activeStorefrontCountry?.customer_notice]
+  );
 
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
@@ -657,8 +661,8 @@ export default function ProductDetailsPage() {
                         </option>
                       ))}
                     </select>
-                    {activeStorefrontCountry?.customer_notice ? (
-                      <p className="mt-2 text-xs text-white/55">{activeStorefrontCountry.customer_notice}</p>
+                    {activeStorefrontNotice ? (
+                      <p className="mt-2 text-xs text-white/55">{activeStorefrontNotice}</p>
                     ) : null}
                   </div>
                 ) : null}

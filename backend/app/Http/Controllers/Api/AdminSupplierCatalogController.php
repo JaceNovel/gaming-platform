@@ -45,7 +45,7 @@ class AdminSupplierCatalogController extends Controller
         ]);
     }
 
-    public function import(Request $request, SupplierCatalogImportService $importService)
+    public function import(Request $request, SupplierCatalogImportService $importService, AliExpressBulkCatalogImportService $aliExpressBulkCatalogImportService)
     {
         $data = $request->validate([
             'supplier_account_id' => 'required|exists:supplier_accounts,id',
@@ -59,7 +59,20 @@ class AdminSupplierCatalogController extends Controller
             'category_path_json' => 'nullable|array',
             'attributes_json' => 'nullable|array',
             'product_payload_json' => 'nullable|array',
+            '_storefront_defaults' => 'nullable|array',
             'replace_missing_skus' => 'sometimes|boolean',
+            'auto_create_storefront_product' => 'sometimes|boolean',
+            'publish_storefront_product' => 'sometimes|boolean',
+            'usd_to_xof_rate' => 'nullable|numeric|min:1',
+            'grouping_threshold' => 'nullable|integer|min:1|max:500',
+            'margin_percent' => 'nullable|numeric|min:0|max:1000',
+            'target_moq' => 'nullable|integer|min:1|max:1000',
+            'reorder_quantity' => 'nullable|integer|min:1|max:1000',
+            'delivery_eta_days' => 'nullable|integer|min:1|max:90',
+            'default_country_code' => 'nullable|string|size:2',
+            'source_logistics_profile' => 'nullable|string|in:ordinary,battery',
+            'default_weight_grams' => 'nullable|integer|min:0|max:200000',
+            'default_estimated_cbm' => 'nullable|numeric|min:0|max:10',
             'skus' => 'required|array|min:1',
             'skus.*.external_sku_id' => 'required|string|max:255',
             'skus.*.sku_label' => 'nullable|string|max:255',
@@ -78,9 +91,30 @@ class AdminSupplierCatalogController extends Controller
         ]);
 
         $product = $importService->import((int) $data['supplier_account_id'], $data);
+        $storefront = null;
+
+        if (($data['auto_create_storefront_product'] ?? false) === true) {
+            $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+            if ((string) $account->platform === 'aliexpress') {
+                $storefront = $aliExpressBulkCatalogImportService->syncStorefrontProductFromSupplierImport($product, $data, [
+                    'publish_products' => (bool) ($data['publish_storefront_product'] ?? false),
+                    'usd_to_xof_rate' => $data['usd_to_xof_rate'] ?? 620,
+                    'grouping_threshold' => $data['grouping_threshold'] ?? 3,
+                    'margin_percent' => $data['margin_percent'] ?? 17,
+                    'target_moq' => $data['target_moq'] ?? 1,
+                    'reorder_quantity' => $data['reorder_quantity'] ?? 1,
+                    'delivery_eta_days' => $data['delivery_eta_days'] ?? 12,
+                    'default_country_code' => strtoupper((string) ($data['default_country_code'] ?? 'TG')),
+                    'source_logistics_profile' => $data['source_logistics_profile'] ?? 'ordinary',
+                    'default_weight_grams' => $data['default_weight_grams'] ?? 0,
+                    'default_estimated_cbm' => $data['default_estimated_cbm'] ?? 0,
+                ]);
+            }
+        }
 
         return response()->json([
             'data' => $product,
+            'storefront' => $storefront,
         ], 201);
     }
 
@@ -131,11 +165,28 @@ class AdminSupplierCatalogController extends Controller
             'supplier_account_id' => 'required|exists:supplier_accounts,id',
             'external_product_id' => 'required|string|max:255',
             'lookup_type' => 'nullable|in:product_id,sku_id',
+            'remote_mode' => 'nullable|in:standard,ds_product,ds_wholesale',
+            'ship_to_country' => 'nullable|string|size:2',
+            'target_currency' => 'nullable|string|max:8',
+            'target_language' => 'nullable|string|max:16',
+            'remove_personal_benefit' => 'nullable|boolean',
+            'biz_model' => 'nullable|string|max:64',
+            'province_code' => 'nullable|string|max:64',
+            'city_code' => 'nullable|string|max:64',
         ]);
 
         try {
             $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
-            $normalized = $supplierApiClient->fetchRemoteProduct($account, (string) $data['external_product_id'], $data['lookup_type'] ?? null);
+            $normalized = $supplierApiClient->fetchRemoteProduct($account, (string) $data['external_product_id'], $data['lookup_type'] ?? null, [
+                'remote_mode' => $data['remote_mode'] ?? 'standard',
+                'ship_to_country' => strtoupper((string) ($data['ship_to_country'] ?? 'TG')),
+                'target_currency' => $data['target_currency'] ?? null,
+                'target_language' => $data['target_language'] ?? null,
+                'remove_personal_benefit' => $data['remove_personal_benefit'] ?? null,
+                'biz_model' => $data['biz_model'] ?? null,
+                'province_code' => $data['province_code'] ?? null,
+                'city_code' => $data['city_code'] ?? null,
+            ]);
         } catch (Throwable $exception) {
             Log::warning('sourcing.fetch_remote_failed', [
                 'supplier_account_id' => (int) $data['supplier_account_id'],
@@ -403,6 +454,14 @@ class AdminSupplierCatalogController extends Controller
         $allowedOperations = [
             'advanced-freight-calculate',
             'basic-freight-calculate',
+            'ds-order-create',
+            'ds-product-get',
+            'ds-product-wholesale-get',
+            'ds-category-get',
+            'ds-feed-itemids-get',
+            'buyer-freight-calculate',
+            'ds-trade-order-get',
+            'ds-order-tracking-get',
             'merge-pay-query',
             'buynow-order-create',
             'logistics-tracking-get',

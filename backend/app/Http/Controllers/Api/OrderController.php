@@ -444,6 +444,7 @@ class OrderController extends Controller
             $isPhysical = (bool) ($product->shipping_required ?? false)
                 || $unitShippingFee > 0
                 || !empty($product->accessory_category);
+            $usesTransitPricing = $this->transitPricing->usesTransitPricing($product);
             if ($isPhysical) {
                 $hasPhysicalItems = true;
                 if ($destinationCountryCode === '') {
@@ -452,11 +453,13 @@ class OrderController extends Controller
                     ]);
                 }
 
-                $country = $this->transitPricing->resolveCountry($destinationCountryCode);
-                $pricing = $this->transitPricing->computeProductPricing($product, $country, 1);
-                $unitPrice = (float) $pricing['final_price'];
-                $unitShippingFee = 0;
-                $lineTotal = $unitPrice * $quantity;
+                if ($usesTransitPricing) {
+                    $country = $this->transitPricing->resolveCountry($destinationCountryCode);
+                    $pricing = $this->transitPricing->computeProductPricing($product, $country, 1);
+                    $unitPrice = (float) $pricing['final_price'];
+                    $unitShippingFee = 0;
+                    $lineTotal = $unitPrice * $quantity;
+                }
             }
 
             $totalAmount += $lineTotal;

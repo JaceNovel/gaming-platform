@@ -378,7 +378,7 @@ class AliExpressOrderFulfillmentService
             'ds_extend_request' => [
                 'payment' => [
                     'pay_currency' => 'USD',
-                    'try_to_pay' => 'false',
+                    'try_to_pay' => 'true',
                 ],
             ],
             'param_place_order_request4_open_api_d_t_o' => [
@@ -429,6 +429,9 @@ class AliExpressOrderFulfillmentService
         }
 
         $externalOrderId = $normalized['order_list'][0] ?? $this->findFirstStringByKeys($result, ['order_id', 'orderId', 'trade_order_id', 'tradeOrderId']);
+        $supplierStatus = $normalized['payment_warning']
+            ? Order::SUPPLIER_STATUS_PENDING
+            : Order::SUPPLIER_STATUS_PAID;
         $fulfillment->fill([
             'external_order_id' => $externalOrderId,
             'asf_status' => 'ds_order_created',
@@ -436,7 +439,7 @@ class AliExpressOrderFulfillmentService
         ]);
         $fulfillment->save();
 
-        $this->syncOrderSummary($order->fresh(), $fulfillment->fresh(), Order::SUPPLIER_STATUS_PAID);
+        $this->syncOrderSummary($order->fresh(), $fulfillment->fresh(), $supplierStatus);
 
         return [
             'fulfillment' => $fulfillment->fresh(['supplierAccount']),
@@ -449,13 +452,18 @@ class AliExpressOrderFulfillmentService
     {
         $fulfillment = $this->ensureFulfillment($order);
         $account = $this->resolveSupplierAccount($order, $fulfillment);
-        $payload = [
-            'tradeOrderId' => $this->requireString($fulfillment->external_order_id, 'external_order_id'),
-            'locale' => $this->resolveLocale($fulfillment),
-        ];
+        [$operation, $payload, $sourceLabel] = $this->buildRemoteOrderSyncRequest($fulfillment);
 
-        $response = $this->supplierApiClient->iopOperation($account, 'order-get', $payload);
+        $response = $this->supplierApiClient->iopOperation($account, $operation, $payload);
         $snapshot = $this->extractRemoteOrderSnapshot($response);
+        $trackingSync = $operation === 'ds-trade-order-get'
+            ? $this->syncDropshippingTrackingSnapshot($account, $fulfillment)
+            : null;
+
+        if (is_array($trackingSync['snapshot'] ?? null)) {
+            $snapshot = array_merge($snapshot, array_filter($trackingSync['snapshot'], static fn ($value) => $value !== null && $value !== ''));
+        }
+
         $supplierStatus = $this->mapRemoteSupplierStatus(
             $snapshot['order_status'] ?? null,
             $snapshot['logistics_status'] ?? null,
@@ -464,8 +472,12 @@ class AliExpressOrderFulfillmentService
 
         $metadata = (array) ($fulfillment->metadata_json ?? []);
         $metadata['remote_order_sync'] = array_merge($snapshot, [
+            'source' => $sourceLabel,
             'synced_at' => now()->toIso8601String(),
         ]);
+        if ($trackingSync !== null) {
+            $metadata['ds_tracking_sync'] = $trackingSync;
+        }
 
         $fulfillment->fill([
             'shipping_provider_code' => $snapshot['shipping_provider_code'] ?? $fulfillment->shipping_provider_code,
@@ -486,7 +498,9 @@ class AliExpressOrderFulfillmentService
         return [
             'fulfillment' => $fulfillment->fresh(['supplierAccount']),
             'remote' => $snapshot,
+            'tracking' => $trackingSync,
             'response' => $response,
+            'source' => $sourceLabel,
             'supplier_status' => $supplierStatus,
         ];
     }
@@ -959,6 +973,9 @@ class AliExpressOrderFulfillmentService
             'order_list' => $orderList,
             'error_code' => $errorCode,
             'remote_error_message' => $remoteErrorMessage,
+            'payment_warning' => $success && ($errorCode !== null || $remoteErrorMessage !== null)
+                ? ($remoteErrorMessage ?: $errorCode)
+                : null,
             'error_message' => $success ? null : $this->describeDsCreateError($errorCode, $remoteErrorMessage),
         ];
     }
@@ -993,6 +1010,93 @@ class AliExpressOrderFulfillmentService
             'shipping_provider_name' => $this->findFirstStringByKeys($response, ['service_name', 'serviceName', 'logistics_company_name', 'logisticsCompanyName', 'shipping_provider_name']),
             'package_id' => $this->findFirstStringByKeys($response, ['package_id', 'packageId']),
         ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function buildRemoteOrderSyncRequest(OrderSupplierFulfillment $fulfillment): array
+    {
+        $externalOrderId = $this->requireString($fulfillment->external_order_id, 'external_order_id');
+        $locale = $this->resolveLocale($fulfillment);
+
+        if ($this->isDropshippingExternalOrder($fulfillment)) {
+            return [
+                'ds-trade-order-get',
+                [
+                    'single_order_query' => [
+                        'order_id' => $externalOrderId,
+                    ],
+                ],
+                'trade.ds.order.get',
+            ];
+        }
+
+        return [
+            'order-get',
+            [
+                'tradeOrderId' => $externalOrderId,
+                'locale' => $locale,
+            ],
+            'Order.get',
+        ];
+    }
+
+    private function syncDropshippingTrackingSnapshot(SupplierAccount $account, OrderSupplierFulfillment $fulfillment): array
+    {
+        try {
+            $payload = [
+                'ae_order_id' => $this->requireString($fulfillment->external_order_id, 'external_order_id'),
+                'language' => $this->resolveLocale($fulfillment),
+            ];
+
+            $response = $this->supplierApiClient->iopOperation($account, 'ds-order-tracking-get', $payload);
+            $snapshot = $this->extractDsTrackingSnapshot($response);
+
+            return array_merge($snapshot, [
+                'synced_at' => now()->toIso8601String(),
+                'request_payload' => $payload,
+            ]);
+        } catch (
+            \Throwable $exception
+        ) {
+            return [
+                'success' => false,
+                'error_message' => $exception->getMessage(),
+                'synced_at' => now()->toIso8601String(),
+            ];
+        }
+    }
+
+    private function extractDsTrackingSnapshot(array $response): array
+    {
+        $result = is_array($response['result'] ?? null) ? $response['result'] : [];
+        $success = filter_var($result['ret'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        $code = $this->nullableString($result['code'] ?? null);
+        $message = $this->nullableString($result['msg'] ?? $result['error_msg'] ?? null);
+        $lines = Arr::wrap(data_get($result, 'data.tracking_detail_line_list', []));
+        $primaryLine = is_array($lines[0] ?? null) ? $lines[0] : [];
+        $detailNodes = array_values(array_filter(Arr::wrap($primaryLine['detail_node_list'] ?? []), 'is_array'));
+
+        return [
+            'success' => $success !== false,
+            'code' => $code,
+            'message' => $message,
+            'tracking_number' => $this->nullableString($primaryLine['mail_no'] ?? null),
+            'shipping_provider_name' => $this->nullableString($primaryLine['carrier_name'] ?? null),
+            'eta_timestamp' => $this->nullableString($primaryLine['eta_time_stamps'] ?? null),
+            'tracking_detail_line_list' => $lines,
+            'latest_event' => is_array($detailNodes[0] ?? null) ? $detailNodes[0] : null,
+            'snapshot' => array_filter([
+                'tracking_number' => $this->nullableString($primaryLine['mail_no'] ?? null),
+                'shipping_provider_name' => $this->nullableString($primaryLine['carrier_name'] ?? null),
+            ], static fn ($value) => $value !== null && $value !== ''),
+            'raw' => $response,
+        ];
+    }
+
+    private function isDropshippingExternalOrder(OrderSupplierFulfillment $fulfillment): bool
+    {
+        $dsOrderCreate = data_get($fulfillment->metadata_json, 'ds_order_create');
+
+        return is_array($dsOrderCreate) && !empty($dsOrderCreate['order_list']);
     }
 
     private function mapRemoteSupplierStatus(?string $orderStatus, ?string $logisticsStatus, ?string $currentStatus = null): ?string

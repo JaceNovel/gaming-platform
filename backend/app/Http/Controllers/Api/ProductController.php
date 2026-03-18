@@ -155,6 +155,10 @@ class ProductController extends Controller
     {
         $resolvedCountry = strtoupper(trim((string) ($countryCode ?: 'TG')));
 
+        if (!$this->transitPricing->usesTransitPricing($product)) {
+            return $product->toArray();
+        }
+
         try {
             return $this->transitPricing->enrichProduct($product, $resolvedCountry);
         } catch (\Throwable) {

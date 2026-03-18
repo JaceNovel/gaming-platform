@@ -11,18 +11,23 @@ use SimpleXMLElement;
 
 class SupplierApiClient
 {
-    public function fetchRemoteProduct(SupplierAccount $account, string $externalProductId, ?string $lookupType = null): array
+    public function fetchRemoteProduct(SupplierAccount $account, string $externalProductId, ?string $lookupType = null, array $options = []): array
     {
         $config = $this->platformConfig($account->platform);
-        $methodName = trim((string) ($config['product_detail_method'] ?? $config['product_detail_path'] ?? ''));
+        $remoteMode = (string) ($options['remote_mode'] ?? 'standard');
+        $methodName = match ($remoteMode) {
+            'ds_product' => trim((string) ($config['ds_product_get_method'] ?? '')),
+            'ds_wholesale' => trim((string) ($config['ds_product_wholesale_get_method'] ?? '')),
+            default => trim((string) ($config['product_detail_method'] ?? $config['product_detail_path'] ?? '')),
+        };
         $lookupParam = trim((string) ($config['product_lookup_param'] ?? 'product_id'));
         if ($methodName === '') {
             throw new \RuntimeException('Méthode IOP de détail produit non configurée pour ' . $account->platform);
         }
 
-        $response = $this->request($account, $methodName, $this->buildProductLookupParams($methodName, $lookupParam, $externalProductId, $lookupType));
+        $response = $this->request($account, $methodName, $this->buildProductLookupParams($methodName, $lookupParam, $externalProductId, $lookupType, $options));
 
-        return $this->normalizeProductResponse($account, $externalProductId, $response);
+        return $this->normalizeProductResponse($account, $externalProductId, $response, $methodName, $options);
     }
 
     public function searchRemoteProducts(SupplierAccount $account, array $filters): array
@@ -672,8 +677,15 @@ class SupplierApiClient
         return $result;
     }
 
-    private function normalizeProductResponse(SupplierAccount $account, string $externalProductId, array $payload): array
+    private function normalizeProductResponse(SupplierAccount $account, string $externalProductId, array $payload, string $methodName, array $options = []): array
     {
+        if (in_array($methodName, [
+            (string) ($this->platformConfig($account->platform)['ds_product_get_method'] ?? ''),
+            (string) ($this->platformConfig($account->platform)['ds_product_wholesale_get_method'] ?? ''),
+        ], true)) {
+            return $this->normalizeAliExpressDsProductResponse($account, $externalProductId, $payload, $methodName, $options);
+        }
+
         $root = $payload['result'] ?? $payload['data'] ?? $payload['result_data'] ?? $payload;
         $product = is_array($root['product'] ?? null)
             ? $root['product']
@@ -763,6 +775,130 @@ class SupplierApiClient
             'attributes_json' => $product['attributes_json'] ?? $product['attributes'] ?? $categoryInfo['attributes'] ?? data_get($product, 'product_sku.sku_attributes') ?? [],
             'product_payload_json' => $payload,
             'skus' => $normalizedSkus,
+        ];
+    }
+
+    private function normalizeAliExpressDsProductResponse(SupplierAccount $account, string $externalProductId, array $payload, string $methodName, array $options = []): array
+    {
+        $result = is_array($payload['result'] ?? null) ? $payload['result'] : [];
+        $baseInfo = is_array($result['ae_item_base_info_dto'] ?? null) ? $result['ae_item_base_info_dto'] : [];
+        $storeInfo = is_array($result['ae_store_info'] ?? null) ? $result['ae_store_info'] : [];
+        $packageInfo = is_array($result['package_info_dto'] ?? null) ? $result['package_info_dto'] : [];
+        $logisticsInfo = is_array($result['logistics_info_dto'] ?? null) ? $result['logistics_info_dto'] : [];
+        $productConverter = is_array($result['product_id_converter_result'] ?? null) ? $result['product_id_converter_result'] : [];
+        $multimedia = is_array($result['ae_multimedia_info_dto'] ?? null) ? $result['ae_multimedia_info_dto'] : [];
+
+        $title = trim((string) ($baseInfo['subject'] ?? $baseInfo['title'] ?? '')) ?: ('Produit ' . $externalProductId);
+        $imageUrlsRaw = trim((string) ($multimedia['image_urls'] ?? ''));
+        $imageUrls = array_values(array_filter(array_map('trim', explode(';', $imageUrlsRaw))));
+        $mainImageUrl = $imageUrls[0] ?? null;
+        $targetCurrency = strtoupper(trim((string) ($options['target_currency'] ?? 'USD'))) ?: 'USD';
+        $sourceUrl = $externalProductId !== '' ? 'https://www.aliexpress.com/item/' . $externalProductId . '.html' : null;
+
+        $skuRows = Arr::wrap($result['ae_item_sku_info_dtos'] ?? []);
+        $normalizedSkus = array_values(array_filter(array_map(function ($sku) use ($targetCurrency) {
+            if (!is_array($sku)) {
+                return null;
+            }
+
+            $externalSkuId = trim((string) ($sku['sku_id'] ?? $sku['id'] ?? ''));
+            if ($externalSkuId === '') {
+                return null;
+            }
+
+            $price = $this->normalizeMoney($sku['offer_sale_price'] ?? $sku['sku_price'] ?? null);
+            $originalPrice = $this->normalizeMoney($sku['offer_bulk_sale_price'] ?? $sku['wholesale_price_tiers'][0]['wholesale_price'] ?? $price);
+            $currencyCode = strtoupper(trim((string) ($sku['currency_code'] ?? $sku['target_sale_price_currency'] ?? $targetCurrency))) ?: $targetCurrency;
+            $variantAttributes = array_values(array_filter(array_map(function ($property) {
+                if (!is_array($property)) {
+                    return null;
+                }
+
+                return array_filter([
+                    'property_id' => $property['sku_property_id'] ?? null,
+                    'property_value_id' => $property['property_value_id'] ?? null,
+                    'property_name' => $property['sku_property_name'] ?? null,
+                    'property_value' => $property['property_value_definition_name'] ?? $property['sku_property_value'] ?? null,
+                    'sku_image' => $property['sku_image'] ?? null,
+                ], static fn ($value) => $value !== null && $value !== '');
+            }, Arr::wrap($sku['ae_sku_property_dtos'] ?? []))));
+
+            return [
+                'external_sku_id' => $externalSkuId,
+                'sku_label' => $sku['sku_attr'] ?? $sku['id'] ?? $externalSkuId,
+                'variant_attributes_json' => $variantAttributes,
+                'moq' => max(1, (int) ($sku['sku_bulk_order'] ?? 1)),
+                'unit_price' => $price,
+                'currency_code' => $currencyCode,
+                'available_quantity' => $sku['sku_available_stock'] ?? $sku['ipm_sku_stock'] ?? null,
+                'lead_time_days' => null,
+                'logistics_modes_json' => [],
+                'sku_payload_json' => array_merge($sku, [
+                    'original_price' => $originalPrice,
+                ]),
+                'is_active' => filter_var($sku['sku_stock'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) !== false,
+            ];
+        }, $skuRows)));
+
+        if ($normalizedSkus === []) {
+            $normalizedSkus[] = [
+                'external_sku_id' => $externalProductId . '-default',
+                'sku_label' => 'Default',
+                'variant_attributes_json' => [],
+                'moq' => 1,
+                'unit_price' => null,
+                'currency_code' => $targetCurrency,
+                'available_quantity' => null,
+                'lead_time_days' => null,
+                'logistics_modes_json' => [],
+                'sku_payload_json' => [],
+                'is_active' => true,
+            ];
+        }
+
+        $firstSku = $normalizedSkus[0] ?? [];
+        $firstSkuPayload = is_array($firstSku['sku_payload_json'] ?? null) ? $firstSku['sku_payload_json'] : [];
+
+        return [
+            'supplier_account_id' => $account->id,
+            'external_product_id' => $externalProductId,
+            'external_offer_id' => $productConverter['main_product_id'] ?? null,
+            'title' => $title,
+            'supplier_name' => $storeInfo['store_name'] ?? $account->label,
+            'source_url' => $sourceUrl,
+            'main_image_url' => $mainImageUrl,
+            'category_path_json' => array_values(array_filter([
+                trim((string) ($baseInfo['category_sequence'] ?? '')),
+                trim((string) ($baseInfo['category_id'] ?? '')),
+            ])),
+            'attributes_json' => [
+                'target_currency' => $targetCurrency,
+                'target_language' => $options['target_language'] ?? null,
+                'ship_to_country' => $options['ship_to_country'] ?? null,
+                'avg_evaluation_rating' => $baseInfo['avg_evaluation_rating'] ?? null,
+                'sales_count' => $baseInfo['sales_count'] ?? null,
+                'evaluation_count' => $baseInfo['evaluation_count'] ?? null,
+                'product_status_type' => $baseInfo['product_status_type'] ?? null,
+                'delivery_time' => $logisticsInfo['delivery_time'] ?? null,
+                'package_length' => $packageInfo['package_length'] ?? null,
+                'package_width' => $packageInfo['package_width'] ?? null,
+                'package_height' => $packageInfo['package_height'] ?? null,
+                'gross_weight' => $packageInfo['gross_weight'] ?? null,
+                'has_whole_sale' => $result['has_whole_sale'] ?? null,
+                'import_mode' => $methodName === (string) ($this->platformConfig($account->platform)['ds_product_wholesale_get_method'] ?? '') ? 'ds_wholesale' : 'ds_product',
+            ],
+            'product_payload_json' => $payload,
+            'skus' => $normalizedSkus,
+            '_storefront_defaults' => [
+                'source_currency' => $firstSku['currency_code'] ?? $targetCurrency,
+                'source_unit_price' => $firstSku['unit_price'] ?? null,
+                'source_original_price' => $firstSkuPayload['original_price'] ?? null,
+                'main_image_url' => $mainImageUrl,
+                'source_url' => $sourceUrl,
+                'estimated_weight_grams' => (int) round(((float) ($packageInfo['gross_weight'] ?? 0)) * 1000),
+                'estimated_cbm' => $this->estimateCbmFromPackageInfo($packageInfo),
+                'source_logistics_profile' => 'ordinary',
+            ],
         ];
     }
 
@@ -896,6 +1032,48 @@ class SupplierApiClient
             ],
             'ds-order-create' => [
                 'result' => $response['result'] ?? data_get($response, 'value.result') ?? null,
+                'code' => $response['code'] ?? null,
+                'request_id' => $response['request_id'] ?? null,
+                'raw' => $response,
+            ],
+            'ds-trade-order-get' => [
+                'result' => $response['result'] ?? null,
+                'code' => $response['code'] ?? null,
+                'request_id' => $response['request_id'] ?? null,
+                'raw' => $response,
+            ],
+            'ds-order-tracking-get' => [
+                'result' => $response['result'] ?? null,
+                'code' => $response['code'] ?? null,
+                'request_id' => $response['request_id'] ?? null,
+                'raw' => $response,
+            ],
+            'ds-product-get' => [
+                'result' => $response['result'] ?? null,
+                'code' => $response['code'] ?? null,
+                'request_id' => $response['request_id'] ?? null,
+                'raw' => $response,
+            ],
+            'ds-product-wholesale-get' => [
+                'result' => $response['result'] ?? null,
+                'code' => $response['code'] ?? null,
+                'request_id' => $response['request_id'] ?? null,
+                'raw' => $response,
+            ],
+            'ds-category-get' => [
+                'result' => $response['result'] ?? null,
+                'code' => $response['code'] ?? null,
+                'request_id' => $response['request_id'] ?? null,
+                'raw' => $response,
+            ],
+            'ds-feed-itemids-get' => [
+                'result' => $response['result'] ?? null,
+                'code' => $response['code'] ?? null,
+                'request_id' => $response['request_id'] ?? null,
+                'raw' => $response,
+            ],
+            'buyer-freight-calculate' => [
+                'result' => $response['result'] ?? null,
                 'code' => $response['code'] ?? null,
                 'request_id' => $response['request_id'] ?? null,
                 'raw' => $response,
@@ -1122,6 +1300,13 @@ class SupplierApiClient
             'advanced-freight-calculate' => ['config_key' => 'advanced_freight_calculate_method', 'http_method' => 'POST', 'param_key' => null],
             'basic-freight-calculate' => ['config_key' => 'basic_freight_calculate_method', 'http_method' => 'POST', 'param_key' => null],
             'ds-order-create' => ['config_key' => 'ds_order_create_method', 'http_method' => 'POST', 'param_key' => null],
+            'ds-product-get' => ['config_key' => 'ds_product_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ds-product-wholesale-get' => ['config_key' => 'ds_product_wholesale_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ds-category-get' => ['config_key' => 'ds_category_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ds-feed-itemids-get' => ['config_key' => 'ds_feed_itemids_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'buyer-freight-calculate' => ['config_key' => 'buyer_freight_calculate_method', 'http_method' => 'POST', 'param_key' => null],
+            'ds-trade-order-get' => ['config_key' => 'ds_trade_order_get_method', 'http_method' => 'POST', 'param_key' => null],
+            'ds-order-tracking-get' => ['config_key' => 'ds_order_tracking_get_method', 'http_method' => 'POST', 'param_key' => null],
             'merge-pay-query' => ['config_key' => 'merge_pay_query_method', 'http_method' => 'POST', 'param_key' => 'order_ids'],
             'buynow-order-create' => ['config_key' => 'buynow_order_create_method', 'http_method' => 'POST', 'param_key' => null],
             'logistics-tracking-get' => ['config_key' => 'logistics_tracking_get_method', 'http_method' => 'POST', 'param_key' => 'trade_id'],
@@ -1222,7 +1407,7 @@ class SupplierApiClient
         ];
     }
 
-    private function buildProductLookupParams(string $methodName, string $lookupParam, string $externalProductId, ?string $lookupType = null): array
+    private function buildProductLookupParams(string $methodName, string $lookupParam, string $externalProductId, ?string $lookupType = null, array $options = []): array
     {
         if ($methodName === '/icbu/product/get') {
             $resolvedLookupParam = $lookupType === 'sku_id' ? 'skuId' : 'productId';
@@ -1249,6 +1434,19 @@ class SupplierApiClient
             ];
         }
 
+        if (in_array($methodName, ['aliexpress.ds.product.get', 'aliexpress.ds.product.wholesale.get'], true)) {
+            return array_filter([
+                'ship_to_country' => strtoupper(trim((string) ($options['ship_to_country'] ?? 'TG'))) ?: 'TG',
+                'product_id' => $externalProductId,
+                'target_currency' => $this->nullableStringForParams($options['target_currency'] ?? null),
+                'target_language' => $this->nullableStringForParams($options['target_language'] ?? null),
+                'remove_personal_benefit' => array_key_exists('remove_personal_benefit', $options) ? ($options['remove_personal_benefit'] ? 'true' : 'false') : null,
+                'biz_model' => $this->nullableStringForParams($options['biz_model'] ?? null),
+                'province_code' => $this->nullableStringForParams($options['province_code'] ?? null),
+                'city_code' => $this->nullableStringForParams($options['city_code'] ?? null),
+            ], static fn ($value) => $value !== null && $value !== '');
+        }
+
         return [
             'productId' => $lookupType === 'sku_id' ? null : $externalProductId,
             'skuId' => $lookupType === 'sku_id' ? $externalProductId : null,
@@ -1271,5 +1469,38 @@ class SupplierApiClient
     private function platformConfig(string $platform): array
     {
         return (array) data_get(config('services.sourcing.platforms'), $platform, []);
+    }
+
+    private function normalizeMoney(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $normalized = str_replace(['"', ','], ['', '.'], trim((string) $value));
+        if ($normalized === '' || !is_numeric($normalized)) {
+            return null;
+        }
+
+        return (float) $normalized;
+    }
+
+    private function estimateCbmFromPackageInfo(array $packageInfo): float
+    {
+        $length = (float) ($packageInfo['package_length'] ?? 0);
+        $width = (float) ($packageInfo['package_width'] ?? 0);
+        $height = (float) ($packageInfo['package_height'] ?? 0);
+
+        if ($length <= 0 || $width <= 0 || $height <= 0) {
+            return 0.0;
+        }
+
+        return round(($length * $width * $height) / 1000000, 6);
+    }
+
+    private function nullableStringForParams(mixed $value): ?string
+    {
+        $normalized = trim((string) ($value ?? ''));
+        return $normalized === '' ? null : $normalized;
     }
 }

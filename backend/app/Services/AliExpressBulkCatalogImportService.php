@@ -99,6 +99,14 @@ class AliExpressBulkCatalogImportService
         ];
     }
 
+    public function syncStorefrontProductFromSupplierImport(SupplierProduct $supplierProduct, array $supplierPayload, array $options = []): array
+    {
+        $resolvedPayload = $this->ensureStorefrontDefaults($supplierProduct, $supplierPayload, $options);
+        $publishProducts = (bool) ($options['publish_products'] ?? false);
+
+        return $this->syncLocalProduct($supplierProduct, $resolvedPayload, $options, $publishProducts);
+    }
+
     private function extractAffiliateProducts(array $result): array
     {
         $queue = [$result];
@@ -335,6 +343,37 @@ class AliExpressBulkCatalogImportService
         });
 
         return ['created' => true, 'updated' => false, 'product' => $product->fresh()];
+    }
+
+    private function ensureStorefrontDefaults(SupplierProduct $supplierProduct, array $supplierPayload, array $options): array
+    {
+        $defaults = (array) ($supplierPayload['_storefront_defaults'] ?? []);
+        if (($defaults['price_fcfa'] ?? null) !== null) {
+            return $supplierPayload;
+        }
+
+        $defaultSku = $supplierProduct->relationLoaded('skus')
+            ? $supplierProduct->skus->sortBy('id')->first()
+            : $supplierProduct->skus()->orderBy('id')->first();
+        $skuPayload = is_array($defaultSku?->sku_payload_json) ? $defaultSku->sku_payload_json : [];
+        $sourceCurrency = strtoupper(trim((string) ($defaults['source_currency'] ?? $defaultSku?->currency_code ?? 'USD'))) ?: 'USD';
+        $sourceUnitPrice = $defaults['source_unit_price'] ?? $defaultSku?->unit_price ?? null;
+        $sourceOriginalPrice = $defaults['source_original_price'] ?? ($skuPayload['original_price'] ?? null);
+
+        $defaults['source_currency'] = $sourceCurrency;
+        $defaults['source_unit_price'] = $this->normalizeMoney($sourceUnitPrice);
+        $defaults['source_original_price'] = $this->normalizeMoney($sourceOriginalPrice);
+        $defaults['price_fcfa'] = $this->convertToFcfa($defaults['source_unit_price'] ?? 0, $sourceCurrency, (float) ($options['usd_to_xof_rate'] ?? 620));
+        $defaults['old_price_fcfa'] = $this->convertToFcfa($defaults['source_original_price'] ?? ($defaults['source_unit_price'] ?? 0), $sourceCurrency, (float) ($options['usd_to_xof_rate'] ?? 620));
+        $defaults['main_image_url'] = $defaults['main_image_url'] ?? $supplierProduct->main_image_url;
+        $defaults['source_url'] = $defaults['source_url'] ?? $supplierProduct->source_url;
+        $defaults['estimated_weight_grams'] = (int) ($defaults['estimated_weight_grams'] ?? $defaultSku?->weight_grams ?? $options['default_weight_grams'] ?? 0);
+        $defaults['estimated_cbm'] = (float) ($defaults['estimated_cbm'] ?? $options['default_estimated_cbm'] ?? 0);
+        $defaults['source_logistics_profile'] = $defaults['source_logistics_profile'] ?? strtolower((string) ($options['source_logistics_profile'] ?? 'ordinary'));
+
+        $supplierPayload['_storefront_defaults'] = $defaults;
+
+        return $supplierPayload;
     }
 
     private function applyProductDefaults(Product $product, array $supplierPayload, array $options, bool $publishProducts, bool $onlyFillMissing): void

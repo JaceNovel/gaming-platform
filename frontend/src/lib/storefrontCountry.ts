@@ -8,6 +8,24 @@ export type StorefrontCountry = {
   customer_notice?: string | null;
 };
 
+const HIDDEN_CUSTOMER_NOTICE_PATTERNS = [
+  /vos colis sont centralises via notre hub logistique principal/i,
+  /votre commande est acheminee vers notre hub logistique central/i,
+  /votre tracking number sera communique des l'expedition/i,
+  /expedition apres atteinte du seuil minimum de commande pour votre zone/i,
+];
+
+export function sanitizeStorefrontCustomerNotice(notice?: string | null): string | null {
+  const normalized = String(notice ?? "").trim();
+  if (!normalized) return null;
+
+  if (HIDDEN_CUSTOMER_NOTICE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return null;
+  }
+
+  return normalized;
+}
+
 const STORAGE_KEY = "bbshop_storefront_country";
 const EVENT_NAME = "bbshop:storefront-country-changed";
 

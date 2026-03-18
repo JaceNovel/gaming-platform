@@ -31,6 +31,19 @@ type RemoteSearchResult = {
   main_image_url?: string | null;
 };
 
+type RemoteProductPayload = {
+  external_offer_id?: string | null;
+  title?: string | null;
+  supplier_name?: string | null;
+  source_url?: string | null;
+  main_image_url?: string | null;
+  category_path_json?: unknown[] | null;
+  attributes_json?: Record<string, unknown> | null;
+  product_payload_json?: Record<string, unknown> | null;
+  skus?: unknown[] | null;
+  _storefront_defaults?: Record<string, unknown> | null;
+};
+
 type CategoryPrediction = {
   category_id?: string | null;
   category_name?: string | null;
@@ -86,6 +99,14 @@ type BuyerEcoOperation =
 type IopOperation =
   | "advanced-freight-calculate"
   | "basic-freight-calculate"
+  | "ds-order-create"
+  | "ds-product-get"
+  | "ds-product-wholesale-get"
+  | "ds-category-get"
+  | "ds-feed-itemids-get"
+  | "buyer-freight-calculate"
+  | "ds-trade-order-get"
+  | "ds-order-tracking-get"
   | "merge-pay-query"
   | "buynow-order-create"
   | "logistics-tracking-get"
@@ -203,6 +224,14 @@ const ALIBABA_IOP_OPERATIONS: IopOperation[] = [
 ];
 
 const ALIEXPRESS_IOP_OPERATIONS: IopOperation[] = [
+  "ds-order-create",
+  "ds-product-get",
+  "ds-product-wholesale-get",
+  "ds-category-get",
+  "ds-feed-itemids-get",
+  "buyer-freight-calculate",
+  "ds-trade-order-get",
+  "ds-order-tracking-get",
   "ae-affiliate-product-shipping",
   "ae-affiliate-sku-detail",
   "ae-affiliate-product-detail",
@@ -290,6 +319,19 @@ const ALIEXPRESS_IOP_OPERATIONS: IopOperation[] = [
 ];
 
 const ALIEXPRESS_IOP_OPERATION_GROUPS: Array<{ label: string; operations: IopOperation[] }> = [
+  {
+    label: "DS Catalog & Orders",
+    operations: [
+      "ds-product-get",
+      "ds-product-wholesale-get",
+      "ds-category-get",
+      "ds-feed-itemids-get",
+      "buyer-freight-calculate",
+      "ds-order-create",
+      "ds-trade-order-get",
+      "ds-order-tracking-get",
+    ],
+  },
   {
     label: "Affiliate",
     operations: [
@@ -545,6 +587,80 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     zip_code: "90001",
     dispatch_location: "CN",
     enable_distribution_waybill: false,
+  }),
+  "ds-order-create": stringifyTemplate({
+    ds_extend_request: {
+      payment: {
+        try_to_pay: "true",
+        pay_currency: "USD",
+      },
+    },
+    param_place_order_request4_open_api_d_t_o: {
+      out_order_id: "gp-demo-order-001",
+      logistics_address: {
+        country: "TG",
+        city: "Lome",
+        address: "Rue de la Paix",
+        address2: "Quartier administratif",
+        full_name: "Client Demo",
+        contact_person: "Client Demo",
+        mobile_no: "90000000",
+        phone_country: "+228",
+        zip: "0000",
+        locale: "fr_FR",
+      },
+      product_items: [
+        {
+          product_id: "1005003784285827",
+          sku_attr: "73:175#Black Green;71:193#Polarized",
+          product_count: "1",
+          logistics_service_name: "AliExpress Selection Standard",
+        },
+      ],
+    },
+  }),
+  "ds-product-get": stringifyTemplate({
+    ship_to_country: "TG",
+    product_id: "1005003784285827",
+    target_currency: "USD",
+    target_language: "fr",
+    remove_personal_benefit: false,
+  }),
+  "ds-product-wholesale-get": stringifyTemplate({
+    ship_to_country: "TG",
+    product_id: "1005003784285827",
+    target_currency: "USD",
+    target_language: "fr",
+    remove_personal_benefit: false,
+  }),
+  "ds-category-get": stringifyTemplate({
+    categoryId: "21",
+    language: "fr",
+  }),
+  "ds-feed-itemids-get": stringifyTemplate({
+    page_size: 20,
+    category_id: "21",
+    feed_name: "DS bestseller",
+  }),
+  "buyer-freight-calculate": stringifyTemplate({
+    param_aeop_freight_calculate_for_buyer_d_t_o: {
+      country_code: "TG",
+      price: "19.99",
+      product_id: "1005003784285827",
+      sku_id: "12000027158136202",
+      product_num: "1",
+      send_goods_country_code: "CN",
+      price_currency: "USD",
+    },
+  }),
+  "ds-trade-order-get": stringifyTemplate({
+    single_order_query: {
+      order_id: "10000001",
+    },
+  }),
+  "ds-order-tracking-get": stringifyTemplate({
+    ae_order_id: "10000001",
+    language: "en_US",
   }),
   "merge-pay-query": stringifyTemplate(["23423333", "123421"]),
   "buynow-order-create": stringifyTemplate({
@@ -1362,6 +1478,11 @@ export default function AdminSourcingImportPage() {
   const [supplierAccountId, setSupplierAccountId] = useState("");
   const [externalProductId, setExternalProductId] = useState("");
   const [lookupType, setLookupType] = useState<"product_id" | "sku_id">("product_id");
+  const [remoteMode, setRemoteMode] = useState<"standard" | "ds_product" | "ds_wholesale">(platform === "aliexpress" ? "ds_product" : "standard");
+  const [dsShipToCountry, setDsShipToCountry] = useState("TG");
+  const [dsTargetCurrency, setDsTargetCurrency] = useState("USD");
+  const [dsTargetLanguage, setDsTargetLanguage] = useState("fr");
+  const [dsRemovePersonalBenefit, setDsRemovePersonalBenefit] = useState(false);
   const [searchModelNumber, setSearchModelNumber] = useState("");
   const [searchSkuCode, setSearchSkuCode] = useState("");
   const [remoteResults, setRemoteResults] = useState<RemoteSearchResult[]>([]);
@@ -1371,6 +1492,10 @@ export default function AdminSourcingImportPage() {
   const [supplierName, setSupplierName] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [mainImageUrl, setMainImageUrl] = useState("");
+  const [autoCreateStorefrontProduct, setAutoCreateStorefrontProduct] = useState(platform === "aliexpress");
+  const [publishStorefrontProduct, setPublishStorefrontProduct] = useState(false);
+  const [usdToXofRate, setUsdToXofRate] = useState("620");
+  const [remoteProductData, setRemoteProductData] = useState<RemoteProductPayload | null>(null);
   const [predictionDescription, setPredictionDescription] = useState("");
   const [predictingCategory, setPredictingCategory] = useState(false);
   const [predictedCategory, setPredictedCategory] = useState<CategoryPrediction | null>(null);
@@ -1466,6 +1591,8 @@ export default function AdminSourcingImportPage() {
     const defaultOperation = platform === "aliexpress" ? "ae-affiliate-product-query" : "advanced-freight-calculate";
     setIopOperation(defaultOperation);
     setIopPayload(IOP_TEMPLATES[defaultOperation]);
+    setRemoteMode(platform === "aliexpress" ? "ds_product" : "standard");
+    setAutoCreateStorefrontProduct(platform === "aliexpress");
   }, [platform]);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -1489,6 +1616,13 @@ export default function AdminSourcingImportPage() {
           supplier_name: supplierName.trim() || undefined,
           source_url: sourceUrl.trim() || undefined,
           main_image_url: mainImageUrl.trim() || undefined,
+          category_path_json: remoteProductData?.category_path_json ?? undefined,
+          attributes_json: remoteProductData?.attributes_json ?? undefined,
+          product_payload_json: remoteProductData?.product_payload_json ?? undefined,
+          _storefront_defaults: remoteProductData?._storefront_defaults ?? undefined,
+          auto_create_storefront_product: autoCreateStorefrontProduct || undefined,
+          publish_storefront_product: publishStorefrontProduct || undefined,
+          usd_to_xof_rate: usdToXofRate.trim() ? Number(usdToXofRate) : undefined,
           skus: parsedSkus,
         }),
       });
@@ -1496,13 +1630,16 @@ export default function AdminSourcingImportPage() {
         const payload = await res.json().catch(() => null);
         throw new Error(payload?.message ?? "Import impossible");
       }
-      setSuccess("Catalogue fournisseur importé.");
+      const payload = await res.json().catch(() => null);
+      const storefrontProductId = payload?.storefront?.product?.id;
+      setSuccess(storefrontProductId ? `Produit importé et ajouté au site (#${storefrontProductId}).` : "Catalogue fournisseur importé.");
       setExternalProductId("");
       setExternalOfferId("");
       setTitle("");
       setSupplierName("");
       setSourceUrl("");
       setMainImageUrl("");
+      setRemoteProductData(null);
       await loadAll();
     } catch (err: any) {
       setError(err?.message ?? "Import impossible. Vérifie le JSON des SKU.");
@@ -1531,6 +1668,11 @@ export default function AdminSourcingImportPage() {
           supplier_account_id: Number(supplierAccountId),
           external_product_id: externalProductId.trim(),
           lookup_type: lookupType,
+          remote_mode: remoteMode,
+          ship_to_country: dsShipToCountry.trim() || undefined,
+          target_currency: dsTargetCurrency.trim() || undefined,
+          target_language: dsTargetLanguage.trim() || undefined,
+          remove_personal_benefit: dsRemovePersonalBenefit,
         }),
       });
       if (!res.ok) {
@@ -1538,13 +1680,14 @@ export default function AdminSourcingImportPage() {
         throw new Error(payload?.message ?? "Chargement API impossible");
       }
       const payload = await res.json();
-      const product = payload?.data;
+      const product = payload?.data as RemoteProductPayload | undefined;
       setExternalOfferId(product?.external_offer_id || "");
       setTitle(product?.title || "");
       setSupplierName(product?.supplier_name || "");
       setSourceUrl(product?.source_url || "");
       setMainImageUrl(product?.main_image_url || "");
       setSkusJson(JSON.stringify(product?.skus ?? [], null, 2));
+      setRemoteProductData(product ?? null);
       setSuccess("Produit fournisseur chargé depuis l’API et formulaire prérempli.");
     } catch (err: any) {
       setError(err?.message ?? "Chargement API impossible");
@@ -2020,18 +2163,73 @@ export default function AdminSourcingImportPage() {
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">External product ID</span>
               <input value={externalProductId} onChange={(e) => setExternalProductId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" required />
-              <span className="text-xs text-slate-500">Pour Alibaba ICBU v2, renseigne le `product_id` ou le `sku_id` selon le mode choisi ci-dessous.</span>
+              <span className="text-xs text-slate-500">{platform === "aliexpress" ? "Pour AliExpress DS, renseigne l’item id du produit." : "Pour Alibaba ICBU v2, renseigne le product_id ou le sku_id selon le mode choisi ci-dessous."}</span>
             </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-slate-600">Mode de lecture API</span>
-              <select value={lookupType} onChange={(e) => setLookupType(e.target.value as "product_id" | "sku_id")} className="rounded-xl border border-slate-200 px-3 py-2">
-                <option value="product_id">product_id</option>
-                <option value="sku_id">sku_id</option>
-              </select>
-            </label>
+            {platform === "aliexpress" ? (
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Source produit AliExpress</h3>
+                  <p className="text-xs text-slate-500">Charge un produit DS standard ou wholesale, puis importe-le directement dans le site.</p>
+                </div>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-slate-600">Mode distant</span>
+                  <select value={remoteMode} onChange={(e) => setRemoteMode(e.target.value as "standard" | "ds_product" | "ds_wholesale")} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                    <option value="ds_product">DS product</option>
+                    <option value="ds_wholesale">DS wholesale</option>
+                    <option value="standard">Standard product info</option>
+                  </select>
+                </label>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">Ship to</span>
+                    <input value={dsShipToCountry} onChange={(e) => setDsShipToCountry(e.target.value.toUpperCase())} className="rounded-xl border border-slate-200 bg-white px-3 py-2" maxLength={2} />
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">Currency</span>
+                    <input value={dsTargetCurrency} onChange={(e) => setDsTargetCurrency(e.target.value.toUpperCase())} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">Language</span>
+                    <input value={dsTargetLanguage} onChange={(e) => setDsTargetLanguage(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+                  </label>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={dsRemovePersonalBenefit} onChange={(e) => setDsRemovePersonalBenefit(e.target.checked)} />
+                  Retirer les promotions personnelles
+                </label>
+              </div>
+            ) : (
+              <label className="grid gap-1 text-sm">
+                <span className="text-slate-600">Mode de lecture API</span>
+                <select value={lookupType} onChange={(e) => setLookupType(e.target.value as "product_id" | "sku_id")} className="rounded-xl border border-slate-200 px-3 py-2">
+                  <option value="product_id">product_id</option>
+                  <option value="sku_id">sku_id</option>
+                </select>
+              </label>
+            )}
             <button type="button" onClick={fetchRemoteProduct} disabled={fetchingRemote} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
               {fetchingRemote ? "Chargement API..." : "Préremplir depuis l’API fournisseur"}
             </button>
+            {platform === "aliexpress" ? (
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Ajout au site</h3>
+                  <p className="text-xs text-slate-500">Crée aussi le produit storefront et le mapping par défaut pendant l’import.</p>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={autoCreateStorefrontProduct} onChange={(e) => setAutoCreateStorefrontProduct(e.target.checked)} />
+                  Créer le produit sur le site
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={publishStorefrontProduct} onChange={(e) => setPublishStorefrontProduct(e.target.checked)} />
+                  Publier immédiatement le produit
+                </label>
+                <label className="grid gap-1 text-sm sm:max-w-[180px]">
+                  <span className="text-slate-600">Taux USD → FCFA</span>
+                  <input value={usdToXofRate} onChange={(e) => setUsdToXofRate(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+                </label>
+              </div>
+            ) : null}
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">External offer ID</span>
               <input value={externalOfferId} onChange={(e) => setExternalOfferId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />

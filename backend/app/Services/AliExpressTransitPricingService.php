@@ -13,6 +13,12 @@ class AliExpressTransitPricingService
     public const DEFAULT_MARGIN_PERCENT = 17.0;
     public const DIRECT_DELIVERY_COUNTRIES = [];
 
+    public function usesTransitPricing(Product $product): bool
+    {
+        return strtolower(trim((string) ($product->type ?? ''))) === 'item'
+            && strtolower(trim((string) ($product->accessory_category ?? ''))) === 'gaming';
+    }
+
     public function storefrontCountries(): array
     {
         return SupplierCountry::query()
@@ -60,6 +66,10 @@ class AliExpressTransitPricingService
 
     public function enrichProduct(Product $product, string $countryCode): array
     {
+        if (!$this->usesTransitPricing($product)) {
+            return $product->toArray();
+        }
+
         $country = $this->resolveCountry($countryCode);
         $pricing = $this->computeProductPricing($product, $country);
         $isDirectDelivery = $this->isDirectDeliveryCountry($country);
@@ -79,12 +89,37 @@ class AliExpressTransitPricingService
 
     public function computeProductPricing(Product $product, SupplierCountry $country, int $quantity = 1): array
     {
+        if (!$this->usesTransitPricing($product)) {
+            $sourcePrice = $this->resolveSourcePrice($product);
+
+            return [
+                'country_code' => $country->code,
+                'country_name' => $country->name,
+                'source_price' => round($sourcePrice, 2),
+                'weight_grams' => 0,
+                'estimated_cbm' => 0.0,
+                'logistics_profile' => null,
+                'grouping_threshold' => 1,
+                'grouping_progress' => 0,
+                'transport_mode' => null,
+                'transport_total_fee' => 0.0,
+                'transport_unit_fee' => 0.0,
+                'margin_percent' => 0.0,
+                'final_price' => round($sourcePrice, 2),
+                'currency_code' => $country->currency_code ?: 'XOF',
+                'customer_notice' => null,
+                'transit_provider_name' => null,
+                'transit_city' => null,
+                'direct_delivery' => false,
+            ];
+        }
+
         $weightGrams = max(0, (int) ($product->estimated_weight_grams ?? Arr::get($product->details ?? [], 'estimated_weight_grams', 0)));
         $cbm = (float) ($product->estimated_cbm ?? Arr::get($product->details ?? [], 'estimated_cbm', 0));
         $profile = strtolower((string) ($product->source_logistics_profile ?? Arr::get($product->details ?? [], 'source_logistics_profile', 'ordinary')));
         $sourcePrice = $this->resolveSourcePrice($product);
         $minimumGrouping = max(1, (int) ($product->grouping_threshold ?: 1));
-        $marginPercent = (float) ($product->supplier_margin_value ?: self::DEFAULT_MARGIN_PERCENT);
+        $marginPercent = $this->resolveMarginPercent($product);
 
         $transport = $this->computeTransportFee($country, $weightGrams, $cbm, $profile, $quantity, $minimumGrouping);
         $base = $sourcePrice + $transport['per_unit_fee'];
@@ -149,6 +184,15 @@ class AliExpressTransitPricingService
     {
         $price = (float) ($product->discount_price ?: $product->price ?: $product->price_fcfa ?: 0);
         return max(0, $price);
+    }
+
+    private function resolveMarginPercent(Product $product): float
+    {
+        if (!$this->usesTransitPricing($product)) {
+            return 0.0;
+        }
+
+        return (float) ($product->supplier_margin_value ?: self::DEFAULT_MARGIN_PERCENT);
     }
 
     private function computeTransportFee(SupplierCountry $country, int $weightGrams, float $cbm, string $profile, int $quantity, int $groupingThreshold): array

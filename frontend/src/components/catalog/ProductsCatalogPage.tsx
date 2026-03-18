@@ -285,8 +285,6 @@ export default function ProductsCatalogPage({
   }, [mode, title, shopType, game?.name, gameSlug]);
 
   const headerTitle = mode === "game" ? `${title}${game?.name ? ` • ${game.name}` : gameSlug ? ` • ${gameSlug}` : ""}` : title;
-  const showStorefrontNotice = items.some((item) => Boolean(item.transit_provider_name || item.customer_notice));
-
   return (
     <main className="min-h-[100dvh] bg-transparent text-white">
       <ImmersiveBackground imageSrc="/images/WhatsApp%20Image%202026-02-06%20at%2003.44.47.jpeg" overlayClassName="bg-black/55" />
@@ -322,11 +320,6 @@ export default function ProductsCatalogPage({
         </div>
 
         <div className="mt-8 rounded-[28px] border border-white/10 bg-black/40 p-4 backdrop-blur">
-          {showStorefrontNotice ? (
-            <div className="mb-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-50">
-              Vos colis sont centralises via notre hub logistique principal avant preparation et livraison locale. Votre tracking number sera communique des l'expedition.
-            </div>
-          ) : null}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-white/40" />
