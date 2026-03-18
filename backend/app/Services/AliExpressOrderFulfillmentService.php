@@ -1107,6 +1107,7 @@ class AliExpressOrderFulfillmentService
         $request = is_array($payload['param_place_order_request4_open_api_d_t_o'] ?? null)
             ? $payload['param_place_order_request4_open_api_d_t_o']
             : [];
+        $payCurrency = $this->nullableString(data_get($payload, 'ds_extend_request.payment.pay_currency')) ?: 'USD';
         $items = array_values(array_filter(
             is_array($request['product_items'] ?? null) ? $request['product_items'] : [],
             static fn ($item) => is_array($item)
