@@ -924,11 +924,7 @@ class AliExpressOrderFulfillmentService
                 'product_id' => $productId,
                 'sku_attr' => $supplierSku ? $this->resolveDsSkuAttr($supplierSku->sku_payload_json ?? [], $supplierSku->variant_attributes_json ?? []) : null,
                 'product_count' => (string) max(1, (int) ($orderItem->quantity ?? 1)),
-                'logistics_service_name' => $this->nullableString(
-                    data_get($supplierSku?->sku_payload_json, 'logistics_service_name')
-                    ?? data_get($link->pricing_snapshot_json, 'logistics_service_name')
-                    ?? $fulfillment->shipping_provider_name
-                ),
+                'logistics_service_name' => $this->resolveDsLogisticsServiceName($link, $fulfillment),
                 'order_memo' => 'Hub France-Lome seulement. Reference interne: ' . ($order->reference ?? ('order-' . $order->id)),
             ], static fn ($value) => $value !== null && $value !== '');
 
@@ -940,6 +936,29 @@ class AliExpressOrderFulfillmentService
         }
 
         return array_values($items);
+    }
+
+    private function resolveDsLogisticsServiceName(ProductSupplierLink $link, OrderSupplierFulfillment $fulfillment): ?string
+    {
+        $supplierSku = $link->supplierProductSku;
+        $supplierProduct = $supplierSku?->supplierProduct;
+
+        $candidate = $this->nullableString(
+            data_get($supplierSku?->sku_payload_json, 'logistics_service_name')
+            ?? data_get($supplierSku?->sku_payload_json, 'service_name')
+            ?? data_get($supplierSku?->sku_payload_json, 'serviceName')
+            ?? data_get($link->pricing_snapshot_json, 'logistics_service_name')
+            ?? data_get($supplierProduct?->attributes_json, 'logistics_service_name')
+            ?? data_get($supplierProduct?->product_payload_json, 'result.logistics_info_dto.logistics_service_name')
+            ?? data_get($supplierProduct?->product_payload_json, 'result.logistics_info_dto.service_name')
+            ?? data_get($supplierProduct?->product_payload_json, 'raw.result.logistics_info_dto.logistics_service_name')
+            ?? data_get($supplierProduct?->product_payload_json, 'raw.result.logistics_info_dto.service_name')
+            ?? $this->findFirstStringByKeys(is_array($supplierProduct?->product_payload_json) ? $supplierProduct->product_payload_json : [], ['logistics_service_name', 'service_name', 'serviceName', 'shipping_service_name', 'shippingServiceName'])
+            ?? $fulfillment->shipping_provider_name
+            ?? config('services.sourcing.platforms.aliexpress.ds_default_logistics_service_name')
+        );
+
+        return $candidate;
     }
 
     private function validateDsCreatePayload(Order $order, SupplierAccount $account, array $payload): void

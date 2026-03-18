@@ -236,7 +236,7 @@ class AliExpressBulkCatalogImportService
                                 'import_source' => 'aliexpress_ds_auto_map',
                                 'target_currency' => $targetCurrency,
                                 'ds_external_sku_id' => $defaultSku->external_sku_id,
-                                'logistics_service_name' => data_get($defaultSku->sku_payload_json, 'logistics_service_name'),
+                                'logistics_service_name' => $this->resolveDsLogisticsServiceName($defaultSku),
                             ],
                         ]
                     );
@@ -389,7 +389,6 @@ class AliExpressBulkCatalogImportService
         if (!str_contains($message, 'InsufficientPermission')) {
             return;
         }
-
         throw new BulkImportDiagnosticException(
             'Le compte AliExpress utilise pour le bulk import n\'a pas la permission API Affiliate pour cette operation.',
             [
