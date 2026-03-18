@@ -55,6 +55,21 @@ type DsOrderCreateState = {
   created_at?: string | null;
 };
 
+type SupplierActionLoadingState =
+  | "save-context"
+  | "create-order"
+  | "sync-order"
+  | "resolve-mode"
+  | "pack"
+  | "ship"
+  | "repack"
+  | "print-waybill"
+  | "invoice-query"
+  | "invoice-upload-brazil"
+  | "invoice-push"
+  | "invoice-download"
+  | null;
+
 type OrderSupplierFulfillment = {
   id: number;
   supplier_account_id?: number | null;
@@ -276,7 +291,7 @@ export default function AdminOrderDetailPage() {
   const [refundMessage, setRefundMessage] = useState<string | null>(null);
   const [supplierAccounts, setSupplierAccounts] = useState<SupplierAccount[]>([]);
   const [supplierMessage, setSupplierMessage] = useState<string | null>(null);
-  const [supplierActionLoading, setSupplierActionLoading] = useState<"save-context" | "create-order" | "resolve-mode" | "pack" | "ship" | "repack" | "print-waybill" | "invoice-query" | "invoice-upload-brazil" | "invoice-push" | "invoice-download" | null>(null);
+  const [supplierActionLoading, setSupplierActionLoading] = useState<SupplierActionLoadingState>(null);
   const [dsDraftLoading, setDsDraftLoading] = useState(false);
   const [supplierAccountId, setSupplierAccountId] = useState("");
   const [externalOrderId, setExternalOrderId] = useState("");
