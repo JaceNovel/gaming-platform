@@ -281,7 +281,7 @@ const getInvoiceStatusMeta = (status?: string | null) => {
     default:
       return {
         label: "Non démarré",
-        description: "Le workflow facture n’a pas encore été lancé pour cette commande.",
+        description: "La facturation AliExpress n’a pas encore été lancée pour cette commande. Cela n’empêche pas la création d’une commande DS.",
         badgeClassName: "border-slate-200 bg-slate-100 text-slate-700",
       };
   }
@@ -780,7 +780,12 @@ export default function AdminOrderDetailPage() {
       const payload = await res.json().catch(() => null);
       if (!res.ok) throw new Error(payload?.message ?? "Création commande DS impossible");
       setOrder(payload?.order ?? order);
-      setSupplierMessage("Commande DS AliExpress créée et enregistrée.");
+      const orderList = Array.isArray(payload?.data?.result?.order_list) ? payload.data.result.order_list.filter(Boolean) : [];
+      setSupplierMessage(
+        orderList.length > 0
+          ? `Commande DS AliExpress créée et enregistrée (${orderList.join(", ")}). La facturation AliExpress reste un workflow séparé.`
+          : "Commande DS AliExpress créée et enregistrée. La facturation AliExpress reste un workflow séparé."
+      );
     } catch (e: any) {
       setError(e?.message ?? "Création commande DS impossible");
     } finally {
@@ -1249,7 +1254,7 @@ export default function AdminOrderDetailPage() {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-slate-800">Facturation AliExpress</div>
-                <div className="text-xs text-slate-500">Workflow guidé: récupération de la demande, contrôles, upload XML Brésil si nécessaire, puis synchronisation finale.</div>
+                <div className="text-xs text-slate-500">Workflow séparé de la création DS: récupération de la demande, contrôles, upload XML Brésil si nécessaire, puis synchronisation finale.</div>
               </div>
               <div className={`rounded-full border px-3 py-1 text-xs font-medium ${invoiceStatusMeta.badgeClassName}`}>{invoiceStatusMeta.label}</div>
             </div>

@@ -23,6 +23,7 @@ use App\Services\FedaPayService;
 use App\Services\PayPalPaymentSyncService;
 use App\Services\PayPalService;
 use App\Services\PaymentResyncService;
+use App\Services\PaymentSettlementService;
 use App\Services\ReferralCommissionService;
 use App\Services\ShippingService;
 use App\Services\SourcingDemandService;
@@ -42,6 +43,7 @@ class PaymentController extends Controller
         private PayPalService $payPalService,
         private PayPalPaymentSyncService $payPalPaymentSyncService,
         private PaymentResyncService $paymentResyncService,
+        private PaymentSettlementService $paymentSettlementService,
     )
     {
     }
@@ -315,6 +317,15 @@ class PaymentController extends Controller
                     'source' => 'status_endpoint',
                     'order_id' => $order->id,
                     'user_id' => $user->id,
+                ]);
+
+                $payment = $payment->fresh(['order.user', 'walletTransaction']);
+                $order = $payment?->order;
+            }
+
+            if ($payment && $order && (string) ($order->type ?? '') === 'wallet_topup' && (string) ($payment->status ?? '') === 'completed') {
+                $this->paymentSettlementService->ensureWalletTopupCredited($payment, [
+                    'source' => 'fedapay_status',
                 ]);
 
                 $payment = $payment->fresh(['order.user', 'walletTransaction']);

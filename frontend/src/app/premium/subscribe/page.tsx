@@ -91,6 +91,9 @@ function PremiumSubscribeScreen() {
       <div className="glass-card space-y-4 rounded-2xl border border-white/10 p-6">
         <p className="text-sm text-white/70">Plan demandé: <span className="font-semibold capitalize text-white">{level}</span></p>
         <p className="text-sm text-white/60">L'équipe admin valide ou refuse les demandes. En cas d'acceptation, tu recevras par email les directives et le certificat de partenariat.</p>
+        <p className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+          Après étude de ta demande, nous te contacterons sur la plateforme et le compte que tu renseignes dans ce formulaire.
+        </p>
         <div className="grid gap-3">
           <div>
             <label className="text-sm text-white/70">Plateforme principale</label>
@@ -101,6 +104,7 @@ function PremiumSubscribeScreen() {
               className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
               placeholder="TikTok, Instagram, YouTube, Discord..."
             />
+            <p className="mt-2 text-xs text-white/45">Indique la plateforme sur laquelle notre équipe pourra te recontacter.</p>
           </div>
           <div>
             <label className="text-sm text-white/70">Pseudo / Handle</label>
@@ -111,6 +115,7 @@ function PremiumSubscribeScreen() {
               className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
               placeholder="@toncompte"
             />
+            <p className="mt-2 text-xs text-white/45">Renseigne le pseudo exact du compte à contacter sur cette plateforme.</p>
           </div>
           <div>
             <label className="text-sm text-white/70">Lien du profil</label>

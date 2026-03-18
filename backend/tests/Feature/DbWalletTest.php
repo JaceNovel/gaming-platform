@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\Product;
 use App\Models\User;
@@ -366,5 +367,82 @@ class DbWalletTest extends TestCase
             'amount' => 6000,
             'status' => 'pending',
         ]);
+    }
+
+    #[Test]
+    public function fedapay_completed_wallet_topup_status_reconciles_wallet_credit(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'wallet-topup@example.com',
+        ]);
+
+        $wallet = WalletAccount::create([
+            'user_id' => $user->id,
+            'wallet_id' => 'DBW-TOPUP-0001',
+            'currency' => 'FCFA',
+            'balance' => 0,
+            'bonus_balance' => 0,
+            'reward_balance' => 0,
+            'status' => 'active',
+        ]);
+
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'type' => 'wallet_topup',
+            'status' => Order::STATUS_PAYMENT_SUCCESS,
+            'total_price' => 5000,
+            'meta' => [
+                'type' => 'wallet_topup',
+                'source' => 'wallet_page',
+                'wallet_id' => $wallet->wallet_id,
+                'wallet_account_id' => $wallet->id,
+            ],
+            'reference' => 'WTU-STATUS-0001',
+        ]);
+
+        $walletTransaction = WalletTransaction::create([
+            'wallet_account_id' => $wallet->id,
+            'type' => 'credit',
+            'amount' => 5000,
+            'reference' => 'WTOPUP-WTU-STATUS-0001',
+            'meta' => [
+                'type' => 'wallet_topup',
+                'reason' => 'topup',
+                'order_id' => $order->id,
+            ],
+            'status' => 'pending',
+            'provider' => 'fedapay',
+        ]);
+
+        $payment = Payment::create([
+            'order_id' => $order->id,
+            'wallet_transaction_id' => $walletTransaction->id,
+            'amount' => 5000,
+            'method' => 'fedapay',
+            'status' => 'completed',
+            'transaction_id' => '123456789',
+            'webhook_data' => [
+                'source' => 'wallet_topup',
+                'provider' => 'fedapay',
+            ],
+        ]);
+
+        $order->update(['payment_id' => $payment->id]);
+
+        $this->actingAs($user, 'sanctum');
+
+        $this->getJson('/api/payments/fedapay/status?order_id=' . $order->id)
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'paid')
+            ->assertJsonPath('data.order_type', 'wallet_topup');
+
+        $wallet->refresh();
+        $walletTransaction->refresh();
+        $order->refresh();
+
+        $this->assertSame(5000.0, (float) $wallet->balance);
+        $this->assertSame('success', (string) $walletTransaction->status);
+        $this->assertNotNull($walletTransaction->paid_at);
+        $this->assertNotEmpty($order->meta['wallet_credited_at'] ?? null);
     }
 }

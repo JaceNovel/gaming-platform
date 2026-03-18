@@ -13,6 +13,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\FedaPayService;
 use App\Services\AdminResponsibilityService;
+use App\Services\PaymentSettlementService;
 use App\Services\ReferralCommissionService;
 use App\Services\ShippingService;
 use App\Services\WalletService;
@@ -196,6 +197,19 @@ class ProcessFedaPayWebhook implements ShouldQueue
         // Idempotence: treat COMPLETED as final.
         // Do NOT treat FAILED as final because a delayed provider approval webhook may arrive later.
         if ((string) $payment->status === 'completed') {
+            try {
+                app(PaymentSettlementService::class)->ensureWalletTopupCredited($payment, [
+                    'source' => 'fedapay_webhook_idempotent',
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('fedapay:topup-reconcile-skip', [
+                    'payment_id' => $payment->id,
+                    'order_id' => $payment->order_id,
+                    'transaction_id' => $transactionId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+
             Log::info('fedapay:webhook-idempotent', ['payment_id' => $payment->id, 'status' => $payment->status]);
             if ($paymentEvent) {
                 $paymentEvent->update(['processed_at' => now()]);

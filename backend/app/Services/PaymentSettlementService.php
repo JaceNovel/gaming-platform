@@ -120,6 +120,76 @@ class PaymentSettlementService
         });
     }
 
+    public function ensureWalletTopupCredited(Payment $payment, array $context = []): bool
+    {
+        $source = strtolower(trim((string) ($context['source'] ?? $payment->method ?? 'payment')));
+
+        return (bool) DB::transaction(function () use ($payment, $source) {
+            /** @var Payment|null $locked */
+            $locked = Payment::with(['order.user', 'walletTransaction'])
+                ->whereKey($payment->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$locked) {
+                return false;
+            }
+
+            $order = $locked->order;
+            if (!$order || (string) ($order->type ?? '') !== 'wallet_topup') {
+                return false;
+            }
+
+            if ((string) ($locked->status ?? '') !== 'completed') {
+                return false;
+            }
+
+            if ((string) $order->status !== Order::STATUS_PAYMENT_SUCCESS) {
+                $order->update(['status' => Order::STATUS_PAYMENT_SUCCESS]);
+            }
+
+            $reference = (string) ($locked->walletTransaction?->reference ?? $order->reference ?? '');
+            if (!$order->user || $reference === '') {
+                return false;
+            }
+
+            $this->walletService->credit($order->user, $reference, (float) $locked->amount, [
+                'source' => $source . '_topup_reconcile',
+                'payment_id' => $locked->id,
+                'reason' => 'topup',
+                'type' => 'wallet_topup',
+            ]);
+
+            if ($locked->walletTransaction) {
+                $walletTransactionUpdates = [
+                    'status' => 'success',
+                ];
+
+                if (empty($locked->walletTransaction->paid_at)) {
+                    $walletTransactionUpdates['paid_at'] = now();
+                }
+
+                if (empty($locked->walletTransaction->provider_transaction_id) && !empty($locked->transaction_id)) {
+                    $walletTransactionUpdates['provider_transaction_id'] = (string) $locked->transaction_id;
+                }
+
+                $locked->walletTransaction->update($walletTransactionUpdates);
+            }
+
+            $orderMeta = $order->meta ?? [];
+            if (!is_array($orderMeta)) {
+                $orderMeta = [];
+            }
+
+            if (empty($orderMeta['wallet_credited_at'])) {
+                $orderMeta['wallet_credited_at'] = now()->toIso8601String();
+                $order->update(['meta' => $orderMeta]);
+            }
+
+            return true;
+        });
+    }
+
     private function handleCompletedOrder(Order $order, Payment $payment, string $provider): void
     {
         $orderType = (string) ($order->type ?? '');
