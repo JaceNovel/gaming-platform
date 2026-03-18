@@ -166,6 +166,46 @@ class AdminSupplierCatalogController extends Controller
         ], 201);
     }
 
+    public function autoMapAliExpressDs(Request $request, AliExpressBulkCatalogImportService $bulkImportService)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'items' => 'required|array|min:1|max:200',
+            'items.*.local_product_id' => 'required|integer|min:1',
+            'items.*.external_product_id' => 'required|string|max:255',
+            'items.*.title' => 'nullable|string|max:255',
+            'ship_to_country' => 'nullable|string|size:2',
+            'target_currency' => 'nullable|string|max:8',
+            'target_language' => 'nullable|string|max:16',
+            'priority' => 'nullable|integer|min:1|max:1000',
+            'is_default' => 'sometimes|boolean',
+            'procurement_mode' => 'nullable|string|in:manual_batch,auto_batch',
+            'target_moq' => 'nullable|integer|min:1|max:1000',
+            'reorder_quantity' => 'nullable|integer|min:1|max:1000',
+            'expected_inbound_days' => 'nullable|integer|min:0|max:90',
+            'warehouse_destination_label' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+            $result = $bulkImportService->autoMapImportedProductsToDs($account, $data['items'], $data);
+        } catch (Throwable $exception) {
+            Log::warning('sourcing.auto_map_aliexpress_ds_failed', [
+                'supplier_account_id' => (int) $data['supplier_account_id'],
+                'items_count' => is_array($data['items'] ?? null) ? count($data['items']) : 0,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 502);
+        }
+
+        return response()->json([
+            'data' => $result,
+        ], 201);
+    }
+
     public function fetchRemote(Request $request, SupplierApiClient $supplierApiClient)
     {
         $data = $request->validate([
@@ -467,6 +507,7 @@ class AdminSupplierCatalogController extends Controller
             'ds-image-search-v2',
             'ds-category-get',
             'ds-feed-itemids-get',
+              'ds-member-benefit-get',
             'buyer-freight-calculate',
             'ds-trade-order-get',
             'ds-order-tracking-get',

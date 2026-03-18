@@ -122,6 +122,147 @@ class AliExpressBulkCatalogImportService
         return $this->syncLocalProduct($supplierProduct, $resolvedPayload, $options, $publishProducts);
     }
 
+    public function autoMapImportedProductsToDs(SupplierAccount $account, array $items, array $options = []): array
+    {
+        if ((string) $account->platform !== 'aliexpress') {
+            throw new \RuntimeException('Le mapping automatique DS est reserve aux comptes AliExpress.');
+        }
+
+        $shipToCountry = strtoupper(trim((string) ($options['ship_to_country'] ?? 'TG'))) ?: 'TG';
+        $targetLanguage = trim((string) ($options['target_language'] ?? 'fr')) ?: 'fr';
+        $targetCurrency = strtoupper(trim((string) ($options['target_currency'] ?? 'USD'))) ?: 'USD';
+        $makeDefault = array_key_exists('is_default', $options) ? (bool) $options['is_default'] : true;
+        $priority = max(1, (int) ($options['priority'] ?? 1));
+        $procurementMode = (string) ($options['procurement_mode'] ?? 'auto_batch');
+        $targetMoq = max(1, (int) ($options['target_moq'] ?? 1));
+        $reorderQuantity = max(1, (int) ($options['reorder_quantity'] ?? 1));
+        $expectedInboundDays = max(0, (int) ($options['expected_inbound_days'] ?? 12));
+        $warehouseDestinationLabel = trim((string) ($options['warehouse_destination_label'] ?? ('Hub France-Lome ' . $shipToCountry)));
+
+        $mapped = [];
+        $skipped = [];
+        $failed = [];
+        $importedDsProducts = 0;
+
+        foreach ($items as $item) {
+            $localProductId = (int) ($item['local_product_id'] ?? 0);
+            $externalProductId = trim((string) ($item['external_product_id'] ?? ''));
+            $title = trim((string) ($item['title'] ?? ''));
+
+            if ($localProductId <= 0 || $externalProductId === '') {
+                $skipped[] = [
+                    'local_product_id' => $localProductId ?: null,
+                    'external_product_id' => $externalProductId !== '' ? $externalProductId : null,
+                    'title' => $title !== '' ? $title : null,
+                    'reason' => 'Produit local ou external_product_id manquant.',
+                ];
+                continue;
+            }
+
+            $localProduct = Product::query()->find($localProductId);
+            if (! $localProduct) {
+                $skipped[] = [
+                    'local_product_id' => $localProductId,
+                    'external_product_id' => $externalProductId,
+                    'title' => $title !== '' ? $title : null,
+                    'reason' => 'Produit storefront introuvable.',
+                ];
+                continue;
+            }
+
+            try {
+                $normalized = $this->supplierApiClient->fetchRemoteProduct($account, $externalProductId, null, [
+                    'remote_mode' => 'ds_product',
+                    'ship_to_country' => $shipToCountry,
+                    'target_currency' => $targetCurrency,
+                    'target_language' => $targetLanguage,
+                    'remove_personal_benefit' => false,
+                ]);
+
+                $supplierProduct = $this->supplierCatalogImportService->import($account->id, $normalized + [
+                    'replace_missing_skus' => true,
+                ]);
+                $importedDsProducts++;
+
+                $defaultSku = $supplierProduct->relationLoaded('skus')
+                    ? $supplierProduct->skus->sortBy('id')->first()
+                    : $supplierProduct->skus()->orderBy('id')->first();
+
+                if (! $defaultSku) {
+                    throw new \RuntimeException('Aucun SKU DS actif n a ete importe pour ce produit.');
+                }
+
+                DB::transaction(function () use ($localProduct, $defaultSku, $makeDefault, $priority, $procurementMode, $targetMoq, $reorderQuantity, $expectedInboundDays, $warehouseDestinationLabel, $targetCurrency) {
+                    if ($makeDefault) {
+                        ProductSupplierLink::query()
+                            ->where('product_id', $localProduct->id)
+                            ->update(['is_default' => false]);
+                    }
+
+                    ProductSupplierLink::updateOrCreate(
+                        [
+                            'product_id' => $localProduct->id,
+                            'supplier_product_sku_id' => $defaultSku->id,
+                        ],
+                        [
+                            'priority' => $priority,
+                            'is_default' => $makeDefault,
+                            'procurement_mode' => $procurementMode,
+                            'target_moq' => $targetMoq,
+                            'reorder_point' => 0,
+                            'reorder_quantity' => $reorderQuantity,
+                            'safety_stock' => 0,
+                            'warehouse_destination_label' => $warehouseDestinationLabel,
+                            'expected_inbound_days' => $expectedInboundDays,
+                            'pricing_snapshot_json' => [
+                                'import_source' => 'aliexpress_ds_auto_map',
+                                'target_currency' => $targetCurrency,
+                                'ds_external_sku_id' => $defaultSku->external_sku_id,
+                                'logistics_service_name' => data_get($defaultSku->sku_payload_json, 'logistics_service_name'),
+                            ],
+                        ]
+                    );
+                });
+
+                $mapped[] = [
+                    'local_product' => [
+                        'id' => $localProduct->id,
+                        'title' => $localProduct->title ?: $localProduct->name,
+                    ],
+                    'external_product_id' => $externalProductId,
+                    'title' => $title !== '' ? $title : $supplierProduct->title,
+                    'supplier_product_id' => $supplierProduct->id,
+                    'supplier_product_sku_id' => $defaultSku->id,
+                    'supplier_account' => [
+                        'id' => $account->id,
+                        'label' => $account->label,
+                    ],
+                    'is_default' => $makeDefault,
+                ];
+            } catch (\Throwable $exception) {
+                $failed[] = [
+                    'local_product_id' => $localProductId,
+                    'external_product_id' => $externalProductId,
+                    'title' => $title !== '' ? $title : null,
+                    'reason' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'summary' => [
+                'requested' => count($items),
+                'imported_ds_products' => $importedDsProducts,
+                'mapped' => count($mapped),
+                'skipped' => count($skipped),
+                'failed' => count($failed),
+            ],
+            'mapped' => $mapped,
+            'skipped' => $skipped,
+            'failed' => $failed,
+        ];
+    }
+
     private function extractAffiliateProductsFromResponse(array $response): array
     {
         $wrappedRaw = $this->extractAliExpressAffiliateEnvelope($response['raw'] ?? null);

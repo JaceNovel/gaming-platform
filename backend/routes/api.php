@@ -593,6 +593,8 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         ->middleware('permission:sourcing.manage');
     Route::post('/sourcing/catalog/aliexpress/bulk-import', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'bulkImportAliExpress'])
         ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/aliexpress/auto-map-ds', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'autoMapAliExpressDs'])
+        ->middleware('permission:sourcing.manage');
     Route::post('/sourcing/catalog/fetch-remote', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'fetchRemote'])
         ->middleware('permission:sourcing.manage');
     Route::post('/sourcing/catalog/search-remote', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'searchRemote'])

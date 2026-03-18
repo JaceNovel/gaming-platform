@@ -105,6 +105,7 @@ type IopOperation =
   | "ds-image-search-v2"
   | "ds-category-get"
   | "ds-feed-itemids-get"
+  | "ds-member-benefit-get"
   | "buyer-freight-calculate"
   | "ds-trade-order-get"
   | "ds-order-tracking-get"
@@ -231,6 +232,7 @@ const ALIEXPRESS_IOP_OPERATIONS: IopOperation[] = [
   "ds-image-search-v2",
   "ds-category-get",
   "ds-feed-itemids-get",
+  "ds-member-benefit-get",
   "buyer-freight-calculate",
   "ds-trade-order-get",
   "ds-order-tracking-get",
@@ -329,6 +331,7 @@ const ALIEXPRESS_IOP_OPERATION_GROUPS: Array<{ label: string; operations: IopOpe
       "ds-image-search-v2",
       "ds-category-get",
       "ds-feed-itemids-get",
+      "ds-member-benefit-get",
       "buyer-freight-calculate",
       "ds-order-create",
       "ds-trade-order-get",
@@ -656,6 +659,7 @@ const IOP_TEMPLATES: Record<IopOperation, string> = {
     category_id: "21",
     feed_name: "DS bestseller",
   }),
+  "ds-member-benefit-get": stringifyTemplate({}),
   "buyer-freight-calculate": stringifyTemplate({
     param_aeop_freight_calculate_for_buyer_d_t_o: {
       country_code: "TG",

@@ -404,7 +404,14 @@ class AliExpressOrderFulfillmentService
                 : $draft['param_place_order_request4_open_api_d_t_o'],
         ];
 
-        $response = $this->supplierApiClient->iopOperation($account, 'ds-order-create', $payload);
+        try {
+            $response = $this->supplierApiClient->iopOperation($account, 'ds-order-create', $payload);
+        } catch (\RuntimeException $exception) {
+            $this->throwDropshippingPermissionExceptionIfNeeded('ds-order-create', $account, $exception);
+
+            throw $exception;
+        }
+
         $result = is_array($response['result'] ?? null) ? $response['result'] : [];
         $normalized = $this->normalizeDsCreateResult($result);
 
@@ -454,7 +461,14 @@ class AliExpressOrderFulfillmentService
         $account = $this->resolveSupplierAccount($order, $fulfillment);
         [$operation, $payload, $sourceLabel] = $this->buildRemoteOrderSyncRequest($fulfillment);
 
-        $response = $this->supplierApiClient->iopOperation($account, $operation, $payload);
+        try {
+            $response = $this->supplierApiClient->iopOperation($account, $operation, $payload);
+        } catch (\RuntimeException $exception) {
+            $this->throwDropshippingPermissionExceptionIfNeeded($operation, $account, $exception);
+
+            throw $exception;
+        }
+
         $snapshot = $this->extractRemoteOrderSnapshot($response);
         $trackingSync = $operation === 'ds-trade-order-get'
             ? $this->syncDropshippingTrackingSnapshot($account, $fulfillment)
@@ -993,6 +1007,23 @@ class AliExpressOrderFulfillmentService
             'ERROR_WHEN_BUILD_FOR_PLACE_ORDER', 'A001_ORDER_CANNOT_BE_PLACED', 'A002_INVALID_ZONE', 'A003_SUSPICIOUS_BUYER', 'A004_CANNOT_USER_COUPON', 'A005_INVALID_COUNTRIES', 'A006_INVALID_ACCOUNT_INFO' => 'AliExpress refuse la creation de commande DS pour cette combinaison compte/zone/promotion.',
             default => $remoteMessage ?: 'La creation de commande DS AliExpress a echoue.',
         };
+    }
+
+    private function throwDropshippingPermissionExceptionIfNeeded(string $operation, SupplierAccount $account, \RuntimeException $exception): void
+    {
+        if (!in_array($operation, ['ds-order-create', 'ds-trade-order-get'], true)) {
+            return;
+        }
+
+        $message = (string) $exception->getMessage();
+        if (!str_contains($message, 'InsufficientPermission')) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            'Le compte AliExpress "' . ($account->label ?? ('#' . $account->id)) . '" n\'a pas les permissions Dropshipping pour cette API. Active les scopes DS sur l\'application AliExpress, reconnecte le compte OAuth, puis relance la creation de commande DS.',
+            previous: $exception,
+        );
     }
 
     private function extractRemoteOrderSnapshot(array $response): array

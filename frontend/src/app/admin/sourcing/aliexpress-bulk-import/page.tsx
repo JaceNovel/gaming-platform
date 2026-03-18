@@ -53,6 +53,43 @@ type BulkImportResponse = {
   }>;
 };
 
+type DsAutoMapResponse = {
+  summary?: {
+    requested?: number;
+    imported_ds_products?: number;
+    mapped?: number;
+    skipped?: number;
+    failed?: number;
+  };
+  mapped?: Array<{
+    local_product?: {
+      id?: number;
+      title?: string | null;
+    } | null;
+    external_product_id?: string | null;
+    title?: string | null;
+    supplier_product_id?: number;
+    supplier_product_sku_id?: number;
+    supplier_account?: {
+      id?: number;
+      label?: string | null;
+    } | null;
+    is_default?: boolean;
+  }>;
+  skipped?: Array<{
+    local_product_id?: number | null;
+    external_product_id?: string | null;
+    title?: string | null;
+    reason?: string | null;
+  }>;
+  failed?: Array<{
+    local_product_id?: number | null;
+    external_product_id?: string | null;
+    title?: string | null;
+    reason?: string | null;
+  }>;
+};
+
 type BulkImportDiagnostic = {
   reason?: string;
   provider_message?: string;
@@ -166,6 +203,7 @@ const OPERATIONS = [
 export default function AdminAliExpressBulkImportPage() {
   const [accounts, setAccounts] = useState<SupplierAccount[]>([]);
   const [accountId, setAccountId] = useState<number | "">("");
+  const [dsAccountId, setDsAccountId] = useState<number | "">("");
   const [operation, setOperation] = useState<(typeof OPERATIONS)[number]>("ae-affiliate-hotproduct-download");
   const [payload, setPayload] = useState(TEMPLATES["ae-affiliate-hotproduct-download"]);
   const [limit, setLimit] = useState(50);
@@ -179,9 +217,13 @@ export default function AdminAliExpressBulkImportPage() {
   const [defaultEstimatedCbm, setDefaultEstimatedCbm] = useState(0.003);
   const [publishProducts, setPublishProducts] = useState(true);
   const [running, setRunning] = useState(false);
+  const [mappingRunning, setMappingRunning] = useState(false);
   const [error, setError] = useState("");
+  const [mappingError, setMappingError] = useState("");
   const [success, setSuccess] = useState("");
+  const [mappingSuccess, setMappingSuccess] = useState("");
   const [result, setResult] = useState<BulkImportResponse | null>(null);
+  const [mappingResult, setMappingResult] = useState<DsAutoMapResponse | null>(null);
 
   const activeAccount = useMemo(
     () => accounts.find((item: SupplierAccount) => item.id === Number(accountId)) ?? null,
@@ -200,10 +242,16 @@ export default function AdminAliExpressBulkImportPage() {
       if (!accountId && nextAccounts[0]?.id) {
         setAccountId(nextAccounts[0].id);
       }
+      if (!dsAccountId) {
+        const fallbackDsAccount = nextAccounts.find((item: SupplierAccount) => item.id !== Number(accountId)) ?? nextAccounts[0] ?? null;
+        if (fallbackDsAccount?.id) {
+          setDsAccountId(fallbackDsAccount.id);
+        }
+      }
     } catch (err: any) {
       setError(err?.message ?? "Impossible de charger les comptes AliExpress.");
     }
-  }, [accountId]);
+  }, [accountId, dsAccountId]);
 
   useEffect(() => {
     loadAccounts();
@@ -218,6 +266,9 @@ export default function AdminAliExpressBulkImportPage() {
     setError("");
     setSuccess("");
     setResult(null);
+    setMappingError("");
+    setMappingSuccess("");
+    setMappingResult(null);
 
     let parsedPayload: unknown;
     try {
@@ -273,6 +324,68 @@ export default function AdminAliExpressBulkImportPage() {
       setError(err?.message ?? "Import automatique impossible.");
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleAutoMapDs = async () => {
+    setMappingError("");
+    setMappingSuccess("");
+    setMappingResult(null);
+
+    if (!dsAccountId) {
+      setMappingError("Sélectionne le compte AliExpress activé DS à utiliser pour le mapping.");
+      return;
+    }
+
+    const items = (result?.imported ?? [])
+      .map((item: NonNullable<BulkImportResponse["imported"]>[number]) => ({
+        local_product_id: item.local_product?.id,
+        external_product_id: item.external_product_id,
+        title: item.title,
+      }))
+      .filter((item: { local_product_id?: number; external_product_id?: string | null }) => item.local_product_id && item.external_product_id);
+
+    if (!items.length) {
+      setMappingError("Aucun produit storefront importé dans cette exécution ne peut être mappé vers DS.");
+      return;
+    }
+
+    setMappingRunning(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/aliexpress/auto-map-ds`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: dsAccountId,
+          items,
+          ship_to_country: "TG",
+          target_currency: "USD",
+          target_language: "fr",
+          priority: 1,
+          is_default: true,
+          procurement_mode: "auto_batch",
+          target_moq: targetMoq,
+          reorder_quantity: reorderQuantity,
+          expected_inbound_days: deliveryEtaDays,
+          warehouse_destination_label: "Hub France-Lome TG",
+        }),
+      });
+
+      const payloadRes = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payloadRes?.message ?? "Mapping DS automatique impossible.");
+      }
+
+      setMappingResult(payloadRes?.data ?? null);
+      setMappingSuccess("Mapping DS automatique terminé.");
+    } catch (err: any) {
+      setMappingError(err?.message ?? "Mapping DS automatique impossible.");
+    } finally {
+      setMappingRunning(false);
     }
   };
 
@@ -477,6 +590,98 @@ export default function AdminAliExpressBulkImportPage() {
                 </tbody>
               </table>
             </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Mapping automatique DS</h2>
+                <p className="mt-1 text-sm text-slate-500">Après import affiliation, choisis ici le compte AliExpress activé DS pour importer les fiches DS correspondantes et basculer le mapping storefront dessus.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[minmax(240px,1fr),auto]">
+                <label className="space-y-2 text-sm text-slate-700">
+                  <span>Compte DS</span>
+                  <select value={dsAccountId} onChange={(event: ChangeEvent<HTMLSelectElement>) => setDsAccountId(Number(event.target.value) || "")} className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                    <option value="">Sélectionner</option>
+                    {accounts.map((account: SupplierAccount) => (
+                      <option key={account.id} value={account.id}>{account.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <button type="button" onClick={handleAutoMapDs} disabled={mappingRunning || running || !(result?.imported?.length)} className="rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                  {mappingRunning ? "Mapping en cours..." : "Faire le mapping"}
+                </button>
+              </div>
+            </div>
+
+            {mappingError ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{mappingError}</div> : null}
+            {mappingSuccess ? <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{mappingSuccess}</div> : null}
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              {[
+                ["Demandés", mappingResult?.summary?.requested ?? 0],
+                ["Produits DS importés", mappingResult?.summary?.imported_ds_products ?? 0],
+                ["Mappings créés", mappingResult?.summary?.mapped ?? 0],
+                ["Ignorés", mappingResult?.summary?.skipped ?? 0],
+                ["En échec", mappingResult?.summary?.failed ?? 0],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
+                  <div className="mt-2 text-3xl font-semibold text-slate-900">{value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase text-slate-400">
+                  <tr>
+                    <th className="pb-3 pr-4">Produit local</th>
+                    <th className="pb-3 pr-4">Produit DS</th>
+                    <th className="pb-3 pr-4">Compte</th>
+                    <th className="pb-3 pr-4">Statut</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(mappingResult?.mapped ?? []).slice(0, 30).map((item) => (
+                    <tr key={`${item.local_product?.id ?? "local"}-${item.external_product_id ?? "external"}`}>
+                      <td className="py-3 pr-4 text-slate-700">{item.local_product?.title || `Produit #${item.local_product?.id ?? "—"}`}</td>
+                      <td className="py-3 pr-4 text-slate-700">{item.title || item.external_product_id || "Produit DS"}</td>
+                      <td className="py-3 pr-4 text-slate-600">{item.supplier_account?.label || "Compte DS"}</td>
+                      <td className="py-3 pr-4 text-slate-600">{item.is_default ? "Défaut DS" : "Ajouté"}</td>
+                    </tr>
+                  ))}
+                  {!(mappingResult?.mapped?.length) ? (
+                    <tr>
+                      <td colSpan={4} className="py-6 text-slate-500">Aucun mapping DS automatique exécuté sur cette session.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            {(mappingResult?.failed?.length || mappingResult?.skipped?.length) ? (
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                  <div className="text-sm font-semibold text-rose-800">Échecs</div>
+                  <div className="mt-3 space-y-2 text-sm text-rose-700">
+                    {(mappingResult?.failed ?? []).slice(0, 10).map((item, index) => (
+                      <div key={`${item.local_product_id ?? "product"}-${index}`}>{item.title || item.external_product_id || `Produit #${item.local_product_id ?? "—"}`} · {item.reason || "Erreur inconnue"}</div>
+                    ))}
+                    {!mappingResult?.failed?.length ? <div>Aucun.</div> : null}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="text-sm font-semibold text-amber-800">Ignorés</div>
+                  <div className="mt-3 space-y-2 text-sm text-amber-700">
+                    {(mappingResult?.skipped ?? []).slice(0, 10).map((item, index) => (
+                      <div key={`${item.local_product_id ?? "product"}-${index}`}>{item.title || item.external_product_id || `Produit #${item.local_product_id ?? "—"}`} · {item.reason || "Ignoré"}</div>
+                    ))}
+                    {!mappingResult?.skipped?.length ? <div>Aucun.</div> : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </section>
         </div>
       </div>

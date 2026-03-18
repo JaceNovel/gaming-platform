@@ -308,6 +308,7 @@ export default function AdminOrderDetailPage() {
   const [refundMessage, setRefundMessage] = useState<string | null>(null);
   const [supplierAccounts, setSupplierAccounts] = useState<SupplierAccount[]>([]);
   const [supplierMessage, setSupplierMessage] = useState<string | null>(null);
+  const [supplierError, setSupplierError] = useState<string | null>(null);
   const [supplierActionLoading, setSupplierActionLoading] = useState<SupplierActionLoadingState>(null);
   const [dsDraftLoading, setDsDraftLoading] = useState(false);
   const [supplierAccountId, setSupplierAccountId] = useState("");
@@ -676,6 +677,7 @@ export default function AdminOrderDetailPage() {
     if (!order) return;
     setSupplierActionLoading("save-context");
     setSupplierMessage(null);
+    setSupplierError(null);
     setError("");
     try {
       const externalOrderLines = JSON.parse(externalOrderLinesJson || "[]");
@@ -707,6 +709,7 @@ export default function AdminOrderDetailPage() {
       setOrder(payload?.order ?? order);
       setSupplierMessage("Contexte AliExpress enregistré.");
     } catch (e: any) {
+      setSupplierError(e?.message ?? "Impossible d’enregistrer le contexte AliExpress");
       setError(e?.message ?? "Impossible d’enregistrer le contexte AliExpress");
     } finally {
       setSupplierActionLoading(null);
@@ -717,6 +720,7 @@ export default function AdminOrderDetailPage() {
     if (!order) return;
     setSupplierActionLoading(action);
     setSupplierMessage(null);
+    setSupplierError(null);
     setError("");
     try {
       const endpoints: Record<typeof action, string> = {
@@ -749,6 +753,7 @@ export default function AdminOrderDetailPage() {
       };
       setSupplierMessage(labels[action]);
     } catch (e: any) {
+      setSupplierError(e?.message ?? `Action ${action} impossible`);
       setError(e?.message ?? `Action ${action} impossible`);
     } finally {
       setSupplierActionLoading(null);
@@ -759,6 +764,7 @@ export default function AdminOrderDetailPage() {
     if (!order) return;
     setSupplierActionLoading("create-order");
     setSupplierMessage(null);
+    setSupplierError(null);
     setError("");
 
     try {
@@ -787,6 +793,8 @@ export default function AdminOrderDetailPage() {
           : "Commande DS AliExpress créée et enregistrée. La facturation AliExpress reste un workflow séparé."
       );
     } catch (e: any) {
+      await loadOrder();
+      setSupplierError(e?.message ?? "Création commande DS impossible");
       setError(e?.message ?? "Création commande DS impossible");
     } finally {
       setSupplierActionLoading(null);
@@ -1096,6 +1104,12 @@ export default function AdminOrderDetailPage() {
           {supplierMessage ? (
             <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
               {supplierMessage}
+            </div>
+          ) : null}
+
+          {supplierError ? (
+            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {supplierError}
             </div>
           ) : null}
 

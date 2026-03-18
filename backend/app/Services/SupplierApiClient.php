@@ -1073,33 +1073,69 @@ class SupplierApiClient
                 'raw' => $response,
             ],
             'ds-order-create' => [
-                'result' => $response['result'] ?? data_get($response, 'value.result') ?? null,
-                'code' => $response['code'] ?? null,
-                'request_id' => $response['request_id'] ?? null,
+                    'result' => $response['result']
+                        ?? data_get($response, 'value.result')
+                        ?? data_get($response, 'aliexpress_ds_order_create_response.result')
+                        ?? null,
+                    'code' => $response['code']
+                        ?? data_get($response, 'result.code')
+                        ?? data_get($response, 'aliexpress_ds_order_create_response.result.code')
+                        ?? null,
+                    'request_id' => $response['request_id']
+                        ?? data_get($response, 'aliexpress_ds_order_create_response.request_id')
+                        ?? null,
                 'raw' => $response,
             ],
             'ds-trade-order-get' => [
-                'result' => $response['result'] ?? null,
-                'code' => $response['code'] ?? null,
-                'request_id' => $response['request_id'] ?? null,
+                    'result' => $response['result']
+                        ?? data_get($response, 'aliexpress_trade_ds_order_get_response.result')
+                        ?? null,
+                    'code' => $response['code']
+                        ?? data_get($response, 'result.code')
+                        ?? data_get($response, 'aliexpress_trade_ds_order_get_response.result.code')
+                        ?? null,
+                    'request_id' => $response['request_id']
+                        ?? data_get($response, 'aliexpress_trade_ds_order_get_response.request_id')
+                        ?? null,
                 'raw' => $response,
             ],
             'ds-order-tracking-get' => [
-                'result' => $response['result'] ?? null,
-                'code' => $response['code'] ?? null,
-                'request_id' => $response['request_id'] ?? null,
+                    'result' => $response['result']
+                        ?? data_get($response, 'aliexpress_ds_order_tracking_get_response.result')
+                        ?? null,
+                    'code' => $response['code']
+                        ?? data_get($response, 'result.code')
+                        ?? data_get($response, 'aliexpress_ds_order_tracking_get_response.result.code')
+                        ?? null,
+                    'request_id' => $response['request_id']
+                        ?? data_get($response, 'aliexpress_ds_order_tracking_get_response.request_id')
+                        ?? null,
                 'raw' => $response,
             ],
             'ds-product-get' => [
-                'result' => $response['result'] ?? null,
-                'code' => $response['code'] ?? null,
-                'request_id' => $response['request_id'] ?? null,
+                    'result' => $response['result']
+                        ?? data_get($response, 'aliexpress_ds_product_get_response.result')
+                        ?? null,
+                    'code' => $response['code']
+                        ?? data_get($response, 'result.code')
+                        ?? data_get($response, 'aliexpress_ds_product_get_response.result.code')
+                        ?? null,
+                    'request_id' => $response['request_id']
+                        ?? data_get($response, 'aliexpress_ds_product_get_response.request_id')
+                        ?? null,
                 'raw' => $response,
             ],
             'ds-product-wholesale-get' => [
-                'result' => $response['result'] ?? null,
-                'code' => $response['code'] ?? null,
-                'request_id' => $response['request_id'] ?? null,
+                    'result' => $response['result']
+                        ?? data_get($response, 'aliexpress_ds_product_wholesale_get_response.result')
+                        ?? null,
+                    'code' => $response['code']
+                        ?? data_get($response, 'result.code')
+                        ?? data_get($response, 'aliexpress_ds_product_wholesale_get_response.result.code')
+                        ?? null,
+                    'request_id' => $response['request_id']
+                        ?? data_get($response, 'aliexpress_ds_product_wholesale_get_response.request_id')
+                        ?? null,
                 'raw' => $response,
             ],
             'ds-image-search-v2' => [
@@ -1125,6 +1161,19 @@ class SupplierApiClient
                 'request_id' => $response['request_id'] ?? null,
                 'raw' => $response,
             ],
+                'ds-member-benefit-get' => [
+                    'result' => $response['result']
+                        ?? data_get($response, 'aliexpress_ds_member_benefit_get_response.result')
+                        ?? null,
+                    'code' => $response['code']
+                        ?? data_get($response, 'result.code')
+                        ?? data_get($response, 'aliexpress_ds_member_benefit_get_response.result.code')
+                        ?? null,
+                    'request_id' => $response['request_id']
+                        ?? data_get($response, 'aliexpress_ds_member_benefit_get_response.request_id')
+                        ?? null,
+                    'raw' => $response,
+                ],
             'buyer-freight-calculate' => [
                 'result' => $response['result'] ?? null,
                 'code' => $response['code'] ?? null,
@@ -1384,6 +1433,7 @@ class SupplierApiClient
             'ds-image-search-v2' => ['config_key' => 'ds_image_search_v2_method', 'http_method' => 'POST', 'param_key' => 'param0'],
             'ds-category-get' => ['config_key' => 'ds_category_get_method', 'http_method' => 'POST', 'param_key' => null],
             'ds-feed-itemids-get' => ['config_key' => 'ds_feed_itemids_get_method', 'http_method' => 'POST', 'param_key' => null],
+              'ds-member-benefit-get' => ['config_key' => 'ds_member_benefit_get_method', 'http_method' => 'POST', 'param_key' => null],
             'buyer-freight-calculate' => ['config_key' => 'buyer_freight_calculate_method', 'http_method' => 'POST', 'param_key' => null],
             'ds-trade-order-get' => ['config_key' => 'ds_trade_order_get_method', 'http_method' => 'POST', 'param_key' => null],
             'ds-order-tracking-get' => ['config_key' => 'ds_order_tracking_get_method', 'http_method' => 'POST', 'param_key' => null],
