@@ -532,6 +532,10 @@ function WalletClient() {
                   </GlowButton>
                 </div>
 
+                <p className="mt-3 text-xs leading-5 text-emerald-50/80">
+                  Une fois votre wallet recharge, il sera credite sous 30 min. Si ce n&apos;est pas le cas, ecrivez au support.
+                </p>
+
                 <div className="mt-3 rounded-2xl border border-emerald-200/20 bg-black/20 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
