@@ -262,6 +262,12 @@ const formatFileSize = (value?: number | null) => {
   return `${(value / (1024 * 1024)).toFixed(1)} Mo`;
 };
 
+const toTextInputValue = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+};
+
 const getInvoiceStatusMeta = (status?: string | null) => {
   switch (status) {
     case "request_ready":
@@ -410,25 +416,25 @@ export default function AdminOrderDetailPage() {
 
   useEffect(() => {
     const fulfillment = order?.currentSupplierFulfillment;
-    setSupplierAccountId(String(fulfillment?.supplier_account_id ?? order?.supplier_account_id ?? ""));
-    setExternalOrderId(fulfillment?.external_order_id ?? order?.supplier_external_order_id ?? "");
-    setSellerId(fulfillment?.seller_id ?? "");
-    setSupplierLocale(fulfillment?.locale ?? "fr_FR");
-    setInvoiceCustomerId(fulfillment?.invoice_customer_id ?? "");
-    setInvoiceNo(fulfillment?.invoice_no ?? "");
-    setInvoiceRequestNo(fulfillment?.invoice_request_no ?? generateInvoiceRequestNo(order?.id));
+    setSupplierAccountId(toTextInputValue(fulfillment?.supplier_account_id ?? order?.supplier_account_id ?? ""));
+    setExternalOrderId(toTextInputValue(fulfillment?.external_order_id ?? order?.supplier_external_order_id ?? ""));
+    setSellerId(toTextInputValue(fulfillment?.seller_id ?? ""));
+    setSupplierLocale(toTextInputValue(fulfillment?.locale ?? "fr_FR") || "fr_FR");
+    setInvoiceCustomerId(toTextInputValue(fulfillment?.invoice_customer_id ?? ""));
+    setInvoiceNo(toTextInputValue(fulfillment?.invoice_no ?? ""));
+    setInvoiceRequestNo(toTextInputValue(fulfillment?.invoice_request_no ?? generateInvoiceRequestNo(order?.id)) || generateInvoiceRequestNo(order?.id));
     setInvoiceFileType((fulfillment?.invoice_file_type as "pdf" | "png") ?? "pdf");
     setInvoiceDirection((fulfillment?.invoice_direction as "BLUE" | "RED") ?? "BLUE");
     setInvoiceDate(fulfillment?.invoice_date ? String(new Date(fulfillment.invoice_date).getTime()) : String(Date.now()));
-    setInvoiceName(fulfillment?.invoice_file_name ?? "invoice.pdf");
-    setSupplierShippingMode(fulfillment?.shipping_mode ?? order?.supplier_shipping_mode ?? "");
-    setShippingProviderCode(fulfillment?.shipping_provider_code ?? order?.supplier_shipping_provider_code ?? "");
-    setShippingProviderName(fulfillment?.shipping_provider_name ?? order?.supplier_shipping_provider_name ?? "");
-    setCarrierCode(fulfillment?.carrier_code ?? "");
-    setSupplierTrackingNumber(fulfillment?.tracking_number ?? order?.supplier_tracking_number ?? "");
-    setSupplierPackageId(fulfillment?.package_id ?? order?.supplier_package_id ?? "");
-    setPickupAddressId(fulfillment?.pickup_address_id ?? "");
-    setRefundAddressId(fulfillment?.refund_address_id ?? "");
+    setInvoiceName(toTextInputValue(fulfillment?.invoice_file_name ?? "invoice.pdf") || "invoice.pdf");
+    setSupplierShippingMode(toTextInputValue(fulfillment?.shipping_mode ?? order?.supplier_shipping_mode ?? ""));
+    setShippingProviderCode(toTextInputValue(fulfillment?.shipping_provider_code ?? order?.supplier_shipping_provider_code ?? ""));
+    setShippingProviderName(toTextInputValue(fulfillment?.shipping_provider_name ?? order?.supplier_shipping_provider_name ?? ""));
+    setCarrierCode(toTextInputValue(fulfillment?.carrier_code ?? ""));
+    setSupplierTrackingNumber(toTextInputValue(fulfillment?.tracking_number ?? order?.supplier_tracking_number ?? ""));
+    setSupplierPackageId(toTextInputValue(fulfillment?.package_id ?? order?.supplier_package_id ?? ""));
+    setPickupAddressId(toTextInputValue(fulfillment?.pickup_address_id ?? ""));
+    setRefundAddressId(toTextInputValue(fulfillment?.refund_address_id ?? ""));
     setExternalOrderLinesJson(JSON.stringify(fulfillment?.external_order_lines_json ?? [], null, 2));
   }, [order]);
 
