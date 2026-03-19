@@ -825,7 +825,13 @@ class SupplierApiClient
 
     private function normalizeAliExpressDsProductResponse(SupplierAccount $account, string $externalProductId, array $payload, string $methodName, array $options = []): array
     {
-        $result = is_array($payload['result'] ?? null) ? $payload['result'] : [];
+        $result = is_array($payload['result'] ?? null)
+            ? $payload['result']
+            : (is_array(data_get($payload, 'aliexpress_ds_product_get_response.result'))
+                ? data_get($payload, 'aliexpress_ds_product_get_response.result')
+                : (is_array(data_get($payload, 'aliexpress_ds_product_wholesale_get_response.result'))
+                    ? data_get($payload, 'aliexpress_ds_product_wholesale_get_response.result')
+                    : []));
         $baseInfo = is_array($result['ae_item_base_info_dto'] ?? null) ? $result['ae_item_base_info_dto'] : [];
         $storeInfo = is_array($result['ae_store_info'] ?? null) ? $result['ae_store_info'] : [];
         $packageInfo = is_array($result['package_info_dto'] ?? null) ? $result['package_info_dto'] : [];
@@ -979,7 +985,9 @@ class SupplierApiClient
                 'has_whole_sale' => $result['has_whole_sale'] ?? null,
                 'import_mode' => $methodName === (string) ($this->platformConfig($account->platform)['ds_product_wholesale_get_method'] ?? '') ? 'ds_wholesale' : 'ds_product',
             ],
-            'product_payload_json' => $payload,
+            'product_payload_json' => array_merge($payload, [
+                'result' => $result,
+            ]),
             'skus' => $normalizedSkus,
             '_storefront_defaults' => [
                 'source_currency' => $firstSku['currency_code'] ?? $targetCurrency,
