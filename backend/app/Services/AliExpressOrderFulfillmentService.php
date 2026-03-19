@@ -55,7 +55,10 @@ class AliExpressOrderFulfillmentService
         'BUYER_ACCEPT_GOODS',
     ];
 
-    public function __construct(private readonly SupplierApiClient $supplierApiClient)
+    public function __construct(
+        private readonly SupplierApiClient $supplierApiClient,
+        private readonly SupplierCatalogImportService $supplierCatalogImportService,
+    )
     {
     }
 
@@ -960,7 +963,7 @@ class AliExpressOrderFulfillmentService
                 continue;
             }
 
-            $link = $this->resolveDsProductLink($orderItem, $account->id);
+            $link = $this->resolveDsProductLinkForOrderItem($orderItem, $account, $fulfillment);
             if (! $link) {
                 throw new \RuntimeException('Aucun mapping AliExpress actif trouve pour le produit: ' . ($product->name ?? ('#' . $product->id)) . '.');
             }
@@ -1056,7 +1059,7 @@ class AliExpressOrderFulfillmentService
             }
 
             if ($orderItem !== null) {
-                $link = $this->resolveDsProductLink($orderItem, $account->id);
+                $link = $this->resolveDsProductLinkForOrderItem($orderItem, $account);
                 $variantAttributes = is_array($link?->supplierProductSku?->variant_attributes_json ?? null)
                     ? $link->supplierProductSku->variant_attributes_json
                     : [];
@@ -1129,7 +1132,7 @@ class AliExpressOrderFulfillmentService
         $checks = [];
         foreach ($items as $index => $item) {
             $orderItem = $physicalItems[$index] ?? null;
-            $link = $orderItem ? $this->resolveDsProductLink($orderItem, $account->id) : null;
+            $link = $orderItem ? $this->resolveDsProductLinkForOrderItem($orderItem, $account, $fulfillment) : null;
             $supplierSku = $link?->supplierProductSku;
             $productLabel = $orderItem?->product?->name ?: ('Ligne DS #' . ($index + 1));
             $requestedService = $this->nullableString($item['logistics_service_name'] ?? null);
@@ -1287,6 +1290,88 @@ class AliExpressOrderFulfillmentService
         return $links[0];
     }
 
+    private function resolveDsProductLinkForOrderItem(OrderItem $orderItem, SupplierAccount $account, ?OrderSupplierFulfillment $fulfillment = null): ?ProductSupplierLink
+    {
+        $link = $this->resolveDsProductLink($orderItem, $account->id);
+        if (! $link) {
+            return null;
+        }
+
+        if ($this->resolveDsSelectedSkuId($link->supplierProductSku) !== null) {
+            return $link;
+        }
+
+        return $this->repairDsProductLink($orderItem, $account, $link, $fulfillment) ?? $link;
+    }
+
+    private function repairDsProductLink(OrderItem $orderItem, SupplierAccount $account, ProductSupplierLink $link, ?OrderSupplierFulfillment $fulfillment = null): ?ProductSupplierLink
+    {
+        $supplierSku = $link->supplierProductSku;
+        $supplierProduct = $supplierSku?->supplierProduct;
+        $externalProductId = $this->nullableString($supplierProduct?->external_product_id);
+        if ($externalProductId === null) {
+            return null;
+        }
+
+        $locale = $this->resolveLocale($fulfillment);
+        $targetLanguage = $this->resolveLanguageFromLocale($locale);
+        $shipToCountry = $this->nullableString($orderItem->order?->shipping_country_code ?: null) ?: self::DS_HUB_COUNTRY_CODE;
+        $targetCurrency = 'USD';
+
+        $normalized = null;
+        foreach (['ds_product', 'ds_wholesale'] as $remoteMode) {
+            try {
+                $normalized = $this->supplierApiClient->fetchRemoteProduct($account, $externalProductId, null, [
+                    'remote_mode' => $remoteMode,
+                    'ship_to_country' => $shipToCountry,
+                    'target_currency' => $targetCurrency,
+                    'target_language' => $targetLanguage,
+                    'remove_personal_benefit' => false,
+                ]);
+
+                if ($this->payloadContainsResolvableDsSku($normalized)) {
+                    break;
+                }
+            } catch (\Throwable) {
+                $normalized = null;
+            }
+        }
+
+        if (! is_array($normalized)) {
+            return null;
+        }
+
+        $refreshedProduct = $this->supplierCatalogImportService->import($account->id, $normalized + [
+            'replace_missing_skus' => true,
+        ]);
+
+        $refreshedProduct->loadMissing('skus');
+        $replacementSku = $this->resolveReplacementDsSku($refreshedProduct->skus->all(), $supplierSku);
+        if (! $replacementSku || $this->resolveDsSelectedSkuId($replacementSku) === null) {
+            return null;
+        }
+
+        if ((int) $link->supplier_product_sku_id !== (int) $replacementSku->id) {
+            $snapshot = is_array($link->pricing_snapshot_json) ? $link->pricing_snapshot_json : [];
+            $snapshot['ds_external_sku_id'] = $replacementSku->external_sku_id;
+            $resolvedService = $this->nullableString(
+                data_get($replacementSku->sku_payload_json, 'logistics_service_name')
+                ?? data_get($replacementSku->sku_payload_json, 'service_name')
+                ?? data_get($replacementSku->sku_payload_json, 'serviceName')
+            );
+            if ($resolvedService !== null) {
+                $snapshot['logistics_service_name'] = $resolvedService;
+            }
+
+            $link->forceFill([
+                'supplier_product_sku_id' => $replacementSku->id,
+                'pricing_snapshot_json' => $snapshot,
+            ])->save();
+        }
+
+        return $link->fresh(['supplierProductSku.supplierProduct.supplierAccount']);
+    }
+
     private function resolveDsSelectedSkuId(?\App\Models\SupplierProductSku $supplierSku): ?string
     {
         if (! $supplierSku) {
@@ -1314,6 +1399,108 @@ class AliExpressOrderFulfillmentService
         }
 
         return null;
+    }
+
+    private function payloadContainsResolvableDsSku(array $payload): bool
+    {
+        foreach ((array) ($payload['skus'] ?? []) as $sku) {
+            if (! is_array($sku)) {
+                continue;
+            }
+
+            $candidate = $this->nullableString(
+                $sku['external_sku_id']
+                ?? data_get($sku, 'sku_payload_json.sku_id')
+                ?? data_get($sku, 'sku_payload_json.skuId')
+                ?? data_get($sku, 'sku_payload_json.id')
+                ?? data_get($sku, 'sku_payload_json.selectedSkuId')
+                ?? data_get($sku, 'sku_payload_json.selected_sku_id')
+            );
+
+            if ($candidate !== null && preg_match('/^\d+$/', $candidate) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<int, SupplierProductSku>  $candidateSkus
+     */
+    private function resolveReplacementDsSku(array $candidateSkus, ?SupplierProductSku $currentSku): ?SupplierProductSku
+    {
+        $numericCandidates = array_values(array_filter($candidateSkus, function ($sku) {
+            return $sku instanceof SupplierProductSku
+                && $sku->is_active
+                && $this->resolveDsSelectedSkuId($sku) !== null;
+        }));
+
+        if ($numericCandidates === []) {
+            return null;
+        }
+
+        $currentExternalSkuId = $this->nullableString($currentSku?->external_sku_id);
+        if ($currentExternalSkuId !== null) {
+            foreach ($numericCandidates as $candidate) {
+                if ((string) $candidate->external_sku_id === $currentExternalSkuId) {
+                    return $candidate;
+                }
+            }
+        }
+
+        $currentSignature = $this->resolveDsSkuSignature($currentSku);
+        if ($currentSignature !== null) {
+            foreach ($numericCandidates as $candidate) {
+                if ($this->resolveDsSkuSignature($candidate) === $currentSignature) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return count($numericCandidates) === 1 ? $numericCandidates[0] : null;
+    }
+
+    private function resolveDsSkuSignature(?SupplierProductSku $supplierSku): ?string
+    {
+        if (! $supplierSku) {
+            return null;
+        }
+
+        $skuAttr = $this->resolveDsSkuAttr(
+            is_array($supplierSku->sku_payload_json) ? $supplierSku->sku_payload_json : [],
+            is_array($supplierSku->variant_attributes_json) ? $supplierSku->variant_attributes_json : []
+        );
+        if ($skuAttr !== null) {
+            return $skuAttr;
+        }
+
+        $pairs = [];
+        foreach ((array) $supplierSku->variant_attributes_json as $key => $value) {
+            if (is_array($value)) {
+                $propertyId = $this->nullableString($value['property_id'] ?? $value['attr_id'] ?? $value['id'] ?? null);
+                $propertyValueId = $this->nullableString($value['property_value_id'] ?? $value['value_id'] ?? $value['vid'] ?? null);
+                if ($propertyId !== null && $propertyValueId !== null) {
+                    $pairs[] = $propertyId . ':' . $propertyValueId;
+                }
+
+                continue;
+            }
+
+            $normalizedKey = $this->nullableString((string) $key);
+            $normalizedValue = $this->nullableString($value);
+            if ($normalizedKey !== null && $normalizedValue !== null) {
+                $pairs[] = $normalizedKey . ':' . $normalizedValue;
+            }
+        }
+
+        if ($pairs === []) {
+            return null;
+        }
+
+        sort($pairs);
+
+        return implode(';', $pairs);
     }
 
     private function resolveDsSkuAttr(array $skuPayload, array $variantAttributes): ?string

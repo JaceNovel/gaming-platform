@@ -114,6 +114,116 @@ class AliExpressBulkCatalogImportService
         ];
     }
 
+    public function importDropshippingCatalog(SupplierAccount $account, array $options): array
+    {
+        if ((string) $account->platform !== 'aliexpress') {
+            throw new \RuntimeException('Le bulk import DS est reserve aux comptes AliExpress.');
+        }
+
+        $operation = (string) ($options['operation'] ?? 'ds-text-search');
+        if (! in_array($operation, ['ds-text-search', 'ds-feed-itemids-get'], true)) {
+            throw new \RuntimeException('Operation DS non supportee pour le bulk import.');
+        }
+
+        $limit = min(200, max(1, (int) ($options['limit'] ?? 50)));
+        $requestPayload = is_array($options['request_payload'] ?? null) ? $options['request_payload'] : [];
+        $requestPayload = $this->sanitizeDropshippingRequestPayload($operation, $requestPayload, $limit, $options);
+
+        $response = $this->supplierApiClient->iopOperation($account, $operation, $requestPayload);
+        $rows = array_slice($this->extractDropshippingProductsFromResponse($operation, $response), 0, $limit);
+
+        if ($rows === []) {
+            throw new \RuntimeException('Aucun produit DS exploitable n a ete retourne par l operation choisie.');
+        }
+
+        $autoCreateProducts = (bool) ($options['auto_create_products'] ?? true);
+        $publishProducts = (bool) ($options['publish_products'] ?? false);
+        $imported = [];
+        $createdProducts = [];
+        $updatedProducts = [];
+        $skippedProducts = [];
+        $failedProducts = [];
+        $fetchedProducts = 0;
+
+        foreach ($rows as $row) {
+            $externalProductId = trim((string) ($row['external_product_id'] ?? ''));
+            if ($externalProductId === '') {
+                continue;
+            }
+
+            try {
+                $normalized = $this->supplierApiClient->fetchRemoteProduct($account, $externalProductId, null, [
+                    'remote_mode' => $options['remote_mode'] ?? 'ds_product',
+                    'ship_to_country' => strtoupper(trim((string) ($options['ship_to_country'] ?? 'TG'))) ?: 'TG',
+                    'target_currency' => strtoupper(trim((string) ($options['target_currency'] ?? 'USD'))) ?: 'USD',
+                    'target_language' => trim((string) ($options['target_language'] ?? 'fr')) ?: 'fr',
+                    'remove_personal_benefit' => (bool) ($options['remove_personal_benefit'] ?? false),
+                ]);
+
+                $normalized['status'] = 'ds_imported';
+                $supplierProduct = $this->supplierCatalogImportService->import($account->id, $normalized + [
+                    'replace_missing_skus' => true,
+                ]);
+                $fetchedProducts++;
+
+                $localSync = null;
+                if ($autoCreateProducts) {
+                    $localSync = $this->syncLocalProduct($supplierProduct, $normalized, $options + [
+                        'import_source' => 'aliexpress_ds',
+                    ], $publishProducts);
+                    if (($localSync['created'] ?? false) && isset($localSync['product'])) {
+                        $createdProducts[] = $this->summarizeProduct($localSync['product']);
+                    } elseif (($localSync['updated'] ?? false) && isset($localSync['product'])) {
+                        $updatedProducts[] = $this->summarizeProduct($localSync['product']);
+                    } elseif (isset($localSync['product'])) {
+                        $skippedProducts[] = $this->summarizeProduct($localSync['product']);
+                    }
+                }
+
+                $imported[] = [
+                    'supplier_product_id' => $supplierProduct->id,
+                    'external_product_id' => $supplierProduct->external_product_id,
+                    'title' => $supplierProduct->title,
+                    'main_image_url' => $supplierProduct->main_image_url,
+                    'source_url' => $supplierProduct->source_url,
+                    'supplier_name' => $supplierProduct->supplier_name,
+                    'skus_count' => $supplierProduct->skus->count(),
+                    'local_product' => $localSync['product'] ?? null ? $this->summarizeProduct($localSync['product']) : null,
+                ];
+            } catch (\Throwable $exception) {
+                $failedProducts[] = [
+                    'external_product_id' => $externalProductId,
+                    'title' => $row['title'] ?? null,
+                    'reason' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        $account->forceFill(['last_sync_at' => now(), 'last_error_at' => null, 'last_error_message' => null])->save();
+
+        return [
+            'summary' => [
+                'operation' => $operation,
+                'requested_limit' => $limit,
+                'fetched_rows' => count($rows),
+                'imported_supplier_products' => count($imported),
+                'fetched_ds_products' => $fetchedProducts,
+                'created_storefront_products' => count($createdProducts),
+                'updated_storefront_products' => count($updatedProducts),
+                'skipped_storefront_products' => count($skippedProducts),
+                'failed_products' => count($failedProducts),
+            ],
+            'imported' => $imported,
+            'created_products' => array_slice($createdProducts, 0, 25),
+            'updated_products' => array_slice($updatedProducts, 0, 25),
+            'skipped_products' => array_slice($skippedProducts, 0, 25),
+            'failed_products' => array_slice($failedProducts, 0, 25),
+            'raw' => [
+                'result_count' => count($rows),
+            ],
+        ];
+    }
+
     public function syncStorefrontProductFromSupplierImport(SupplierProduct $supplierProduct, array $supplierPayload, array $options = []): array
     {
         $resolvedPayload = $this->ensureStorefrontDefaults($supplierProduct, $supplierPayload, $options);
@@ -307,6 +417,82 @@ class AliExpressBulkCatalogImportService
         }
 
         return [];
+    }
+
+    private function sanitizeDropshippingRequestPayload(string $operation, array $requestPayload, int $limit, array $options): array
+    {
+        if ($operation === 'ds-text-search') {
+            $requestPayload['pageSize'] = min($limit, max(1, (int) ($requestPayload['pageSize'] ?? $limit)));
+            $requestPayload['pageIndex'] = max(1, (int) ($requestPayload['pageIndex'] ?? 1));
+            $requestPayload['countryCode'] = strtoupper(trim((string) ($requestPayload['countryCode'] ?? $options['ship_to_country'] ?? 'TG'))) ?: 'TG';
+            $requestPayload['currency'] = strtoupper(trim((string) ($requestPayload['currency'] ?? $options['target_currency'] ?? 'USD'))) ?: 'USD';
+            $requestPayload['local'] = trim((string) ($requestPayload['local'] ?? 'fr_FR')) ?: 'fr_FR';
+        }
+
+        if ($operation === 'ds-feed-itemids-get') {
+            $requestPayload['page_size'] = min($limit, max(1, (int) ($requestPayload['page_size'] ?? $limit)));
+        }
+
+        return $requestPayload;
+    }
+
+    private function extractDropshippingProductsFromResponse(string $operation, array $response): array
+    {
+        if ($operation === 'ds-text-search') {
+            $products = Arr::wrap($response['products'] ?? data_get($response, 'result.products') ?? []);
+
+            return array_values(array_filter(array_map(function ($row) {
+                if (! is_array($row)) {
+                    return null;
+                }
+
+                $externalProductId = trim((string) ($row['itemId'] ?? $row['product_id'] ?? $row['productId'] ?? ''));
+                if ($externalProductId === '') {
+                    return null;
+                }
+
+                return [
+                    'external_product_id' => $externalProductId,
+                    'title' => $row['title'] ?? null,
+                    'main_image_url' => $row['itemMainPic'] ?? null,
+                    'source_url' => $row['itemUrl'] ?? null,
+                    'supplier_name' => $row['storeName'] ?? null,
+                ];
+            }, $products)));
+        }
+
+        $result = $response['result'] ?? [];
+        $collected = [];
+        $queue = [is_array($result) ? $result : []];
+
+        while ($queue !== []) {
+            $node = array_shift($queue);
+            if (! is_array($node)) {
+                continue;
+            }
+
+            $externalProductId = trim((string) ($node['itemId'] ?? $node['item_id'] ?? $node['productId'] ?? $node['product_id'] ?? ''));
+            if ($externalProductId !== '') {
+                $collected[] = [
+                    'external_product_id' => $externalProductId,
+                    'title' => $node['title'] ?? null,
+                ];
+            }
+
+            foreach ($node as $value) {
+                if (is_array($value)) {
+                    $queue[] = $value;
+                }
+            }
+        }
+
+        $unique = [];
+        foreach ($collected as $item) {
+            $id = (string) $item['external_product_id'];
+            $unique[$id] = $item;
+        }
+
+        return array_values($unique);
     }
 
     private function buildAffiliateResponseDiagnostic(string $operation, array $requestPayload, array $response): array
@@ -939,7 +1125,7 @@ class AliExpressBulkCatalogImportService
             return ['created' => false, 'updated' => true, 'product' => $product->fresh()];
         }
 
-        $existingProduct = $this->findExistingAffiliateStorefrontProduct($supplierProduct);
+        $existingProduct = $this->findExistingAliExpressStorefrontProduct($supplierProduct);
         if ($existingProduct) {
             $this->applyProductDefaults($existingProduct, $supplierPayload, $options, $publishProducts, false);
             return ['created' => false, 'updated' => true, 'product' => $existingProduct->fresh()];
@@ -985,7 +1171,7 @@ class AliExpressBulkCatalogImportService
                 'details' => array_filter([
                     'image' => $defaults['main_image_url'] ?? null,
                     'source_url' => $defaults['source_url'] ?? null,
-                    'import_source' => 'aliexpress_affiliate',
+                    'import_source' => $options['import_source'] ?? 'aliexpress_affiliate',
                     'source_currency' => $defaults['source_currency'] ?? null,
                     'source_unit_price' => $defaults['source_unit_price'] ?? null,
                     'supplier_product_id' => $supplierProduct->id,
@@ -1065,7 +1251,7 @@ class AliExpressBulkCatalogImportService
         $details['source_url'] = $defaults['source_url'] ?? ($details['source_url'] ?? null);
         $details['source_currency'] = $defaults['source_currency'] ?? ($details['source_currency'] ?? null);
         $details['source_unit_price'] = $defaults['source_unit_price'] ?? ($details['source_unit_price'] ?? null);
-        $details['import_source'] = 'aliexpress_affiliate';
+        $details['import_source'] = $options['import_source'] ?? 'aliexpress_affiliate';
         $details['supplier_product_id'] = $supplierProductId ?? ($details['supplier_product_id'] ?? null);
         $details['supplier_external_product_id'] = $supplierExternalProductId !== '' ? $supplierExternalProductId : ($details['supplier_external_product_id'] ?? null);
         $updates['details'] = array_filter($details, fn ($value) => $value !== null && $value !== '');
@@ -1074,7 +1260,7 @@ class AliExpressBulkCatalogImportService
         $this->syncProductMainImage($product, $defaults['main_image_url'] ?? null);
     }
 
-    private function findExistingAffiliateStorefrontProduct(SupplierProduct $supplierProduct): ?Product
+    private function findExistingAliExpressStorefrontProduct(SupplierProduct $supplierProduct): ?Product
     {
         return Product::query()
             ->where('preferred_supplier_platform', 'aliexpress')

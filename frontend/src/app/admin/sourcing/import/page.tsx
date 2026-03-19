@@ -21,6 +21,51 @@ type SupplierProduct = {
   skus_count?: number | null;
 };
 
+type LocalAccessoryProduct = {
+  id: number;
+  title?: string | null;
+  stock?: number | null;
+  is_active?: boolean;
+  category?: string | null;
+  accessory_category?: string | null;
+  preferred_supplier_platform?: string | null;
+  import_source?: string | null;
+  supplier_external_product_id?: string | null;
+  supplier_product_id?: number | null;
+  source_url?: string | null;
+  mappings_count?: number;
+};
+
+type DsBulkImportResponse = {
+  summary?: {
+    operation?: string;
+    requested_limit?: number;
+    fetched_rows?: number;
+    imported_supplier_products?: number;
+    fetched_ds_products?: number;
+    created_storefront_products?: number;
+    updated_storefront_products?: number;
+    skipped_storefront_products?: number;
+    failed_products?: number;
+  };
+  imported?: Array<{
+    supplier_product_id?: number;
+    external_product_id?: string | null;
+    title?: string | null;
+    supplier_name?: string | null;
+    skus_count?: number | null;
+    local_product?: {
+      id?: number;
+      title?: string | null;
+    } | null;
+  }>;
+  failed_products?: Array<{
+    external_product_id?: string | null;
+    title?: string | null;
+    reason?: string | null;
+  }>;
+};
+
 type RemoteSearchResult = {
   external_product_id?: string | null;
   title?: string | null;
@@ -1515,6 +1560,23 @@ const getAuthHeaders = (): Record<string, string> => {
   return headers;
 };
 
+const DS_BULK_IMPORT_TEMPLATES: Record<"ds-text-search" | "ds-feed-itemids-get", string> = {
+  "ds-text-search": stringifyTemplate({
+    keyWord: "gaming accessories",
+    local: "fr_FR",
+    countryCode: "TG",
+    currency: "USD",
+    pageSize: 50,
+    pageIndex: 1,
+    sortBy: "orders,desc",
+  }),
+  "ds-feed-itemids-get": stringifyTemplate({
+    page_size: 50,
+    category_id: "21",
+    feed_name: "DS bestseller",
+  }),
+};
+
 export default function AdminSourcingImportPage() {
   const searchParams = useSearchParams();
   const platform = searchParams.get("platform") === "aliexpress" ? "aliexpress" : "alibaba";
@@ -1522,9 +1584,12 @@ export default function AdminSourcingImportPage() {
   const supportedIopOperations = platform === "aliexpress" ? ALIEXPRESS_IOP_OPERATIONS : ALIBABA_IOP_OPERATIONS;
   const [accounts, setAccounts] = useState<SupplierAccount[]>([]);
   const [products, setProducts] = useState<SupplierProduct[]>([]);
+  const [localAccessoryProducts, setLocalAccessoryProducts] = useState<LocalAccessoryProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [cleanupError, setCleanupError] = useState("");
+  const [cleanupSuccess, setCleanupSuccess] = useState("");
 
   const [supplierAccountId, setSupplierAccountId] = useState("");
   const [externalProductId, setExternalProductId] = useState("");
@@ -1536,6 +1601,15 @@ export default function AdminSourcingImportPage() {
   const [dsRemovePersonalBenefit, setDsRemovePersonalBenefit] = useState(false);
   const [searchModelNumber, setSearchModelNumber] = useState("");
   const [searchSkuCode, setSearchSkuCode] = useState("");
+  const [dsBulkOperation, setDsBulkOperation] = useState<"ds-text-search" | "ds-feed-itemids-get">("ds-text-search");
+  const [dsBulkPayload, setDsBulkPayload] = useState(DS_BULK_IMPORT_TEMPLATES["ds-text-search"]);
+  const [dsBulkLimit, setDsBulkLimit] = useState("50");
+  const [dsBulkImportResult, setDsBulkImportResult] = useState<DsBulkImportResponse | null>(null);
+  const [runningDsBulkImport, setRunningDsBulkImport] = useState(false);
+  const [selectedSupplierProductIds, setSelectedSupplierProductIds] = useState<number[]>([]);
+  const [selectedLocalAccessoryIds, setSelectedLocalAccessoryIds] = useState<number[]>([]);
+  const [deletingSupplierProducts, setDeletingSupplierProducts] = useState(false);
+  const [deletingLocalAccessories, setDeletingLocalAccessories] = useState(false);
   const [remoteResults, setRemoteResults] = useState<RemoteSearchResult[]>([]);
   const [searchingRemote, setSearchingRemote] = useState(false);
   const [externalOfferId, setExternalOfferId] = useState("");
@@ -1573,8 +1647,8 @@ export default function AdminSourcingImportPage() {
   const [buyerEcoPayload, setBuyerEcoPayload] = useState(BUYER_ECO_TEMPLATES["product-description"]);
   const [buyerEcoRawResponse, setBuyerEcoRawResponse] = useState("");
   const [runningBuyerEco, setRunningBuyerEco] = useState(false);
-  const [iopOperation, setIopOperation] = useState<IopOperation>(platform === "aliexpress" ? "ae-affiliate-product-query" : "advanced-freight-calculate");
-  const [iopPayload, setIopPayload] = useState(IOP_TEMPLATES[platform === "aliexpress" ? "ae-affiliate-product-query" : "advanced-freight-calculate"]);
+  const [iopOperation, setIopOperation] = useState<IopOperation>(platform === "aliexpress" ? "ds-product-get" : "advanced-freight-calculate");
+  const [iopPayload, setIopPayload] = useState(IOP_TEMPLATES[platform === "aliexpress" ? "ds-product-get" : "advanced-freight-calculate"]);
   const [iopRawResponse, setIopRawResponse] = useState("");
   const [runningIop, setRunningIop] = useState(false);
   const [attachmentFileName, setAttachmentFileName] = useState("waybill.jpg");
@@ -1606,15 +1680,27 @@ export default function AdminSourcingImportPage() {
     setLoading(true);
     setError("");
     try {
-      const [accountsRes, productsRes] = await Promise.all([
+      const requests = [
         fetch(`${API_BASE}/admin/sourcing/supplier-accounts?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
         fetch(`${API_BASE}/admin/sourcing/supplier-products?platform=${platform}`, { headers: { Accept: "application/json", ...getAuthHeaders() } }),
-      ]);
-      if (!accountsRes.ok || !productsRes.ok) throw new Error(`Impossible de charger les données d’import ${platformLabel}`);
+      ];
+
+      if (platform === "aliexpress") {
+        requests.push(fetch(`${API_BASE}/admin/sourcing/local-products?platform=all&accessory_only=1`, { headers: { Accept: "application/json", ...getAuthHeaders() } }));
+      }
+
+      const [accountsRes, productsRes, localProductsRes] = await Promise.all(requests);
+      if (!accountsRes.ok || !productsRes.ok || (platform === "aliexpress" && !localProductsRes?.ok)) throw new Error(`Impossible de charger les données d’import ${platformLabel}`);
       const accountsPayload = await accountsRes.json();
       const productsPayload = await productsRes.json();
       setAccounts(Array.isArray(accountsPayload?.data) ? accountsPayload.data : []);
       setProducts(Array.isArray(productsPayload?.data) ? productsPayload.data : []);
+      if (platform === "aliexpress") {
+        const localProductsPayload = await localProductsRes?.json();
+        setLocalAccessoryProducts(Array.isArray(localProductsPayload?.data) ? localProductsPayload.data : []);
+      } else {
+        setLocalAccessoryProducts([]);
+      }
     } catch (err) {
       setError(`Impossible de charger les données d’import ${platformLabel}`);
     } finally {
@@ -1639,12 +1725,152 @@ export default function AdminSourcingImportPage() {
   }, [iopOperation]);
 
   useEffect(() => {
-    const defaultOperation = platform === "aliexpress" ? "ae-affiliate-product-query" : "advanced-freight-calculate";
+    setDsBulkPayload(DS_BULK_IMPORT_TEMPLATES[dsBulkOperation]);
+  }, [dsBulkOperation]);
+
+  useEffect(() => {
+    const defaultOperation = platform === "aliexpress" ? "ds-product-get" : "advanced-freight-calculate";
     setIopOperation(defaultOperation);
     setIopPayload(IOP_TEMPLATES[defaultOperation]);
     setRemoteMode(platform === "aliexpress" ? "ds_product" : "standard");
     setAutoCreateStorefrontProduct(platform === "aliexpress");
   }, [platform]);
+
+  const handleDsBulkImport = async () => {
+    setError("");
+    setSuccess("");
+    setCleanupError("");
+    setCleanupSuccess("");
+    setDsBulkImportResult(null);
+
+    if (platform !== "aliexpress") return;
+    if (!supplierAccountId) {
+      setError("Sélectionne un compte AliExpress actif.");
+      return;
+    }
+
+    let parsedPayload: unknown;
+    try {
+      parsedPayload = JSON.parse(dsBulkPayload);
+    } catch {
+      setError("Le JSON DS multi-import est invalide.");
+      return;
+    }
+
+    setRunningDsBulkImport(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/catalog/aliexpress/ds-bulk-import`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          supplier_account_id: Number(supplierAccountId),
+          operation: dsBulkOperation,
+          request_payload: parsedPayload,
+          limit: Number(dsBulkLimit) || 50,
+          remote_mode: remoteMode === "ds_wholesale" ? "ds_wholesale" : "ds_product",
+          ship_to_country: dsShipToCountry.trim() || undefined,
+          target_currency: dsTargetCurrency.trim() || undefined,
+          target_language: dsTargetLanguage.trim() || undefined,
+          remove_personal_benefit: dsRemovePersonalBenefit,
+          auto_create_products: true,
+          publish_products: publishStorefrontProduct,
+          usd_to_xof_rate: usdToXofRate.trim() ? Number(usdToXofRate) : undefined,
+          grouping_threshold: 3,
+          margin_percent: 17,
+          target_moq: 1,
+          reorder_quantity: 1,
+          delivery_eta_days: 12,
+          default_country_code: "TG",
+          source_logistics_profile: "ordinary",
+          default_weight_grams: 350,
+          default_estimated_cbm: 0.003,
+        }),
+      });
+
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.message ?? "Import DS multiple impossible");
+
+      setDsBulkImportResult(payload?.data ?? null);
+      setSuccess("Import DS multiple terminé.");
+      await loadAll();
+    } catch (err: any) {
+      setError(err?.message ?? "Import DS multiple impossible");
+    } finally {
+      setRunningDsBulkImport(false);
+    }
+  };
+
+  const handleDeleteSelectedSupplierProducts = async () => {
+    setCleanupError("");
+    setCleanupSuccess("");
+    if (selectedSupplierProductIds.length === 0) {
+      setCleanupError("Sélectionne au moins un produit fournisseur à supprimer.");
+      return;
+    }
+    if (typeof window !== "undefined" && !window.confirm(`Supprimer ${selectedSupplierProductIds.length} produit(s) fournisseur AliExpress ?`)) {
+      return;
+    }
+
+    setDeletingSupplierProducts(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/supplier-products/bulk-delete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ supplier_product_ids: selectedSupplierProductIds }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.message ?? "Suppression des produits fournisseur impossible");
+      setCleanupSuccess(`${payload?.data?.deleted ?? selectedSupplierProductIds.length} produit(s) fournisseur supprimé(s).`);
+      setSelectedSupplierProductIds([]);
+      await loadAll();
+    } catch (err: any) {
+      setCleanupError(err?.message ?? "Suppression des produits fournisseur impossible");
+    } finally {
+      setDeletingSupplierProducts(false);
+    }
+  };
+
+  const handleDeleteSelectedLocalAccessories = async () => {
+    setCleanupError("");
+    setCleanupSuccess("");
+    if (selectedLocalAccessoryIds.length === 0) {
+      setCleanupError("Sélectionne au moins un article accessoire local à supprimer.");
+      return;
+    }
+    if (typeof window !== "undefined" && !window.confirm(`Supprimer ${selectedLocalAccessoryIds.length} article(s) accessoire(s) local(aux) ?`)) {
+      return;
+    }
+
+    setDeletingLocalAccessories(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/local-products/bulk-delete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ product_ids: selectedLocalAccessoryIds }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.message ?? "Suppression des articles accessoires impossible");
+      setCleanupSuccess(`${payload?.data?.deleted ?? selectedLocalAccessoryIds.length} article(s) accessoire(s) supprimé(s).`);
+      setSelectedLocalAccessoryIds([]);
+      await loadAll();
+    } catch (err: any) {
+      setCleanupError(err?.message ?? "Suppression des articles accessoires impossible");
+    } finally {
+      setDeletingLocalAccessories(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -2248,6 +2474,52 @@ export default function AdminSourcingImportPage() {
                   <input type="checkbox" checked={dsRemovePersonalBenefit} onChange={(e) => setDsRemovePersonalBenefit(e.target.checked)} />
                   Retirer les promotions personnelles
                 </label>
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900">Import catalogue DS multiple</h4>
+                    <p className="text-xs text-slate-500">Importe plusieurs produits directement depuis AliExpress DS vers le catalogue fournisseur et le storefront local. Aucun flux affiliation n’est utilisé.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="grid gap-1 text-sm">
+                      <span className="text-slate-600">Source DS</span>
+                      <select value={dsBulkOperation} onChange={(e) => setDsBulkOperation(e.target.value as "ds-text-search" | "ds-feed-itemids-get")} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <option value="ds-text-search">ds-text-search</option>
+                        <option value="ds-feed-itemids-get">ds-feed-itemids-get</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-sm">
+                      <span className="text-slate-600">Mode import</span>
+                      <select value={remoteMode} onChange={(e) => setRemoteMode(e.target.value as "standard" | "ds_product" | "ds_wholesale")} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <option value="ds_product">DS product</option>
+                        <option value="ds_wholesale">DS wholesale</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-sm">
+                      <span className="text-slate-600">Volume cible</span>
+                      <input value={dsBulkLimit} onChange={(e) => setDsBulkLimit(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
+                    </label>
+                  </div>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-slate-600">Payload JSON DS</span>
+                    <textarea value={dsBulkPayload} onChange={(e) => setDsBulkPayload(e.target.value)} rows={8} className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs" />
+                  </label>
+                  <div className="flex flex-wrap gap-3">
+                    <button type="button" onClick={() => setDsBulkPayload(DS_BULK_IMPORT_TEMPLATES[dsBulkOperation])} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+                      Recharger le modèle DS
+                    </button>
+                    <button type="button" onClick={handleDsBulkImport} disabled={runningDsBulkImport} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-60">
+                      {runningDsBulkImport ? "Import DS..." : "Importer plusieurs produits DS"}
+                    </button>
+                  </div>
+                  {dsBulkImportResult ? (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                      <div>Produits source importés: {dsBulkImportResult.summary?.imported_supplier_products ?? 0}</div>
+                      <div>Articles locaux créés: {dsBulkImportResult.summary?.created_storefront_products ?? 0}</div>
+                      <div>Articles locaux mis à jour: {dsBulkImportResult.summary?.updated_storefront_products ?? 0}</div>
+                      <div>Échecs: {dsBulkImportResult.summary?.failed_products ?? 0}</div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             ) : (
               <label className="grid gap-1 text-sm">
@@ -2506,8 +2778,8 @@ export default function AdminSourcingImportPage() {
             ) : null}
             <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">{platform === "aliexpress" ? "AliExpress Affiliate Explorer" : "IOP Orders & Freight"}</h3>
-                <p className="text-xs text-slate-500">{platform === "aliexpress" ? "Tests bruts des APIs affiliate AliExpress pour catalogue, SKU, shipping, liens et commandes." : "Calcul de fret, création de commande, paiement, suivi logistique, entrepôts et requêtes ordre Alibaba."}</p>
+                <h3 className="text-sm font-semibold text-slate-900">{platform === "aliexpress" ? "AliExpress DS Explorer" : "IOP Orders & Freight"}</h3>
+                <p className="text-xs text-slate-500">{platform === "aliexpress" ? "Tests bruts des APIs dropshipping AliExpress pour recherche, produit, freight, tracking et création de commande." : "Calcul de fret, création de commande, paiement, suivi logistique, entrepôts et requêtes ordre Alibaba."}</p>
               </div>
               <label className="grid gap-1 text-sm">
                 <span className="text-slate-600">Opération IOP</span>
@@ -2583,21 +2855,29 @@ export default function AdminSourcingImportPage() {
               <h2 className="text-base font-semibold text-slate-900">Catalogue importé</h2>
               <p className="text-sm text-slate-500">Produits source déjà stockés côté back-office.</p>
             </div>
-            <button type="button" onClick={loadAll} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">Rafraîchir</button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setSelectedSupplierProductIds(products.map((product) => product.id))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">Choisir tous</button>
+              <button type="button" onClick={handleDeleteSelectedSupplierProducts} disabled={deletingSupplierProducts || selectedSupplierProductIds.length === 0} className="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-700 disabled:cursor-not-allowed disabled:opacity-60">{deletingSupplierProducts ? "Suppression..." : "Supprimer la sélection"}</button>
+              <button type="button" onClick={loadAll} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">Rafraîchir</button>
+            </div>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase text-slate-400">
                 <tr>
+                  <th className="pb-3 pr-4">Choix</th>
                   <th className="pb-3 pr-4">Produit source</th>
                   <th className="pb-3 pr-4">Compte</th>
                   <th className="pb-3 pr-4">SKU</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {!loading && products.length === 0 ? <tr><td colSpan={3} className="py-4 text-slate-500">Aucun produit importé.</td></tr> : null}
+                {!loading && products.length === 0 ? <tr><td colSpan={4} className="py-4 text-slate-500">Aucun produit importé.</td></tr> : null}
                 {products.map((product) => (
                   <tr key={product.id}>
+                    <td className="py-3 pr-4 align-top">
+                      <input type="checkbox" checked={selectedSupplierProductIds.includes(product.id)} onChange={(e) => setSelectedSupplierProductIds((current) => e.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))} />
+                    </td>
                     <td className="py-3 pr-4 align-top">
                       <div className="font-medium text-slate-900">{product.title || "Produit"}</div>
                       <div className="text-xs text-slate-500">{product.external_product_id || "—"}</div>
@@ -2612,7 +2892,55 @@ export default function AdminSourcingImportPage() {
               </tbody>
             </table>
           </div>
+          {cleanupError ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{cleanupError}</div> : null}
+          {cleanupSuccess ? <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{cleanupSuccess}</div> : null}
         </div>
+
+        {platform === "aliexpress" ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Articles accessoires locaux</h2>
+                <p className="text-sm text-slate-500">Nettoyage des articles accessoires locaux pour repartir proprement. Utilise “Choisir tous” puis supprime la sélection si tu veux tout vider.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setSelectedLocalAccessoryIds(localAccessoryProducts.map((product) => product.id))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">Choisir tous</button>
+                <button type="button" onClick={handleDeleteSelectedLocalAccessories} disabled={deletingLocalAccessories || selectedLocalAccessoryIds.length === 0} className="rounded-xl border border-rose-200 px-3 py-2 text-sm text-rose-700 disabled:cursor-not-allowed disabled:opacity-60">{deletingLocalAccessories ? "Suppression..." : "Supprimer la sélection"}</button>
+              </div>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase text-slate-400">
+                  <tr>
+                    <th className="pb-3 pr-4">Choix</th>
+                    <th className="pb-3 pr-4">Article</th>
+                    <th className="pb-3 pr-4">Origine</th>
+                    <th className="pb-3 pr-4">Mappings</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {!loading && localAccessoryProducts.length === 0 ? <tr><td colSpan={4} className="py-4 text-slate-500">Aucun article accessoire local.</td></tr> : null}
+                  {localAccessoryProducts.map((product) => (
+                    <tr key={product.id}>
+                      <td className="py-3 pr-4 align-top">
+                        <input type="checkbox" checked={selectedLocalAccessoryIds.includes(product.id)} onChange={(e) => setSelectedLocalAccessoryIds((current) => e.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))} />
+                      </td>
+                      <td className="py-3 pr-4 align-top">
+                        <div className="font-medium text-slate-900">{product.title || `Produit #${product.id}`}</div>
+                        <div className="text-xs text-slate-500">{product.accessory_category || "accessory"} · stock {product.stock ?? 0}</div>
+                      </td>
+                      <td className="py-3 pr-4 align-top text-xs text-slate-600">
+                        <div>{product.import_source || "manuel"}</div>
+                        <div>{product.preferred_supplier_platform || "—"}</div>
+                      </td>
+                      <td className="py-3 pr-4 align-top text-xs text-slate-600">{product.mappings_count ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
       </div>
     </AdminShell>
   );

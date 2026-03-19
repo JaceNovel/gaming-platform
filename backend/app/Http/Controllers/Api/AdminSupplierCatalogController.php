@@ -166,6 +166,72 @@ class AdminSupplierCatalogController extends Controller
         ], 201);
     }
 
+    public function bulkImportAliExpressDs(Request $request, AliExpressBulkCatalogImportService $bulkImportService)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'operation' => 'nullable|string|in:ds-text-search,ds-feed-itemids-get',
+            'limit' => 'nullable|integer|min:1|max:200',
+            'request_payload' => 'required|array',
+            'remote_mode' => 'nullable|string|in:ds_product,ds_wholesale',
+            'ship_to_country' => 'nullable|string|size:2',
+            'target_currency' => 'nullable|string|max:8',
+            'target_language' => 'nullable|string|max:16',
+            'remove_personal_benefit' => 'sometimes|boolean',
+            'auto_create_products' => 'sometimes|boolean',
+            'publish_products' => 'sometimes|boolean',
+            'usd_to_xof_rate' => 'nullable|numeric|min:1',
+            'grouping_threshold' => 'nullable|integer|min:1|max:500',
+            'margin_percent' => 'nullable|numeric|min:0|max:1000',
+            'target_moq' => 'nullable|integer|min:1|max:1000',
+            'reorder_quantity' => 'nullable|integer|min:1|max:1000',
+            'delivery_eta_days' => 'nullable|integer|min:1|max:90',
+            'default_country_code' => 'nullable|string|size:2',
+            'source_logistics_profile' => 'nullable|string|in:ordinary,battery',
+            'default_weight_grams' => 'nullable|integer|min:0|max:200000',
+            'default_estimated_cbm' => 'nullable|numeric|min:0|max:10',
+        ]);
+
+        try {
+            $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+            $result = $bulkImportService->importDropshippingCatalog($account, $data + [
+                'import_source' => 'aliexpress_ds',
+            ]);
+        } catch (Throwable $exception) {
+            Log::warning('sourcing.bulk_import_aliexpress_ds_failed', [
+                'supplier_account_id' => (int) $data['supplier_account_id'],
+                'operation' => $data['operation'] ?? 'ds-text-search',
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 502);
+        }
+
+        return response()->json([
+            'data' => $result,
+        ], 201);
+    }
+
+    public function bulkDelete(Request $request)
+    {
+        $data = $request->validate([
+            'supplier_product_ids' => 'required|array|min:1|max:500',
+            'supplier_product_ids.*' => 'integer|min:1',
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $data['supplier_product_ids'])));
+        $deleted = SupplierProduct::query()->whereIn('id', $ids)->delete();
+
+        return response()->json([
+            'message' => 'Produits fournisseur supprimes.',
+            'data' => [
+                'deleted' => $deleted,
+            ],
+        ]);
+    }
+
     public function autoMapAliExpressDs(Request $request, AliExpressBulkCatalogImportService $bulkImportService)
     {
         $data = $request->validate([

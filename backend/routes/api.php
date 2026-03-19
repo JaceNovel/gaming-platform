@@ -593,7 +593,11 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         ->middleware('permission:sourcing.manage');
     Route::post('/sourcing/catalog/aliexpress/bulk-import', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'bulkImportAliExpress'])
         ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/catalog/aliexpress/ds-bulk-import', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'bulkImportAliExpressDs'])
+        ->middleware('permission:sourcing.manage');
     Route::post('/sourcing/catalog/aliexpress/auto-map-ds', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'autoMapAliExpressDs'])
+        ->middleware('permission:sourcing.manage');
+    Route::post('/sourcing/supplier-products/bulk-delete', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'bulkDelete'])
         ->middleware('permission:sourcing.manage');
     Route::post('/sourcing/catalog/fetch-remote', [\App\Http\Controllers\Api\AdminSupplierCatalogController::class, 'fetchRemote'])
         ->middleware('permission:sourcing.manage');
@@ -628,6 +632,8 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
         ->middleware('permission:sourcing.view');
     Route::get('/sourcing/local-products', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'localProducts'])
         ->middleware('permission:sourcing.view');
+    Route::post('/sourcing/local-products/bulk-delete', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'bulkDeleteLocalProducts'])
+        ->middleware('permission:sourcing.manage');
     Route::get('/sourcing/mappings', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'mappings'])
         ->middleware('permission:sourcing.view');
     Route::get('/sourcing/supplier-skus', [\App\Http\Controllers\Api\AdminProductSourcingController::class, 'supplierSkus'])

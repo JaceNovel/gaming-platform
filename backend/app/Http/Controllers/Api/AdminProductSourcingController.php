@@ -26,6 +26,11 @@ class AdminProductSourcingController extends Controller
             $query->where('preferred_supplier_platform', 'aliexpress');
         }
 
+        if ($request->boolean('accessory_only')) {
+            $query->where('type', 'item')
+                ->where('category', 'accessory');
+        }
+
         if (filled($importSource)) {
             $query->where('details->import_source', $importSource);
         }
@@ -43,6 +48,9 @@ class AdminProductSourcingController extends Controller
                     'title' => $product->title ?: $product->name,
                     'stock' => $product->stock,
                     'is_active' => (bool) $product->is_active,
+                    'category' => $product->category,
+                    'accessory_category' => $product->accessory_category,
+                    'preferred_supplier_platform' => $product->preferred_supplier_platform,
                     'import_source' => $details['import_source'] ?? null,
                     'supplier_external_product_id' => $details['supplier_external_product_id'] ?? null,
                     'supplier_product_id' => $details['supplier_product_id'] ?? null,
@@ -50,6 +58,24 @@ class AdminProductSourcingController extends Controller
                     'mappings_count' => (int) $product->product_supplier_links_count,
                 ];
             }),
+        ]);
+    }
+
+    public function bulkDeleteLocalProducts(Request $request)
+    {
+        $data = $request->validate([
+            'product_ids' => 'required|array|min:1|max:500',
+            'product_ids.*' => 'integer|min:1',
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $data['product_ids'])));
+        $deleted = Product::query()->whereIn('id', $ids)->delete();
+
+        return response()->json([
+            'message' => 'Produits locaux supprimes.',
+            'data' => [
+                'deleted' => $deleted,
+            ],
         ]);
     }
 
