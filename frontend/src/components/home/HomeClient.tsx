@@ -233,6 +233,7 @@ export default function HomeClient() {
       likes_count?: number | string | null;
       category?: string | null;
       type?: string | null;
+      accessory_category?: string | null;
       game?: { name?: string | null } | null;
       banner?: string | null;
       cover?: string | null;
@@ -250,22 +251,33 @@ export default function HomeClient() {
     const loadProducts = async () => {
       try {
         const ts = Date.now();
-        const popularRes = await fetch(`${API_BASE}/products?active=1&display_section=popular&limit=9&_ts=${ts}`, {
-          cache: "no-store",
+        const requestInit = {
+          cache: "no-store" as const,
           headers: {
             Accept: "application/json",
             "Cache-Control": "no-cache",
             Pragma: "no-cache",
           },
-        });
+        };
 
-        const popularData = popularRes.ok ? await popularRes.json().catch(() => null) : null;
+        const readProducts = async (url: string): Promise<ApiProduct[]> => {
+          const res = await fetch(url, requestInit);
+          if (!res.ok) return [];
+          const data = await res.json().catch(() => null);
 
-        const popularItems = Array.isArray(popularData?.data)
-          ? (popularData.data as ApiProduct[])
-          : Array.isArray(popularData)
-            ? (popularData as ApiProduct[])
-            : [];
+          if (Array.isArray(data?.data)) {
+            return data.data as ApiProduct[];
+          }
+
+          return Array.isArray(data) ? (data as ApiProduct[]) : [];
+        };
+
+        const [popularItems, accessoryItems, gamingAccountItems] = await Promise.all([
+          readProducts(`${API_BASE}/products?active=1&display_section=popular&limit=9&_ts=${ts}`),
+          readProducts(`${API_BASE}/products?active=1&shop_type=accessory&limit=3&_ts=${ts}`),
+          readProducts(`${API_BASE}/products?active=1&shop_type=gaming_account&limit=3&_ts=${ts}`),
+        ]);
+
         if (!active) return;
 
         const mapToCard = (item: ApiProduct): ProductCard => {
@@ -298,7 +310,31 @@ export default function HomeClient() {
           };
         };
 
-        setProducts(popularItems.map(mapToCard));
+        const isAccessory = (item: ApiProduct) => item.type === "item" && Boolean(item.accessory_category);
+        const isGamingAccount = (item: ApiProduct) => item.type === "account";
+
+        const mergedItems = [...popularItems];
+
+        if (!mergedItems.some(isAccessory)) {
+          const accessoryFallback = accessoryItems.find((item) => !mergedItems.some((existing) => existing.id === item.id));
+          if (accessoryFallback) {
+            mergedItems.unshift(accessoryFallback);
+          }
+        }
+
+        if (!mergedItems.some(isGamingAccount)) {
+          const gamingAccountFallback = gamingAccountItems.find((item) => !mergedItems.some((existing) => existing.id === item.id));
+          if (gamingAccountFallback) {
+            const insertIndex = mergedItems.length > 0 ? 1 : 0;
+            mergedItems.splice(insertIndex, 0, gamingAccountFallback);
+          }
+        }
+
+        const dedupedItems = mergedItems.filter(
+          (item, index, allItems) => allItems.findIndex((candidate) => candidate.id === item.id) === index,
+        );
+
+        setProducts(dedupedItems.slice(0, 9).map(mapToCard));
       } catch {
         if (!active) return;
       }
