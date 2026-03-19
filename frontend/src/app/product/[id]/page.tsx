@@ -130,7 +130,7 @@ export default function PremiumAccessoryDesktopPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { triggerFlight, overlay } = useCartFlight();
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusTimeoutRef = useRef<number | null>(null);
 
   const id = params?.id;
   const [product, setProduct] = useState<ApiProduct | null>(null);
