@@ -1013,7 +1013,7 @@ class AliExpressOrderFulfillmentService
             ?? config('services.sourcing.platforms.aliexpress.ds_default_logistics_service_name')
         );
 
-        return $candidate;
+        return $this->canonicalizeDsLogisticsServiceName($candidate);
     }
 
     private function validateDsCreatePayload(Order $order, SupplierAccount $account, array $payload): void
@@ -1170,13 +1170,21 @@ class AliExpressOrderFulfillmentService
             try {
                 $response = $this->supplierApiClient->iopOperation($account, 'ds-freight-query', $freightPayload);
                 $availableServices = $this->extractFreightServiceNames($response);
+                $resolvedService = $this->resolveMatchingDsLogisticsServiceName($requestedService, $availableServices)
+                    ?? ($requestedService === null ? $this->selectPreferredDsLogisticsServiceName($availableServices) : null);
+
+                if ($link && $resolvedService !== null) {
+                    $this->persistResolvedDsLogisticsServiceName($link, $resolvedService);
+                }
+
                 $checks[] = [
                     'product_name' => $productLabel,
                     'product_id' => $productId,
                     'sku_id' => $skuId,
                     'requested_logistics_service_name' => $requestedService,
+                    'resolved_logistics_service_name' => $resolvedService,
                     'available_services' => $availableServices,
-                    'is_valid' => $requestedService === null ? null : in_array($requestedService, $availableServices, true),
+                    'is_valid' => $requestedService === null ? ($resolvedService !== null ? true : null) : $resolvedService !== null,
                     'success' => true,
                     'request_payload' => $freightPayload,
                     'response' => $response,
@@ -1256,6 +1264,99 @@ class AliExpressOrderFulfillmentService
         }
 
         return array_values(array_unique($serviceNames));
+    }
+
+    private function canonicalizeDsLogisticsServiceName(?string $serviceName): ?string
+    {
+        $value = $this->nullableString($serviceName);
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = $this->normalizeDsLogisticsServiceName($value);
+
+        return match ($normalized) {
+            'aliexpress selection standard', 'aliexpress standard shipping', 'expedition standard aliexpress', 'aliexpress standard' => 'Expedition standard AliExpress',
+            'aliexpress premium shipping', 'expedition premium aliexpress', 'aliexpress premium' => 'AliExpress Premium shipping',
+            default => $value,
+        };
+    }
+
+    private function resolveMatchingDsLogisticsServiceName(?string $requestedService, array $availableServices): ?string
+    {
+        $requested = $this->canonicalizeDsLogisticsServiceName($requestedService);
+        if ($requested === null) {
+            return null;
+        }
+
+        foreach ($availableServices as $availableService) {
+            $available = $this->nullableString($availableService);
+            if ($available !== null && strcasecmp($available, $requested) === 0) {
+                return $available;
+            }
+        }
+
+        $requestedNormalized = $this->normalizeDsLogisticsServiceName($requested);
+        foreach ($availableServices as $availableService) {
+            $available = $this->nullableString($availableService);
+            if ($available !== null && $this->normalizeDsLogisticsServiceName($available) === $requestedNormalized) {
+                return $available;
+            }
+        }
+
+        return null;
+    }
+
+    private function selectPreferredDsLogisticsServiceName(array $availableServices): ?string
+    {
+        $preferredNeedles = [
+            'standard',
+            'standard aliexpress',
+            'premium',
+        ];
+
+        foreach ($preferredNeedles as $needle) {
+            foreach ($availableServices as $availableService) {
+                $available = $this->nullableString($availableService);
+                if ($available !== null && str_contains($this->normalizeDsLogisticsServiceName($available), $needle)) {
+                    return $available;
+                }
+            }
+        }
+
+        return $this->nullableString($availableServices[0] ?? null);
+    }
+
+    private function persistResolvedDsLogisticsServiceName(ProductSupplierLink $link, string $serviceName): void
+    {
+        $resolved = $this->nullableString($serviceName);
+        if ($resolved === null) {
+            return;
+        }
+
+        $snapshot = is_array($link->pricing_snapshot_json) ? $link->pricing_snapshot_json : [];
+        if (($snapshot['logistics_service_name'] ?? null) !== $resolved) {
+            $snapshot['logistics_service_name'] = $resolved;
+            $link->forceFill(['pricing_snapshot_json' => $snapshot])->save();
+        }
+
+        $supplierSku = $link->supplierProductSku;
+        if ($supplierSku) {
+            $payload = is_array($supplierSku->sku_payload_json) ? $supplierSku->sku_payload_json : [];
+            if (($payload['logistics_service_name'] ?? null) !== $resolved) {
+                $payload['logistics_service_name'] = $resolved;
+                $supplierSku->forceFill(['sku_payload_json' => $payload])->save();
+            }
+        }
+    }
+
+    private function normalizeDsLogisticsServiceName(string $value): string
+    {
+        $normalized = Str::lower(trim($value));
+        $normalized = str_replace(['é', 'è', 'ê', 'ë', 'à', 'â', 'ä', 'î', 'ï', 'ô', 'ö', 'ù', 'û', 'ü'], ['e', 'e', 'e', 'e', 'a', 'a', 'a', 'i', 'i', 'o', 'o', 'u', 'u', 'u'], $normalized);
+        $normalized = preg_replace('/[^a-z0-9]+/', ' ', $normalized) ?? '';
+
+        return trim(preg_replace('/\s+/', ' ', $normalized) ?? '');
     }
 
     private function resolveDsProductLink(OrderItem $orderItem, int $supplierAccountId): ?ProductSupplierLink
