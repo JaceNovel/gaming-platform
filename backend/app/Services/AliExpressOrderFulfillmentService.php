@@ -2344,6 +2344,18 @@ class AliExpressOrderFulfillmentService
 
     private function nullableString(mixed $value): ?string
     {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_array($value)) {
+            return null;
+        }
+
+        if (is_object($value) && ! method_exists($value, '__toString')) {
+            return null;
+        }
+
         $resolved = trim((string) $value);
         return $resolved === '' ? null : $resolved;
     }
