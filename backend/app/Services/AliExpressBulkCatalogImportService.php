@@ -1280,17 +1280,48 @@ class AliExpressBulkCatalogImportService
             return null;
         }
 
+        $payload = is_array($supplierSku->sku_payload_json) ? $supplierSku->sku_payload_json : [];
+
         foreach ([
             $supplierSku->external_sku_id,
-            data_get($supplierSku->sku_payload_json, 'sku_id'),
-            data_get($supplierSku->sku_payload_json, 'skuId'),
-            data_get($supplierSku->sku_payload_json, 'id'),
-            data_get($supplierSku->sku_payload_json, 'selectedSkuId'),
-            data_get($supplierSku->sku_payload_json, 'selected_sku_id'),
+            data_get($payload, 'selectedSkuId'),
+            data_get($payload, 'selected_sku_id'),
+            data_get($payload, 'sku_id'),
+            data_get($payload, 'skuId'),
+            $this->findFirstStringByKeys($payload, ['selectedSkuId', 'selected_sku_id', 'sku_id', 'skuId', 'sku_id_str', 'skuIdStr']),
+            data_get($payload, 'id'),
         ] as $candidate) {
             $value = trim((string) ($candidate ?? ''));
             if ($value !== '' && preg_match('/^\d+$/', $value) === 1) {
                 return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function findFirstStringByKeys(array $payload, array $keys): ?string
+    {
+        $needle = array_flip(array_map(static fn ($key) => strtolower($key), $keys));
+        $queue = [$payload];
+
+        while ($queue !== []) {
+            $node = array_shift($queue);
+            if (! is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $key => $value) {
+                if (is_string($key) && isset($needle[strtolower($key)]) && ! is_array($value)) {
+                    $stringValue = trim((string) $value);
+                    if ($stringValue !== '') {
+                        return $stringValue;
+                    }
+                }
+
+                if (is_array($value)) {
+                    $queue[] = $value;
+                }
             }
         }
 

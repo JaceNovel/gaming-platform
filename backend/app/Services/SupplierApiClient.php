@@ -911,6 +911,8 @@ class SupplierApiClient
                 ], static fn ($value) => $value !== null && $value !== '');
             }, $variantRows)));
 
+            $canonicalSelectedSkuId = $this->resolveAliExpressDsSkuIdentifier($sku);
+
             return [
                 'external_sku_id' => $externalSkuId,
                 'sku_label' => $sku['sku_attr'] ?? $sku['id'] ?? $externalSkuId,
@@ -921,9 +923,11 @@ class SupplierApiClient
                 'available_quantity' => $sku['sku_available_stock'] ?? $sku['ipm_sku_stock'] ?? null,
                 'lead_time_days' => null,
                 'logistics_modes_json' => [],
-                'sku_payload_json' => array_merge($sku, [
+                'sku_payload_json' => array_merge($sku, array_filter([
                     'original_price' => $originalPrice,
-                ]),
+                    'selectedSkuId' => $canonicalSelectedSkuId,
+                    'selected_sku_id' => $canonicalSelectedSkuId,
+                ], static fn ($value) => $value !== null && $value !== '')),
                 'is_active' => filter_var($sku['sku_stock'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) !== false,
             ];
         }, $skuRows)));

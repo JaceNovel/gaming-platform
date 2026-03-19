@@ -1401,13 +1401,15 @@ class AliExpressOrderFulfillmentService
             return null;
         }
 
+        $payload = is_array($supplierSku->sku_payload_json) ? $supplierSku->sku_payload_json : [];
         $candidates = [
             $supplierSku->external_sku_id,
-            data_get($supplierSku->sku_payload_json, 'sku_id'),
-            data_get($supplierSku->sku_payload_json, 'skuId'),
-            data_get($supplierSku->sku_payload_json, 'id'),
-            data_get($supplierSku->sku_payload_json, 'selectedSkuId'),
-            data_get($supplierSku->sku_payload_json, 'selected_sku_id'),
+            data_get($payload, 'selectedSkuId'),
+            data_get($payload, 'selected_sku_id'),
+            data_get($payload, 'sku_id'),
+            data_get($payload, 'skuId'),
+            $this->findFirstStringByKeys($payload, ['selectedSkuId', 'selected_sku_id', 'sku_id', 'skuId', 'sku_id_str', 'skuIdStr']),
+            data_get($payload, 'id'),
         ];
 
         foreach ($candidates as $candidate) {
@@ -1431,13 +1433,15 @@ class AliExpressOrderFulfillmentService
                 continue;
             }
 
+            $skuPayload = is_array($sku['sku_payload_json'] ?? null) ? $sku['sku_payload_json'] : [];
             $candidate = $this->nullableString(
                 $sku['external_sku_id']
-                ?? data_get($sku, 'sku_payload_json.sku_id')
-                ?? data_get($sku, 'sku_payload_json.skuId')
-                ?? data_get($sku, 'sku_payload_json.id')
-                ?? data_get($sku, 'sku_payload_json.selectedSkuId')
-                ?? data_get($sku, 'sku_payload_json.selected_sku_id')
+                ?? data_get($skuPayload, 'selectedSkuId')
+                ?? data_get($skuPayload, 'selected_sku_id')
+                ?? data_get($skuPayload, 'sku_id')
+                ?? data_get($skuPayload, 'skuId')
+                ?? $this->findFirstStringByKeys($skuPayload, ['selectedSkuId', 'selected_sku_id', 'sku_id', 'skuId', 'sku_id_str', 'skuIdStr'])
+                ?? data_get($skuPayload, 'id')
             );
 
             if ($candidate !== null && preg_match('/^\d+$/', $candidate) === 1) {
