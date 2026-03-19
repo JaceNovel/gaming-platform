@@ -841,7 +841,28 @@ class SupplierApiClient
         $sourceUrl = $externalProductId !== '' ? 'https://www.aliexpress.com/item/' . $externalProductId . '.html' : null;
 
         $skuRows = Arr::wrap($result['ae_item_sku_info_dtos'] ?? []);
-        $normalizedSkus = array_values(array_filter(array_map(function ($sku) use ($targetCurrency) {
+        $fallbackPrice = $this->resolveAliExpressDsMoneyValue($result, [
+            'min_price',
+            'max_price',
+            'target_min_price',
+            'target_max_price',
+            'target_sale_price',
+            'sale_price',
+            'price',
+            'sku_price',
+            'ae_item_sku_info_dtos.0.offer_sale_price',
+            'ae_item_sku_info_dtos.0.sku_price',
+        ]);
+        $fallbackOriginalPrice = $this->resolveAliExpressDsMoneyValue($result, [
+            'original_price',
+            'target_original_price',
+            'max_price',
+            'ae_item_sku_info_dtos.0.offer_bulk_sale_price',
+            'ae_item_sku_info_dtos.0.wholesale_price_tiers.0.wholesale_price',
+        ]) ?? $fallbackPrice;
+        $fallbackCurrencyCode = $this->resolveAliExpressDsCurrencyCode($result, $targetCurrency);
+
+        $normalizedSkus = array_values(array_filter(array_map(function ($sku) use ($targetCurrency, $fallbackPrice, $fallbackOriginalPrice, $fallbackCurrencyCode) {
             if (!is_array($sku)) {
                 return null;
             }
@@ -851,9 +872,30 @@ class SupplierApiClient
                 return null;
             }
 
-            $price = $this->normalizeMoney($sku['offer_sale_price'] ?? $sku['sku_price'] ?? null);
-            $originalPrice = $this->normalizeMoney($sku['offer_bulk_sale_price'] ?? $sku['wholesale_price_tiers'][0]['wholesale_price'] ?? $price);
-            $currencyCode = strtoupper(trim((string) ($sku['currency_code'] ?? $sku['target_sale_price_currency'] ?? $targetCurrency))) ?: $targetCurrency;
+            $price = $this->resolveAliExpressDsMoneyValue($sku, [
+                'offer_sale_price',
+                'offerSalePrice',
+                'target_sale_price',
+                'targetSalePrice',
+                'sale_price',
+                'salePrice',
+                'sku_price.price',
+                'sku_price.amount',
+                'sku_price.value',
+                'sku_price',
+                'price',
+            ]) ?? $fallbackPrice;
+            $originalPrice = $this->resolveAliExpressDsMoneyValue($sku, [
+                'offer_bulk_sale_price',
+                'offerBulkSalePrice',
+                'target_original_price',
+                'targetOriginalPrice',
+                'original_price',
+                'originalPrice',
+                'wholesale_price_tiers.0.wholesale_price',
+                'crossed_price',
+            ]) ?? $fallbackOriginalPrice ?? $price;
+            $currencyCode = $this->resolveAliExpressDsCurrencyCode($sku, $fallbackCurrencyCode ?: $targetCurrency);
             $variantAttributes = array_values(array_filter(array_map(function ($property) {
                 if (!is_array($property)) {
                     return null;
@@ -1698,12 +1740,65 @@ class SupplierApiClient
             return null;
         }
 
-        $normalized = str_replace(['"', ','], ['', '.'], trim((string) $value));
+        if (is_array($value)) {
+            foreach (['amount', 'value', 'price', 'cent', 'cents'] as $key) {
+                if (!array_key_exists($key, $value)) {
+                    continue;
+                }
+
+                $normalized = $this->normalizeMoney($value[$key]);
+                if ($normalized !== null) {
+                    return $key === 'cent' || $key === 'cents' ? $normalized / 100 : $normalized;
+                }
+            }
+
+            return null;
+        }
+
+        $normalized = trim((string) $value);
+        if ($normalized === '') {
+            return null;
+        }
+
+        $normalized = str_replace([',', ' '], ['.', ''], $normalized);
+        $normalized = preg_replace('/[^\d.\-]+/', '', $normalized) ?? '';
         if ($normalized === '' || !is_numeric($normalized)) {
             return null;
         }
 
         return (float) $normalized;
+    }
+
+    private function resolveAliExpressDsMoneyValue(array $payload, array $paths): ?float
+    {
+        foreach ($paths as $path) {
+            $value = data_get($payload, $path);
+            $normalized = $this->normalizeMoney($value);
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveAliExpressDsCurrencyCode(array $payload, string $fallback): string
+    {
+        foreach ([
+            'currency_code',
+            'target_sale_price_currency',
+            'targetSalePriceCurrency',
+            'currency',
+            'sku_price.currency_code',
+            'sku_price.currency',
+        ] as $path) {
+            $value = strtoupper(trim((string) data_get($payload, $path, '')));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return strtoupper(trim($fallback)) ?: 'USD';
     }
 
     private function estimateCbmFromPackageInfo(array $packageInfo): float

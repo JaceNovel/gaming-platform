@@ -17,6 +17,8 @@ type AccessoryProduct = {
   title?: string | null;
   price?: number | string | null;
   discount_price?: number | string | null;
+  computed_final_price?: number | string | null;
+  computed_transport_unit_fee?: number | string | null;
   shipping_fee?: number | string | null;
   type?: string | null;
   accessory_category?: string | null;
@@ -129,8 +131,9 @@ function addToCart(product: AccessoryProduct) {
 
   const id = Number(product.id);
   const name = productDisplayName(product);
-  const unitPrice = parseNumber(product.discount_price ?? product.price);
-  const shippingFee = parseNumber(product.shipping_fee);
+  const hasComputedFinalPrice = product.computed_final_price !== null && product.computed_final_price !== undefined && product.computed_final_price !== "";
+  const unitPrice = parseNumber(product.computed_final_price ?? product.discount_price ?? product.price);
+  const shippingFee = hasComputedFinalPrice ? 0 : parseNumber(product.computed_transport_unit_fee ?? product.shipping_fee);
 
   const existing = cart.find((it: any) => Number(it?.id) === id);
   if (existing) {
@@ -610,7 +613,7 @@ export default function AccessoiresPage() {
                             const name = productDisplayName(p);
                             const img = extractImage(p);
                             const imgSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
-                            const price = parseNumber(p.discount_price ?? p.price);
+                            const price = parseNumber(p.computed_final_price ?? p.discount_price ?? p.price);
                             return (
                               <Link
                                 key={p.id}
@@ -659,9 +662,9 @@ export default function AccessoiresPage() {
                             const name = productDisplayName(p);
                             const img = extractImage(p);
                             const imgSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
-                            const price = parseNumber(p.discount_price ?? p.price);
-                            const fee = parseNumber(p.shipping_fee);
-                            const total = price + fee;
+                            const price = parseNumber(p.computed_final_price ?? p.discount_price ?? p.price);
+                            const fee = parseNumber(p.computed_transport_unit_fee ?? p.shipping_fee);
+                            const total = p.computed_final_price !== null && p.computed_final_price !== undefined && p.computed_final_price !== "" ? price : price + fee;
 
                             return (
                               <div

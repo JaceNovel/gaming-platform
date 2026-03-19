@@ -16,7 +16,8 @@ class AliExpressTransitPricingService
     public function usesTransitPricing(Product $product): bool
     {
         return strtolower(trim((string) ($product->type ?? ''))) === 'item'
-            && strtolower(trim((string) ($product->accessory_category ?? ''))) === 'gaming';
+            && strtolower(trim((string) ($product->category ?? ''))) === 'accessory'
+            && strtolower(trim((string) ($product->preferred_supplier_platform ?? ''))) === 'aliexpress';
     }
 
     public function storefrontCountries(): array

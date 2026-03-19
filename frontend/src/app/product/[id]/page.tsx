@@ -20,6 +20,7 @@ type Product = {
   description?: string;
   price?: number;
   discount_price?: number | null;
+  computed_final_price?: number | null;
   old_price?: number | null;
   shipping_fee?: number | string | null;
   type?: string;
@@ -94,7 +95,7 @@ export default function ProductPage() {
   }, [product]);
   const coverImage = images[activeImage] ?? images[0];
 
-  const priceValue = Number(product?.discount_price ?? product?.price ?? 0);
+  const priceValue = Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0);
   const oldPrice = product?.old_price ? Number(product.old_price) : Math.round(priceValue * 1.2);
   const discountPercent = oldPrice > priceValue ? Math.round(((oldPrice - priceValue) / oldPrice) * 100) : 0;
 

@@ -38,6 +38,8 @@ type ApiProduct = {
   } | null;
   price?: number | string | null;
   discount_price?: number | string | null;
+  computed_final_price?: number | string | null;
+  computed_transport_unit_fee?: number | string | null;
   image_url?: string | null;
   cover?: string | null;
   banner?: string | null;
@@ -439,7 +441,7 @@ export default function ProductDetailsPage() {
   const displayBanner = useMemo(() => toDisplayImageSrc(bannerImage) ?? bannerImage, [bannerImage]);
   const tags = useMemo(() => normalizeTags(product), [product]);
   const priceValue = useMemo(
-    () => Number(product?.discount_price ?? product?.price ?? 0) || 0,
+    () => Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0) || 0,
     [product]
   );
   const description =

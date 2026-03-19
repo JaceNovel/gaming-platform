@@ -1313,7 +1313,7 @@ class AliExpressOrderFulfillmentService
             return null;
         }
 
-        $locale = $this->resolveLocale($fulfillment);
+        $locale = $fulfillment ? $this->resolveLocale($fulfillment) : 'fr_FR';
         $targetLanguage = $this->resolveLanguageFromLocale($locale);
         $shipToCountry = $this->nullableString($orderItem->order?->shipping_country_code ?: null) ?: self::DS_HUB_COUNTRY_CODE;
         $targetCurrency = 'USD';
