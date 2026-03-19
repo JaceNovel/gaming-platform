@@ -248,11 +248,52 @@ class PaymentController extends Controller
                 ?? ''
         );
 
+        $order = $orderId > 0
+            ? Order::with(['payment.walletTransaction', 'user'])->find($orderId)
+            : null;
+
         $frontUrl = rtrim((string) env('FRONTEND_URL', ''), '/');
-        $orderType = $orderId > 0
-            ? (string) (Order::query()->where('id', $orderId)->value('type') ?? '')
-            : '';
+        $orderType = (string) ($order?->type ?? '');
         $isWalletTopup = $orderType === 'wallet_topup';
+
+        $walletPaid = null;
+
+        if ($order && $order->payment && strtolower((string) ($order->payment->method ?? '')) === 'fedapay') {
+            try {
+                if (!$order->isPaymentSuccess() && !$order->isPaymentFailed()) {
+                    $this->paymentResyncService->resync($order->payment, [
+                        'source' => 'fedapay_return',
+                        'order_id' => $order->id,
+                        'transaction_id' => $transactionId !== '' ? $transactionId : null,
+                    ]);
+                }
+
+                $order->refresh();
+                $order->load(['payment.walletTransaction', 'user']);
+
+                if ($isWalletTopup && $order->payment && (string) ($order->payment->status ?? '') === 'completed') {
+                    $this->paymentSettlementService->ensureWalletTopupCredited($order->payment, [
+                        'source' => 'fedapay_return',
+                    ]);
+                    $order->refresh();
+                    $order->load(['payment.walletTransaction', 'user']);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('fedapay:return-resync-failed', [
+                    'order_id' => $order->id,
+                    'transaction_id' => $transactionId !== '' ? $transactionId : null,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+
+            if ($order->isPaymentSuccess()) {
+                $walletPaid = 'paid';
+            } elseif ($order->isPaymentFailed()) {
+                $walletPaid = 'failed';
+            } else {
+                $walletPaid = 'processing';
+            }
+        }
 
         $fallbackRedirect = $frontUrl !== ''
             ? ($isWalletTopup
@@ -264,7 +305,15 @@ class PaymentController extends Controller
 
         $redirect = $frontUrl !== ''
             ? ($isWalletTopup
-                ? $frontUrl . '/wallet' . ($orderId > 0 ? ('?topup_order=' . $orderId) : '')
+                ? $frontUrl . '/wallet' . (count(array_filter([
+                    $orderId > 0 ? 'topup_order=' . $orderId : null,
+                    'provider=fedapay',
+                    $walletPaid ? 'wallet_paid=' . $walletPaid : null,
+                ])) > 0 ? ('?' . implode('&', array_filter([
+                    $orderId > 0 ? 'topup_order=' . $orderId : null,
+                    'provider=fedapay',
+                    $walletPaid ? 'wallet_paid=' . $walletPaid : null,
+                ]))) : '')
                 : $frontUrl . '/order-confirmation' . ($orderId > 0 ? ('?order=' . $orderId) : ''))
             : $fallbackRedirect;
 

@@ -11,6 +11,12 @@ use Illuminate\Support\Facades\Storage;
 
 class PhoneChangeRequestController extends Controller
 {
+    private function publicUploadsDiskName(): string
+    {
+        $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+        return $diskName !== '' ? $diskName : 'public';
+    }
+
     public function store(Request $request)
     {
         $user = $request->user();
@@ -38,14 +44,15 @@ class PhoneChangeRequestController extends Controller
             'status' => 'pending',
         ]);
 
-        $disk = Storage::disk('public');
+        $diskName = $this->publicUploadsDiskName();
+        $disk = Storage::disk($diskName);
 
         if ($request->hasFile('attachment')) {
             $attachment = $request->file('attachment');
             $path = $attachment->storeAs(
                 'phone-change-requests/attachments',
                 'phone-change-' . $requestRow->id . '-' . time() . '.' . $attachment->getClientOriginalExtension(),
-                'public'
+                $diskName
             );
             $requestRow->attachment_path = $path;
         }

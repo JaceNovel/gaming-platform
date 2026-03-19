@@ -33,6 +33,12 @@ use Illuminate\Validation\ValidationException;
 
 class AdminOrderController extends Controller
 {
+    private function publicUploadsDiskName(): string
+    {
+        $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+        return $diskName !== '' ? $diskName : 'public';
+    }
+
     public function index(Request $request)
     {
         $query = Order::with(['user', 'payment', 'orderItems.product', 'orderItems.redeemDenomination', 'orderItems.redeemCode'])
@@ -379,11 +385,12 @@ class AdminOrderController extends Controller
     public function downloadAliExpressInvoiceDocument(Order $order, AliExpressOrderFulfillmentService $service)
     {
         $path = $service->downloadInvoiceDocument($order);
-        if (!$path || !Storage::disk('public')->exists($path)) {
+        $diskName = $this->publicUploadsDiskName();
+        if (!$path || !Storage::disk($diskName)->exists($path)) {
             abort(404, 'Document de facture introuvable.');
         }
 
-        return Storage::disk('public')->download($path, basename($path));
+        return Storage::disk($diskName)->download($path, basename($path));
     }
 
     public function updateStatus(Request $request, Order $order)
@@ -746,30 +753,32 @@ class AdminOrderController extends Controller
 
     public function downloadShippingDocument(Request $request, Order $order)
     {
+        $diskName = $this->publicUploadsDiskName();
         if (!$order->shipping_document_path) {
             return response()->json(['message' => 'Document not found'], 404);
         }
 
-        if (!Storage::disk('public')->exists($order->shipping_document_path)) {
+        if (!Storage::disk($diskName)->exists($order->shipping_document_path)) {
             return response()->json(['message' => 'Document not found'], 404);
         }
 
-        $path = Storage::disk('public')->path($order->shipping_document_path);
+        $path = Storage::disk($diskName)->path($order->shipping_document_path);
 
         return response()->download($path, 'bon-livraison-'.$order->id.'.pdf');
     }
 
     public function downloadShippingMarkDocument(Request $request, Order $order)
     {
+        $diskName = $this->publicUploadsDiskName();
         if (!$order->shipping_mark_pdf_path) {
             return response()->json(['message' => 'Document not found'], 404);
         }
 
-        if (!Storage::disk('public')->exists($order->shipping_mark_pdf_path)) {
+        if (!Storage::disk($diskName)->exists($order->shipping_mark_pdf_path)) {
             return response()->json(['message' => 'Document not found'], 404);
         }
 
-        $path = Storage::disk('public')->path($order->shipping_mark_pdf_path);
+        $path = Storage::disk($diskName)->path($order->shipping_mark_pdf_path);
 
         return response()->download($path, 'shipping-mark-'.$order->id.'.pdf');
     }

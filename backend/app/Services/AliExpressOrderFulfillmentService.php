@@ -2289,7 +2289,7 @@ class AliExpressOrderFulfillmentService
         }
 
         $path = 'orders/aliexpress/' . $order->id . '/waybill-' . Str::slug(strtolower($documentType)) . '.pdf';
-        Storage::disk('public')->put($path, $binary);
+        Storage::disk((string) (config('filesystems.public_uploads_disk') ?: 'public'))->put($path, $binary);
 
         return $path;
     }
@@ -2304,7 +2304,7 @@ class AliExpressOrderFulfillmentService
         $extension = strtolower((string) pathinfo($fileName, PATHINFO_EXTENSION)) ?: 'bin';
         $baseName = pathinfo($fileName, PATHINFO_FILENAME);
         $path = 'orders/aliexpress/' . $order->id . '/' . $prefix . '-' . Str::slug($baseName) . '.' . $extension;
-        Storage::disk('public')->put($path, $binary);
+        Storage::disk((string) (config('filesystems.public_uploads_disk') ?: 'public'))->put($path, $binary);
 
         return $path;
     }

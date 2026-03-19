@@ -10,7 +10,7 @@ class GuideController extends Controller
     public function shop2gameFreeFire()
     {
         $path = 'guides/shop2game-freefire.pdf';
-        $disk = Storage::disk('public');
+        $disk = Storage::disk((string) (config('filesystems.public_uploads_disk') ?: 'public'));
 
         if (!$disk->exists($path)) {
             return response()->json(['message' => 'Guide not found'], 404);

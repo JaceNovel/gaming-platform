@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\Storage;
 
 class AdminCategoryController extends Controller
 {
+    private function publicUploadsDiskName(): string
+    {
+        $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+        return $diskName !== '' ? $diskName : 'public';
+    }
+
     public function index()
     {
         $categories = Category::query()
@@ -71,8 +77,9 @@ class AdminCategoryController extends Controller
             'image' => 'required|image|max:4096',
         ]);
 
-        $path = $data['image']->store('categories', 'public');
-        $url = Storage::disk('public')->url($path);
+        $diskName = $this->publicUploadsDiskName();
+        $path = $data['image']->store('categories', $diskName);
+        $url = Storage::disk($diskName)->url($path);
 
         $category->update(['icon' => $url]);
 

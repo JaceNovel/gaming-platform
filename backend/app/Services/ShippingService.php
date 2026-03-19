@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\Storage;
 
 class ShippingService
 {
+    private function publicUploadsDiskName(): string
+    {
+        $diskName = (string) (config('filesystems.public_uploads_disk') ?: 'public');
+        return $diskName !== '' ? $diskName : 'public';
+    }
+
     public function computeShippingForOrder(Order $order): Order
     {
         $order->loadMissing(['orderItems.product']);
@@ -83,7 +89,8 @@ class ShippingService
         $userId = $order->user_id ?? $order->user?->id;
         $folder = $userId ? ('delivery-notes/user-' . $userId) : 'delivery-notes/unknown-user';
         $path = $folder . '/order-' . $order->id . '.pdf';
-        Storage::disk('public')->put($path, $dompdf->output());
+        $diskName = $this->publicUploadsDiskName();
+        Storage::disk($diskName)->put($path, $dompdf->output());
 
         $order->update([
             'shipping_document_path' => $path,
@@ -91,7 +98,7 @@ class ShippingService
 
         return [
             'path' => $path,
-            'url' => Storage::disk('public')->url($path),
+            'url' => Storage::disk($diskName)->url($path),
         ];
     }
 
@@ -138,7 +145,8 @@ class ShippingService
         $userId = $order->user_id ?? $order->user?->id;
         $folder = $userId ? ('shipping-marks/user-' . $userId) : 'shipping-marks/unknown-user';
         $path = $folder . '/order-' . $order->id . '.pdf';
-        Storage::disk('public')->put($path, $dompdf->output());
+        $diskName = $this->publicUploadsDiskName();
+        Storage::disk($diskName)->put($path, $dompdf->output());
 
         $order->update([
             'shipping_mark_pdf_path' => $path,
@@ -146,7 +154,7 @@ class ShippingService
 
         return [
             'path' => $path,
-            'url' => Storage::disk('public')->url($path),
+            'url' => Storage::disk($diskName)->url($path),
         ];
     }
 }
