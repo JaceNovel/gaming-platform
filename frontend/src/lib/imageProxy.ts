@@ -1,5 +1,16 @@
 import { API_BASE } from "@/lib/config";
 
+const coerceImageValue = (raw: unknown): string => {
+  if (typeof raw === "string") return raw.trim();
+  if (typeof raw === "number") return String(raw).trim();
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const nested = record.url ?? record.path ?? record.src ?? record.image ?? null;
+    if (typeof nested === "string") return nested.trim();
+  }
+  return "";
+};
+
 const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
 
 const safeParseUrl = (value: string): URL | null => {
@@ -22,8 +33,8 @@ const apiOrigin = (() => {
   return api ? api.origin : null;
 })();
 
-export const toDisplayImageSrc = (raw: string | null | undefined): string | null => {
-  const value = (raw ?? "").trim();
+export const toDisplayImageSrc = (raw: unknown): string | null => {
+  const value = coerceImageValue(raw);
   if (!value) return null;
 
   if (value.startsWith("data:")) return value;
