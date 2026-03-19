@@ -14,6 +14,7 @@ import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { fedapayTopupDescription } from "@/lib/fedapayChannels";
 import { emitWalletUpdated } from "@/lib/walletEvents";
+import { buildGroupedDeliveryMessages } from "@/lib/groupedDeliveryMessaging";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
 
 type CartItem = {
@@ -29,6 +30,9 @@ type CartItem = {
   deliveryEstimateLabel?: string | null;
   deliveryLabel?: string;
   shippingFee?: number;
+  groupingProgressLabel?: string;
+  groupingRemainingValue?: number;
+  groupingMinimumValue?: number;
 };
 
 const legacyDeliveryLabelToBadge = (raw?: string | null): DeliveryBadgeDisplay | null => {
@@ -83,7 +87,9 @@ function CartScreen() {
 
   useEffect(() => {
     let active = true;
-    const missing = cartItems.filter((it) => it && typeof it.shippingFee !== "number").map((it) => it.id);
+    const missing = cartItems
+      .filter((it) => it && (typeof it.shippingFee !== "number" || !it.groupingProgressLabel || typeof it.groupingRemainingValue !== "number"))
+      .map((it) => it.id);
     const unique = Array.from(new Set(missing)).slice(0, 30);
     if (!unique.length) return;
 
@@ -98,7 +104,16 @@ function CartScreen() {
               const payload = await res.json().catch(() => null);
               if (!res.ok) return { id, shippingFee: 0 };
               const fee = Number(payload?.shipping_fee ?? 0);
-              return { id, shippingFee: Number.isFinite(fee) && fee > 0 ? fee : 0 };
+              const groupingProgressLabel = String(payload?.grouping_progress_label ?? "").trim();
+              const groupingRemainingValue = Number(payload?.grouping_remaining_value ?? 0);
+              const groupingMinimumValue = Number(payload?.grouping_minimum_value ?? 0);
+              return {
+                id,
+                shippingFee: Number.isFinite(fee) && fee > 0 ? fee : 0,
+                groupingProgressLabel,
+                groupingRemainingValue: Number.isFinite(groupingRemainingValue) ? groupingRemainingValue : 0,
+                groupingMinimumValue: Number.isFinite(groupingMinimumValue) ? groupingMinimumValue : 0,
+              };
             } catch {
               return { id, shippingFee: 0 };
             }
@@ -108,11 +123,21 @@ function CartScreen() {
         if (!active) return;
         setCartItems((prev) => {
           const map = new Map(results.map((r) => [r.id, r.shippingFee]));
+          const groupedMap = new Map(results.map((r) => [r.id, r]));
           const next = prev.map((it) => {
             if (!it) return it;
-            if (typeof it.shippingFee === "number") return it;
             const fee = map.get(it.id);
-            return fee === undefined ? it : { ...it, shippingFee: fee };
+            const grouped = groupedMap.get(it.id);
+            if (fee === undefined && !grouped) return it;
+            return {
+              ...it,
+              shippingFee: fee === undefined ? it.shippingFee : fee,
+              groupingProgressLabel: grouped?.groupingProgressLabel || it.groupingProgressLabel,
+              groupingRemainingValue:
+                typeof grouped?.groupingRemainingValue === "number" ? grouped.groupingRemainingValue : it.groupingRemainingValue,
+              groupingMinimumValue:
+                typeof grouped?.groupingMinimumValue === "number" ? grouped.groupingMinimumValue : it.groupingMinimumValue,
+            };
           });
           if (typeof window !== "undefined") {
             localStorage.setItem("bbshop_cart", JSON.stringify(next));
@@ -681,6 +706,16 @@ function CartScreen() {
                           {Number(item.shippingFee ?? 0) > 0 ? (
                             <p className="mt-0.5 text-xs text-white/55 break-words">
                               Prix: {(item.price * item.quantity).toLocaleString()} • Livraison: {((item.shippingFee ?? 0) * item.quantity).toLocaleString()} FCFA
+                            </p>
+                          ) : null}
+                          {item.groupingProgressLabel ? (
+                            <p className="mt-1 text-xs text-cyan-100/80 break-words">
+                              Lot en cours: {item.groupingProgressLabel}
+                              {` • ${buildGroupedDeliveryMessages({
+                                shippingFee: item.shippingFee,
+                                remainingValue: item.groupingRemainingValue,
+                                freeShippingEligible: Number(item.shippingFee ?? 0) <= 0,
+                              }).detail}`}
                             </p>
                           ) : null}
                         </div>

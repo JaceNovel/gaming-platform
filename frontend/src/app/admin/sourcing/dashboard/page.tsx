@@ -58,7 +58,7 @@ const KPI_LABELS: Array<{ key: string; label: string }> = [
   { key: "open_batches", label: "Lots ouverts" },
   { key: "open_inbound_shipments", label: "Expéditions ouvertes" },
   { key: "unmapped_products", label: "Produits non mappés" },
-  { key: "moq_blockers", label: "Blocages MOQ" },
+  { key: "moq_blockers", label: "Blocages lot" },
 ];
 
 const LOGISTICS_KPI_LABELS: Array<{ key: string; label: string }> = [
@@ -135,8 +135,8 @@ export default function AdminSourcingDashboardPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-slate-900">Blocages MOQ</h2>
-                <p className="text-sm text-slate-500">Demandes encore insuffisantes pour déclencher un achat fournisseur.</p>
+                <h2 className="text-base font-semibold text-slate-900">Blocages lot</h2>
+                <p className="text-sm text-slate-500">Demandes encore insuffisantes pour atteindre le palier effectif du lot.</p>
               </div>
               <button type="button" onClick={loadDashboard} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">Rafraîchir</button>
             </div>
@@ -147,14 +147,14 @@ export default function AdminSourcingDashboardPage() {
                     <th className="pb-3 pr-4">Produit</th>
                     <th className="pb-3 pr-4">SKU</th>
                     <th className="pb-3 pr-4">Demandé</th>
-                    <th className="pb-3 pr-4">MOQ</th>
+                    <th className="pb-3 pr-4">Palier</th>
                     <th className="pb-3 pr-4">Manque</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {!loading && (data?.moq_blockers?.length ?? 0) === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-4 text-slate-500">Aucun blocage MOQ.</td>
+                      <td colSpan={5} className="py-4 text-slate-500">Aucun blocage lot.</td>
                     </tr>
                   ) : null}
                   {(data?.moq_blockers ?? []).map((item, index) => (

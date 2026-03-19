@@ -15,6 +15,8 @@ type ReadyGroup = {
   quantity_to_procure?: number | null;
   required_moq?: number | null;
   grouping_threshold?: number | null;
+  lot_amount?: number | null;
+  minimum_lot_amount?: number | null;
   demand_ids?: number[] | null;
   order_references?: string[] | null;
 };
@@ -85,7 +87,7 @@ export default function AdminSourcingGroupedReadyPage() {
   };
 
   return (
-    <AdminShell title={platformLabel} subtitle="Articles groupés prêts et lots auto-créés après atteinte du seuil">
+    <AdminShell title={platformLabel} subtitle="Articles groupés prêts et lots auto-créés après atteinte du palier 10 x MOQ et du minimum lot">
       <div className="space-y-6">
         {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
@@ -93,7 +95,7 @@ export default function AdminSourcingGroupedReadyPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Prêts mais pas encore batchés</h2>
-              <p className="text-sm text-slate-500">Groupes d’articles dont le seuil est libéré et dont le MOQ fournisseur est atteint, mais qui n’ont pas encore été transformés en lot.</p>
+              <p className="text-sm text-slate-500">Groupes d’articles dont le palier effectif et le minimum lot de 25000 XOF sont atteints, mais qui n’ont pas encore été transformés en lot.</p>
             </div>
             <button type="button" onClick={loadGroupedReady} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">Rafraîchir</button>
           </div>
@@ -105,7 +107,7 @@ export default function AdminSourcingGroupedReadyPage() {
                   <th className="pb-3 pr-4">Produit</th>
                   <th className="pb-3 pr-4">Fournisseur</th>
                   <th className="pb-3 pr-4">Quantité</th>
-                  <th className="pb-3 pr-4">Seuil / MOQ</th>
+                  <th className="pb-3 pr-4">Palier / Valeur</th>
                   <th className="pb-3 pr-4">Commandes</th>
                 </tr>
               </thead>
@@ -127,8 +129,8 @@ export default function AdminSourcingGroupedReadyPage() {
                     </td>
                     <td className="py-3 pr-4 text-xs text-slate-600">{item.quantity_to_procure ?? 0}</td>
                     <td className="py-3 pr-4 text-xs text-slate-600">
-                      <div>Groupage: {item.grouping_threshold ?? 1}</div>
-                      <div>MOQ: {item.required_moq ?? 1}</div>
+                      <div>Palier lot: {item.quantity_to_procure ?? 0}/{item.required_moq ?? item.grouping_threshold ?? 10}</div>
+                      <div>Valeur: {(item.lot_amount ?? 0).toLocaleString()} / {(item.minimum_lot_amount ?? 25000).toLocaleString()} XOF</div>
                     </td>
                     <td className="py-3 pr-4 text-xs text-slate-600">{(item.order_references ?? []).length ? (item.order_references ?? []).join(", ") : "—"}</td>
                   </tr>
@@ -141,7 +143,7 @@ export default function AdminSourcingGroupedReadyPage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div>
             <h2 className="text-base font-semibold text-slate-900">Lots auto-créés</h2>
-            <p className="text-sm text-slate-500">Historique récent des lots générés automatiquement dès que le groupage client et le MOQ fournisseur sont satisfaits.</p>
+            <p className="text-sm text-slate-500">Historique récent des lots générés automatiquement dès que le palier effectif et la valeur minimum du lot sont satisfaits.</p>
           </div>
 
           <div className="mt-4 space-y-4">

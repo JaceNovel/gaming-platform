@@ -8,12 +8,20 @@ use App\Models\ProcurementBatchDemand;
 use App\Models\ProcurementBatchItem;
 use App\Models\ProcurementDemand;
 use App\Models\User;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ProcurementBatchService
 {
+    private GroupedLotService $groupedLotService;
+
+    public function __construct(?GroupedLotService $groupedLotService = null)
+    {
+        $this->groupedLotService = $groupedLotService ?? new GroupedLotService();
+    }
+
     public function createDraftFromDemandIds(array $demandIds, ?User $admin = null, array $options = []): ProcurementBatch
     {
         return DB::transaction(function () use ($demandIds, $admin, $options) {
@@ -160,6 +168,7 @@ class ProcurementBatchService
         $pendingDemands = ProcurementDemand::query()
             ->with([
                 'order:id,reference,status,supplier_country_code,supplier_fulfillment_status,grouping_released_at',
+                'orderItem:id,order_id,product_id,price',
                 'product:id,name,title,grouping_threshold',
                 'productSupplierLink',
                 'supplierProductSku.supplierProduct.supplierAccount',
@@ -179,8 +188,13 @@ class ProcurementBatchService
             ->map(function (array $group) {
                 /** @var ProcurementDemand|null $first */
                 $first = $group['demands']->first();
-                $required = max(1, (int) ($first?->productSupplierLink?->target_moq ?? $first?->supplierProductSku?->moq ?? 1));
+                $required = $first && $first->product
+                    ? $this->groupedLotService->resolveEffectiveGroupingQuantity($first->product, $first->productSupplierLink)
+                    : GroupedLotService::MOQ_BATCH_MULTIPLIER;
                 $quantity = (int) $group['demands']->sum('quantity_to_procure');
+                $lotAmount = (float) $group['demands']->sum(function (ProcurementDemand $demand) {
+                    return ((float) ($demand->orderItem?->price ?? 0)) * (int) ($demand->quantity_to_procure ?? 0);
+                });
 
                 return [
                     'product_ids' => $group['product_ids'],
@@ -191,7 +205,9 @@ class ProcurementBatchService
                     'warehouse_destination_label' => $first?->productSupplierLink?->warehouse_destination_label,
                     'quantity_to_procure' => $quantity,
                     'required_moq' => $required,
-                    'grouping_threshold' => max(1, (int) ($first?->product?->grouping_threshold ?? 1)),
+                    'grouping_threshold' => $required,
+                    'lot_amount' => round($lotAmount, 2),
+                    'minimum_lot_amount' => GroupedLotService::MINIMUM_LOT_AMOUNT_XOF,
                     'demand_ids' => $group['demand_ids'],
                     'order_references' => $group['demands']->map(fn (ProcurementDemand $demand) => $demand->order?->reference)->filter()->values()->all(),
                 ];
@@ -248,8 +264,7 @@ class ProcurementBatchService
     {
         $eligibleDemands = $demands
             ->filter(function (ProcurementDemand $demand): bool {
-                return max(1, (int) ($demand->product?->grouping_threshold ?? 1)) > 1
-                    && $demand->order?->grouping_released_at !== null;
+                return $demand->order?->grouping_released_at !== null;
             })
             ->groupBy(function (ProcurementDemand $demand) {
                 return implode(':', [
@@ -261,7 +276,9 @@ class ProcurementBatchService
             ->filter(function (Collection $rows): bool {
                 /** @var ProcurementDemand|null $first */
                 $first = $rows->first();
-                $required = max(1, (int) ($first?->productSupplierLink?->target_moq ?? $first?->supplierProductSku?->moq ?? 1));
+                $required = $first && $first->product
+                    ? $this->groupedLotService->resolveEffectiveGroupingQuantity($first->product, $first->productSupplierLink)
+                    : GroupedLotService::MOQ_BATCH_MULTIPLIER;
 
                 return (int) $rows->sum('quantity_to_procure') >= $required;
             })
@@ -320,9 +337,11 @@ class ProcurementBatchService
                 /** @var ProcurementDemand|null $first */
                 $first = $rows->first();
                 $productLabel = $first?->product?->title ?: $first?->product?->name ?: ('Produit #' . ($first?->product_id ?? '?'));
-                $threshold = max(1, (int) ($first?->product?->grouping_threshold ?? 1));
+                $threshold = $first && $first->product
+                    ? $this->groupedLotService->resolveEffectiveGroupingQuantity($first->product, $first->productSupplierLink)
+                    : GroupedLotService::MOQ_BATCH_MULTIPLIER;
 
-                return $productLabel . ' (seuil de groupage ' . $threshold . ' non encore libere)';
+                return $productLabel . ' (lot en attente: ' . $threshold . ' unites et ' . (int) GroupedLotService::MINIMUM_LOT_AMOUNT_XOF . ' XOF minimum)';
             })
             ->values()
             ->all();
@@ -347,7 +366,9 @@ class ProcurementBatchService
             ->map(function ($rows) {
                 /** @var ProcurementDemand|null $first */
                 $first = $rows->first();
-                $required = max(1, (int) ($first?->productSupplierLink?->target_moq ?? $first?->supplierProductSku?->moq ?? 1));
+                $required = $first && $first->product
+                    ? $this->groupedLotService->resolveEffectiveGroupingQuantity($first->product, $first->productSupplierLink)
+                    : GroupedLotService::MOQ_BATCH_MULTIPLIER;
                 $requested = (int) $rows->sum('quantity_to_procure');
 
                 if ($requested >= $required) {

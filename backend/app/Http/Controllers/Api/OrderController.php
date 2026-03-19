@@ -455,9 +455,9 @@ class OrderController extends Controller
 
                 if ($usesTransitPricing) {
                     $country = $this->transitPricing->resolveCountry($destinationCountryCode);
-                    $pricing = $this->transitPricing->computeProductPricing($product, $country, 1);
+                    $pricing = $this->transitPricing->computeProductPricing($product, $country, $quantity);
                     $unitPrice = (float) $pricing['final_price'];
-                    $unitShippingFee = 0;
+                    $unitShippingFee = max(0, (float) ($pricing['shipping_fee'] ?? 0));
                     $lineTotal = $unitPrice * $quantity;
                 }
             }

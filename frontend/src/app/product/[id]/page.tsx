@@ -3,488 +3,644 @@
 import type { MouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
-import { BadgePercent, ChevronLeft, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
-import GlowButton from "@/components/ui/GlowButton";
+import { ChevronLeft, Gamepad2, Headphones, Monitor, ShieldCheck, ShoppingCart, Truck } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { emitCartUpdated } from "@/lib/cartEvents";
-import DeliveryBadge from "@/components/ui/DeliveryBadge";
-import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
-import { openTidioChat } from "@/lib/tidioChat";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
+import { buildGroupedDeliveryMessages, formatGroupedFcfa, parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
+import {
+  getStoredStorefrontCountry,
+  onStorefrontCountryChanged,
+  sanitizeStorefrontCustomerNotice,
+  setStoredStorefrontCountry,
+  type StorefrontCountry,
+} from "@/lib/storefrontCountry";
 
-type Product = {
-  id: number;
-  name: string;
-  description?: string;
-  price?: number;
-  discount_price?: number | null;
-  computed_final_price?: number | null;
-  old_price?: number | null;
+type ApiProduct = {
+  id: number | string;
+  name?: string | null;
+  title?: string | null;
+  description?: string | null;
+  price?: number | string | null;
+  discount_price?: number | string | null;
+  computed_final_price?: number | string | null;
   shipping_fee?: number | string | null;
-  type?: string;
-  display_section?: string | null;
-  stockType?: "IN_STOCK" | "PREORDER";
-  deliveryEtaDays?: number | null;
+  grouping_progress_label?: string | null;
+  grouping_progress?: number | null;
+  grouping_threshold?: number | null;
+  grouping_remaining_value?: number | string | null;
+  grouping_minimum_value?: number | string | null;
+  grouping_current_value?: number | string | null;
+  free_shipping_eligible?: boolean | null;
   delivery_estimate_label?: string | null;
-  estimated_delivery_label?: string | null;
-  purchasesCount?: number;
-  cartAddsCount?: number;
-  ratingAvg?: number;
-  ratingCount?: number;
-  images?: string[];
+  display_section?: string | null;
+  type?: string | null;
+  category?: string | null;
+  accessory_category?: string | null;
+  accessory_subcategory?: string | null;
+  stock?: number | null;
+  stock_quantity?: number | null;
+  image_url?: string | null;
+  cover?: string | null;
+  banner?: string | null;
+  images?: Array<{ url?: string | null; path?: string | null } | string> | null;
+  tags?: Array<{ name?: string | null } | string> | string[] | string | null;
+  details?: {
+    description?: string | null;
+    image?: string | null;
+    cover?: string | null;
+    banner?: string | null;
+    brand?: string | null;
+    stock?: number | null;
+  } | null;
 };
 
-const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
+type CartProduct = {
+  id: number | string;
+  name: string;
+  description?: string;
+  price: number;
+  priceLabel?: string;
+  quantity: number;
+  type?: string;
+  displaySection?: string | null;
+  deliveryEstimateLabel?: string | null;
+  shippingFee?: number;
+  groupingProgressLabel?: string;
+  groupingRemainingValue?: number;
+  groupingMinimumValue?: number;
+  accessoryCategory?: string | null;
+};
 
-export default function ProductPage() {
-  const params = useParams();
+const normalizeTags = (product: ApiProduct | null): string[] => {
+  if (!product?.tags) return [];
+  if (Array.isArray(product.tags)) {
+    return product.tags
+      .map((entry) => (typeof entry === "string" ? entry : entry?.name))
+      .map((entry) => String(entry ?? "").trim())
+      .filter(Boolean);
+  }
+
+  return String(product.tags)
+    .split(/[,;]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+};
+
+const extractImages = (product: ApiProduct | null): string[] => {
+  if (!product) return ["/file.svg"];
+
+  const candidates: Array<string | null | undefined> = [
+    product.banner,
+    product.cover,
+    product.image_url,
+    product.details?.banner,
+    product.details?.cover,
+    product.details?.image,
+  ];
+
+  if (Array.isArray(product.images)) {
+    for (const image of product.images) {
+      if (typeof image === "string") {
+        candidates.push(image);
+      } else {
+        candidates.push(image?.url, image?.path);
+      }
+    }
+  }
+
+  const unique: string[] = [];
+  for (const candidate of candidates) {
+    const normalized = String(candidate ?? "").trim();
+    if (normalized && !unique.includes(normalized)) unique.push(normalized);
+  }
+
+  return unique.length ? unique : ["/file.svg"];
+};
+
+const sanitizeDescription = (product: ApiProduct | null): string => {
+  const description = String(product?.description ?? product?.details?.description ?? "").trim();
+  return description || "Un accessoire gaming selectionne pour elever ton setup, avec groupage intelligent et livraison optimisee.";
+};
+
+export default function PremiumAccessoryDesktopPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const { triggerFlight, overlay } = useCartFlight();
-  const id = params?.id as string;
-  const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeImage, setActiveImage] = useState(0);
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const id = params?.id;
+  const [product, setProduct] = useState<ApiProduct | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [storefrontCountries, setStorefrontCountries] = useState<StorefrontCountry[]>([]);
+  const [storefrontCountryCode, setStorefrontCountryCode] = useState("TG");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => {
+    setStorefrontCountryCode(getStoredStorefrontCountry());
+    return onStorefrontCountryChanged(setStorefrontCountryCode);
+  }, []);
+
+  useEffect(() => {
+    const syncViewport = () => setIsDesktop(typeof window !== "undefined" ? window.innerWidth >= 1280 : null);
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
 
   useEffect(() => {
     let active = true;
-    const loadProduct = async () => {
+
+    const loadCountries = async () => {
       try {
-        const res = await fetch(`${API_BASE}/products/${id}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!active) return;
-        setProduct(data);
-      } finally {
-        if (active) setLoading(false);
+        const res = await fetch(`${API_BASE}/storefront/countries`, { headers: { Accept: "application/json" } });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || !active) return;
+        setStorefrontCountries(Array.isArray(payload?.data) ? payload.data : []);
+      } catch {
+        if (active) setStorefrontCountries([]);
       }
     };
-    if (id) loadProduct();
+
+    loadCountries();
     return () => {
       active = false;
-    };
-  }, [id]);
-
-  useEffect(() => {
-    return () => {
-      if (statusTimeoutRef.current) {
-        clearTimeout(statusTimeoutRef.current);
-      }
     };
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!lightboxSrc) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightboxSrc(null);
+    let active = true;
+
+    const loadProduct = async () => {
+      setLoading(true);
+      try {
+        const query = new URLSearchParams();
+        if (storefrontCountryCode) query.set("country_code", storefrontCountryCode);
+        const res = await fetch(`${API_BASE}/products/${id}${query.toString() ? `?${query.toString()}` : ""}`, {
+          headers: { Accept: "application/json" },
+        });
+        const payload = await res.json().catch(() => null);
+        if (!active) return;
+        setProduct(res.ok ? payload : null);
+        setActiveImageIndex(0);
+      } finally {
+        if (active) setLoading(false);
+      }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [lightboxSrc]);
 
-  const images = useMemo(() => {
-    if (product?.images && product.images.length > 0) return product.images;
-    return ["/file.svg", "/file.svg", "/file.svg"];
-  }, [product]);
-  const coverImage = images[activeImage] ?? images[0];
+    if (id) loadProduct();
+    return () => {
+      active = false;
+    };
+  }, [id, storefrontCountryCode]);
 
-  const priceValue = Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0);
-  const oldPrice = product?.old_price ? Number(product.old_price) : Math.round(priceValue * 1.2);
-  const discountPercent = oldPrice > priceValue ? Math.round(((oldPrice - priceValue) / oldPrice) * 100) : 0;
+  useEffect(() => {
+    if (isDesktop === null || loading || !id) return;
 
-  const delivery = useMemo(
-    () =>
-      getDeliveryBadgeDisplay({
-        type: product?.type ?? null,
-        display_section: product?.display_section ?? null,
-        delivery_estimate_label: product?.delivery_estimate_label ?? null,
-      }),
-    [product?.delivery_estimate_label, product?.display_section, product?.type]
+    const isAccessory = Boolean(product?.accessory_category) || (String(product?.type ?? "") === "item" && String(product?.category ?? "").toLowerCase() === "accessory");
+    if (!isDesktop || !isAccessory) {
+      setRedirecting(true);
+      router.replace(`/produits/${id}`);
+    }
+  }, [id, isDesktop, loading, product?.accessory_category, product?.category, product?.type, router]);
+
+  useEffect(() => {
+    return () => {
+      if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    };
+  }, []);
+
+  const images = useMemo(() => extractImages(product).map((image) => toDisplayImageSrc(image) ?? image), [product]);
+  const activeImage = images[activeImageIndex] ?? images[0] ?? "/file.svg";
+  const priceValue = useMemo(() => parseGroupedNumber(product?.computed_final_price ?? product?.discount_price ?? product?.price), [product?.computed_final_price, product?.discount_price, product?.price]);
+  const stockValue = useMemo(() => parseGroupedNumber(product?.stock ?? product?.stock_quantity ?? product?.details?.stock), [product?.details?.stock, product?.stock, product?.stock_quantity]);
+  const description = useMemo(() => sanitizeDescription(product), [product]);
+  const tags = useMemo(() => normalizeTags(product), [product]);
+  const progressLabel = useMemo(() => {
+    if (product?.grouping_progress_label) return product.grouping_progress_label;
+    const current = parseGroupedNumber(product?.grouping_progress);
+    const required = Math.max(1, parseGroupedNumber(product?.grouping_threshold));
+    return `${current}/${required}`;
+  }, [product?.grouping_progress, product?.grouping_progress_label, product?.grouping_threshold]);
+  const remainingValue = useMemo(() => {
+    const direct = parseGroupedNumber(product?.grouping_remaining_value);
+    if (direct > 0) return direct;
+    return Math.max(0, parseGroupedNumber(product?.grouping_minimum_value) - parseGroupedNumber(product?.grouping_current_value));
+  }, [product?.grouping_current_value, product?.grouping_minimum_value, product?.grouping_remaining_value]);
+  const deliveryMessages = useMemo(
+    () => buildGroupedDeliveryMessages({
+      shippingFee: product?.shipping_fee,
+      remainingValue,
+      freeShippingEligible: product?.free_shipping_eligible,
+    }),
+    [product?.free_shipping_eligible, product?.shipping_fee, remainingValue],
+  );
+  const activeCountry = useMemo(
+    () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
+    [storefrontCountries, storefrontCountryCode],
+  );
+  const customerNotice = useMemo(() => sanitizeStorefrontCustomerNotice(activeCountry?.customer_notice), [activeCountry?.customer_notice]);
+  const heroKicker = useMemo(() => {
+    return product.details?.brand || product.accessory_subcategory || product.accessory_category || "Showroom edit";
+  }, [product.accessory_category, product.accessory_subcategory, product.details?.brand]);
+  const showroomNotes = useMemo(
+    () => [
+      {
+        title: "Selection desktop",
+        text: "Composition large, contraste fort et lecture instantanee pour mettre le produit en scene comme une piece centrale du setup.",
+      },
+      {
+        title: "Narration commerciale",
+        text: "Le client voit d'abord le benefice, ensuite la progression du lot, puis seulement les details logistiques utiles a la conversion.",
+      },
+      {
+        title: "Signal de valeur",
+        text: "Prix, image hero, reste a debloquer et livraison provisoire sont rendus visibles en un seul regard, sans saturation inutile.",
+      },
+    ],
+    [],
   );
 
-  const shippingWindow = delivery?.desktopLabel ?? "";
-  const ratingValue = product?.ratingAvg ?? 0;
-  const ratingCount = product?.ratingCount ?? 0;
-
-  const isRechargeDirect = product?.display_section === "recharge_direct";
-
-  const openRechargeDirectChat = () => {
-    if (!product) return;
-    void openTidioChat({
-      message: `Bonjour, je veux une Recharge Direct : ${product.name ?? "Produit"} (ID: ${product.id}).`,
-    });
-  };
-
   const handleAddToCart = (event: MouseEvent<HTMLButtonElement>) => {
-    if (typeof window === "undefined" || !product) return;
+    if (!product || typeof window === "undefined") return;
 
-    if (isRechargeDirect) {
-      openRechargeDirectChat();
-      return;
+    const raw = window.localStorage.getItem("bbshop_cart");
+    let cart: CartProduct[] = [];
+    try {
+      cart = raw ? JSON.parse(raw) : [];
+    } catch {
+      cart = [];
     }
 
-    const stored = localStorage.getItem("bbshop_cart");
-    let cart: Array<{
-      id: number;
-      name: string;
-      description?: string;
-      price: number;
-      priceLabel?: string;
-      quantity: number;
-      type?: string;
-      displaySection?: string | null;
-      deliveryEstimateLabel?: string | null;
-      deliveryLabel?: string;
-      shippingFee?: number;
-    }> = [];
-    if (stored) {
-      try {
-        cart = JSON.parse(stored);
-      } catch {
-        cart = [];
-      }
-    }
-    const existing = cart.find((item) => item.id === product.id);
+    const existing = cart.find((item) => String(item.id) === String(product.id));
     if (existing) {
-      existing.quantity = Number(existing.quantity ?? 0) + 1;
-      if (existing.shippingFee === undefined) {
-        existing.shippingFee = Number(product.shipping_fee ?? 0) || 0;
-      }
+      existing.quantity = Math.max(1, Number(existing.quantity ?? 1) + 1);
+      existing.shippingFee = parseGroupedNumber(product.shipping_fee);
+      existing.groupingProgressLabel = progressLabel;
+      existing.groupingRemainingValue = remainingValue;
+      existing.groupingMinimumValue = parseGroupedNumber(product.grouping_minimum_value);
     } else {
-      const delivery = getDeliveryBadgeDisplay({
-        type: product.type ?? null,
-        display_section: product.display_section ?? null,
-        delivery_estimate_label: product.delivery_estimate_label ?? null,
-      });
       cart.push({
         id: product.id,
-        name: product.name,
-        description: product.description ?? "",
+        name: String(product.name ?? product.title ?? "Produit"),
+        description,
         price: priceValue,
-        priceLabel: `${formatNumber(priceValue)} FCFA`,
-        type: product.type ?? "",
+        priceLabel: formatGroupedFcfa(priceValue),
+        quantity: 1,
+        type: String(product.type ?? "item"),
         displaySection: product.display_section ?? null,
         deliveryEstimateLabel: product.delivery_estimate_label ?? null,
-        deliveryLabel: delivery?.desktopLabel ?? undefined,
-        shippingFee: Number(product.shipping_fee ?? 0) || 0,
-        quantity: 1,
+        shippingFee: parseGroupedNumber(product.shipping_fee),
+        groupingProgressLabel: progressLabel,
+        groupingRemainingValue: remainingValue,
+        groupingMinimumValue: parseGroupedNumber(product.grouping_minimum_value),
+        accessoryCategory: product.accessory_category ?? null,
       });
     }
-    localStorage.setItem("bbshop_cart", JSON.stringify(cart));
+
+    window.localStorage.setItem("bbshop_cart", JSON.stringify(cart));
     emitCartUpdated({ action: "add" });
     triggerFlight(event.currentTarget);
-    setStatusMessage("Ajouté au panier");
-    if (statusTimeoutRef.current) {
-      clearTimeout(statusTimeoutRef.current);
-    }
-    statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), 2200);
+    setStatusMessage("Accessoire ajoute au panier");
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    statusTimeoutRef.current = window.setTimeout(() => setStatusMessage(null), 2200);
   };
 
-  const proceedToCheckout = () => {
-    if (isRechargeDirect) {
-      openRechargeDirectChat();
-      return;
-    }
+  const handleBuyNow = () => {
     if (!user) {
-      router.push(`/auth/login?next=/produits/${id}`);
+      router.push(`/auth/login?next=/product/${id}`);
       return;
     }
-    router.push(`/checkout?product=${id}`);
+
+    router.push(`/checkout?product=${encodeURIComponent(String(product?.id ?? id ?? ""))}`);
   };
 
-  const confirmCheckout = () => {
-    setShowCheckoutModal(false);
-    proceedToCheckout();
-  };
-
-  const heroStats = [
-    {
-      label: "Commandes",
-      value: formatNumber(product?.purchasesCount ?? 0),
-      caption: "joueurs livrés",
-    },
-    {
-      label: "Vues panier",
-      value: formatNumber(product?.cartAddsCount ?? 0),
-      caption: "ajouts cumulés",
-    },
-    {
-      label: "Promo",
-      value: discountPercent > 0 ? `-${discountPercent}%` : "Live",
-      caption: discountPercent > 0 ? "Réduction active" : "Tarif dynamique",
-    },
-  ];
-
-  const featureTiles = [
-    {
-      icon: Truck,
-      title: "Livraison",
-      value: shippingWindow || "—",
-      note: "Suivi en temps réel",
-    },
-    {
-      icon: ShieldCheck,
-      title: "Protection",
-      value: "Garantie vendeur 48h",
-      note: "Remboursement express",
-    },
-    {
-      icon: Sparkles,
-      title: "Bonus",
-      value: "Coffre mystère offert",
-      note: "Valeur 2 500 FCFA",
-    },
-  ];
-
-  if (loading && !product) {
+  if (loading || redirecting || isDesktop === null) {
     return (
-      <main className="relative flex min-h-[100dvh] items-center justify-center bg-[#04010d] text-white">
+      <main className="flex min-h-screen items-center justify-center bg-[#050816] text-white">
         {overlay}
-        <div className="text-sm text-white/60">Chargement du produit...</div>
+        <div className="text-sm text-white/65">{redirecting ? "Redirection vers la fiche adaptee..." : "Chargement de l'experience premium..."}</div>
       </main>
     );
   }
 
+  if (!product) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#050816] text-white">
+        {overlay}
+        <div className="text-sm text-white/65">Produit introuvable.</div>
+      </main>
+    );
+  }
+
+  const editorialCards = [
+    {
+      icon: Monitor,
+      title: "Setup ready",
+      text: "Selectionne pour un bureau gaming propre, coherent et immediatement exploitable.",
+    },
+    {
+      icon: Truck,
+      title: "Groupage intelligent",
+      text: deliveryMessages.detail,
+    },
+    {
+      icon: ShieldCheck,
+      title: "Achat rassurant",
+      text: "Validation produit, suivi local et support humain avant la remise finale.",
+    },
+  ];
+
   return (
-    <main className="relative min-h-[100dvh] bg-[#04010d] pb-[140px] text-white">
+    <main className="min-h-screen overflow-x-hidden bg-[#07111f] text-white">
       {overlay}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(99,102,241,0.25),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(14,165,233,0.2),transparent_50%),linear-gradient(180deg,#03000a,#050111)]" />
-      {statusMessage && (
-        <div className="fixed right-4 top-[86px] z-50 flex items-center gap-2 rounded-2xl border border-white/10 bg-black/85 px-4 py-2 text-sm font-semibold text-white shadow-[0_20px_45px_rgba(0,0,0,0.55)] backdrop-blur">
-          <ShoppingCart className="h-4 w-4 text-cyan-300" />
-          <span>{statusMessage}</span>
-        </div>
-      )}
-      <div className="relative mx-auto w-full max-w-6xl px-4 pb-28 pt-24 lg:px-8 lg:pb-16 lg:pt-32">
-        <button
-          onClick={() => router.back()}
-          className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/60"
-        >
-          <ChevronLeft className="h-4 w-4" /> Retour
-        </button>
 
-        <div className="mt-6 flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.4em] text-white/50">
-          <span className="rounded-full border border-white/15 bg-white/5 px-4 py-1 text-white/80">
-            {product?.type ?? "Produit digital"}
-          </span>
-          {delivery ? <DeliveryBadge delivery={delivery} /> : null}
-        </div>
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.18),transparent_30%),radial-gradient(circle_at_75%_10%,rgba(34,211,238,0.16),transparent_30%),linear-gradient(180deg,#07111f_0%,#0c1627_45%,#060b15_100%)]" />
+      <div className="pointer-events-none fixed inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:36px_36px]" />
+      <div className="pointer-events-none fixed left-[-120px] top-[140px] h-[420px] w-[420px] rounded-full bg-amber-400/10 blur-3xl" />
+      <div className="pointer-events-none fixed right-[-80px] top-[260px] h-[320px] w-[320px] rounded-full bg-cyan-400/10 blur-3xl" />
+      <div className="pointer-events-none fixed bottom-[-120px] left-[28%] h-[260px] w-[520px] rounded-full bg-white/5 blur-3xl" />
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[1.1fr,0.9fr]">
-          <section className="space-y-6">
-            <div className="relative overflow-hidden rounded-[40px] border border-white/10 bg-white/5 shadow-[0_35px_140px_rgba(4,6,35,0.65)]">
-              <button
-                type="button"
-                onClick={() => setLightboxSrc(coverImage)}
-                className="absolute inset-0 z-10 cursor-zoom-in"
-                aria-label="Agrandir la photo"
-              />
-              <Image
-                src={coverImage}
-                alt={product?.name ?? "Produit"}
-                fill
-                priority
-                sizes="(min-width: 1024px) 900px, 100vw"
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent" />
-              <div className="absolute left-6 right-6 top-6 flex flex-wrap items-center gap-3 text-xs text-white/80">
-                <span className="rounded-full bg-white/10 px-3 py-1">
-                  {formatNumber(product?.purchasesCount ?? 0)} joueurs livrés
-                </span>
-                <span className="rounded-full bg-white/10 px-3 py-1">
-                  {formatNumber(product?.cartAddsCount ?? 0)} ajouts
-                </span>
-                {discountPercent > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/25 px-3 py-1 text-amber-100">
-                    <BadgePercent className="h-3.5 w-3.5" /> -{discountPercent}%
-                  </span>
-                )}
-              </div>
-              <div className="absolute inset-x-0 bottom-0 grid gap-3 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-6 sm:grid-cols-3">
-                {heroStats.map((stat) => (
-                  <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.35em] text-white/50">{stat.label}</p>
-                    <p className="mt-1 text-2xl font-black text-white">{stat.value}</p>
-                    <p className="text-[11px] text-white/60">{stat.caption}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-4">
-              {images.slice(0, 4).map((img, idx) => (
-                <button
-                  key={`${img}-${idx}`}
-                  onClick={() => setActiveImage(idx)}
-                  className={`relative h-24 w-full overflow-hidden rounded-2xl border transition ${
-                    idx === activeImage ? "border-cyan-300 shadow-[0_15px_40px_rgba(42,252,240,0.25)]" : "border-white/10"
-                  }`}
-                >
-                  <Image src={img} alt="Aperçu" fill sizes="200px" className="object-cover" />
-                </button>
-              ))}
-            </div>
-
-            <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur">
-              <div className="flex flex-col gap-2">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Briefing</p>
-                <h1 className="text-3xl font-black text-white">{product?.name ?? "Produit indisponible"}</h1>
-                <p className="text-sm text-white/70">
-                  {product?.description ?? "Description bientôt disponible pour ce produit premium."}
-                </p>
-              </div>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
-                  <p className="text-xs uppercase tracking-[0.35em] text-white/40">Popularité</p>
-                  <p className="mt-2 flex items-center gap-2 text-lg font-semibold text-white">
-                    <Star className="h-5 w-5 text-amber-300" />
-                    {ratingValue.toFixed(1)}
-                    <span className="text-xs text-white/50">({ratingCount} avis)</span>
-                  </p>
-                  <p className="text-xs text-white/60">Feed premium vérifié</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-white/70">
-                  <p className="text-xs uppercase tracking-[0.35em] text-white/40">Statut</p>
-                  <p className="mt-2 text-lg font-semibold text-white">{product?.stockType === "PREORDER" ? "Précommande" : "Disponible"}</p>
-                  <div className="mt-2">{delivery ? <DeliveryBadge delivery={delivery} /> : null}</div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <aside className="space-y-6">
-            <div className="rounded-[36px] border border-white/10 bg-gradient-to-br from-[#0b0d1a] via-[#0f1628] to-[#0b0d1a] p-6 shadow-[0_25px_90px_rgba(3,6,35,0.7)]">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Offre</p>
-                <h2 className="text-2xl font-bold">{product?.name ?? "—"}</h2>
-              </div>
-              <div className="mt-6">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/50">Prix</p>
-                <div className="mt-2 flex flex-wrap items-end gap-3">
-                  <span className="text-4xl font-black text-cyan-200">{formatNumber(priceValue)} FCFA</span>
-                  {discountPercent > 0 && (
-                    <span className="text-base text-white/40 line-through">{formatNumber(oldPrice)} FCFA</span>
-                  )}
-                  {discountPercent > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-white/15 px-3 py-1 text-xs text-amber-100">
-                      <BadgePercent className="h-3.5 w-3.5" /> Promo active
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {!isRechargeDirect && (
-                  <button
-                    onClick={handleAddToCart}
-                    className="flex items-center justify-center gap-2 rounded-2xl border border-cyan-300/40 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/20"
-                  >
-                    <ShoppingCart className="h-4 w-4" /> Ajouter au panier
-                  </button>
-                )}
-                <GlowButton
-                  onClick={() => {
-                    if (isRechargeDirect) {
-                      openRechargeDirectChat();
-                      return;
-                    }
-                    setShowCheckoutModal(true);
-                  }}
-                  className="justify-center"
-                >
-                  {isRechargeDirect ? "Ouvrir le chat" : "Acheter maintenant"}
-                </GlowButton>
-              </div>
-              <p className="mt-3 text-[11px] text-white/50">Paiement sécurisé - support 24/7</p>
-            </div>
-
-            <div className="rounded-[30px] border border-white/10 bg-white/5 p-6 backdrop-blur">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {featureTiles.map((tile) => (
-                  <div key={tile.title} className="rounded-2xl border border-white/10 bg-black/30 p-4">
-                    <div className="flex items-center gap-2 text-white">
-                      <tile.icon className="h-4 w-4 text-cyan-300" />
-                      <p className="text-sm font-semibold">{tile.title}</p>
-                    </div>
-                    <div className="mt-2 text-sm text-white/70">
-                      {tile.title === "Livraison" && delivery ? <DeliveryBadge delivery={delivery} /> : tile.value}
-                    </div>
-                    <p className="text-xs text-white/40">{tile.note}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-[30px] border border-white/10 bg-white/5 p-6 text-sm text-white/70">
-              <p className="text-xs uppercase tracking-[0.35em] text-white/40">Assistance</p>
-              <p className="mt-2">
-                Besoin d&apos;aide pour finaliser ? Notre équipe vérifie les comptes avant livraison et reste dispo sur le chat support.
-              </p>
-            </div>
-          </aside>
-        </div>
-      </div>
-
-      {showCheckoutModal && product && !isRechargeDirect && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-[32px] border border-white/10 bg-[#070918]/95 p-6 text-white shadow-[0_40px_120px_rgba(0,0,0,0.65)]">
-            <div className="flex items-center gap-3">
-              <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/15 bg-black/40">
-                <Image src={coverImage} alt={product.name} fill sizes="64px" className="object-cover" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-base font-semibold line-clamp-2">{product.name}</p>
-                <p className="text-xs text-white/60">{product.type ?? "Digital"}</p>
-              </div>
-            </div>
-            <p className="mt-4 text-sm text-white/70">
-              {product.description ?? "Résumé disponible bientôt."}
-            </p>
-            <div className="mt-4 flex items-center justify-between text-sm font-semibold">
-              <span>Total</span>
-              <span className="text-lg text-cyan-200">{formatNumber(priceValue)} FCFA</span>
-            </div>
-            <div className="mt-5 flex gap-3">
-              <button
-                onClick={() => setShowCheckoutModal(false)}
-                className="flex-1 rounded-2xl border border-white/15 bg-transparent py-3 text-sm text-white"
-              >
-                Annuler
-              </button>
-              <GlowButton onClick={confirmCheckout} className="flex-1 justify-center">
-                Valider
-              </GlowButton>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {lightboxSrc ? (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <div className="relative max-h-[90vh] max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
-            <Image
-              src={lightboxSrc}
-              alt="Aperçu"
-              width={1600}
-              height={900}
-              className="h-auto max-h-[90vh] w-auto max-w-[95vw] rounded-2xl object-contain"
-              unoptimized
-            />
-          </div>
+      {statusMessage ? (
+        <div className="fixed right-8 top-8 z-50 rounded-2xl border border-cyan-300/25 bg-[#081425]/95 px-4 py-3 text-sm font-semibold text-cyan-100 shadow-[0_20px_60px_rgba(8,20,37,0.55)]">
+          {statusMessage}
         </div>
       ) : null}
+
+      <div className="relative mx-auto max-w-[1600px] px-10 pb-16 pt-10">
+        <div className="mb-8 flex items-center justify-between gap-6 rounded-full border border-white/10 bg-white/[0.03] px-6 py-3 backdrop-blur-sm">
+          <div className="flex items-center gap-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/48">
+            <span className="text-cyan-200">Gaming showroom</span>
+            <span className="h-1 w-1 rounded-full bg-white/35" />
+            <span>{heroKicker}</span>
+            <span className="h-1 w-1 rounded-full bg-white/35" />
+            <span>{deliveryMessages.short}</span>
+          </div>
+          <div className="text-[11px] uppercase tracking-[0.28em] text-white/42">Desktop premium experience</div>
+        </div>
+
+        <div className="flex items-center justify-between gap-6">
+          <button
+            type="button"
+            onClick={() => router.push("/accessoires")}
+            className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.26em] text-white/70 transition hover:bg-white/10 hover:text-white"
+          >
+            <ChevronLeft className="h-4 w-4" /> Retour accessoires
+          </button>
+
+          <div className="flex items-center gap-3 rounded-full border border-white/12 bg-white/5 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60">
+            <Gamepad2 className="h-4 w-4 text-cyan-300" />
+            Accessoire gaming desktop edition
+          </div>
+        </div>
+
+        <section className="mt-8 grid grid-cols-[1.18fr_0.82fr] gap-8">
+          <div className="space-y-8">
+            <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-5">
+              <div className="space-y-4">
+                {images.slice(0, 5).map((image, index) => (
+                  <button
+                    key={`${image}-${index}`}
+                    type="button"
+                    onClick={() => setActiveImageIndex(index)}
+                    className={`group relative h-24 overflow-hidden rounded-[24px] border transition ${index === activeImageIndex ? "border-amber-300 shadow-[0_18px_45px_rgba(245,158,11,0.24)]" : "border-white/10 hover:border-white/25"}`}
+                  >
+                    <img src={image} alt="Apercu produit" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                    <div className="absolute left-3 top-3 rounded-full border border-white/12 bg-black/35 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                      0{index + 1}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative overflow-hidden rounded-[44px] border border-white/10 bg-[#0b1422] shadow-[0_40px_120px_rgba(0,0,0,0.42)]">
+                <div className="pointer-events-none absolute inset-0 rounded-[44px] ring-1 ring-white/10" />
+                <img src={activeImage} alt={String(product.name ?? product.title ?? "Produit")} className="h-[720px] w-full object-cover" />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,11,22,0.02)_0%,rgba(5,11,22,0.18)_45%,rgba(5,11,22,0.88)_100%)]" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#07111f]/45 to-transparent" />
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[#07111f]/45 to-transparent" />
+
+                <div className="absolute left-8 right-8 top-8 flex items-start justify-between gap-6">
+                  <div className="max-w-xl space-y-4">
+                    <div className="inline-flex items-center rounded-full border border-white/12 bg-black/30 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-100/90 shadow-[0_12px_30px_rgba(0,0,0,0.18)]">
+                      {product.accessory_category || product.category || "gaming gear"}
+                    </div>
+                    <div>
+                      <h1 className="max-w-3xl text-6xl font-black leading-[0.94] tracking-[-0.04em] text-white">
+                        {product.name ?? product.title ?? "Accessoire gaming"}
+                      </h1>
+                      <p className="mt-4 max-w-2xl text-base leading-7 text-white/70">{description}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[30px] border border-white/12 bg-black/35 px-5 py-4 text-right backdrop-blur-md shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/45">Prix observe</div>
+                    <div className="mt-2 text-4xl font-black text-amber-200">{formatGroupedFcfa(priceValue)}</div>
+                    <div className="mt-3 text-xs text-white/60">{deliveryMessages.feeLabel}</div>
+                  </div>
+                </div>
+
+                <div className="absolute right-8 top-[190px] max-w-xs rounded-[28px] border border-cyan-300/15 bg-cyan-300/8 p-5 backdrop-blur-md shadow-[0_25px_60px_rgba(18,35,54,0.22)]">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-cyan-100/70">Showroom note</div>
+                  <p className="mt-3 text-sm leading-7 text-cyan-50/90">Une piece choisie pour donner du relief au setup, tout en gardant un parcours d'achat simple et lisible.</p>
+                </div>
+
+                <div className="absolute inset-x-8 bottom-8 grid grid-cols-3 gap-4">
+                  <div className="rounded-[28px] border border-white/12 bg-black/30 px-5 py-4 backdrop-blur-md shadow-[0_16px_40px_rgba(0,0,0,0.16)]">
+                    <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Progression lot</div>
+                    <div className="mt-2 text-3xl font-black text-white">{progressLabel}</div>
+                    <div className="mt-2 text-xs text-white/60">Palier client en cours</div>
+                  </div>
+                  <div className="rounded-[28px] border border-cyan-300/16 bg-cyan-300/7 px-5 py-4 backdrop-blur-md shadow-[0_16px_40px_rgba(12,27,45,0.22)]">
+                    <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Reste a debloquer</div>
+                    <div className="mt-2 text-3xl font-black text-cyan-200">{formatGroupedFcfa(remainingValue)}</div>
+                    <div className="mt-2 text-xs text-white/60">Pour la Livraison Gratuite et rapide</div>
+                  </div>
+                  <div className="rounded-[28px] border border-white/12 bg-black/30 px-5 py-4 backdrop-blur-md shadow-[0_16px_40px_rgba(0,0,0,0.16)]">
+                    <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Disponibilite</div>
+                    <div className="mt-2 text-3xl font-black text-white">{stockValue > 0 ? stockValue : "Sur commande"}</div>
+                    <div className="mt-2 text-xs text-white/60">Stock local ou approvisionnement gere</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-5">
+              {editorialCards.map((card) => (
+                <div key={card.title} className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-6 shadow-[0_18px_60px_rgba(0,0,0,0.18)] backdrop-blur-sm transition hover:border-white/16 hover:bg-white/[0.07]">
+                  <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-3 text-cyan-200">
+                    <card.icon className="h-5 w-5" />
+                  </div>
+                  <h2 className="mt-5 text-xl font-bold text-white">{card.title}</h2>
+                  <p className="mt-3 text-sm leading-6 text-white/68">{card.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <aside className="space-y-6">
+            <div className="sticky top-8 rounded-[36px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07)_0%,rgba(255,255,255,0.03)_100%)] p-7 shadow-[0_32px_120px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+              <div className="mb-5 flex items-center justify-between gap-3 rounded-[24px] border border-white/10 bg-black/18 px-4 py-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/40">Curated signal</div>
+                  <div className="mt-1 text-sm font-semibold text-white">{heroKicker}</div>
+                </div>
+                <div className="rounded-full bg-white/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">Showroom</div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.28em] text-white/42">Edition premium</div>
+                  <div className="mt-2 text-3xl font-black text-white">{formatGroupedFcfa(priceValue)}</div>
+                </div>
+                <div className="rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100">
+                  {deliveryMessages.short}
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-[28px] border border-white/10 bg-[#09101b] p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.26em] text-white/42">Pays de livraison</div>
+                    <div className="mt-2 text-sm text-white/70">Choisis la zone client pour recalculer le lot et la livraison.</div>
+                  </div>
+                  <Headphones className="h-5 w-5 text-cyan-200" />
+                </div>
+
+                <select
+                  value={storefrontCountryCode}
+                  onChange={(event) => {
+                    const next = event.target.value.toUpperCase();
+                    setStorefrontCountryCode(next);
+                    setStoredStorefrontCountry(next);
+                  }}
+                  className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white outline-none"
+                >
+                  {storefrontCountries.map((country) => (
+                    <option key={country.code} value={country.code} className="bg-slate-950 text-white">
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+
+                {customerNotice ? <p className="mt-4 text-xs leading-6 text-white/58">{customerNotice}</p> : null}
+              </div>
+
+              <div className="mt-6 rounded-[28px] border border-cyan-300/18 bg-cyan-300/6 p-5">
+                <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-100/65">Message client</div>
+                <p className="mt-3 text-sm leading-7 text-cyan-50">{deliveryMessages.detail}</p>
+                <div className="mt-4 flex items-center justify-between text-xs text-cyan-100/75">
+                  <span>Frais actuels</span>
+                  <span className="font-semibold">{deliveryMessages.feeLabel}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                <button
+                  type="button"
+                  onClick={handleBuyNow}
+                  className="w-full rounded-[24px] bg-[linear-gradient(135deg,#f59e0b_0%,#f97316_50%,#facc15_100%)] px-6 py-4 text-sm font-black uppercase tracking-[0.18em] text-[#201407] shadow-[0_20px_50px_rgba(249,115,22,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_26px_65px_rgba(249,115,22,0.34)]"
+                >
+                  Acheter maintenant
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  className="flex w-full items-center justify-center gap-3 rounded-[24px] border border-white/10 bg-white/5 px-6 py-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  <ShoppingCart className="h-4 w-4" /> Ajouter au panier
+                </button>
+              </div>
+
+              <div className="mt-6 grid grid-cols-2 gap-3 text-sm text-white/70">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Categorie</div>
+                  <div className="mt-2 font-semibold text-white">{product.accessory_subcategory || product.accessory_category || product.category || "Gaming gear"}</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Valeur lot</div>
+                  <div className="mt-2 font-semibold text-white">{formatGroupedFcfa(parseGroupedNumber(product.grouping_current_value))}</div>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-[28px] border border-white/10 bg-black/18 p-5">
+                <div className="flex items-center gap-3 text-white">
+                  <Headphones className="h-4 w-4 text-cyan-300" />
+                  <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Concierge gaming</div>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-white/68">
+                  Si tu veux optimiser plusieurs accessoires ensemble, le groupage continue automatiquement a s'ajuster pour proteger le meilleur cout de livraison possible.
+                </p>
+              </div>
+
+              {tags.length ? (
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {tags.slice(0, 8).map((tag) => (
+                    <span key={tag} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/65">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </aside>
+        </section>
+
+        <section className="mt-8 grid grid-cols-[0.86fr_1.14fr] gap-8">
+          <div className="rounded-[34px] border border-white/10 bg-white/[0.04] p-7 backdrop-blur-sm">
+            <div className="text-[11px] uppercase tracking-[0.28em] text-white/40">Pourquoi ce produit</div>
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.03em] text-white">Une fiche orientee desktop, pour vendre un setup et pas juste un SKU.</h2>
+            <p className="mt-5 text-sm leading-7 text-white/68">
+              Cette experience met en avant la valeur percue du produit, la progression du lot et le benefice client sans exposer la complexite logistique. Elle est volontairement reservee au desktop pour garder une composition riche, editorialisee et premium.
+            </p>
+          </div>
+
+          <div className="rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-7 backdrop-blur-sm">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Valeur minimum</div>
+                <div className="mt-3 text-2xl font-black text-white">{formatGroupedFcfa(parseGroupedNumber(product.grouping_minimum_value))}</div>
+              </div>
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Livraison actuelle</div>
+                <div className="mt-3 text-2xl font-black text-cyan-200">{deliveryMessages.feeLabel}</div>
+              </div>
+              <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Etat lot</div>
+                <div className="mt-3 text-2xl font-black text-white">{deliveryMessages.short}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[36px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.16)] backdrop-blur-sm">
+          <div className="flex items-end justify-between gap-6">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.28em] text-white/40">Showroom notes</div>
+              <h2 className="mt-3 text-4xl font-black tracking-[-0.04em] text-white">Un rendu plus luxe, plus net, plus memorisable.</h2>
+            </div>
+            <div className="max-w-xl text-sm leading-7 text-white/62">
+              L'objectif ici n'est pas seulement de montrer un produit, mais de donner l'impression d'entrer dans un espace de selection premium pour setup gaming.
+            </div>
+          </div>
+
+          <div className="mt-8 grid grid-cols-3 gap-5">
+            {showroomNotes.map((note) => (
+              <div key={note.title} className="rounded-[28px] border border-white/10 bg-black/18 p-6">
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/42">{note.title}</div>
+                <p className="mt-4 text-sm leading-7 text-white/68">{note.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

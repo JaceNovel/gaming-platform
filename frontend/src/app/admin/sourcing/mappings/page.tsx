@@ -102,6 +102,7 @@ export default function AdminSourcingMappingsPage() {
   const [productId, setProductId] = useState("");
   const [supplierSkuId, setSupplierSkuId] = useState("");
   const [priority, setPriority] = useState("1");
+  const [editingMappingId, setEditingMappingId] = useState<number | null>(null);
   const [procurementMode, setProcurementMode] = useState<"manual_batch" | "auto_batch">("manual_batch");
   const [targetMoq, setTargetMoq] = useState("");
   const [reorderPoint, setReorderPoint] = useState("");
@@ -177,6 +178,36 @@ export default function AdminSourcingMappingsPage() {
     if (!supplierSkuId && skus.length) setSupplierSkuId(String(skus[0].id));
   }, [supplierSkuId, skus]);
 
+  const resetForm = useCallback(() => {
+    setEditingMappingId(null);
+    setPriority("1");
+    setProcurementMode("manual_batch");
+    setTargetMoq("1");
+    setReorderPoint("");
+    setReorderQuantity("");
+    setSafetyStock("");
+    setExpectedInboundDays("");
+    setWarehouseDestinationLabel("Entrepôt principal");
+    setIsDefault(true);
+  }, []);
+
+  const handleEditMapping = useCallback((mapping: Mapping) => {
+    setEditingMappingId(mapping.id);
+    setProductId(String(mapping.product?.id ?? ""));
+    setSupplierSkuId(String(mapping.supplier_product_sku?.id ?? ""));
+    setPriority(String(mapping.priority ?? 1));
+    setProcurementMode((mapping.procurement_mode as "manual_batch" | "auto_batch") || "manual_batch");
+    setTargetMoq(String(mapping.target_moq ?? 1));
+    setReorderPoint(mapping.reorder_point !== null && mapping.reorder_point !== undefined ? String(mapping.reorder_point) : "");
+    setReorderQuantity(mapping.reorder_quantity !== null && mapping.reorder_quantity !== undefined ? String(mapping.reorder_quantity) : "");
+    setSafetyStock(mapping.safety_stock !== null && mapping.safety_stock !== undefined ? String(mapping.safety_stock) : "");
+    setExpectedInboundDays(mapping.expected_inbound_days !== null && mapping.expected_inbound_days !== undefined ? String(mapping.expected_inbound_days) : "");
+    setWarehouseDestinationLabel(mapping.warehouse_destination_label || "Entrepôt principal");
+    setIsDefault(Boolean(mapping.is_default));
+    setError("");
+    setSuccess("");
+  }, []);
+
   const selectedSku = useMemo(() => skus.find((item) => String(item.id) === supplierSkuId) ?? null, [skus, supplierSkuId]);
   const allEligibleSelected = localImportedProducts.length > 0 && selectedLocalProductIds.length === localImportedProducts.length;
 
@@ -218,7 +249,8 @@ export default function AdminSourcingMappingsPage() {
         const payload = await res.json().catch(() => null);
         throw new Error(payload?.message ?? "Enregistrement impossible");
       }
-      setSuccess("Mapping enregistré.");
+      setSuccess(editingMappingId ? "Mapping mis à jour." : "Mapping enregistré.");
+      resetForm();
       await loadAll();
     } catch (err: any) {
       setError(err?.message ?? "Enregistrement impossible");
@@ -369,11 +401,18 @@ export default function AdminSourcingMappingsPage() {
         ) : null}
 
         <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Créer un mapping</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-slate-900">{editingMappingId ? "Modifier le mapping" : "Créer un mapping"}</h2>
+            {editingMappingId ? (
+              <button type="button" onClick={resetForm} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                Annuler
+              </button>
+            ) : null}
+          </div>
           <div className="mt-4 grid gap-4">
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">Produit local</span>
-              <select value={productId} onChange={(e) => setProductId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2">
+              <select value={productId} onChange={(e) => setProductId(e.target.value)} disabled={editingMappingId !== null} className="rounded-xl border border-slate-200 px-3 py-2 disabled:bg-slate-100 disabled:text-slate-500">
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
                     #{product.id} · {product.title || product.name || "Produit"} · stock {product.stock ?? 0}
@@ -383,7 +422,7 @@ export default function AdminSourcingMappingsPage() {
             </label>
             <label className="grid gap-1 text-sm">
               <span className="text-slate-600">SKU fournisseur</span>
-              <select value={supplierSkuId} onChange={(e) => setSupplierSkuId(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2">
+              <select value={supplierSkuId} onChange={(e) => setSupplierSkuId(e.target.value)} disabled={editingMappingId !== null} className="rounded-xl border border-slate-200 px-3 py-2 disabled:bg-slate-100 disabled:text-slate-500">
                 {skus.map((sku) => (
                   <option key={sku.id} value={sku.id}>
                     #{sku.id} · {sku.supplier_product?.supplier_account?.label || "Fournisseur"} · {sku.supplier_product?.title || sku.sku_label || sku.external_sku_id}
@@ -444,7 +483,7 @@ export default function AdminSourcingMappingsPage() {
               Source par défaut pour ce produit
             </label>
             <button type="submit" className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white">
-              Enregistrer le mapping
+              {editingMappingId ? "Mettre à jour le mapping" : "Enregistrer le mapping"}
             </button>
             {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
             {success ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</div> : null}
@@ -469,12 +508,13 @@ export default function AdminSourcingMappingsPage() {
                   <th className="pb-3 pr-4">Source</th>
                   <th className="pb-3 pr-4">Règles</th>
                   <th className="pb-3 pr-4">Destination</th>
+                  <th className="pb-3 pr-4">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {!loading && mappings.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-slate-500">Aucun mapping créé.</td>
+                    <td colSpan={5} className="py-4 text-slate-500">Aucun mapping créé.</td>
                   </tr>
                 ) : null}
                 {mappings.map((mapping) => (
@@ -497,6 +537,11 @@ export default function AdminSourcingMappingsPage() {
                       <div>{mapping.warehouse_destination_label || "—"}</div>
                       <div>Délai: {mapping.expected_inbound_days ?? "—"} j</div>
                       <div>Stock sécurité: {mapping.safety_stock ?? "—"}</div>
+                    </td>
+                    <td className="py-3 pr-4 align-top text-xs text-slate-600">
+                      <button type="button" onClick={() => handleEditMapping(mapping)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                        Modifier
+                      </button>
                     </td>
                   </tr>
                 ))}

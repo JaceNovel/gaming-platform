@@ -13,6 +13,10 @@ class AliExpressTransitPricingService
     public const DEFAULT_MARGIN_PERCENT = 17.0;
     public const DIRECT_DELIVERY_COUNTRIES = [];
 
+    public function __construct(private GroupedLotService $groupedLotService)
+    {
+    }
+
     public function usesTransitPricing(Product $product): bool
     {
         return strtolower(trim((string) ($product->type ?? ''))) === 'item'
@@ -82,6 +86,14 @@ class AliExpressTransitPricingService
             'transit_city' => $country->transit_city,
             'customer_notice' => $country->customer_notice,
             'direct_delivery' => $isDirectDelivery,
+            'shipping_fee' => $pricing['shipping_fee'],
+            'grouping_threshold' => $pricing['grouping_threshold'],
+            'grouping_progress' => $pricing['grouping_progress'],
+            'grouping_progress_label' => $pricing['grouping_progress_label'],
+            'grouping_minimum_value' => $pricing['grouping_minimum_value'],
+            'grouping_current_value' => $pricing['grouping_current_value'],
+            'grouping_remaining_value' => $pricing['grouping_remaining_value'],
+            'free_shipping_eligible' => $pricing['free_shipping_eligible'],
             'computed_transport_unit_fee' => $pricing['transport_unit_fee'],
             'computed_final_price' => $pricing['final_price'],
             'computed_price_breakdown' => $pricing,
@@ -102,11 +114,17 @@ class AliExpressTransitPricingService
                 'logistics_profile' => null,
                 'grouping_threshold' => 1,
                 'grouping_progress' => 0,
+                'grouping_progress_label' => '0/1',
+                'grouping_minimum_value' => 0.0,
+                'grouping_current_value' => 0.0,
+                'grouping_remaining_value' => 0.0,
                 'transport_mode' => null,
                 'transport_total_fee' => 0.0,
                 'transport_unit_fee' => 0.0,
                 'margin_percent' => 0.0,
                 'final_price' => round($sourcePrice, 2),
+                'shipping_fee' => 0.0,
+                'free_shipping_eligible' => true,
                 'currency_code' => $country->currency_code ?: 'XOF',
                 'customer_notice' => null,
                 'transit_provider_name' => null,
@@ -115,16 +133,20 @@ class AliExpressTransitPricingService
             ];
         }
 
+        $defaultLink = $this->groupedLotService->resolveDefaultLink($product);
         $weightGrams = max(0, (int) ($product->estimated_weight_grams ?? Arr::get($product->details ?? [], 'estimated_weight_grams', 0)));
         $cbm = (float) ($product->estimated_cbm ?? Arr::get($product->details ?? [], 'estimated_cbm', 0));
         $profile = strtolower((string) ($product->source_logistics_profile ?? Arr::get($product->details ?? [], 'source_logistics_profile', 'ordinary')));
         $sourcePrice = $this->resolveSourcePrice($product);
-        $minimumGrouping = max(1, (int) ($product->grouping_threshold ?: 1));
+        $minimumGrouping = $this->groupedLotService->resolveEffectiveGroupingQuantity($product, $defaultLink);
         $marginPercent = $this->resolveMarginPercent($product);
 
         $transport = $this->computeTransportFee($country, $weightGrams, $cbm, $profile, $quantity, $minimumGrouping);
         $base = $sourcePrice + $transport['per_unit_fee'];
         $final = $base + ($base * ($marginPercent / 100));
+        $lotMetrics = $this->groupedLotService->currentOpenLotMetrics($product, $country->code, $defaultLink);
+        $projectedLotMetrics = $this->groupedLotService->projectMetrics($lotMetrics, $quantity, $final * max(1, $quantity));
+        $shippingFee = $this->groupedLotService->resolveShippingFee($projectedLotMetrics);
 
         return [
             'country_code' => $country->code,
@@ -134,12 +156,18 @@ class AliExpressTransitPricingService
             'estimated_cbm' => round($cbm, 4),
             'logistics_profile' => $profile,
             'grouping_threshold' => $minimumGrouping,
-            'grouping_progress' => (int) ($product->grouping_current_count ?? 0),
+            'grouping_progress' => (int) ($lotMetrics['current_quantity'] ?? 0),
+            'grouping_progress_label' => (string) ($lotMetrics['progress_label'] ?? '0/' . $minimumGrouping),
+            'grouping_minimum_value' => (float) ($lotMetrics['minimum_amount'] ?? GroupedLotService::MINIMUM_LOT_AMOUNT_XOF),
+            'grouping_current_value' => (float) ($lotMetrics['current_amount'] ?? 0),
+            'grouping_remaining_value' => (float) ($lotMetrics['remaining_amount'] ?? 0),
             'transport_mode' => $transport['mode'],
             'transport_total_fee' => round($transport['total_fee'], 2),
             'transport_unit_fee' => round($transport['per_unit_fee'], 2),
             'margin_percent' => round($marginPercent, 2),
             'final_price' => round($final, 2),
+            'shipping_fee' => round($shippingFee, 2),
+            'free_shipping_eligible' => (bool) ($projectedLotMetrics['is_ready'] ?? false),
             'currency_code' => $country->currency_code ?: 'XOF',
             'customer_notice' => $country->customer_notice,
             'transit_provider_name' => $country->transit_provider_name,

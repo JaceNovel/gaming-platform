@@ -55,10 +55,10 @@ class ProcurementBatchServiceTest extends TestCase
         ]);
         $link = new ProductSupplierLink([
             'product_id' => 1,
-            'target_moq' => 8,
+            'target_moq' => 1,
         ]);
         $sku = new SupplierProductSku([
-            'moq' => 8,
+            'moq' => 1,
         ]);
 
         $first = new ProcurementDemand([
@@ -121,7 +121,7 @@ class ProcurementBatchServiceTest extends TestCase
             'id' => 21,
             'product_id' => 1,
             'supplier_product_sku_id' => 10,
-            'target_moq' => 8,
+            'target_moq' => 1,
             'warehouse_destination_label' => 'Hub France-Lome TG',
         ]);
 
@@ -152,7 +152,7 @@ class ProcurementBatchServiceTest extends TestCase
             'product_id' => 1,
             'product_supplier_link_id' => 21,
             'supplier_product_sku_id' => 10,
-            'quantity_to_procure' => 3,
+            'quantity_to_procure' => 5,
         ]);
         $second->setAttribute('id', 2);
         $second->setRelation('product', $product);

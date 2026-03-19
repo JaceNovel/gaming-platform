@@ -17,6 +17,8 @@ type Demand = {
   pending_quantity_for_moq?: number | null;
   missing_to_moq?: number | null;
   grouping_threshold?: number | null;
+  lot_amount?: number | null;
+  minimum_lot_amount?: number | null;
   grouping_ready?: boolean | null;
   order?: {
     id: number;
@@ -153,9 +155,9 @@ export default function AdminSourcingDemandsPage() {
                       <div>À acheter: {demand.quantity_to_procure ?? 0}</div>
                     </td>
                     <td className="py-3 pr-4 align-top text-xs text-slate-600">
-                      <div>MOQ fournisseur: {demand.pending_quantity_for_moq ?? 0}/{demand.required_moq ?? demand.supplier_product_sku?.moq ?? 1}</div>
-                      <div>Seuil groupé: {demand.grouping_ready ? "prêt" : `attente ${demand.grouping_threshold ?? demand.product?.grouping_threshold ?? 1}`}</div>
-                      <div>{(demand.missing_to_moq ?? 0) > 0 ? `MOQ manquant: ${demand.missing_to_moq}` : "MOQ atteint"}</div>
+                      <div>Palier lot: {demand.pending_quantity_for_moq ?? 0}/{demand.required_moq ?? demand.grouping_threshold ?? 10}</div>
+                      <div>Valeur lot: {(demand.lot_amount ?? 0).toLocaleString()} / {(demand.minimum_lot_amount ?? 25000).toLocaleString()} XOF</div>
+                      <div>{demand.grouping_ready ? "Lot prêt" : `En attente ${demand.grouping_threshold ?? 10}`}</div>
                     </td>
                     <td className="py-3 pr-4 align-top text-xs text-slate-600">
                       <div>{demand.status || "—"}</div>

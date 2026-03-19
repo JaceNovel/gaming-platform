@@ -7,12 +7,13 @@ use App\Models\ProcurementBatch;
 use App\Models\ProcurementDemand;
 use App\Models\Order;
 use App\Services\AliExpressProcurementBatchService;
+use App\Services\GroupedLotService;
 use App\Services\ProcurementBatchService;
 use Illuminate\Http\Request;
 
 class AdminProcurementController extends Controller
 {
-    public function dashboard(Request $request)
+    public function dashboard(Request $request, GroupedLotService $groupedLotService)
     {
         $platform = trim((string) $request->query('platform'));
 
@@ -48,11 +49,13 @@ class AdminProcurementController extends Controller
 
         $moqBlockers = $pendingDemands
             ->groupBy('supplier_product_sku_id')
-            ->map(function ($rows) {
+            ->map(function ($rows) use ($groupedLotService) {
                 $first = $rows->first();
                 $sku = $first?->supplierProductSku;
                 $mapping = $first?->productSupplierLink;
-                $required = max(1, (int) ($mapping?->target_moq ?? $sku?->moq ?? 1));
+                $required = $first?->product
+                    ? $groupedLotService->resolveEffectiveGroupingQuantity($first->product, $mapping)
+                    : GroupedLotService::MOQ_BATCH_MULTIPLIER;
                 $requested = (int) $rows->sum('quantity_to_procure');
 
                 if ($requested >= $required) {
@@ -188,13 +191,13 @@ class AdminProcurementController extends Controller
         ]);
     }
 
-    public function demands(Request $request)
+    public function demands(Request $request, GroupedLotService $groupedLotService)
     {
         $query = ProcurementDemand::query()
             ->with([
                 'order:id,reference,user_id,supplier_fulfillment_status,grouping_released_at',
                 'order.user:id,name,email',
-                'orderItem:id,order_id,product_id,quantity,delivery_type,delivery_status',
+                'orderItem:id,order_id,product_id,quantity,price,delivery_type,delivery_status',
                 'product:id,name,title,stock,grouping_threshold',
                 'productSupplierLink:id,product_id,supplier_product_sku_id,is_default,warehouse_destination_label,target_moq',
                 'supplierProductSku.supplierProduct.supplierAccount:id,platform,label',
@@ -220,15 +223,20 @@ class AdminProcurementController extends Controller
             ->map(static fn ($items) => (int) $items->sum('quantity_to_procure'));
 
         return response()->json([
-            'data' => $rows->map(function (ProcurementDemand $demand) use ($pendingBySku) {
-                $requiredMoq = max(1, (int) ($demand->productSupplierLink?->target_moq ?? $demand->supplierProductSku?->moq ?? 1));
+            'data' => $rows->map(function (ProcurementDemand $demand) use ($pendingBySku, $groupedLotService) {
+                $requiredMoq = $demand->product
+                    ? $groupedLotService->resolveEffectiveGroupingQuantity($demand->product, $demand->productSupplierLink)
+                    : GroupedLotService::MOQ_BATCH_MULTIPLIER;
                 $pendingQuantity = (int) ($pendingBySku->get($demand->supplier_product_sku_id) ?? 0);
+                $lotAmount = ((float) ($demand->orderItem?->price ?? 0)) * (int) ($demand->quantity_to_procure ?? 0);
 
                 return array_merge($demand->toArray(), [
                     'required_moq' => $requiredMoq,
                     'pending_quantity_for_moq' => $pendingQuantity,
                     'missing_to_moq' => max(0, $requiredMoq - $pendingQuantity),
-                    'grouping_threshold' => max(1, (int) ($demand->product?->grouping_threshold ?? 1)),
+                    'grouping_threshold' => $requiredMoq,
+                    'lot_amount' => round($lotAmount, 2),
+                    'minimum_lot_amount' => GroupedLotService::MINIMUM_LOT_AMOUNT_XOF,
                     'grouping_ready' => !((string) ($demand->order?->supplier_fulfillment_status ?? '') === Order::SUPPLIER_STATUS_GROUPING
                         && $demand->order?->grouping_released_at === null),
                 ]);
@@ -339,7 +347,7 @@ class AdminProcurementController extends Controller
         try {
             $data = $request->validate([
                 'ds_extend_request' => 'nullable|array',
-                'param_place_order_request4_open_api_d_t_o' => 'required|array',
+                'param_place_order_request4_open_api_d_t_o' => 'nullable|array',
             ]);
 
             $result = $service->createDropshippingOrder($procurementBatch, $data);

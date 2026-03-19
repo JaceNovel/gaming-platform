@@ -82,6 +82,7 @@ export default function AdminSourcingBatchesPage() {
   const [dsPlaceDrafts, setDsPlaceDrafts] = useState<Record<number, string>>({});
   const [dsFreightChecks, setDsFreightChecks] = useState<Record<number, DsFreightCheckState | null>>({});
   const [batchActionLoading, setBatchActionLoading] = useState<Record<number, string | null>>({});
+  const [advancedMode, setAdvancedMode] = useState<Record<number, boolean>>({});
 
   const loadBatches = useCallback(async () => {
     setLoading(true);
@@ -203,22 +204,42 @@ export default function AdminSourcingBatchesPage() {
     }
   };
 
+  const parseJsonObject = (raw: string, label: string) => {
+    try {
+      const parsed = JSON.parse(raw || "{}");
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        throw new Error(`${label} doit être un objet JSON.`);
+      }
+
+      return parsed as Record<string, unknown>;
+    } catch (error: any) {
+      throw new Error(error?.message ?? `${label} est invalide.`);
+    }
+  };
+
   const getDsExtendValue = (batch: Batch) => dsExtendDrafts[batch.id] ?? prettyJson(batch.supplier_order_payload_json?.ds_draft?.ds_extend_request ?? {});
   const getDsPlaceValue = (batch: Batch) => dsPlaceDrafts[batch.id] ?? prettyJson(batch.supplier_order_payload_json?.ds_draft?.param_place_order_request4_open_api_d_t_o ?? {});
   const getFreightCheck = (batch: Batch) => dsFreightChecks[batch.id] ?? batch.supplier_order_payload_json?.ds_freight_check ?? null;
+  const getDsOrderState = (batch: Batch) => batch.supplier_order_payload_json?.ds_order_create ?? null;
+
+  const fetchBatchDsDraft = async (batchIdValue: number) => {
+    const res = await fetch(`${API_BASE}/admin/sourcing/batches/${batchIdValue}/aliexpress/ds-draft`, {
+      headers: { Accept: "application/json", ...getAuthHeaders() },
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(payload?.message ?? "Préparation du draft DS groupé impossible");
+    }
+
+    return payload;
+  };
 
   const loadBatchDsDraft = async (batchIdValue: number) => {
     setError("");
     setSuccess("");
     setBatchActionLoading((current) => ({ ...current, [batchIdValue]: "draft" }));
     try {
-      const res = await fetch(`${API_BASE}/admin/sourcing/batches/${batchIdValue}/aliexpress/ds-draft`, {
-        headers: { Accept: "application/json", ...getAuthHeaders() },
-      });
-      const payload = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(payload?.message ?? "Préparation du draft DS groupé impossible");
-      }
+      const payload = await fetchBatchDsDraft(batchIdValue);
 
       const draft = payload?.data?.draft ?? {};
       setDsExtendDrafts((current) => ({ ...current, [batchIdValue]: prettyJson(draft?.ds_extend_request ?? {}) }));
@@ -238,8 +259,21 @@ export default function AdminSourcingBatchesPage() {
     setSuccess("");
     setBatchActionLoading((current) => ({ ...current, [batch.id]: "create-order" }));
     try {
-      const dsExtendRequest = JSON.parse(getDsExtendValue(batch) || "{}");
-      const placeOrderRequest = JSON.parse(getDsPlaceValue(batch) || "{}");
+      let dsExtendRequest = parseJsonObject(getDsExtendValue(batch), "ds_extend_request");
+      let placeOrderRequest = parseJsonObject(getDsPlaceValue(batch), "param_place_order_request4_open_api_d_t_o");
+
+      if (Object.keys(placeOrderRequest).length === 0) {
+        const payload = await fetchBatchDsDraft(batch.id);
+        const draft = payload?.data?.draft ?? {};
+        const freightCheck = (payload?.data?.freight_check ?? null) as DsFreightCheckState | null;
+
+        dsExtendRequest = (draft?.ds_extend_request ?? {}) as Record<string, unknown>;
+        placeOrderRequest = (draft?.param_place_order_request4_open_api_d_t_o ?? {}) as Record<string, unknown>;
+
+        setDsExtendDrafts((current) => ({ ...current, [batch.id]: prettyJson(dsExtendRequest) }));
+        setDsPlaceDrafts((current) => ({ ...current, [batch.id]: prettyJson(placeOrderRequest) }));
+        setDsFreightChecks((current) => ({ ...current, [batch.id]: freightCheck }));
+      }
 
       const res = await fetch(`${API_BASE}/admin/sourcing/batches/${batch.id}/aliexpress/create-order`, {
         method: "POST",
@@ -249,8 +283,8 @@ export default function AdminSourcingBatchesPage() {
           ...getAuthHeaders(),
         },
         body: JSON.stringify({
-          ds_extend_request: dsExtendRequest,
-          param_place_order_request4_open_api_d_t_o: placeOrderRequest,
+          ds_extend_request: Object.keys(dsExtendRequest).length > 0 ? dsExtendRequest : undefined,
+          param_place_order_request4_open_api_d_t_o: Object.keys(placeOrderRequest).length > 0 ? placeOrderRequest : undefined,
         }),
       });
       const payload = await res.json().catch(() => null);
@@ -308,6 +342,22 @@ export default function AdminSourcingBatchesPage() {
             {!loading && batches.length === 0 ? <div className="text-sm text-slate-500">Aucun lot d’achat.</div> : null}
             {batches.map((batch) => (
               <div key={batch.id} className="rounded-2xl border border-slate-200 p-4">
+                {(() => {
+                  const freightCheck = getFreightCheck(batch);
+                  const dsOrderState = getDsOrderState(batch);
+                  const hasDraft = getDsPlaceValue(batch).trim() !== "{}" || getDsExtendValue(batch).trim() !== "{}";
+                  const freightItems = freightCheck?.items ?? [];
+                  const validFreightItems = freightItems.filter((item) => item.success !== false && item.is_valid === true).length;
+                  const invalidFreightItems = freightItems.filter((item) => item.success === false || item.is_valid === false).length;
+                  const showAdvanced = advancedMode[batch.id] === true;
+                  const dsStateTone = dsOrderState?.success
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : dsOrderState?.error_message
+                      ? "border-rose-200 bg-rose-50 text-rose-700"
+                      : "border-amber-200 bg-amber-50 text-amber-700";
+
+                  return (
+                    <>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="font-medium text-slate-900">{batch.batch_number}</div>
@@ -340,83 +390,182 @@ export default function AdminSourcingBatchesPage() {
                   </button>
                 </div>
                 {batch.supplier_account?.platform === "aliexpress" ? (
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">Commande DS groupée</div>
-                        <div className="text-xs text-slate-500">Prépare le draft AliExpress DS pour tout le lot groupé, exécute le précheck freight puis crée une seule commande fournisseur.</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => loadBatchDsDraft(batch.id)}
-                        disabled={Boolean(batchActionLoading[batch.id])}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 disabled:opacity-50"
-                      >
-                        {batchActionLoading[batch.id] === "draft" ? "Préparation..." : "Régénérer le draft DS"}
-                      </button>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                      <label className="grid gap-1 text-sm">
-                        <span className="text-slate-600">ds_extend_request JSON</span>
-                        <textarea
-                          value={getDsExtendValue(batch)}
-                          onChange={(e) => setDsExtendDrafts((current) => ({ ...current, [batch.id]: e.target.value }))}
-                          rows={10}
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs"
-                        />
-                      </label>
-                      <label className="grid gap-1 text-sm">
-                        <span className="text-slate-600">param_place_order_request4_open_api_d_t_o JSON</span>
-                        <textarea
-                          value={getDsPlaceValue(batch)}
-                          onChange={(e) => setDsPlaceDrafts((current) => ({ ...current, [batch.id]: e.target.value }))}
-                          rows={10}
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs"
-                        />
-                      </label>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => createBatchDsOrder(batch)}
-                        disabled={Boolean(batchActionLoading[batch.id])}
-                        className="rounded-xl bg-slate-900 px-3 py-2 text-xs text-white disabled:opacity-50"
-                      >
-                        {batchActionLoading[batch.id] === "create-order" ? "Création..." : "Créer la commande DS groupée"}
-                      </button>
-                    </div>
-
-                    {getFreightCheck(batch)?.items?.length ? (
-                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Précheck freight DS</div>
-                          <div className="text-[11px] text-slate-400">{formatDateTime(getFreightCheck(batch)?.checked_at)}</div>
+                  <div className="mt-4 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                    <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_45%),linear-gradient(135deg,_#fff_0%,_#f8fafc_100%)] px-5 py-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Workflow DS groupé</div>
+                          <div className="mt-2 text-lg font-semibold text-slate-900">Créer une seule commande AliExpress pour ce lot</div>
+                          <div className="mt-1 max-w-2xl text-sm text-slate-500">Le flux est maintenant guidé en 3 étapes : générer le draft, valider le freight, puis lancer la commande DS. Si le JSON est vide, le draft est régénéré automatiquement avant envoi.</div>
                         </div>
-                        <div className="space-y-3">
-                          {(getFreightCheck(batch)?.items ?? []).map((item, index) => (
-                            <div key={`${item.product_id ?? "item"}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                              <div className="font-semibold text-slate-900">{item.product_name ?? `Ligne batch DS #${index + 1}`}</div>
-                              <div className="mt-1">Service demandé: {item.requested_logistics_service_name ?? "—"}</div>
-                              <div>Service résolu: {item.resolved_logistics_service_name ?? "—"}</div>
-                              <div>SKU DS: {item.sku_id ?? "—"}</div>
-                              <div>Résultat: {item.success === false ? "Échec appel freight" : item.is_valid === false ? "Service refusé" : item.is_valid === true ? "Service valide" : "Réponse à vérifier"}</div>
-                              {item.error_message ? <div className="mt-1 text-rose-600">{item.error_message}</div> : null}
-                              <div className="mt-1">Services disponibles: {(item.available_services ?? []).length ? (item.available_services ?? []).join(", ") : "—"}</div>
+                        <div className={`rounded-2xl border px-3 py-2 text-xs font-medium ${dsStateTone}`}>
+                          {dsOrderState?.success
+                            ? `Commande créée${dsOrderState.order_list?.length ? ` · ${dsOrderState.order_list.join(", ")}` : ""}`
+                            : dsOrderState?.error_message
+                              ? "Dernière tentative en erreur"
+                              : "Aucune commande DS envoyée"}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 lg:grid-cols-4">
+                        <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Étape 1</div>
+                          <div className="mt-2 text-sm font-semibold text-slate-900">Draft</div>
+                          <div className="mt-1 text-xs text-slate-500">{hasDraft ? "Draft prêt ou personnalisé" : "Aucun draft chargé"}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Étape 2</div>
+                          <div className="mt-2 text-sm font-semibold text-slate-900">Freight</div>
+                          <div className="mt-1 text-xs text-slate-500">{freightItems.length ? `${validFreightItems} valide(s)${invalidFreightItems ? ` · ${invalidFreightItems} à corriger` : ""}` : "Précheck non lancé"}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Étape 3</div>
+                          <div className="mt-2 text-sm font-semibold text-slate-900">Commande</div>
+                          <div className="mt-1 text-xs text-slate-500">{dsOrderState?.created_at ? formatDateTime(dsOrderState.created_at) : "Pas encore envoyée"}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Référence</div>
+                          <div className="mt-2 text-sm font-semibold text-slate-900">{batch.supplier_order_reference || "En attente"}</div>
+                          <div className="mt-1 text-xs text-slate-500">AliExpress / fournisseur</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="px-5 py-5">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => loadBatchDsDraft(batch.id)}
+                          disabled={Boolean(batchActionLoading[batch.id])}
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 disabled:opacity-50"
+                        >
+                          {batchActionLoading[batch.id] === "draft" ? "Préparation du draft..." : "1. Générer / régénérer le draft"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => createBatchDsOrder(batch)}
+                          disabled={Boolean(batchActionLoading[batch.id])}
+                          className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          {batchActionLoading[batch.id] === "create-order" ? "Création de la commande..." : "2. Créer la commande DS groupée"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAdvancedMode((current) => ({ ...current, [batch.id]: !showAdvanced }))}
+                          className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+                        >
+                          {showAdvanced ? "Masquer le mode avancé" : "Mode avancé"}
+                        </button>
+                      </div>
+
+                      <div className="mt-5 grid gap-4 xl:grid-cols-[1.15fr,0.85fr]">
+                        <div className="space-y-4">
+                          {showAdvanced ? (
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="mb-3 flex items-center justify-between gap-3">
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-900">JSON de préparation</div>
+                                  <div className="text-xs text-slate-500">Laisse vide si tu veux repartir du draft automatique. Tu peux aussi ajuster un champ à la main.</div>
+                                </div>
+                                <div className="text-[11px] text-slate-400">Fallback automatique si le draft est vide</div>
+                              </div>
+                              <div className="grid gap-3 lg:grid-cols-2">
+                                <label className="grid gap-1 text-sm">
+                                  <span className="text-slate-600">ds_extend_request</span>
+                                  <textarea
+                                    value={getDsExtendValue(batch)}
+                                    onChange={(e) => setDsExtendDrafts((current) => ({ ...current, [batch.id]: e.target.value }))}
+                                    rows={11}
+                                    className="rounded-2xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-700"
+                                  />
+                                </label>
+                                <label className="grid gap-1 text-sm">
+                                  <span className="text-slate-600">param_place_order_request4_open_api_d_t_o</span>
+                                  <textarea
+                                    value={getDsPlaceValue(batch)}
+                                    onChange={(e) => setDsPlaceDrafts((current) => ({ ...current, [batch.id]: e.target.value }))}
+                                    rows={11}
+                                    className="rounded-2xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-700"
+                                  />
+                                </label>
+                              </div>
                             </div>
-                          ))}
+                          ) : (
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-900">Mode simplifié</div>
+                                  <div className="mt-1 text-xs text-slate-500">Les JSON techniques sont masqués. Le système utilise automatiquement le draft généré et le régénère si nécessaire avant l’envoi.</div>
+                                </div>
+                                <div className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white">Recommandé</div>
+                              </div>
+                              <div className="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-2">
+                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">Draft disponible: <span className="font-medium text-slate-900">{hasDraft ? "Oui" : "Le draft sera régénéré automatiquement"}</span></div>
+                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">Édition manuelle: <span className="font-medium text-slate-900">désactivée</span></div>
+                              </div>
+                            </div>
+                          )}
+
+                          {freightItems.length ? (
+                            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                              <div className="mb-3 flex items-center justify-between gap-3">
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-900">Précheck freight DS</div>
+                                  <div className="text-xs text-slate-500">Vérifie ici les services logistiques réellement acceptés par AliExpress pour chaque ligne du lot.</div>
+                                </div>
+                                <div className="text-[11px] text-slate-400">{formatDateTime(freightCheck?.checked_at)}</div>
+                              </div>
+                              <div className="space-y-3">
+                                {freightItems.map((item, index) => {
+                                  const ok = item.success !== false && item.is_valid === true;
+                                  const tone = ok ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50";
+
+                                  return (
+                                    <div key={`${item.product_id ?? "item"}-${index}`} className={`rounded-2xl border p-3 text-xs text-slate-700 ${tone}`}>
+                                      <div className="flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                          <div className="font-semibold text-slate-900">{item.product_name ?? `Ligne batch DS #${index + 1}`}</div>
+                                          <div className="mt-1 text-slate-500">SKU DS: {item.sku_id ?? "—"}</div>
+                                        </div>
+                                        <div className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${ok ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                                          {ok ? "Valide" : item.success === false ? "Erreur freight" : "Service refusé"}
+                                        </div>
+                                      </div>
+                                      <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                        <div>Service demandé: <span className="font-medium text-slate-900">{item.requested_logistics_service_name ?? "—"}</span></div>
+                                        <div>Service résolu: <span className="font-medium text-slate-900">{item.resolved_logistics_service_name ?? "—"}</span></div>
+                                      </div>
+                                      {item.error_message ? <div className="mt-2 font-medium text-rose-700">{item.error_message}</div> : null}
+                                      <div className="mt-2 text-slate-600">Services disponibles: {(item.available_services ?? []).length ? (item.available_services ?? []).join(", ") : "—"}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="text-sm font-semibold text-slate-900">État DS</div>
+                            <div className="mt-3 grid gap-2 text-xs text-slate-600">
+                              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">Référence fournisseur: <span className="font-medium text-slate-900">{batch.supplier_order_reference || "—"}</span></div>
+                              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">Dernière création: <span className="font-medium text-slate-900">{formatDateTime(dsOrderState?.created_at)}</span></div>
+                              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">Request ID: <span className="font-medium text-slate-900">{dsOrderState?.request_id ?? "—"}</span></div>
+                              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">Code erreur: <span className="font-medium text-slate-900">{dsOrderState?.error_code ?? "—"}</span></div>
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="text-sm font-semibold text-slate-900">Diagnostic rapide</div>
+                            <div className="mt-3 space-y-2 text-xs text-slate-600">
+                              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">Draft chargé: <span className="font-medium text-slate-900">{hasDraft ? "Oui" : "Non"}</span></div>
+                              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">Lignes freight valides: <span className="font-medium text-slate-900">{validFreightItems}/{freightItems.length || 0}</span></div>
+                              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">Message fournisseur: <span className="font-medium text-slate-900">{dsOrderState?.remote_error_message ?? dsOrderState?.error_message ?? "—"}</span></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    ) : null}
-
-                    <div className="mt-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600 md:grid-cols-2">
-                      <div>Référence fournisseur: {batch.supplier_order_reference || "—"}</div>
-                      <div>Dernière création DS: {formatDateTime(batch.supplier_order_payload_json?.ds_order_create?.created_at)}</div>
-                      <div>DS status: {batch.supplier_order_payload_json?.ds_order_create?.success ? `Succès (${batch.supplier_order_payload_json?.ds_order_create?.order_list?.join(", ") ?? "—"})` : batch.supplier_order_payload_json?.ds_order_create?.error_message ?? "—"}</div>
-                      <div>DS request_id: {batch.supplier_order_payload_json?.ds_order_create?.request_id ?? "—"}</div>
-                      <div>Code erreur DS: {batch.supplier_order_payload_json?.ds_order_create?.error_code ?? "—"}</div>
-                      <div>Message fournisseur: {batch.supplier_order_payload_json?.ds_order_create?.remote_error_message ?? "—"}</div>
                     </div>
                   </div>
                 ) : null}
@@ -440,6 +589,9 @@ export default function AdminSourcingBatchesPage() {
                     </tbody>
                   </table>
                 </div>
+                    </>
+                  );
+                })()}
               </div>
             ))}
           </div>

@@ -12,6 +12,7 @@ import DeliveryBadge from "@/components/ui/DeliveryBadge";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
 import { emitCartUpdated } from "@/lib/cartEvents";
+import { buildGroupedDeliveryMessages, parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getStoredStorefrontCountry, onStorefrontCountryChanged, sanitizeStorefrontCustomerNotice, setStoredStorefrontCountry, type StorefrontCountry } from "@/lib/storefrontCountry";
 
@@ -43,6 +44,13 @@ type ApiProduct = {
   image_url?: string | null;
   cover?: string | null;
   banner?: string | null;
+  grouping_progress?: number | null;
+  grouping_threshold?: number | null;
+  grouping_progress_label?: string | null;
+  grouping_minimum_value?: number | string | null;
+  grouping_current_value?: number | string | null;
+  grouping_remaining_value?: number | string | null;
+  free_shipping_eligible?: boolean | null;
   media?: Array<{ url?: string | null } | string>;
   images?: Array<{ url?: string | null; path?: string | null } | string> | null;
   category?: string | null;
@@ -58,6 +66,8 @@ type ApiProduct = {
 };
 
 const formatPrice = (value: number) => `${new Intl.NumberFormat("fr-FR").format(Math.max(0, value))} FCFA`;
+
+const parseNumber = (value: number | string | null | undefined): number => parseGroupedNumber(value);
 
 const sanitizeCustomerDescription = (value: string | null | undefined): string => {
   const cleaned = String(value ?? "")
@@ -491,6 +501,33 @@ export default function ProductDetailsPage() {
     () => sanitizeStorefrontCustomerNotice(activeStorefrontCountry?.customer_notice),
     [activeStorefrontCountry?.customer_notice]
   );
+  const groupedProgressLabel = useMemo(() => {
+    if (product?.grouping_progress_label) return product.grouping_progress_label;
+    const progress = Math.max(0, parseNumber(product?.grouping_progress));
+    const threshold = Math.max(1, parseNumber(product?.grouping_threshold));
+    return `${progress}/${threshold}`;
+  }, [product?.grouping_progress, product?.grouping_progress_label, product?.grouping_threshold]);
+  const groupedRemainingValue = useMemo(() => {
+    const direct = parseNumber(product?.grouping_remaining_value);
+    if (direct > 0) return direct;
+    return Math.max(0, parseNumber(product?.grouping_minimum_value) - parseNumber(product?.grouping_current_value));
+  }, [product?.grouping_current_value, product?.grouping_minimum_value, product?.grouping_remaining_value]);
+  const groupedDeliveryMessage = useMemo(() => {
+    if (!isAccessoryProduct) return null;
+    return buildGroupedDeliveryMessages({
+      shippingFee: product?.shipping_fee,
+      remainingValue: groupedRemainingValue,
+      freeShippingEligible: product?.free_shipping_eligible,
+    }).detail;
+  }, [groupedRemainingValue, isAccessoryProduct, product?.free_shipping_eligible, product?.shipping_fee]);
+  const groupedFeeLabel = useMemo(() => {
+    if (!isAccessoryProduct) return null;
+    return buildGroupedDeliveryMessages({
+      shippingFee: product?.shipping_fee,
+      remainingValue: groupedRemainingValue,
+      freeShippingEligible: product?.free_shipping_eligible,
+    }).feeLabel;
+  }, [groupedRemainingValue, isAccessoryProduct, product?.free_shipping_eligible, product?.shipping_fee]);
 
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
@@ -507,6 +544,9 @@ export default function ProductDetailsPage() {
       deliveryEstimateLabel?: string | null;
       deliveryLabel?: string;
       shippingFee?: number;
+      groupingProgressLabel?: string;
+      groupingRemainingValue?: number;
+      groupingMinimumValue?: number;
     }>;
     try {
       cart = cartRaw ? JSON.parse(cartRaw) : [];
@@ -516,9 +556,10 @@ export default function ProductDetailsPage() {
     const existing = cart.find((item) => item.id === product.id);
     if (existing) {
       existing.quantity = Number(existing.quantity ?? 0) + 1;
-      if (existing.shippingFee === undefined) {
-        existing.shippingFee = Number(product.shipping_fee ?? 0) || 0;
-      }
+      existing.shippingFee = Number(product.shipping_fee ?? 0) || 0;
+      existing.groupingProgressLabel = groupedProgressLabel;
+      existing.groupingRemainingValue = groupedRemainingValue;
+      existing.groupingMinimumValue = parseNumber(product.grouping_minimum_value);
     } else {
       cart.push({
         id: product.id,
@@ -531,6 +572,9 @@ export default function ProductDetailsPage() {
         deliveryEstimateLabel: product.delivery_estimate_label ?? null,
         deliveryLabel: delivery?.desktopLabel ?? undefined,
         shippingFee: Number(product.shipping_fee ?? 0) || 0,
+        groupingProgressLabel: groupedProgressLabel,
+        groupingRemainingValue: groupedRemainingValue,
+        groupingMinimumValue: parseNumber(product.grouping_minimum_value),
         quantity: 1,
       });
     }
@@ -672,6 +716,15 @@ export default function ProductDetailsPage() {
                   <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">{categoryLabel}</p>
                   <h1 className="text-2xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
                   <p className="text-2xl font-black text-[#ff4b63]">{formatPrice(priceValue)}</p>
+                  {isAccessoryProduct ? (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/75">
+                      <p className="font-semibold text-white">Progression lot: {groupedProgressLabel}</p>
+                      <p className="mt-1 text-xs text-white/65">{groupedDeliveryMessage}</p>
+                      {parseNumber(product?.shipping_fee) > 0 ? (
+                        <p className="mt-2 text-xs font-semibold text-amber-200">{groupedFeeLabel}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
 
                 {isAccessoryProduct && storefrontCountries.length > 0 ? (
@@ -764,6 +817,15 @@ export default function ProductDetailsPage() {
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
                   <h1 className="text-3xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
                   <p className="mt-3 text-3xl font-bold text-[#ff4b63]">{formatPrice(priceValue)}</p>
+                  {isAccessoryProduct ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/75">
+                      <p className="font-semibold text-white">Progression lot: {groupedProgressLabel}</p>
+                      <p className="mt-1">{groupedDeliveryMessage}</p>
+                      {parseNumber(product?.shipping_fee) > 0 ? (
+                        <p className="mt-2 text-xs font-semibold text-amber-200">{groupedFeeLabel}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <p className="mt-4 text-base text-white/70">{description}</p>
 
                   <div className="mt-6">

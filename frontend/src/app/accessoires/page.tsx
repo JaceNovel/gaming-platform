@@ -7,6 +7,7 @@ import { Search, Sparkles } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { emitCartUpdated } from "@/lib/cartEvents";
+import { buildGroupedDeliveryMessages, parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
 
 type AccessoryCategoryKey = "audio" | "keyboard_mouse" | "mobile" | "setup_comfort";
@@ -20,6 +21,9 @@ type AccessoryProduct = {
   computed_final_price?: number | string | null;
   computed_transport_unit_fee?: number | string | null;
   shipping_fee?: number | string | null;
+  grouping_progress_label?: string | null;
+  grouping_remaining_value?: number | string | null;
+  free_shipping_eligible?: boolean | null;
   type?: string | null;
   accessory_category?: string | null;
   accessory_subcategory?: string | null;
@@ -43,10 +47,7 @@ const CATEGORY_ORDER: Array<{ key: AccessoryCategoryKey; label: string; navLabel
 
 const formatFcfa = (value: number) => `${Math.round(Math.max(0, value)).toLocaleString("fr-FR")} FCFA`;
 
-const parseNumber = (value: any): number => {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) ? n : 0;
-};
+const parseNumber = (value: any): number => parseGroupedNumber(value);
 
 const normalizeSearchText = (value: any): string =>
   String(value ?? "")
@@ -82,7 +83,13 @@ const normalizeCategoryKey = (value: any): AccessoryCategoryKey | null => {
   return null;
 };
 
-const getCustomerDeliveryText = (): string => "Livraison disponible";
+const getCustomerDeliveryText = (product: AccessoryProduct): string => {
+  return buildGroupedDeliveryMessages({
+    shippingFee: product.shipping_fee,
+    remainingValue: product.grouping_remaining_value,
+    freeShippingEligible: product.free_shipping_eligible,
+  }).short;
+};
 
 const matchesSearch = (product: AccessoryProduct, query: string): boolean => {
   if (!query) return true;
@@ -131,14 +138,15 @@ function addToCart(product: AccessoryProduct) {
 
   const id = Number(product.id);
   const name = productDisplayName(product);
-  const hasComputedFinalPrice = product.computed_final_price !== null && product.computed_final_price !== undefined && product.computed_final_price !== "";
   const unitPrice = parseNumber(product.computed_final_price ?? product.discount_price ?? product.price);
-  const shippingFee = hasComputedFinalPrice ? 0 : parseNumber(product.computed_transport_unit_fee ?? product.shipping_fee);
+  const shippingFee = parseNumber(product.shipping_fee ?? product.computed_transport_unit_fee);
 
   const existing = cart.find((it: any) => Number(it?.id) === id);
   if (existing) {
     existing.quantity = Math.max(1, Number(existing.quantity ?? 1) + 1);
-    if (existing.shippingFee === undefined) existing.shippingFee = shippingFee;
+    existing.shippingFee = shippingFee;
+    existing.groupingProgressLabel = String(product.grouping_progress_label ?? "").trim() || undefined;
+    existing.groupingRemainingValue = parseNumber(product.grouping_remaining_value);
   } else {
     cart.push({
       id,
@@ -148,6 +156,8 @@ function addToCart(product: AccessoryProduct) {
       quantity: 1,
       type: String(product.type ?? "item"),
       shippingFee,
+      groupingProgressLabel: String(product.grouping_progress_label ?? "").trim() || undefined,
+      groupingRemainingValue: parseNumber(product.grouping_remaining_value),
       accessoryCategory: product.accessory_category ?? null,
       accessoryStockMode: product.accessory_stock_mode ?? null,
       deliveryEstimateLabel: product.delivery_estimate_label ?? null,
@@ -642,7 +652,7 @@ export default function AccessoiresPage() {
                                   ) : null}
                                   <div className="mt-2 flex items-end justify-between gap-2">
                                     <p className="text-base font-black text-cyan-200">{formatFcfa(price)}</p>
-                                    <p className="text-[11px] text-white/55">{getCustomerDeliveryText()}</p>
+                                    <p className="text-[11px] text-white/55">{getCustomerDeliveryText(p)}</p>
                                   </div>
                                 </div>
 
@@ -663,8 +673,8 @@ export default function AccessoiresPage() {
                             const img = extractImage(p);
                             const imgSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
                             const price = parseNumber(p.computed_final_price ?? p.discount_price ?? p.price);
-                            const fee = parseNumber(p.computed_transport_unit_fee ?? p.shipping_fee);
-                            const total = p.computed_final_price !== null && p.computed_final_price !== undefined && p.computed_final_price !== "" ? price : price + fee;
+                            const fee = parseNumber(p.shipping_fee ?? p.computed_transport_unit_fee);
+                            const total = price + fee;
 
                             return (
                               <div
@@ -698,7 +708,11 @@ export default function AccessoiresPage() {
                                       </div>
                                       <div className="flex items-center justify-between text-white/70">
                                         <span>Livraison</span>
-                                        <span className="font-semibold text-white">{formatFcfa(fee)}</span>
+                                        <span className="font-semibold text-white">{fee > 0 ? formatFcfa(fee) : "Gratuite"}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between text-white/70">
+                                        <span>Progression lot</span>
+                                        <span className="font-semibold text-white">{p.grouping_progress_label || "—"}</span>
                                       </div>
                                       <div className="h-px bg-white/10 my-1" />
                                       <div className="flex items-center justify-between">
@@ -706,6 +720,8 @@ export default function AccessoiresPage() {
                                         <span className="text-cyan-200 font-extrabold">{formatFcfa(total)}</span>
                                       </div>
                                     </div>
+
+                                    <p className="mt-3 text-xs text-cyan-100/80">{getCustomerDeliveryText(p)}</p>
 
                                     <div className="mt-4 flex gap-2">
                                       <button

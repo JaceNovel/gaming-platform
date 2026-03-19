@@ -14,6 +14,7 @@ class SourcingDemandService
     public function __construct(
         private AliExpressTransitPricingService $transitPricing,
         private ProcurementBatchService $procurementBatchService,
+        private GroupedLotService $groupedLotService,
     )
     {
     }
@@ -130,19 +131,18 @@ class SourcingDemandService
             return;
         }
 
-        $referenceItem = OrderItem::query()->with('product')->where('product_id', $productId)->latest('id')->first();
-        $threshold = max(1, (int) ($referenceItem?->product?->grouping_threshold ?? 1));
-        $groupedQuantity = (int) OrderItem::query()
+        $product = OrderItem::query()
+            ->with('product.productSupplierLinks.supplierProductSku')
             ->where('product_id', $productId)
-            ->whereHas('order', function ($query) use ($countryCode) {
-                $query->where('status', Order::STATUS_PAYMENT_SUCCESS)
-                    ->where('supplier_country_code', $countryCode)
-                    ->where('supplier_fulfillment_status', Order::SUPPLIER_STATUS_GROUPING)
-                    ->whereNull('grouping_released_at');
-            })
-            ->sum('quantity');
+            ->latest('id')
+            ->first()?->product;
 
-        if ($groupedQuantity < $threshold) {
+        if (!$product) {
+            return;
+        }
+
+        $metrics = $this->groupedLotService->currentOpenLotMetrics($product, $countryCode);
+        if (empty($metrics['is_ready'])) {
             return;
         }
 
