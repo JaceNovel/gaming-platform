@@ -312,9 +312,7 @@ class AliExpressBulkCatalogImportService
                 ]);
                 $importedDsProducts++;
 
-                $defaultSku = $supplierProduct->relationLoaded('skus')
-                    ? $supplierProduct->skus->sortBy('id')->first()
-                    : $supplierProduct->skus()->orderBy('id')->first();
+                $defaultSku = $this->resolvePreferredSupplierSku($supplierProduct);
 
                 if (! $defaultSku) {
                     throw new \RuntimeException('Aucun SKU DS actif n a ete importe pour ce produit.');
@@ -1107,7 +1105,7 @@ class AliExpressBulkCatalogImportService
 
     private function syncLocalProduct(SupplierProduct $supplierProduct, array $supplierPayload, array $options, bool $publishProducts): array
     {
-        $defaultSku = $supplierProduct->skus->sortBy('id')->first();
+        $defaultSku = $this->resolvePreferredSupplierSku($supplierProduct);
         if (!$defaultSku) {
             return ['created' => false, 'updated' => false];
         }
@@ -1195,9 +1193,7 @@ class AliExpressBulkCatalogImportService
             return $supplierPayload;
         }
 
-        $defaultSku = $supplierProduct->relationLoaded('skus')
-            ? $supplierProduct->skus->sortBy('id')->first()
-            : $supplierProduct->skus()->orderBy('id')->first();
+        $defaultSku = $this->resolvePreferredSupplierSku($supplierProduct);
         $skuPayload = is_array($defaultSku?->sku_payload_json) ? $defaultSku->sku_payload_json : [];
         $sourceCurrency = strtoupper(trim((string) ($defaults['source_currency'] ?? $defaultSku?->currency_code ?? 'USD'))) ?: 'USD';
         $sourceUnitPrice = $defaults['source_unit_price'] ?? $defaultSku?->unit_price ?? null;
@@ -1258,6 +1254,47 @@ class AliExpressBulkCatalogImportService
 
         $product->update($updates);
         $this->syncProductMainImage($product, $defaults['main_image_url'] ?? null);
+    }
+
+    private function resolvePreferredSupplierSku(SupplierProduct $supplierProduct): ?SupplierProductSku
+    {
+        $skus = $supplierProduct->relationLoaded('skus')
+            ? $supplierProduct->skus
+            : $supplierProduct->skus()->get();
+
+        $activeSkus = $skus->filter(static fn (SupplierProductSku $sku) => (bool) $sku->is_active)->sortBy('id')->values();
+        if ($activeSkus->isEmpty()) {
+            return $skus->sortBy('id')->first();
+        }
+
+        $numericSku = $activeSkus->first(function (SupplierProductSku $sku) {
+            return $this->resolveSelectedSkuIdFromSupplierSku($sku) !== null;
+        });
+
+        return $numericSku ?: $activeSkus->first();
+    }
+
+    private function resolveSelectedSkuIdFromSupplierSku(?SupplierProductSku $supplierSku): ?string
+    {
+        if (! $supplierSku) {
+            return null;
+        }
+
+        foreach ([
+            $supplierSku->external_sku_id,
+            data_get($supplierSku->sku_payload_json, 'sku_id'),
+            data_get($supplierSku->sku_payload_json, 'skuId'),
+            data_get($supplierSku->sku_payload_json, 'id'),
+            data_get($supplierSku->sku_payload_json, 'selectedSkuId'),
+            data_get($supplierSku->sku_payload_json, 'selected_sku_id'),
+        ] as $candidate) {
+            $value = trim((string) ($candidate ?? ''));
+            if ($value !== '' && preg_match('/^\d+$/', $value) === 1) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private function findExistingAliExpressStorefrontProduct(SupplierProduct $supplierProduct): ?Product

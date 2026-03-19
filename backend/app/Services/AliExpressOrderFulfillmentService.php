@@ -1279,13 +1279,7 @@ class AliExpressOrderFulfillmentService
             return null;
         }
 
-        usort($links, function (ProductSupplierLink $left, ProductSupplierLink $right) {
-            if ($left->is_default !== $right->is_default) {
-                return $left->is_default ? -1 : 1;
-            }
-
-            return (int) ($left->priority ?? 1) <=> (int) ($right->priority ?? 1);
-        });
+        usort($links, fn (ProductSupplierLink $left, ProductSupplierLink $right) => $this->compareDsProductLinks($left, $right));
 
         return $links[0];
     }
@@ -1346,7 +1340,7 @@ class AliExpressOrderFulfillmentService
         ]);
 
         $refreshedProduct->loadMissing('skus');
-        $replacementSku = $this->resolveReplacementDsSku($refreshedProduct->skus->all(), $supplierSku);
+        $replacementSku = $this->resolveReplacementDsSku($refreshedProduct->skus->all(), $supplierSku, is_array($link->pricing_snapshot_json) ? $link->pricing_snapshot_json : []);
         if (! $replacementSku || $this->resolveDsSelectedSkuId($replacementSku) === null) {
             return null;
         }
@@ -1370,6 +1364,35 @@ class AliExpressOrderFulfillmentService
         }
 
         return $link->fresh(['supplierProductSku.supplierProduct.supplierAccount']);
+    }
+
+    private function compareDsProductLinks(ProductSupplierLink $left, ProductSupplierLink $right): int
+    {
+        $leftSku = $left->supplierProductSku;
+        $rightSku = $right->supplierProductSku;
+
+        $leftNumeric = $this->resolveDsSelectedSkuId($leftSku) !== null;
+        $rightNumeric = $this->resolveDsSelectedSkuId($rightSku) !== null;
+        if ($leftNumeric !== $rightNumeric) {
+            return $leftNumeric ? -1 : 1;
+        }
+
+        $leftActive = (bool) ($leftSku?->is_active ?? false);
+        $rightActive = (bool) ($rightSku?->is_active ?? false);
+        if ($leftActive !== $rightActive) {
+            return $leftActive ? -1 : 1;
+        }
+
+        if ($left->is_default !== $right->is_default) {
+            return $left->is_default ? -1 : 1;
+        }
+
+        $priorityComparison = (int) ($left->priority ?? 1) <=> (int) ($right->priority ?? 1);
+        if ($priorityComparison !== 0) {
+            return $priorityComparison;
+        }
+
+        return (int) $left->id <=> (int) $right->id;
     }
 
     private function resolveDsSelectedSkuId(?\App\Models\SupplierProductSku $supplierSku): ?string
@@ -1428,7 +1451,7 @@ class AliExpressOrderFulfillmentService
     /**
      * @param  array<int, SupplierProductSku>  $candidateSkus
      */
-    private function resolveReplacementDsSku(array $candidateSkus, ?SupplierProductSku $currentSku): ?SupplierProductSku
+    private function resolveReplacementDsSku(array $candidateSkus, ?SupplierProductSku $currentSku, array $pricingSnapshot = []): ?SupplierProductSku
     {
         $numericCandidates = array_values(array_filter($candidateSkus, function ($sku) {
             return $sku instanceof SupplierProductSku
@@ -1441,6 +1464,15 @@ class AliExpressOrderFulfillmentService
         }
 
         $currentExternalSkuId = $this->nullableString($currentSku?->external_sku_id);
+        $snapshotExternalSkuId = $this->nullableString($pricingSnapshot['ds_external_sku_id'] ?? null);
+        if ($snapshotExternalSkuId !== null) {
+            foreach ($numericCandidates as $candidate) {
+                if ((string) $candidate->external_sku_id === $snapshotExternalSkuId) {
+                    return $candidate;
+                }
+            }
+        }
+
         if ($currentExternalSkuId !== null) {
             foreach ($numericCandidates as $candidate) {
                 if ((string) $candidate->external_sku_id === $currentExternalSkuId) {
@@ -1456,6 +1488,20 @@ class AliExpressOrderFulfillmentService
                     return $candidate;
                 }
             }
+        }
+
+        if ($currentExternalSkuId !== null && str_ends_with($currentExternalSkuId, '-default')) {
+            usort($numericCandidates, static function (SupplierProductSku $left, SupplierProductSku $right) {
+                $leftStock = (int) ($left->available_quantity ?? 0);
+                $rightStock = (int) ($right->available_quantity ?? 0);
+                if ($leftStock !== $rightStock) {
+                    return $rightStock <=> $leftStock;
+                }
+
+                return (int) $left->id <=> (int) $right->id;
+            });
+
+            return $numericCandidates[0] ?? null;
         }
 
         return count($numericCandidates) === 1 ? $numericCandidates[0] : null;
