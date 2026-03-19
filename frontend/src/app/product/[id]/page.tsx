@@ -247,8 +247,8 @@ export default function PremiumAccessoryDesktopPage() {
   );
   const customerNotice = useMemo(() => sanitizeStorefrontCustomerNotice(activeCountry?.customer_notice), [activeCountry?.customer_notice]);
   const heroKicker = useMemo(() => {
-    return product.details?.brand || product.accessory_subcategory || product.accessory_category || "Showroom edit";
-  }, [product.accessory_category, product.accessory_subcategory, product.details?.brand]);
+    return product?.details?.brand || product?.accessory_subcategory || product?.accessory_category || "Showroom edit";
+  }, [product?.accessory_category, product?.accessory_subcategory, product?.details?.brand]);
   const showroomNotes = useMemo(
     () => [
       {
