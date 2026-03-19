@@ -1560,6 +1560,14 @@ const getAuthHeaders = (): Record<string, string> => {
   return headers;
 };
 
+const toInputString = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+};
+
+const trimInput = (value: unknown): string => toInputString(value).trim();
+
 const DS_BULK_IMPORT_TEMPLATES: Record<"ds-text-search" | "ds-feed-itemids-get", string> = {
   "ds-text-search": stringifyTemplate({
     keyWord: "gaming accessories",
@@ -1772,13 +1780,13 @@ export default function AdminSourcingImportPage() {
           request_payload: parsedPayload,
           limit: Number(dsBulkLimit) || 50,
           remote_mode: remoteMode === "ds_wholesale" ? "ds_wholesale" : "ds_product",
-          ship_to_country: dsShipToCountry.trim() || undefined,
-          target_currency: dsTargetCurrency.trim() || undefined,
-          target_language: dsTargetLanguage.trim() || undefined,
+          ship_to_country: trimInput(dsShipToCountry) || undefined,
+          target_currency: trimInput(dsTargetCurrency) || undefined,
+          target_language: trimInput(dsTargetLanguage) || undefined,
           remove_personal_benefit: dsRemovePersonalBenefit,
           auto_create_products: true,
           publish_products: publishStorefrontProduct,
-          usd_to_xof_rate: usdToXofRate.trim() ? Number(usdToXofRate) : undefined,
+          usd_to_xof_rate: trimInput(usdToXofRate) ? Number(trimInput(usdToXofRate)) : undefined,
           grouping_threshold: 3,
           margin_percent: 17,
           target_moq: 1,
@@ -1887,19 +1895,19 @@ export default function AdminSourcingImportPage() {
         },
         body: JSON.stringify({
           supplier_account_id: Number(supplierAccountId),
-          external_product_id: externalProductId.trim(),
-          external_offer_id: externalOfferId.trim() || undefined,
-          title: title.trim(),
-          supplier_name: supplierName.trim() || undefined,
-          source_url: sourceUrl.trim() || undefined,
-          main_image_url: mainImageUrl.trim() || undefined,
+          external_product_id: trimInput(externalProductId),
+          external_offer_id: trimInput(externalOfferId) || undefined,
+          title: trimInput(title),
+          supplier_name: trimInput(supplierName) || undefined,
+          source_url: trimInput(sourceUrl) || undefined,
+          main_image_url: trimInput(mainImageUrl) || undefined,
           category_path_json: remoteProductData?.category_path_json ?? undefined,
           attributes_json: remoteProductData?.attributes_json ?? undefined,
           product_payload_json: remoteProductData?.product_payload_json ?? undefined,
           _storefront_defaults: remoteProductData?._storefront_defaults ?? undefined,
           auto_create_storefront_product: autoCreateStorefrontProduct || undefined,
           publish_storefront_product: publishStorefrontProduct || undefined,
-          usd_to_xof_rate: usdToXofRate.trim() ? Number(usdToXofRate) : undefined,
+          usd_to_xof_rate: trimInput(usdToXofRate) ? Number(trimInput(usdToXofRate)) : undefined,
           skus: parsedSkus,
         }),
       });
@@ -1927,7 +1935,7 @@ export default function AdminSourcingImportPage() {
     setError("");
     setSuccess("");
     setPredictedCategory(null);
-    if (!supplierAccountId || !externalProductId.trim()) {
+    if (!supplierAccountId || !trimInput(externalProductId)) {
       setError("Sélectionne un compte fournisseur et renseigne un external product ID.");
       return;
     }
@@ -1943,12 +1951,12 @@ export default function AdminSourcingImportPage() {
         },
         body: JSON.stringify({
           supplier_account_id: Number(supplierAccountId),
-          external_product_id: externalProductId.trim(),
+          external_product_id: trimInput(externalProductId),
           lookup_type: lookupType,
           remote_mode: remoteMode,
-          ship_to_country: dsShipToCountry.trim() || undefined,
-          target_currency: dsTargetCurrency.trim() || undefined,
-          target_language: dsTargetLanguage.trim() || undefined,
+          ship_to_country: trimInput(dsShipToCountry) || undefined,
+          target_currency: trimInput(dsTargetCurrency) || undefined,
+          target_language: trimInput(dsTargetLanguage) || undefined,
           remove_personal_benefit: dsRemovePersonalBenefit,
         }),
       });
@@ -1958,11 +1966,11 @@ export default function AdminSourcingImportPage() {
       }
       const payload = await res.json();
       const product = payload?.data as RemoteProductPayload | undefined;
-      setExternalOfferId(product?.external_offer_id || "");
-      setTitle(product?.title || "");
-      setSupplierName(product?.supplier_name || "");
-      setSourceUrl(product?.source_url || "");
-      setMainImageUrl(product?.main_image_url || "");
+      setExternalOfferId(toInputString(product?.external_offer_id));
+      setTitle(toInputString(product?.title));
+      setSupplierName(toInputString(product?.supplier_name));
+      setSourceUrl(toInputString(product?.source_url));
+      setMainImageUrl(toInputString(product?.main_image_url));
       setSkusJson(JSON.stringify(product?.skus ?? [], null, 2));
       setRemoteProductData(product ?? null);
       setSuccess("Produit fournisseur chargé depuis l’API et formulaire prérempli.");
@@ -1977,7 +1985,7 @@ export default function AdminSourcingImportPage() {
     setError("");
     setSuccess("");
     setRemoteResults([]);
-    if (!supplierAccountId || (!searchModelNumber.trim() && !searchSkuCode.trim())) {
+    if (!supplierAccountId || (!trimInput(searchModelNumber) && !trimInput(searchSkuCode))) {
       setError("Renseigne un compte fournisseur et au moins un model number ou sku code.");
       return;
     }
@@ -1993,8 +2001,8 @@ export default function AdminSourcingImportPage() {
         },
         body: JSON.stringify({
           supplier_account_id: Number(supplierAccountId),
-          model_number: searchModelNumber.trim() || undefined,
-          sku_code: searchSkuCode.trim() || undefined,
+          model_number: trimInput(searchModelNumber) || undefined,
+          sku_code: trimInput(searchSkuCode) || undefined,
           page_index: 1,
           page_size: 10,
         }),
@@ -2017,7 +2025,7 @@ export default function AdminSourcingImportPage() {
     setError("");
     setSuccess("");
     setPredictedCategory(null);
-    if (!supplierAccountId || !title.trim()) {
+    if (!supplierAccountId || !trimInput(title)) {
       setError("Sélectionne un compte fournisseur et renseigne un titre pour la prédiction de catégorie.");
       return;
     }
@@ -2033,9 +2041,9 @@ export default function AdminSourcingImportPage() {
         },
         body: JSON.stringify({
           supplier_account_id: Number(supplierAccountId),
-          title: title.trim(),
-          description: predictionDescription.trim() || undefined,
-          image: mainImageUrl.trim() || undefined,
+          title: trimInput(title),
+          description: trimInput(predictionDescription) || undefined,
+          image: trimInput(mainImageUrl) || undefined,
         }),
       });
       if (!res.ok) {
@@ -2056,7 +2064,7 @@ export default function AdminSourcingImportPage() {
     setError("");
     setSuccess("");
     setVideoUploadResult(null);
-    if (!supplierAccountId || !videoPath.trim() || !videoName.trim()) {
+    if (!supplierAccountId || !trimInput(videoPath) || !trimInput(videoName)) {
       setError("Renseigne un compte fournisseur, une URL vidéo et un nom de vidéo.");
       return;
     }
@@ -2072,9 +2080,9 @@ export default function AdminSourcingImportPage() {
         },
         body: JSON.stringify({
           supplier_account_id: Number(supplierAccountId),
-          video_path: videoPath.trim(),
-          video_name: videoName.trim(),
-          video_cover: videoCover.trim() || undefined,
+          video_path: trimInput(videoPath),
+          video_name: trimInput(videoName),
+          video_cover: trimInput(videoCover) || undefined,
         }),
       });
       if (!res.ok) {
@@ -2083,8 +2091,8 @@ export default function AdminSourcingImportPage() {
       }
       const payload = await res.json();
       setVideoUploadResult(payload?.data ?? null);
-      setVideoRequestId(payload?.data?.request_id || "");
-      setVideoId(payload?.data?.video_id || "");
+      setVideoRequestId(toInputString(payload?.data?.request_id));
+      setVideoId(toInputString(payload?.data?.video_id));
       setSuccess(`Upload vidéo déclenché côté ${platformLabel}.`);
     } catch (err: any) {
       setError(err?.message ?? "Upload vidéo impossible");
@@ -2096,7 +2104,7 @@ export default function AdminSourcingImportPage() {
   const checkVideoUploadResult = async () => {
     setError("");
     setSuccess("");
-    if (!supplierAccountId || !videoRequestId.trim()) {
+    if (!supplierAccountId || !trimInput(videoRequestId)) {
       setError("Renseigne un compte fournisseur et un req_id vidéo.");
       return;
     }
@@ -2112,7 +2120,7 @@ export default function AdminSourcingImportPage() {
         },
         body: JSON.stringify({
           supplier_account_id: Number(supplierAccountId),
-          req_id: videoRequestId.trim(),
+          req_id: trimInput(videoRequestId),
         }),
       });
       if (!res.ok) {
@@ -2121,7 +2129,7 @@ export default function AdminSourcingImportPage() {
       }
       const payload = await res.json();
       setVideoUploadResult(payload?.data ?? null);
-      setVideoId(payload?.data?.video_id || videoId);
+      setVideoId(toInputString(payload?.data?.video_id) || toInputString(videoId));
       setSuccess("Statut d’upload vidéo récupéré.");
     } catch (err: any) {
       setError(err?.message ?? "Suivi upload vidéo impossible");
@@ -2152,7 +2160,7 @@ export default function AdminSourcingImportPage() {
           supplier_account_id: Number(supplierAccountId),
           current_page: 1,
           page_size: 10,
-          video_id: videoId.trim() || undefined,
+          video_id: trimInput(videoId) || undefined,
         }),
       });
       if (!res.ok) {
@@ -2172,7 +2180,7 @@ export default function AdminSourcingImportPage() {
   const attachVideoMain = async () => {
     setError("");
     setSuccess("");
-    if (!supplierAccountId || !videoId.trim() || !videoProductId.trim()) {
+    if (!supplierAccountId || !trimInput(videoId) || !trimInput(videoProductId)) {
       setError("Renseigne un compte fournisseur, un video_id et un product_id Alibaba.");
       return;
     }
@@ -2188,8 +2196,8 @@ export default function AdminSourcingImportPage() {
         },
         body: JSON.stringify({
           supplier_account_id: Number(supplierAccountId),
-          video_id: videoId.trim(),
-          product_id: videoProductId.trim(),
+          video_id: trimInput(videoId),
+          product_id: trimInput(videoProductId),
         }),
       });
       if (!res.ok) {
@@ -2223,9 +2231,10 @@ export default function AdminSourcingImportPage() {
 
     setRunningBuyerAction(action);
     try {
-      let parsed: unknown = config.raw;
-      if (action !== "query" || config.raw.trim().startsWith("{") || config.raw.trim().startsWith("[")) {
-        parsed = JSON.parse(config.raw);
+      const rawConfig = toInputString(config.raw);
+      let parsed: unknown = rawConfig;
+      if (action !== "query" || trimInput(rawConfig).startsWith("{") || trimInput(rawConfig).startsWith("[")) {
+        parsed = JSON.parse(rawConfig);
       }
 
       const res = await fetch(`${API_BASE}/admin/sourcing/catalog/${config.endpoint}`, {
@@ -2269,9 +2278,10 @@ export default function AdminSourcingImportPage() {
 
     setRunningBuyerEco(true);
     try {
-      let parsedPayload: unknown = buyerEcoPayload;
-      if (buyerEcoPayload.trim().startsWith("{") || buyerEcoPayload.trim().startsWith("[")) {
-        parsedPayload = JSON.parse(buyerEcoPayload);
+      const rawBuyerEcoPayload = toInputString(buyerEcoPayload);
+      let parsedPayload: unknown = rawBuyerEcoPayload;
+      if (trimInput(rawBuyerEcoPayload).startsWith("{") || trimInput(rawBuyerEcoPayload).startsWith("[")) {
+        parsedPayload = JSON.parse(rawBuyerEcoPayload);
       }
 
       const res = await fetch(`${API_BASE}/admin/sourcing/catalog/buyer-eco/${buyerEcoOperation}`, {
@@ -2312,9 +2322,10 @@ export default function AdminSourcingImportPage() {
 
     setRunningIop(true);
     try {
-      let parsedPayload: unknown = iopPayload;
-      if (iopPayload.trim().startsWith("{") || iopPayload.trim().startsWith("[")) {
-        parsedPayload = JSON.parse(iopPayload);
+      const rawIopPayload = toInputString(iopPayload);
+      let parsedPayload: unknown = rawIopPayload;
+      if (trimInput(rawIopPayload).startsWith("{") || trimInput(rawIopPayload).startsWith("[")) {
+        parsedPayload = JSON.parse(rawIopPayload);
       }
 
       const res = await fetch(`${API_BASE}/admin/sourcing/catalog/iop/${iopOperation}`, {
@@ -2348,7 +2359,7 @@ export default function AdminSourcingImportPage() {
     setError("");
     setSuccess("");
     setAttachmentResponse("");
-    if (!supplierAccountId || !attachmentFileName.trim() || !attachmentBase64.trim()) {
+    if (!supplierAccountId || !trimInput(attachmentFileName) || !trimInput(attachmentBase64)) {
       setError("Renseigne un compte fournisseur, un nom de fichier et un contenu base64.");
       return;
     }
@@ -2364,8 +2375,8 @@ export default function AdminSourcingImportPage() {
         },
         body: JSON.stringify({
           supplier_account_id: Number(supplierAccountId),
-          file_name: attachmentFileName.trim(),
-          file_content_base64: attachmentBase64.trim(),
+          file_name: trimInput(attachmentFileName),
+          file_content_base64: trimInput(attachmentBase64),
         }),
       });
       if (!res.ok) {

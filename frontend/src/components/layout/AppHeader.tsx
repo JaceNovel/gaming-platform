@@ -400,7 +400,7 @@ export default function AppHeader() {
   }, [user?.is_premium, user?.premium_level]);
 
   const promoActive =
-    remoteConfig.marketingEnabled && remoteConfig.promoEnabled && remoteConfig.promoBannerText.trim() !== "";
+    remoteConfig.marketingEnabled && remoteConfig.promoEnabled && String(remoteConfig.promoBannerText ?? "").trim() !== "";
   return (
     <>
       <header

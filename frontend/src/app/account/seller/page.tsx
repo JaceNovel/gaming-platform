@@ -2127,7 +2127,7 @@ function WithdrawForm({
 }) {
   const WITHDRAW_FEE = 1000;
   const [amount, setAmount] = useState("");
-  const normalizedDefaultCountry = defaultCountry.trim().toUpperCase() || "CI";
+  const normalizedDefaultCountry = String(defaultCountry ?? "").trim().toUpperCase() || "CI";
   const [country, setCountry] = useState(normalizedDefaultCountry);
   const [method, setMethod] = useState(getDefaultWithdrawMethod(normalizedDefaultCountry));
   const [phone, setPhone] = useState("");

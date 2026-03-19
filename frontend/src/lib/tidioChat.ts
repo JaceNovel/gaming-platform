@@ -1,5 +1,5 @@
 export type TidioChatOpenOptions = {
-  message?: string;
+  message?: unknown;
 };
 
 declare global {
@@ -26,7 +26,7 @@ const tryOpenNow = (options?: TidioChatOpenOptions): boolean => {
     api.show?.();
     api.open?.();
 
-    const msg = options?.message?.trim();
+    const msg = String(options?.message ?? "").trim();
     if (msg) {
       // Best-effort: these methods are not always available.
       api.messageFromVisitor?.(msg);
