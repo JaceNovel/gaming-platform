@@ -18,29 +18,28 @@ export const buildGroupedDeliveryMessages = ({
   remainingValue,
   freeShippingEligible,
 }: GroupedDeliveryMessageInput) => {
-  const resolvedShippingFee = parseGroupedNumber(shippingFee);
   const resolvedRemainingValue = parseGroupedNumber(remainingValue);
-  const unlocked = Boolean(freeShippingEligible) || resolvedShippingFee <= 0;
+  const unlocked = Boolean(freeShippingEligible);
 
   if (unlocked) {
     return {
       short: "Livraison Gratuite et rapide debloquee",
-      detail: "Votre lot est valide. Vous profitez maintenant de la Livraison Gratuite et rapide.",
-      feeLabel: "Livraison offerte",
+      detail: "Votre lot est valide. La quote-part logistique est deja absorbee dans le lot, sans frais de livraison separes.",
+      feeLabel: "Logistique mutualisee incluse",
     };
   }
 
   if (resolvedRemainingValue > 0) {
     return {
       short: `Plus que ${formatGroupedFcfa(resolvedRemainingValue)}`,
-      detail: `Plus que ${formatGroupedFcfa(resolvedRemainingValue)} pour debloquer la Livraison Gratuite et rapide. Votre accessoire rejoint deja le lot groupe en cours.`,
-      feeLabel: `Livraison provisoire: ${formatGroupedFcfa(resolvedShippingFee)}`,
+      detail: `Plus que ${formatGroupedFcfa(resolvedRemainingValue)} pour valider le lot. La logistique est mutualisee entre les commandes du lot et deja integree au prix affiche.`,
+      feeLabel: "Quote-part lot deja integree",
     };
   }
 
   return {
-    short: `Livraison provisoire ${formatGroupedFcfa(resolvedShippingFee)}`,
-    detail: `Votre accessoire rejoint le lot groupe en cours. En attendant la validation du lot, la livraison provisoire reste de ${formatGroupedFcfa(resolvedShippingFee)}.`,
-    feeLabel: `Livraison provisoire: ${formatGroupedFcfa(resolvedShippingFee)}`,
+    short: "Lot en preparation",
+    detail: "Votre accessoire rejoint le lot groupe en cours. Le cout logistique est reparti sur l'ensemble du lot et integre directement au prix produit.",
+    feeLabel: "Quote-part lot deja integree",
   };
 };

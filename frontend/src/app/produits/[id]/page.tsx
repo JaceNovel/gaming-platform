@@ -720,9 +720,7 @@ export default function ProductDetailsPage() {
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/75">
                       <p className="font-semibold text-white">Progression lot: {groupedProgressLabel}</p>
                       <p className="mt-1 text-xs text-white/65">{groupedDeliveryMessage}</p>
-                      {parseNumber(product?.shipping_fee) > 0 ? (
-                        <p className="mt-2 text-xs font-semibold text-amber-200">{groupedFeeLabel}</p>
-                      ) : null}
+                      {groupedFeeLabel ? <p className="mt-2 text-xs font-semibold text-amber-200">{groupedFeeLabel}</p> : null}
                     </div>
                   ) : null}
                 </div>
@@ -821,9 +819,7 @@ export default function ProductDetailsPage() {
                     <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/75">
                       <p className="font-semibold text-white">Progression lot: {groupedProgressLabel}</p>
                       <p className="mt-1">{groupedDeliveryMessage}</p>
-                      {parseNumber(product?.shipping_fee) > 0 ? (
-                        <p className="mt-2 text-xs font-semibold text-amber-200">{groupedFeeLabel}</p>
-                      ) : null}
+                      {groupedFeeLabel ? <p className="mt-2 text-xs font-semibold text-amber-200">{groupedFeeLabel}</p> : null}
                     </div>
                   ) : null}
                   <p className="mt-4 text-base text-white/70">{description}</p>

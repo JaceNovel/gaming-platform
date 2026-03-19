@@ -139,7 +139,7 @@ function addToCart(product: AccessoryProduct) {
   const id = Number(product.id);
   const name = productDisplayName(product);
   const unitPrice = parseNumber(product.computed_final_price ?? product.discount_price ?? product.price);
-  const shippingFee = parseNumber(product.shipping_fee ?? product.computed_transport_unit_fee);
+  const shippingFee = parseNumber(product.shipping_fee);
 
   const existing = cart.find((it: any) => Number(it?.id) === id);
   if (existing) {
@@ -673,8 +673,6 @@ export default function AccessoiresPage() {
                             const img = extractImage(p);
                             const imgSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
                             const price = parseNumber(p.computed_final_price ?? p.discount_price ?? p.price);
-                            const fee = parseNumber(p.shipping_fee ?? p.computed_transport_unit_fee);
-                            const total = price + fee;
 
                             return (
                               <div
@@ -707,17 +705,12 @@ export default function AccessoiresPage() {
                                         <span className="font-semibold text-white">{formatFcfa(price)}</span>
                                       </div>
                                       <div className="flex items-center justify-between text-white/70">
-                                        <span>Livraison</span>
-                                        <span className="font-semibold text-white">{fee > 0 ? formatFcfa(fee) : "Gratuite"}</span>
+                                        <span>Logistique lot</span>
+                                        <span className="font-semibold text-white">Incluse</span>
                                       </div>
                                       <div className="flex items-center justify-between text-white/70">
                                         <span>Progression lot</span>
                                         <span className="font-semibold text-white">{p.grouping_progress_label || "—"}</span>
-                                      </div>
-                                      <div className="h-px bg-white/10 my-1" />
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-white/80 font-semibold">Total</span>
-                                        <span className="text-cyan-200 font-extrabold">{formatFcfa(total)}</span>
                                       </div>
                                     </div>
 

@@ -10,7 +10,7 @@ use Illuminate\Support\Arr;
 
 class AliExpressTransitPricingService
 {
-    public const DEFAULT_MARGIN_PERCENT = 17.0;
+    public const DEFAULT_MARGIN_PERCENT = 10.0;
     public const DIRECT_DELIVERY_COUNTRIES = [];
 
     public function __construct(private GroupedLotService $groupedLotService)

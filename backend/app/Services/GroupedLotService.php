@@ -12,7 +12,6 @@ class GroupedLotService
     public const DEFAULT_BASE_MOQ = 1;
     public const MOQ_BATCH_MULTIPLIER = 10;
     public const MINIMUM_LOT_AMOUNT_XOF = 25000.0;
-    public const FALLBACK_SHIPPING_FEE_XOF = 2500.0;
 
     public function resolveDefaultLink(Product $product): ?ProductSupplierLink
     {
@@ -85,7 +84,7 @@ class GroupedLotService
 
     public function resolveShippingFee(array $projectedMetrics): float
     {
-        return !empty($projectedMetrics['is_ready']) ? 0.0 : self::FALLBACK_SHIPPING_FEE_XOF;
+        return 0.0;
     }
 
     private function buildMetrics(int $requiredQuantity, int $currentQuantity, float $currentAmount): array

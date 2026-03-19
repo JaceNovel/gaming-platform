@@ -299,12 +299,8 @@ function CartScreen() {
     [cartItems],
   );
 
-  const shippingTotal = useMemo(
-    () => cartItems.reduce((sum, item) => sum + (Number(item.shippingFee ?? 0) || 0) * (Number(item.quantity ?? 0) || 0), 0),
-    [cartItems],
-  );
-  const fees = Math.round((productsSubtotal + shippingTotal) * 0.02);
-  const total = productsSubtotal + shippingTotal + fees;
+  const fees = Math.round(productsSubtotal * 0.02);
+  const total = productsSubtotal + fees;
 
   const rewardWalletEligible = useMemo(() => {
     if (!(rewardWalletBalance > 0)) return false;
@@ -701,20 +697,15 @@ function CartScreen() {
                       <div className="flex items-start justify-between gap-3 sm:justify-end sm:shrink-0">
                         <div className="min-w-0 text-left sm:text-right">
                           <p className="text-sm sm:text-base font-bold text-cyan-200 break-words">
-                            {((item.price + (item.shippingFee ?? 0)) * item.quantity).toLocaleString()} FCFA
+                            {(item.price * item.quantity).toLocaleString()} FCFA
                           </p>
-                          {Number(item.shippingFee ?? 0) > 0 ? (
-                            <p className="mt-0.5 text-xs text-white/55 break-words">
-                              Prix: {(item.price * item.quantity).toLocaleString()} • Livraison: {((item.shippingFee ?? 0) * item.quantity).toLocaleString()} FCFA
-                            </p>
-                          ) : null}
                           {item.groupingProgressLabel ? (
                             <p className="mt-1 text-xs text-cyan-100/80 break-words">
                               Lot en cours: {item.groupingProgressLabel}
                               {` • ${buildGroupedDeliveryMessages({
                                 shippingFee: item.shippingFee,
                                 remainingValue: item.groupingRemainingValue,
-                                freeShippingEligible: Number(item.shippingFee ?? 0) <= 0,
+                                freeShippingEligible: Number(item.groupingRemainingValue ?? 0) <= 0,
                               }).detail}`}
                             </p>
                           ) : null}
@@ -745,10 +736,6 @@ function CartScreen() {
                 <div className="flex items-center justify-between">
                   <span>Sous-total</span>
                   <span>{productsSubtotal.toLocaleString()} FCFA</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Livraison</span>
-                  <span>{shippingTotal.toLocaleString()} FCFA</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Frais de paiement</span>

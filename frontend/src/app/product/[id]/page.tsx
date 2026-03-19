@@ -261,7 +261,7 @@ export default function PremiumAccessoryDesktopPage() {
       },
       {
         title: "Signal de valeur",
-        text: "Prix, image hero, reste a debloquer et livraison provisoire sont rendus visibles en un seul regard, sans saturation inutile.",
+        text: "Prix, image hero, reste a debloquer et quote-part lot sont rendus visibles en un seul regard, sans saturation inutile.",
       },
     ],
     [],
@@ -537,7 +537,7 @@ export default function PremiumAccessoryDesktopPage() {
                 <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-100/65">Message client</div>
                 <p className="mt-3 text-sm leading-7 text-cyan-50">{deliveryMessages.detail}</p>
                 <div className="mt-4 flex items-center justify-between text-xs text-cyan-100/75">
-                  <span>Frais actuels</span>
+                  <span>Statut lot</span>
                   <span className="font-semibold">{deliveryMessages.feeLabel}</span>
                 </div>
               </div>
@@ -576,7 +576,7 @@ export default function PremiumAccessoryDesktopPage() {
                   <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Concierge gaming</div>
                 </div>
                 <p className="mt-3 text-sm leading-7 text-white/68">
-                  Si tu veux optimiser plusieurs accessoires ensemble, le groupage continue automatiquement a s'ajuster pour proteger le meilleur cout de livraison possible.
+                  Si tu veux optimiser plusieurs accessoires ensemble, le groupage continue automatiquement a s'ajuster pour proteger le meilleur cout global possible.
                 </p>
               </div>
 
@@ -609,7 +609,7 @@ export default function PremiumAccessoryDesktopPage() {
                 <div className="mt-3 text-2xl font-black text-white">{formatGroupedFcfa(parseGroupedNumber(product.grouping_minimum_value))}</div>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Livraison actuelle</div>
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Quote-part lot</div>
                 <div className="mt-3 text-2xl font-black text-cyan-200">{deliveryMessages.feeLabel}</div>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">

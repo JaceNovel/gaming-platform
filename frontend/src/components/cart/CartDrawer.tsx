@@ -67,9 +67,7 @@ export default function CartDrawer() {
   const subtotal = useMemo(
     () =>
       items.reduce(
-        (sum, item) =>
-          sum +
-          ((Number(item.price ?? 0) || 0) + (Number(item.shippingFee ?? 0) || 0)) * (Number(item.quantity ?? 0) || 0),
+        (sum, item) => sum + (Number(item.price ?? 0) || 0) * (Number(item.quantity ?? 0) || 0),
         0,
       ),
     [items]
@@ -197,9 +195,6 @@ export default function CartDrawer() {
                         <div className="truncate text-sm font-extrabold text-white">{item.name}</div>
                         <div className="mt-0.5 text-xs font-semibold text-white/60">
                           {item.priceLabel ?? `${Number(item.price ?? 0).toLocaleString("fr-FR")} FCFA`}
-                          {Number(item.shippingFee ?? 0) > 0 ? (
-                            <span className="text-white/45"> · Livraison: {Number(item.shippingFee ?? 0).toLocaleString("fr-FR")} FCFA</span>
-                          ) : null}
                         </div>
                       </div>
                       <button
