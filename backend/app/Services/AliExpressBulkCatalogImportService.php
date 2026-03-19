@@ -19,6 +19,7 @@ class AliExpressBulkCatalogImportService
     public function __construct(
         private readonly SupplierApiClient $supplierApiClient,
         private readonly SupplierCatalogImportService $supplierCatalogImportService,
+        private readonly AliExpressTransitPricingService $transitPricingService,
     ) {
     }
 
@@ -1105,6 +1106,7 @@ class AliExpressBulkCatalogImportService
 
     private function syncLocalProduct(SupplierProduct $supplierProduct, array $supplierPayload, array $options, bool $publishProducts): array
     {
+        $supplierPayload = $this->ensureStorefrontDefaults($supplierProduct, $supplierPayload, $options);
         $defaultSku = $this->resolvePreferredSupplierSku($supplierProduct);
         if (!$defaultSku) {
             return ['created' => false, 'updated' => false];
@@ -1120,12 +1122,14 @@ class AliExpressBulkCatalogImportService
         if ($existingLink?->product) {
             $product = $existingLink->product;
             $this->applyProductDefaults($product, $supplierPayload, $options, $publishProducts, false);
+            $this->applyImportedTransitPricing($product, $supplierPayload, $options);
             return ['created' => false, 'updated' => true, 'product' => $product->fresh()];
         }
 
         $existingProduct = $this->findExistingAliExpressStorefrontProduct($supplierProduct);
         if ($existingProduct) {
             $this->applyProductDefaults($existingProduct, $supplierPayload, $options, $publishProducts, false);
+            $this->applyImportedTransitPricing($existingProduct, $supplierPayload, $options);
             return ['created' => false, 'updated' => true, 'product' => $existingProduct->fresh()];
         }
 
@@ -1179,6 +1183,7 @@ class AliExpressBulkCatalogImportService
             ]);
 
             $this->syncProductMainImage($product, $defaults['main_image_url'] ?? null);
+            $this->applyImportedTransitPricing($product, $supplierPayload, $options);
 
             return $product;
         });
@@ -1202,8 +1207,10 @@ class AliExpressBulkCatalogImportService
         $defaults['source_currency'] = $sourceCurrency;
         $defaults['source_unit_price'] = $this->normalizeMoney($sourceUnitPrice);
         $defaults['source_original_price'] = $this->normalizeMoney($sourceOriginalPrice);
-        $defaults['price_fcfa'] = $this->convertToFcfa($defaults['source_unit_price'] ?? 0, $sourceCurrency, (float) ($options['usd_to_xof_rate'] ?? 620));
-        $defaults['old_price_fcfa'] = $this->convertToFcfa($defaults['source_original_price'] ?? ($defaults['source_unit_price'] ?? 0), $sourceCurrency, (float) ($options['usd_to_xof_rate'] ?? 620));
+        $defaults['source_price_fcfa'] = $this->convertToFcfa($defaults['source_unit_price'] ?? 0, $sourceCurrency, (float) ($options['usd_to_xof_rate'] ?? 620));
+        $defaults['source_original_price_fcfa'] = $this->convertToFcfa($defaults['source_original_price'] ?? ($defaults['source_unit_price'] ?? 0), $sourceCurrency, (float) ($options['usd_to_xof_rate'] ?? 620));
+        $defaults['price_fcfa'] = $defaults['source_price_fcfa'];
+        $defaults['old_price_fcfa'] = $defaults['source_original_price_fcfa'];
         $defaults['main_image_url'] = $defaults['main_image_url'] ?? $supplierProduct->main_image_url;
         $defaults['source_url'] = $defaults['source_url'] ?? $supplierProduct->source_url;
         $defaults['estimated_weight_grams'] = (int) ($defaults['estimated_weight_grams'] ?? $defaultSku?->weight_grams ?? $options['default_weight_grams'] ?? 0);
@@ -1247,6 +1254,8 @@ class AliExpressBulkCatalogImportService
         $details['source_url'] = $defaults['source_url'] ?? ($details['source_url'] ?? null);
         $details['source_currency'] = $defaults['source_currency'] ?? ($details['source_currency'] ?? null);
         $details['source_unit_price'] = $defaults['source_unit_price'] ?? ($details['source_unit_price'] ?? null);
+        $details['source_price_fcfa'] = $defaults['source_price_fcfa'] ?? ($details['source_price_fcfa'] ?? null);
+        $details['source_original_price_fcfa'] = $defaults['source_original_price_fcfa'] ?? ($details['source_original_price_fcfa'] ?? null);
         $details['import_source'] = $options['import_source'] ?? 'aliexpress_affiliate';
         $details['supplier_product_id'] = $supplierProductId ?? ($details['supplier_product_id'] ?? null);
         $details['supplier_external_product_id'] = $supplierExternalProductId !== '' ? $supplierExternalProductId : ($details['supplier_external_product_id'] ?? null);
@@ -1254,6 +1263,54 @@ class AliExpressBulkCatalogImportService
 
         $product->update($updates);
         $this->syncProductMainImage($product, $defaults['main_image_url'] ?? null);
+    }
+
+    private function applyImportedTransitPricing(Product $product, array $supplierPayload, array $options): void
+    {
+        if ((string) $product->preferred_supplier_platform !== 'aliexpress' || (string) $product->category !== 'accessory') {
+            return;
+        }
+
+        $defaults = (array) ($supplierPayload['_storefront_defaults'] ?? []);
+        $details = is_array($product->details) ? $product->details : [];
+        $sourcePriceFcfa = (float) ($defaults['source_price_fcfa'] ?? $details['source_price_fcfa'] ?? 0);
+        if ($sourcePriceFcfa <= 0) {
+            return;
+        }
+
+        $details['source_price_fcfa'] = $sourcePriceFcfa;
+        $details['source_original_price_fcfa'] = (float) ($defaults['source_original_price_fcfa'] ?? $details['source_original_price_fcfa'] ?? $sourcePriceFcfa);
+        $product->forceFill([
+            'details' => $details,
+            'supplier_margin_value' => (float) ($options['margin_percent'] ?? $product->supplier_margin_value ?? 17),
+            'estimated_weight_grams' => (int) ($defaults['estimated_weight_grams'] ?? $product->estimated_weight_grams ?? 0),
+            'estimated_cbm' => (float) ($defaults['estimated_cbm'] ?? $product->estimated_cbm ?? 0),
+        ])->save();
+
+        $defaultCountryCode = strtoupper(trim((string) ($options['default_country_code'] ?? $options['ship_to_country'] ?? 'TG'))) ?: 'TG';
+
+        try {
+            $country = $this->transitPricingService->resolveCountry($defaultCountryCode);
+            $pricing = $this->transitPricingService->computeProductPricing($product->fresh(), $country);
+        } catch (\Throwable) {
+            return;
+        }
+
+        $finalPrice = (float) ($pricing['final_price'] ?? 0);
+        $transportFee = (float) ($pricing['transport_unit_fee'] ?? 0);
+
+        $product->forceFill([
+            'price' => $finalPrice,
+            'price_fcfa' => (int) round($finalPrice),
+            'shipping_fee' => $transportFee,
+            'supplier_shipping_fee' => $transportFee,
+            'old_price' => (($details['source_original_price_fcfa'] ?? 0) > $sourcePriceFcfa) ? (float) ($details['source_original_price_fcfa'] ?? 0) : $product->old_price,
+            'details' => array_merge($details, [
+                'default_storefront_country_code' => $defaultCountryCode,
+                'default_transport_fee_fcfa' => $transportFee,
+                'default_final_price_fcfa' => $finalPrice,
+            ]),
+        ])->save();
     }
 
     private function resolvePreferredSupplierSku(SupplierProduct $supplierProduct): ?SupplierProductSku

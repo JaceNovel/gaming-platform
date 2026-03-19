@@ -183,7 +183,8 @@ class AliExpressTransitPricingService
 
     private function resolveSourcePrice(Product $product): float
     {
-        $price = (float) ($product->discount_price ?: $product->price ?: $product->price_fcfa ?: 0);
+        $details = is_array($product->details) ? $product->details : [];
+        $price = (float) ($details['source_price_fcfa'] ?? $product->discount_price ?: $product->price ?: $product->price_fcfa ?: 0);
         return max(0, $price);
     }
 
