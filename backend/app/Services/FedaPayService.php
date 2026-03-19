@@ -471,6 +471,41 @@ class FedaPayService
         return $this->getJson($this->endpoint('/payouts/search'), $query);
     }
 
+    public function findPayout(array $criteria = []): ?array
+    {
+        if ($this->secretKey === '') {
+            throw new \RuntimeException('FedaPay not configured (missing: FEDAPAY_SECRET_KEY)');
+        }
+
+        $queries = [];
+
+        $reference = trim((string) ($criteria['reference'] ?? ''));
+        if ($reference !== '') {
+            $queries[] = ['reference' => $reference];
+            $queries[] = ['q' => $reference];
+        }
+
+        $merchantReference = trim((string) ($criteria['merchant_reference'] ?? ''));
+        if ($merchantReference !== '') {
+            $queries[] = ['merchant_reference' => $merchantReference];
+            $queries[] = ['q' => $merchantReference];
+        }
+
+        if ($queries === []) {
+            return null;
+        }
+
+        foreach ($queries as $query) {
+            $payload = $this->searchPayouts($query);
+            $match = $this->matchPayoutFromSearchResults($payload, $reference, $merchantReference);
+            if ($match !== null) {
+                return $match;
+            }
+        }
+
+        return null;
+    }
+
     public function startPayout(array $items): array
     {
         if ($this->secretKey === '') {
@@ -566,6 +601,61 @@ class FedaPayService
         }
 
         return 'processing';
+    }
+
+    private function matchPayoutFromSearchResults(array $payload, string $reference, string $merchantReference): ?array
+    {
+        $candidates = $this->extractPayoutSearchRows($payload);
+
+        foreach ($candidates as $candidate) {
+            $candidateReference = trim((string) (
+                Arr::get($candidate, 'reference')
+                ?? Arr::get($candidate, 'data.reference')
+                ?? Arr::get($candidate, 'payout.reference')
+                ?? ''
+            ));
+            $candidateMerchantReference = trim((string) (
+                Arr::get($candidate, 'merchant_reference')
+                ?? Arr::get($candidate, 'data.merchant_reference')
+                ?? Arr::get($candidate, 'payout.merchant_reference')
+                ?? ''
+            ));
+
+            if ($reference !== '' && $candidateReference !== '' && $candidateReference === $reference) {
+                return $candidate;
+            }
+
+            if ($merchantReference !== '' && $candidateMerchantReference !== '' && $candidateMerchantReference === $merchantReference) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function extractPayoutSearchRows(array $payload): array
+    {
+        if (array_is_list($payload)) {
+            return array_values(array_filter($payload, static fn ($row) => is_array($row)));
+        }
+
+        $containers = [
+            Arr::get($payload, 'data'),
+            Arr::get($payload, 'items'),
+            Arr::get($payload, 'payouts'),
+            Arr::get($payload, 'results'),
+        ];
+
+        foreach ($containers as $container) {
+            if (is_array($container) && array_is_list($container)) {
+                return array_values(array_filter($container, static fn ($row) => is_array($row)));
+            }
+        }
+
+        return [$payload];
     }
 
     public function payoutSupport(): array

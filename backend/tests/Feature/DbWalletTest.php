@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessPayout;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
@@ -366,6 +367,75 @@ class DbWalletTest extends TestCase
             'type' => 'debit',
             'amount' => 6000,
             'status' => 'pending',
+        ]);
+    }
+
+    #[Test]
+    public function payout_sync_recovers_provider_id_from_fedapay_search_before_retrieve(): void
+    {
+        config()->set('fedapay.secret_key', 'test-secret');
+
+        $user = User::factory()->create([
+            'name' => 'SYNC PAYOUT USER',
+            'phone' => '22507070707',
+            'country_code' => 'CI',
+        ]);
+
+        $wallet = WalletAccount::create([
+            'user_id' => $user->id,
+            'wallet_id' => 'DBW-PAYOUT-SYNC-0001',
+            'currency' => 'FCFA',
+            'balance' => 4000,
+            'bonus_balance' => 0,
+            'reward_balance' => 0,
+            'status' => 'active',
+        ]);
+
+        $payout = Payout::create([
+            'user_id' => $user->id,
+            'wallet_account_id' => $wallet->id,
+            'amount' => 3000,
+            'fee' => 1000,
+            'total_debit' => 4000,
+            'currency' => 'FCFA',
+            'country' => 'CI',
+            'phone' => '22507070707',
+            'provider' => 'FEDAPAY',
+            'provider_ref' => 'FDP-PAYOUT-REF',
+            'status' => 'processing',
+            'idempotency_key' => 'PAYOUT-SYNC-0001',
+        ]);
+
+        $mockFedaPay = Mockery::mock(FedaPayService::class)->makePartial();
+        $mockFedaPay->shouldReceive('findPayout')->once()->andReturn([
+            'id' => 987654,
+            'reference' => 'FDP-PAYOUT-REF',
+            'merchant_reference' => 'PAYOUT-SYNC-0001',
+            'status' => 'processing',
+        ]);
+        $mockFedaPay->shouldReceive('retrievePayout')->once()->with(987654)->andReturn([
+            'id' => 987654,
+            'reference' => 'FDP-PAYOUT-REF',
+            'merchant_reference' => 'PAYOUT-SYNC-0001',
+            'status' => 'processing',
+        ]);
+        $mockFedaPay->shouldReceive('createPayout')->never();
+        $mockFedaPay->shouldReceive('startPayout')->never();
+
+        $job = new ProcessPayout($payout->id);
+        $job->handle(
+            $mockFedaPay,
+            Mockery::mock(\App\Services\WalletService::class)->shouldIgnoreMissing(),
+            Mockery::mock(\App\Services\WalletPayoutNotificationService::class)->shouldIgnoreMissing(),
+        );
+
+        $payout->refresh();
+
+        $this->assertSame('processing', $payout->status);
+        $this->assertSame('FDP-PAYOUT-REF', $payout->provider_ref);
+        $this->assertDatabaseHas('payout_events', [
+            'payout_id' => $payout->id,
+            'status' => 'processing',
         ]);
     }
 

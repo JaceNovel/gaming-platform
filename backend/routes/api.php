@@ -233,6 +233,9 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
         // Orders
         Route::post('orders', [OrderController::class, 'store']);
 
+        // Wallet
+        Route::post('/wallet/withdraw', [WalletController::class, 'requestWithdraw']);
+
         // Payments
         Route::post('/payments/cinetpay/init', [PaymentController::class, 'init'])->name('api.payments.cinetpay.init');
         Route::post('/payments/fedapay/init', [PaymentController::class, 'initFedapay'])->name('api.payments.fedapay.init');

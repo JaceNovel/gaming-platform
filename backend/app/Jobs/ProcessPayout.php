@@ -52,6 +52,8 @@ class ProcessPayout implements ShouldQueue
 
         try {
             $providerPayoutId = $this->resolveProviderPayoutId($payout, $fedaPayService);
+            $latestProviderPayload = null;
+            $createdDuringThisRun = false;
 
             if (!$providerPayoutId) {
                 $created = $fedaPayService->createPayout($payout->user, [
@@ -76,6 +78,7 @@ class ProcessPayout implements ShouldQueue
 
                 $providerPayoutId = $fedaPayService->extractPayoutId($created);
                 $providerReference = $fedaPayService->extractPayoutReference($created);
+                $createdDuringThisRun = true;
 
                 DB::transaction(function () use ($payout, $created, $providerReference) {
                     $locked = Payout::query()->whereKey($payout->id)->lockForUpdate()->firstOrFail();
@@ -95,6 +98,8 @@ class ProcessPayout implements ShouldQueue
                     $this->applyProviderState($payout->id, $created, $fedaPayService, $walletService, $notifier);
                     $payout = Payout::with(['user', 'events'])->find($this->payoutId);
                     $providerPayoutId = $payout ? $this->resolveProviderPayoutId($payout, $fedaPayService) : $providerPayoutId;
+                } else {
+                    $latestProviderPayload = $created;
                 }
             }
 
@@ -102,30 +107,49 @@ class ProcessPayout implements ShouldQueue
                 $providerPayoutId
                 && $payout
                 && !in_array((string) $payout->status, ['sent', 'failed', 'cancelled'], true)
-                && !$this->hasStartBeenRequested($payout)
             ) {
-                $phoneDigits = preg_replace('/\D+/', '', (string) $payout->phone) ?? '';
-                $started = $fedaPayService->startPayout([
-                    [
-                        'id' => $providerPayoutId,
-                        'phone_number' => [
-                            'number' => $phoneDigits !== '' ? $phoneDigits : (string) $payout->phone,
-                            'country' => strtolower((string) $payout->country),
-                        ],
-                    ],
-                ]);
+                if (!$createdDuringThisRun) {
+                    $latestProviderPayload = $fedaPayService->retrievePayout($providerPayoutId);
+                    $this->applyProviderState($payout->id, $latestProviderPayload, $fedaPayService, $walletService, $notifier);
+                    $payout = Payout::with(['user', 'events'])->find($this->payoutId);
+                }
 
-                DB::transaction(function () use ($payout, $started) {
-                    $locked = Payout::query()->whereKey($payout->id)->lockForUpdate()->firstOrFail();
-                    $locked->events()->create([
-                        'provider_payload' => $started,
-                        'status' => 'start_requested',
+                if (
+                    $payout
+                    && !in_array((string) $payout->status, ['sent', 'failed', 'cancelled'], true)
+                    && $this->shouldStartPayout($latestProviderPayload)
+                    && !$this->hasStartBeenRequested($payout)
+                ) {
+                    $phoneDigits = preg_replace('/\D+/', '', (string) $payout->phone) ?? '';
+                    $started = $fedaPayService->startPayout([
+                        [
+                            'id' => $providerPayoutId,
+                            'phone_number' => [
+                                'number' => $phoneDigits !== '' ? $phoneDigits : (string) $payout->phone,
+                                'country' => strtolower((string) $payout->country),
+                            ],
+                        ],
                     ]);
-                });
+
+                    DB::transaction(function () use ($payout, $started) {
+                        $locked = Payout::query()->whereKey($payout->id)->lockForUpdate()->firstOrFail();
+                        $locked->events()->create([
+                            'provider_payload' => $started,
+                            'status' => 'start_requested',
+                        ]);
+                    });
+
+                    $latestProviderPayload = is_array($started) && array_is_list($started)
+                        ? (is_array($started[0] ?? null) ? $started[0] : $started)
+                        : $started;
+                }
             }
 
-            if ($providerPayoutId) {
-                $retrieved = $fedaPayService->retrievePayout($providerPayoutId);
+            if ($providerPayoutId && $payout) {
+                $retrieved = $latestProviderPayload;
+                if ($createdDuringThisRun || !$retrieved || $this->shouldRefreshAfterStart($latestProviderPayload)) {
+                    $retrieved = $fedaPayService->retrievePayout($providerPayoutId);
+                }
                 $this->applyProviderState($payout->id, $retrieved, $fedaPayService, $walletService, $notifier);
             }
         } catch (\Throwable $e) {
@@ -183,7 +207,49 @@ class ProcessPayout implements ShouldQueue
             return (int) $payout->provider_ref;
         }
 
+        $providerReference = trim((string) ($payout->provider_ref ?? ''));
+        if ($providerReference === '' && $payloads->isEmpty()) {
+            return null;
+        }
+
+        $matched = $fedaPayService->findPayout([
+            'reference' => $providerReference,
+            'merchant_reference' => (string) ($payout->idempotency_key ?? ''),
+        ]);
+
+        if (is_array($matched)) {
+            return $fedaPayService->extractPayoutId($matched);
+        }
+
         return null;
+    }
+
+    private function shouldStartPayout(?array $providerPayload): bool
+    {
+        if (!$providerPayload) {
+            return true;
+        }
+
+        return $this->rawProviderStatus($providerPayload) === 'pending';
+    }
+
+    private function shouldRefreshAfterStart(?array $providerPayload): bool
+    {
+        if (!$providerPayload) {
+            return true;
+        }
+
+        return $this->rawProviderStatus($providerPayload) === 'pending';
+    }
+
+    private function rawProviderStatus(array $providerPayload): string
+    {
+        return strtolower(trim((string) (
+            Arr::get($providerPayload, 'status')
+            ?? Arr::get($providerPayload, 'data.status')
+            ?? Arr::get($providerPayload, 'payout.status')
+            ?? (is_array($providerPayload) && array_is_list($providerPayload) ? Arr::get($providerPayload, '0.status') : '')
+        )));
     }
 
     private function hasStartBeenRequested(Payout $payout): bool
