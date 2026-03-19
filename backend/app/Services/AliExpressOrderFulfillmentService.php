@@ -497,6 +497,8 @@ class AliExpressOrderFulfillmentService
             throw new \RuntimeException($freightFailureMessage);
         }
 
+        $payload = $this->applyResolvedDsLogisticsServicesToPayload($payload, $freightCheck);
+
         try {
             $response = $this->supplierApiClient->iopOperation($account, 'ds-order-create', $payload);
         } catch (\RuntimeException $exception) {
@@ -1276,7 +1278,8 @@ class AliExpressOrderFulfillmentService
         $normalized = $this->normalizeDsLogisticsServiceName($value);
 
         return match ($normalized) {
-            'aliexpress selection standard', 'aliexpress standard shipping', 'expedition standard aliexpress', 'aliexpress standard' => 'Expedition standard AliExpress',
+            'aliexpress selection standard' => 'AliExpress Selection Standard',
+            'aliexpress standard shipping', 'expedition standard aliexpress', 'aliexpress standard' => 'Expedition standard AliExpress',
             'aliexpress premium shipping', 'expedition premium aliexpress', 'aliexpress premium' => 'AliExpress Premium shipping',
             default => $value,
         };
@@ -1296,10 +1299,14 @@ class AliExpressOrderFulfillmentService
             }
         }
 
-        $requestedNormalized = $this->normalizeDsLogisticsServiceName($requested);
+        $requestedAlias = $this->resolveDsLogisticsServiceAlias($requested);
+        if ($requestedAlias === null) {
+            return null;
+        }
+
         foreach ($availableServices as $availableService) {
             $available = $this->nullableString($availableService);
-            if ($available !== null && $this->normalizeDsLogisticsServiceName($available) === $requestedNormalized) {
+            if ($available !== null && $this->resolveDsLogisticsServiceAlias($available) === $requestedAlias) {
                 return $available;
             }
         }
@@ -1348,6 +1355,45 @@ class AliExpressOrderFulfillmentService
                 $supplierSku->forceFill(['sku_payload_json' => $payload])->save();
             }
         }
+    }
+
+    private function applyResolvedDsLogisticsServicesToPayload(array $payload, array $freightCheck): array
+    {
+        $request = is_array($payload['param_place_order_request4_open_api_d_t_o'] ?? null)
+            ? $payload['param_place_order_request4_open_api_d_t_o']
+            : [];
+        $items = array_values(array_filter(
+            is_array($request['product_items'] ?? null) ? $request['product_items'] : [],
+            static fn ($item) => is_array($item)
+        ));
+
+        foreach ($items as $index => $item) {
+            $resolvedService = $this->nullableString(data_get($freightCheck, 'items.' . $index . '.resolved_logistics_service_name'));
+            if ($resolvedService === null) {
+                continue;
+            }
+
+            $items[$index]['logistics_service_name'] = $resolvedService;
+        }
+
+        $request['product_items'] = $items;
+        $payload['param_place_order_request4_open_api_d_t_o'] = $request;
+
+        return $payload;
+    }
+
+    private function resolveDsLogisticsServiceAlias(?string $serviceName): ?string
+    {
+        $value = $this->nullableString($serviceName);
+        if ($value === null) {
+            return null;
+        }
+
+        return match ($this->normalizeDsLogisticsServiceName($value)) {
+            'aliexpress selection standard', 'aliexpress standard shipping', 'expedition standard aliexpress', 'aliexpress standard' => 'aliexpress-standard',
+            'aliexpress premium shipping', 'expedition premium aliexpress', 'aliexpress premium' => 'aliexpress-premium',
+            default => $this->normalizeDsLogisticsServiceName($value),
+        };
     }
 
     private function normalizeDsLogisticsServiceName(string $value): string
