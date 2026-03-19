@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
 
@@ -116,6 +117,9 @@ export default function AdminSourcingDashboardPage() {
               <h2 className="text-base font-semibold text-slate-900">Logistique groupage</h2>
               <p className="text-sm text-slate-500">Suivi des commandes AliExpress en attente de groupage, libérées ou déjà documentées.</p>
             </div>
+            <Link href="/admin/sourcing/grouped-ready?platform=aliexpress" className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+              Voir les groupés prêts
+            </Link>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {LOGISTICS_KPI_LABELS.map((item) => (
                 <div key={item.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ProcurementBatch;
 use App\Models\ProcurementDemand;
 use App\Models\Order;
+use App\Services\AliExpressProcurementBatchService;
 use App\Services\ProcurementBatchService;
 use Illuminate\Http\Request;
 
@@ -191,11 +192,13 @@ class AdminProcurementController extends Controller
     {
         $query = ProcurementDemand::query()
             ->with([
+                'order:id,reference,user_id,supplier_fulfillment_status,grouping_released_at',
                 'order.user:id,name,email',
                 'orderItem:id,order_id,product_id,quantity,delivery_type,delivery_status',
-                'product:id,name,title,stock',
-                'productSupplierLink:id,product_id,supplier_product_sku_id,is_default,warehouse_destination_label',
+                'product:id,name,title,stock,grouping_threshold',
+                'productSupplierLink:id,product_id,supplier_product_sku_id,is_default,warehouse_destination_label,target_moq',
                 'supplierProductSku.supplierProduct.supplierAccount:id,platform,label',
+                'supplierProductSku:id,supplier_product_id,external_sku_id,sku_label,moq',
                 'supplierProductSku.supplierProduct:id,supplier_account_id,title,external_product_id',
             ])
             ->latest('id');
@@ -210,8 +213,26 @@ class AdminProcurementController extends Controller
             $query->where('status', $request->query('status'));
         }
 
+        $rows = $query->limit(300)->get();
+        $pendingBySku = $rows
+            ->where('status', 'pending')
+            ->groupBy('supplier_product_sku_id')
+            ->map(static fn ($items) => (int) $items->sum('quantity_to_procure'));
+
         return response()->json([
-            'data' => $query->limit(300)->get(),
+            'data' => $rows->map(function (ProcurementDemand $demand) use ($pendingBySku) {
+                $requiredMoq = max(1, (int) ($demand->productSupplierLink?->target_moq ?? $demand->supplierProductSku?->moq ?? 1));
+                $pendingQuantity = (int) ($pendingBySku->get($demand->supplier_product_sku_id) ?? 0);
+
+                return array_merge($demand->toArray(), [
+                    'required_moq' => $requiredMoq,
+                    'pending_quantity_for_moq' => $pendingQuantity,
+                    'missing_to_moq' => max(0, $requiredMoq - $pendingQuantity),
+                    'grouping_threshold' => max(1, (int) ($demand->product?->grouping_threshold ?? 1)),
+                    'grouping_ready' => !((string) ($demand->order?->supplier_fulfillment_status ?? '') === Order::SUPPLIER_STATUS_GROUPING
+                        && $demand->order?->grouping_released_at === null),
+                ]);
+            })->values(),
         ]);
     }
 
@@ -257,6 +278,15 @@ class AdminProcurementController extends Controller
         ], 201);
     }
 
+    public function groupedReady(Request $request, ProcurementBatchService $batchService)
+    {
+        $platform = trim((string) $request->query('platform')) ?: 'aliexpress';
+
+        return response()->json([
+            'data' => $batchService->groupedReadySummary($platform),
+        ]);
+    }
+
     public function approveBatch(ProcurementBatch $procurementBatch, Request $request)
     {
         $procurementBatch->update([
@@ -282,5 +312,46 @@ class AdminProcurementController extends Controller
         ]);
 
         return response()->json(['data' => $procurementBatch->fresh(['supplierAccount', 'items.product'])]);
+    }
+
+    public function aliExpressBatchDropshippingDraft(ProcurementBatch $procurementBatch, AliExpressProcurementBatchService $service)
+    {
+        try {
+            $draft = $service->buildDropshippingOrderDraft($procurementBatch);
+            $freightCheck = $service->previewDropshippingFreightCheck($procurementBatch, $draft);
+
+            return response()->json([
+                'data' => [
+                    'draft' => $draft,
+                    'freight_check' => $freightCheck,
+                ],
+                'batch' => $procurementBatch->fresh(['supplierAccount', 'items.product', 'items.supplierProductSku.supplierProduct']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function aliExpressCreateBatchDropshippingOrder(Request $request, ProcurementBatch $procurementBatch, AliExpressProcurementBatchService $service)
+    {
+        try {
+            $data = $request->validate([
+                'ds_extend_request' => 'nullable|array',
+                'param_place_order_request4_open_api_d_t_o' => 'required|array',
+            ]);
+
+            $result = $service->createDropshippingOrder($procurementBatch, $data);
+
+            return response()->json([
+                'data' => $result,
+                'batch' => $procurementBatch->fresh(['supplierAccount', 'items.product', 'items.supplierProductSku.supplierProduct']),
+            ]);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
     }
 }

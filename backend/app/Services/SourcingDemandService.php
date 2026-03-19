@@ -11,7 +11,10 @@ use Illuminate\Support\Facades\DB;
 
 class SourcingDemandService
 {
-    public function __construct(private AliExpressTransitPricingService $transitPricing)
+    public function __construct(
+        private AliExpressTransitPricingService $transitPricing,
+        private ProcurementBatchService $procurementBatchService,
+    )
     {
     }
 
@@ -20,8 +23,10 @@ class SourcingDemandService
         $order->loadMissing(['orderItems.product.productSupplierLinks.supplierProductSku.supplierProduct.supplierAccount']);
 
         $createdOrUpdated = [];
+        $groupingProductIds = [];
+        $countryCode = '';
 
-        DB::transaction(function () use ($order) {
+        DB::transaction(function () use ($order, &$groupingProductIds, &$countryCode) {
             $meta = $order->meta ?? [];
             if (!is_array($meta)) {
                 $meta = [];
@@ -31,6 +36,7 @@ class SourcingDemandService
                 $countryCode = (string) ($order->supplier_country_code ?: $meta['destination_country_code'] ?? '');
                 if ($countryCode !== '') {
                     $this->transitPricing->assignOrderTransit($order, $countryCode);
+                    $countryCode = (string) ($order->fresh()?->supplier_country_code ?: $countryCode);
                 }
 
                 if ($countryCode !== '' && $this->transitPricing->isDirectDeliveryCountry($countryCode)) {
@@ -42,6 +48,7 @@ class SourcingDemandService
                 foreach ($order->orderItems as $item) {
                     if ($this->requiresSourcing($item) && $item->product_id) {
                         $item->product()->increment('grouping_current_count', max(1, (int) ($item->quantity ?? 1)));
+                        $groupingProductIds[] = (int) $item->product_id;
                         $this->releaseGroupingIfReady($item->product_id, (string) $order->supplier_country_code);
                     }
                 }
@@ -105,6 +112,13 @@ class SourcingDemandService
             );
 
             $createdOrUpdated[] = $demand->id;
+        }
+
+        if ($countryCode !== '' && $groupingProductIds !== []) {
+            $this->procurementBatchService->autoCreateReadyDraftBatches(
+                array_values(array_unique(array_filter($groupingProductIds))),
+                $countryCode,
+            );
         }
 
         return $createdOrUpdated;

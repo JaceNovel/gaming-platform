@@ -181,6 +181,7 @@ const MENU_ITEMS: MenuItem[] = [
       { label: "Adresses reception", href: "/admin/sourcing/receiving-addresses?platform=aliexpress", permissions: ["sourcing.view"] },
       { label: "Mappings produit-source", href: "/admin/sourcing/mappings?platform=aliexpress", permissions: ["sourcing.view"] },
       { label: "Demandes", href: "/admin/sourcing/demands?platform=aliexpress", permissions: ["sourcing.view"] },
+      { label: "Groupés prêts", href: "/admin/sourcing/grouped-ready?platform=aliexpress", permissions: ["sourcing.view"] },
       { label: "Lots d’achat", href: "/admin/sourcing/batches?platform=aliexpress", permissions: ["sourcing.view"] },
       { label: "Réceptions", href: "/admin/sourcing/inbound?platform=aliexpress", permissions: ["sourcing.view"] },
     ],

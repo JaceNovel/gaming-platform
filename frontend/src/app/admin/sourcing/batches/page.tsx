@@ -13,8 +13,45 @@ type Batch = {
   warehouse_destination_label?: string | null;
   supplier_order_reference?: string | null;
   notes?: string | null;
+  supplier_order_payload_json?: {
+    ds_draft?: {
+      ds_extend_request?: Record<string, unknown> | null;
+      param_place_order_request4_open_api_d_t_o?: Record<string, unknown> | null;
+    } | null;
+    ds_freight_check?: DsFreightCheckState | null;
+    ds_order_create?: DsOrderCreateState | null;
+    latest_request_payload_json?: Record<string, unknown> | null;
+    latest_response_payload_json?: Record<string, unknown> | null;
+  } | null;
   supplier_account?: { label?: string | null; platform?: string | null } | null;
   items?: Array<{ id: number; quantity_ordered?: number | null; product?: { title?: string | null; name?: string | null } | null; supplier_product_sku?: { supplier_product?: { title?: string | null } | null } | null }>;
+};
+
+type DsFreightCheckItem = {
+  product_name?: string | null;
+  product_id?: string | null;
+  sku_id?: string | null;
+  requested_logistics_service_name?: string | null;
+  resolved_logistics_service_name?: string | null;
+  available_services?: string[] | null;
+  success?: boolean | null;
+  is_valid?: boolean | null;
+  error_message?: string | null;
+};
+
+type DsFreightCheckState = {
+  checked_at?: string | null;
+  items?: DsFreightCheckItem[] | null;
+};
+
+type DsOrderCreateState = {
+  success?: boolean | null;
+  order_list?: string[] | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  remote_error_message?: string | null;
+  request_id?: string | null;
+  created_at?: string | null;
 };
 
 const getAuthHeaders = (): Record<string, string> => {
@@ -41,6 +78,10 @@ export default function AdminSourcingBatchesPage() {
   const [trackingUrl, setTrackingUrl] = useState("");
   const [referenceDrafts, setReferenceDrafts] = useState<Record<number, string>>({});
   const [notesDrafts, setNotesDrafts] = useState<Record<number, string>>({});
+  const [dsExtendDrafts, setDsExtendDrafts] = useState<Record<number, string>>({});
+  const [dsPlaceDrafts, setDsPlaceDrafts] = useState<Record<number, string>>({});
+  const [dsFreightChecks, setDsFreightChecks] = useState<Record<number, DsFreightCheckState | null>>({});
+  const [batchActionLoading, setBatchActionLoading] = useState<Record<number, string | null>>({});
 
   const loadBatches = useCallback(async () => {
     setLoading(true);
@@ -147,6 +188,90 @@ export default function AdminSourcingBatchesPage() {
     }
   };
 
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString("fr-FR");
+  };
+
+  const prettyJson = (value: unknown) => {
+    if (!value) return "{}";
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return "{}";
+    }
+  };
+
+  const getDsExtendValue = (batch: Batch) => dsExtendDrafts[batch.id] ?? prettyJson(batch.supplier_order_payload_json?.ds_draft?.ds_extend_request ?? {});
+  const getDsPlaceValue = (batch: Batch) => dsPlaceDrafts[batch.id] ?? prettyJson(batch.supplier_order_payload_json?.ds_draft?.param_place_order_request4_open_api_d_t_o ?? {});
+  const getFreightCheck = (batch: Batch) => dsFreightChecks[batch.id] ?? batch.supplier_order_payload_json?.ds_freight_check ?? null;
+
+  const loadBatchDsDraft = async (batchIdValue: number) => {
+    setError("");
+    setSuccess("");
+    setBatchActionLoading((current) => ({ ...current, [batchIdValue]: "draft" }));
+    try {
+      const res = await fetch(`${API_BASE}/admin/sourcing/batches/${batchIdValue}/aliexpress/ds-draft`, {
+        headers: { Accept: "application/json", ...getAuthHeaders() },
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.message ?? "Préparation du draft DS groupé impossible");
+      }
+
+      const draft = payload?.data?.draft ?? {};
+      setDsExtendDrafts((current) => ({ ...current, [batchIdValue]: prettyJson(draft?.ds_extend_request ?? {}) }));
+      setDsPlaceDrafts((current) => ({ ...current, [batchIdValue]: prettyJson(draft?.param_place_order_request4_open_api_d_t_o ?? {}) }));
+      setDsFreightChecks((current) => ({ ...current, [batchIdValue]: (payload?.data?.freight_check ?? null) as DsFreightCheckState | null }));
+      setSuccess("Draft DS groupé chargé.");
+      await loadBatches();
+    } catch (err: any) {
+      setError(err?.message ?? "Préparation du draft DS groupé impossible");
+    } finally {
+      setBatchActionLoading((current) => ({ ...current, [batchIdValue]: null }));
+    }
+  };
+
+  const createBatchDsOrder = async (batch: Batch) => {
+    setError("");
+    setSuccess("");
+    setBatchActionLoading((current) => ({ ...current, [batch.id]: "create-order" }));
+    try {
+      const dsExtendRequest = JSON.parse(getDsExtendValue(batch) || "{}");
+      const placeOrderRequest = JSON.parse(getDsPlaceValue(batch) || "{}");
+
+      const res = await fetch(`${API_BASE}/admin/sourcing/batches/${batch.id}/aliexpress/create-order`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          ds_extend_request: dsExtendRequest,
+          param_place_order_request4_open_api_d_t_o: placeOrderRequest,
+        }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.message ?? "Création commande DS groupée impossible");
+      }
+
+      const orderList = Array.isArray(payload?.data?.result?.order_list) ? payload.data.result.order_list.filter(Boolean) : [];
+      setSuccess(
+        orderList.length > 0
+          ? `Commande DS groupée créée (${orderList.join(", ")}).`
+          : "Commande DS groupée créée."
+      );
+      await loadBatches();
+    } catch (err: any) {
+      setError(err?.message ?? "Création commande DS groupée impossible");
+    } finally {
+      setBatchActionLoading((current) => ({ ...current, [batch.id]: null }));
+    }
+  };
+
   return (
     <AdminShell title={platformLabel} subtitle="Lots d’achat et préparation des expéditions entrantes">
       <div className="grid gap-6 xl:grid-cols-[420px,1fr]">
@@ -214,6 +339,87 @@ export default function AdminSourcingBatchesPage() {
                     Soumettre
                   </button>
                 </div>
+                {batch.supplier_account?.platform === "aliexpress" ? (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Commande DS groupée</div>
+                        <div className="text-xs text-slate-500">Prépare le draft AliExpress DS pour tout le lot groupé, exécute le précheck freight puis crée une seule commande fournisseur.</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => loadBatchDsDraft(batch.id)}
+                        disabled={Boolean(batchActionLoading[batch.id])}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 disabled:opacity-50"
+                      >
+                        {batchActionLoading[batch.id] === "draft" ? "Préparation..." : "Régénérer le draft DS"}
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                      <label className="grid gap-1 text-sm">
+                        <span className="text-slate-600">ds_extend_request JSON</span>
+                        <textarea
+                          value={getDsExtendValue(batch)}
+                          onChange={(e) => setDsExtendDrafts((current) => ({ ...current, [batch.id]: e.target.value }))}
+                          rows={10}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs"
+                        />
+                      </label>
+                      <label className="grid gap-1 text-sm">
+                        <span className="text-slate-600">param_place_order_request4_open_api_d_t_o JSON</span>
+                        <textarea
+                          value={getDsPlaceValue(batch)}
+                          onChange={(e) => setDsPlaceDrafts((current) => ({ ...current, [batch.id]: e.target.value }))}
+                          rows={10}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => createBatchDsOrder(batch)}
+                        disabled={Boolean(batchActionLoading[batch.id])}
+                        className="rounded-xl bg-slate-900 px-3 py-2 text-xs text-white disabled:opacity-50"
+                      >
+                        {batchActionLoading[batch.id] === "create-order" ? "Création..." : "Créer la commande DS groupée"}
+                      </button>
+                    </div>
+
+                    {getFreightCheck(batch)?.items?.length ? (
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Précheck freight DS</div>
+                          <div className="text-[11px] text-slate-400">{formatDateTime(getFreightCheck(batch)?.checked_at)}</div>
+                        </div>
+                        <div className="space-y-3">
+                          {(getFreightCheck(batch)?.items ?? []).map((item, index) => (
+                            <div key={`${item.product_id ?? "item"}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                              <div className="font-semibold text-slate-900">{item.product_name ?? `Ligne batch DS #${index + 1}`}</div>
+                              <div className="mt-1">Service demandé: {item.requested_logistics_service_name ?? "—"}</div>
+                              <div>Service résolu: {item.resolved_logistics_service_name ?? "—"}</div>
+                              <div>SKU DS: {item.sku_id ?? "—"}</div>
+                              <div>Résultat: {item.success === false ? "Échec appel freight" : item.is_valid === false ? "Service refusé" : item.is_valid === true ? "Service valide" : "Réponse à vérifier"}</div>
+                              {item.error_message ? <div className="mt-1 text-rose-600">{item.error_message}</div> : null}
+                              <div className="mt-1">Services disponibles: {(item.available_services ?? []).length ? (item.available_services ?? []).join(", ") : "—"}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600 md:grid-cols-2">
+                      <div>Référence fournisseur: {batch.supplier_order_reference || "—"}</div>
+                      <div>Dernière création DS: {formatDateTime(batch.supplier_order_payload_json?.ds_order_create?.created_at)}</div>
+                      <div>DS status: {batch.supplier_order_payload_json?.ds_order_create?.success ? `Succès (${batch.supplier_order_payload_json?.ds_order_create?.order_list?.join(", ") ?? "—"})` : batch.supplier_order_payload_json?.ds_order_create?.error_message ?? "—"}</div>
+                      <div>DS request_id: {batch.supplier_order_payload_json?.ds_order_create?.request_id ?? "—"}</div>
+                      <div>Code erreur DS: {batch.supplier_order_payload_json?.ds_order_create?.error_code ?? "—"}</div>
+                      <div>Message fournisseur: {batch.supplier_order_payload_json?.ds_order_create?.remote_error_message ?? "—"}</div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead className="text-slate-400">

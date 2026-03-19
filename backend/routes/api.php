@@ -646,9 +646,15 @@ Route::middleware(['auth:sanctum', 'lastSeen', 'admin', 'requireRole:admin_super
 
     Route::get('/sourcing/demands', [\App\Http\Controllers\Api\AdminProcurementController::class, 'demands'])
         ->middleware('permission:sourcing.view');
+    Route::get('/sourcing/grouped-ready', [\App\Http\Controllers\Api\AdminProcurementController::class, 'groupedReady'])
+        ->middleware('permission:sourcing.view');
     Route::get('/sourcing/batches', [\App\Http\Controllers\Api\AdminProcurementController::class, 'batches'])
         ->middleware('permission:sourcing.view');
     Route::post('/sourcing/batches/draft', [\App\Http\Controllers\Api\AdminProcurementController::class, 'createDraftBatch'])
+        ->middleware('permission:sourcing.manage');
+    Route::get('/sourcing/batches/{procurementBatch}/aliexpress/ds-draft', [\App\Http\Controllers\Api\AdminProcurementController::class, 'aliExpressBatchDropshippingDraft'])
+        ->middleware('permission:sourcing.view');
+    Route::post('/sourcing/batches/{procurementBatch}/aliexpress/create-order', [\App\Http\Controllers\Api\AdminProcurementController::class, 'aliExpressCreateBatchDropshippingOrder'])
         ->middleware('permission:sourcing.manage');
     Route::patch('/sourcing/batches/{procurementBatch}/approve', [\App\Http\Controllers\Api\AdminProcurementController::class, 'approveBatch'])
         ->middleware('permission:sourcing.manage');
