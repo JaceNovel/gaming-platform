@@ -26,6 +26,7 @@ type ProductCard = {
   likes: number;
   badge: string;
   image: string;
+  detailHref: string;
 };
 
 const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
@@ -48,19 +49,32 @@ function ProductCardUI({
   p,
   onAddToCart,
   onBuy,
+  onOpen,
   showAddToCart = true,
   imageOverrideSrc,
 }: {
   p: ProductCard;
   onAddToCart: (product: ProductCard, origin?: HTMLElement | null) => void;
   onBuy: (product: ProductCard, origin?: HTMLElement | null) => void;
+  onOpen: (product: ProductCard) => void;
   showAddToCart?: boolean;
   imageOverrideSrc?: string | null;
 }) {
   const thumbSrc = toDisplayImageSrc(p.image) ?? p.image;
 
   return (
-    <div className="relative w-[260px] shrink-0 snap-start overflow-hidden rounded-2xl bg-white/6 ring-1 ring-white/15 backdrop-blur-md sm:w-full sm:min-w-0 sm:shrink">
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={() => onOpen(p)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen(p);
+        }
+      }}
+      className="relative w-[260px] shrink-0 snap-start overflow-hidden rounded-2xl bg-white/6 ring-1 ring-white/15 backdrop-blur-md transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300/40 sm:w-full sm:min-w-0 sm:shrink cursor-pointer"
+    >
       {imageOverrideSrc ? (
         <img
           src={imageOverrideSrc}
@@ -109,7 +123,10 @@ function ProductCardUI({
         <div className="mt-4 flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={(event) => onBuy(p, event.currentTarget)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onBuy(p, event.currentTarget);
+            }}
             className="relative inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-[0.98]"
           >
             Acheter
@@ -119,7 +136,10 @@ function ProductCardUI({
           {showAddToCart ? (
             <button
               type="button"
-              onClick={(event) => onAddToCart(p, event.currentTarget)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onAddToCart(p, event.currentTarget);
+              }}
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 transition active:scale-[0.98]"
               aria-label="Ajouter au panier"
             >
@@ -307,6 +327,7 @@ export default function HomeClient() {
             likes: Number(item.likes_count ?? 0),
             badge: badgeLabel.toUpperCase().slice(0, 6),
             image,
+            detailHref: `/produits/${encodeURIComponent(String(item.id))}`,
           };
         };
 
@@ -471,6 +492,10 @@ export default function HomeClient() {
     router.push(`/checkout?product=${encodeURIComponent(String(product.id))}`);
   };
 
+  const handleOpenProduct = (product: ProductCard) => {
+    router.push(product.detailHref);
+  };
+
   return (
     <main
       className="relative min-h-[100dvh] bg-transparent text-white overflow-x-hidden pb-[calc(80px+env(safe-area-inset-bottom))]"
@@ -625,6 +650,7 @@ export default function HomeClient() {
                     p={p}
                     onAddToCart={addToCart}
                     onBuy={handleBuy}
+                    onOpen={handleOpenProduct}
                     imageOverrideSrc={getHomePopularSlotImage(idx)}
                   />
                 ))}
@@ -636,6 +662,7 @@ export default function HomeClient() {
                     p={p}
                     onAddToCart={addToCart}
                     onBuy={handleBuy}
+                    onOpen={handleOpenProduct}
                     imageOverrideSrc={getHomePopularSlotImage(idx)}
                   />
                 ))}

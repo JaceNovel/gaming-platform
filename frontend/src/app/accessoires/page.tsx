@@ -720,6 +720,16 @@ export default function AccessoiresPage() {
                                       <button
                                         type="button"
                                         onClick={() => {
+                                          router.push(`/produits/${encodeURIComponent(String(p.id))}`);
+                                        }}
+                                        className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/85 hover:bg-white/10 transition"
+                                      >
+                                        Détail
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
                                           const ok = requireShippingThen({ kind: "buy", product: p });
                                           if (!ok) return;
                                           persistShipping();
