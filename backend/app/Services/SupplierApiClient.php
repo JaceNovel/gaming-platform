@@ -840,7 +840,7 @@ class SupplierApiClient
         $targetCurrency = strtoupper(trim((string) ($options['target_currency'] ?? 'USD'))) ?: 'USD';
         $sourceUrl = $externalProductId !== '' ? 'https://www.aliexpress.com/item/' . $externalProductId . '.html' : null;
 
-        $skuRows = Arr::wrap($result['ae_item_sku_info_dtos'] ?? []);
+        $skuRows = $this->extractAliExpressDsSkuRows($result);
         $fallbackPrice = $this->resolveAliExpressDsMoneyValue($result, [
             'min_price',
             'max_price',
@@ -867,7 +867,7 @@ class SupplierApiClient
                 return null;
             }
 
-            $externalSkuId = trim((string) ($sku['sku_id'] ?? $sku['id'] ?? ''));
+            $externalSkuId = trim((string) ($sku['sku_id'] ?? $sku['skuId'] ?? $sku['selectedSkuId'] ?? $sku['selected_sku_id'] ?? $sku['id'] ?? ''));
             if ($externalSkuId === '') {
                 return null;
             }
@@ -896,6 +896,7 @@ class SupplierApiClient
                 'crossed_price',
             ]) ?? $fallbackOriginalPrice ?? $price;
             $currencyCode = $this->resolveAliExpressDsCurrencyCode($sku, $fallbackCurrencyCode ?: $targetCurrency);
+            $variantRows = $this->extractAliExpressDsSkuPropertyRows($sku);
             $variantAttributes = array_values(array_filter(array_map(function ($property) {
                 if (!is_array($property)) {
                     return null;
@@ -908,7 +909,7 @@ class SupplierApiClient
                     'property_value' => $property['property_value_definition_name'] ?? $property['sku_property_value'] ?? null,
                     'sku_image' => $property['sku_image'] ?? null,
                 ], static fn ($value) => $value !== null && $value !== '');
-            }, Arr::wrap($sku['ae_sku_property_dtos'] ?? []))));
+            }, $variantRows)));
 
             return [
                 'external_sku_id' => $externalSkuId,
@@ -1799,6 +1800,95 @@ class SupplierApiClient
         }
 
         return strtoupper(trim($fallback)) ?: 'USD';
+    }
+
+    private function extractAliExpressDsSkuRows(array $result): array
+    {
+        $candidates = [
+            Arr::wrap($result['ae_item_sku_info_dtos'] ?? []),
+            Arr::wrap($result['ae_item_sku_info_d_t_o_s'] ?? []),
+            Arr::wrap($result['sku_info_list'] ?? []),
+            Arr::wrap($result['skuInfos'] ?? []),
+            Arr::wrap($result['sku_infos'] ?? []),
+            Arr::wrap($result['sku_list'] ?? []),
+            Arr::wrap($result['product_sku_list'] ?? []),
+            Arr::wrap($result['productSkuList'] ?? []),
+            Arr::wrap(data_get($result, 'ae_item_detail_info_dto.ae_item_sku_info_dtos', [])),
+            Arr::wrap(data_get($result, 'item_sku_info_dtos', [])),
+            Arr::wrap(data_get($result, 'sku_dtos', [])),
+        ];
+
+        foreach ($candidates as $rows) {
+            $normalized = array_values(array_filter($rows, function ($row) {
+                return is_array($row) && $this->resolveAliExpressDsSkuIdentifier($row) !== null;
+            }));
+
+            if ($normalized !== []) {
+                return $normalized;
+            }
+        }
+
+        $queue = [$result];
+        while ($queue !== []) {
+            $node = array_shift($queue);
+            if (! is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $value) {
+                if (! is_array($value)) {
+                    continue;
+                }
+
+                if (array_is_list($value)) {
+                    $normalized = array_values(array_filter($value, function ($row) {
+                        return is_array($row) && $this->resolveAliExpressDsSkuIdentifier($row) !== null;
+                    }));
+
+                    if ($normalized !== []) {
+                        return $normalized;
+                    }
+                }
+
+                $queue[] = $value;
+            }
+        }
+
+        return [];
+    }
+
+    private function extractAliExpressDsSkuPropertyRows(array $sku): array
+    {
+        $candidates = [
+            Arr::wrap($sku['ae_sku_property_dtos'] ?? []),
+            Arr::wrap($sku['aeSkuPropertyDtos'] ?? []),
+            Arr::wrap($sku['sku_property_list'] ?? []),
+            Arr::wrap($sku['skuPropertyList'] ?? []),
+            Arr::wrap($sku['sku_properties'] ?? []),
+            Arr::wrap($sku['skuProperties'] ?? []),
+            Arr::wrap($sku['sale_prop'] ?? []),
+            Arr::wrap($sku['saleProps'] ?? []),
+        ];
+
+        foreach ($candidates as $rows) {
+            if ($rows !== []) {
+                return $rows;
+            }
+        }
+
+        return [];
+    }
+
+    private function resolveAliExpressDsSkuIdentifier(array $sku): ?string
+    {
+        foreach (['sku_id', 'skuId', 'selectedSkuId', 'selected_sku_id', 'id'] as $key) {
+            $value = trim((string) ($sku[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private function estimateCbmFromPackageInfo(array $packageInfo): float
