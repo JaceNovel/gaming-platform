@@ -9,7 +9,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
-import { formatGroupedFcfa, parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
+import { buildGroupedDeliveryMessages, formatGroupedFcfa, parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
 import {
   getStoredStorefrontCountry,
   onStorefrontCountryChanged,
@@ -323,6 +323,12 @@ export default function PremiumAccessoryDesktopPage() {
     if (selectedVariant?.id) params.set("variant", selectedVariant.id);
     router.push(`/checkout?${params.toString()}`);
   };
+
+  const deliveryMessages = buildGroupedDeliveryMessages({
+    shippingFee: product?.shipping_fee,
+    remainingValue: product?.grouping_remaining_value,
+    freeShippingEligible: product?.free_shipping_eligible,
+  });
 
   if (loading || redirecting || isDesktop === null) {
     return (
