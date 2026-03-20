@@ -36,7 +36,7 @@ function CheckoutScreen() {
   const [rewardMinPurchaseAmount, setRewardMinPurchaseAmount] = useState<number>(0);
   const [walletLoading, setWalletLoading] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "paypal" | "bank_card" | "wallet" | "wallet_reward">("fedapay");
+  const [paymentMethod, setPaymentMethod] = useState<"moneroo" | "bank_card" | "wallet" | "wallet_reward">("moneroo");
 
   const [shippingMapsUrl, setShippingMapsUrl] = useState("");
   const [shippingCity, setShippingCity] = useState("");
@@ -128,7 +128,7 @@ function CheckoutScreen() {
   };
 
   useEffect(() => {
-    // no-op: FedaPay uses hosted payment page redirection
+    // Hosted checkout is handled by Moneroo redirection.
   }, []);
 
   useEffect(() => {
@@ -310,47 +310,11 @@ function CheckoutScreen() {
 
       const callbackUrl = `${window.location.origin}/order-confirmation?order=${orderId}`;
 
-      if (paymentMethod === "paypal" || paymentMethod === "bank_card") {
-        const payRes = await authFetch(`${API_BASE}/payments/paypal/init`, {
-          method: "POST",
-          body: JSON.stringify({
-            order_id: orderId,
-            payment_method: "paypal",
-            amount: amountToCharge,
-            currency,
-            customer_email: customer.customer_email,
-            metadata: {
-              source: "checkout",
-              product_id: productId,
-              quantity,
-            },
-          }),
-        });
-
-        if (!payRes.ok) {
-          const err = await payRes.json().catch(() => ({}));
-          setStatus(err.message ?? "Impossible de démarrer le paiement PayPal / carte bancaire.");
-          return;
-        }
-
-        const payData = await payRes.json().catch(() => null);
-        const paymentUrl = typeof payData?.data?.payment_url === "string" ? payData.data.payment_url : "";
-
-        if (paymentUrl) {
-          setStatus("Redirection vers PayPal...");
-          window.location.href = paymentUrl;
-          return;
-        }
-
-        setStatus("Paiement PayPal / carte bancaire indisponible : URL de paiement manquante.");
-        return;
-      }
-
-      const payRes = await authFetch(`${API_BASE}/payments/fedapay/init`, {
+      const payRes = await authFetch(`${API_BASE}/payments/moneroo/init`, {
         method: "POST",
         body: JSON.stringify({
           order_id: orderId,
-          payment_method: "fedapay",
+          payment_method: "moneroo",
           amount: amountToCharge,
           currency,
           customer_email: customer.customer_email,
@@ -368,7 +332,7 @@ function CheckoutScreen() {
 
       if (!payRes.ok) {
         const err = await payRes.json().catch(() => ({}));
-        setStatus(err.message ?? "Impossible de démarrer le paiement.");
+        setStatus(err.message ?? "Impossible de démarrer le paiement Moneroo.");
         return;
       }
 
@@ -376,7 +340,7 @@ function CheckoutScreen() {
       const paymentUrl = typeof payData?.data?.payment_url === "string" ? payData.data.payment_url : "";
 
       if (paymentUrl) {
-        setStatus("Redirection vers Mobile Money...");
+        setStatus("Redirection vers Moneroo...");
         window.location.href = paymentUrl;
         return;
       }
@@ -433,37 +397,30 @@ function CheckoutScreen() {
 
   useEffect(() => {
     if (paymentMethod === "wallet" && !walletPayable) {
-      setPaymentMethod("fedapay");
+      setPaymentMethod("moneroo");
       return;
     }
 
     if (paymentMethod === "wallet_reward" && !rewardWalletPayable) {
-      setPaymentMethod("fedapay");
+      setPaymentMethod("moneroo");
     }
   }, [paymentMethod, rewardWalletPayable, walletPayable]);
 
   const paymentOptions = useMemo<PaymentMethodOption[]>(() => {
     const options: PaymentMethodOption[] = [
       {
-        key: "paypal",
-        title: "PayPal",
-        description: "Paiement rapide et sécurisé via PayPal avec conversion automatique en EUR.",
-        badge: "EUR",
-        variant: "paypal",
+        key: "moneroo",
+        title: "Mobile Money",
+        description: fedapayTopupDescription,
+        badge: "FCFA",
+        variant: "moneroo",
       },
       {
         key: "bank_card",
         title: "Carte bancaire",
-        description: "Paiement par carte bancaire via l’interface sécurisée PayPal pour le moment.",
+        description: "Paiement par carte bancaire via la page securisee Moneroo.",
         badge: "CB",
         variant: "bank_card",
-      },
-      {
-        key: "fedapay",
-        title: "Mobile Money",
-        description: fedapayTopupDescription,
-        badge: "FCFA",
-        variant: "mobile_money",
       },
       {
         key: "wallet",
@@ -591,7 +548,7 @@ function CheckoutScreen() {
                 <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-base font-semibold text-white">Mode de paiement</p>
-                    <p className="mt-1 text-sm text-white/60">Choisis dans la fenêtre PayPal, Wallet ou Mobile Money.</p>
+                    <p className="mt-1 text-sm text-white/60">Choisis Mobile Money, carte bancaire via Moneroo, ou utilise ton wallet interne.</p>
                   </div>
                   <button
                     type="button"

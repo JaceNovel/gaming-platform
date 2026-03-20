@@ -460,7 +460,7 @@ export default function ProductDetailsPage() {
     [product?.details?.storefront_variants, selectedVariantId]
   );
   const priceValue = useMemo(
-    () => selectedVariant?.salePriceFcfa ?? Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0) || 0,
+    () => selectedVariant?.salePriceFcfa ?? (Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0) || 0),
     [product, selectedVariant?.salePriceFcfa]
   );
   const description =

@@ -251,7 +251,7 @@ function CodesClient() {
     if (!candidates.length) return;
 
     await Promise.allSettled(
-      candidates.map((order) => authFetch(`${API_BASE}/payments/fedapay/status?order_id=${order.id}`))
+      candidates.map((order) => authFetch(`${API_BASE}/payments/moneroo/status?order_id=${order.id}`))
     );
   };
 

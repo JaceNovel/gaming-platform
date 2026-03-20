@@ -6,7 +6,7 @@ use App\Models\AdminLog;
 use App\Models\Payout;
 use App\Models\User;
 use App\Models\WalletTransaction;
-use App\Services\FedaPayService;
+use App\Services\MonerooService;
 use App\Services\WalletService;
 use App\Services\WalletPayoutNotificationService;
 use Illuminate\Support\Arr;
@@ -29,7 +29,7 @@ class ProcessPayout implements ShouldQueue
     }
 
     public function handle(
-        FedaPayService $fedaPayService,
+        MonerooService $monerooService,
         WalletService $walletService,
         WalletPayoutNotificationService $notifier,
     ): void
@@ -46,45 +46,43 @@ class ProcessPayout implements ShouldQueue
         DB::transaction(function () use ($payout) {
             $payout->update([
                 'status' => 'processing',
-                'provider' => 'FEDAPAY',
+                'provider' => 'MONEROO',
             ]);
         });
 
         try {
-            $providerPayoutId = $this->resolveProviderPayoutId($payout, $fedaPayService);
+            $providerPayoutId = $this->resolveProviderPayoutId($payout, $monerooService);
             $latestProviderPayload = null;
-            $createdDuringThisRun = false;
 
             if (!$providerPayoutId) {
-                $created = $fedaPayService->createPayout($payout->user, [
+                $resolvedMethod = $monerooService->resolvePayoutMethodCode($this->resolveProviderMode($payout), (string) $payout->country);
+                $created = $monerooService->initPayout($payout->user, [
                     'amount' => (float) $payout->amount,
                     'currency' => (string) $payout->currency,
-                    'mode' => $this->resolveProviderMode($payout),
-                    'customer_phone' => $payout->phone,
-                    'customer_country' => $payout->country,
-                    'customer_name' => $payout->user?->name,
+                    'country' => (string) $payout->country,
+                    'method' => $resolvedMethod,
+                    'recipient_value' => (string) $payout->phone,
+                    'customer_phone' => (string) $payout->phone,
+                    'customer_country' => (string) $payout->country,
                     'customer_email' => $payout->user?->email,
-                    'merchant_reference' => $payout->idempotency_key,
+                    'reference' => (string) $payout->idempotency_key,
+                    'payout_id' => (string) $payout->id,
+                    'description' => 'Retrait wallet ' . (string) $payout->id,
                     'metadata' => [
                         'source' => 'wallet_withdrawal',
-                        'payout_id' => $payout->id,
-                        'wallet_account_id' => $payout->wallet_account_id,
-                    ],
-                    'custom_metadata' => [
-                        'user_id' => $payout->user_id,
-                        'payout_id' => $payout->id,
+                        'payout_id' => (string) $payout->id,
+                        'wallet_account_id' => (string) $payout->wallet_account_id,
+                        'user_id' => (string) $payout->user_id,
                     ],
                 ]);
 
-                $providerPayoutId = $fedaPayService->extractPayoutId($created);
-                $providerReference = $fedaPayService->extractPayoutReference($created);
-                $createdDuringThisRun = true;
+                $providerPayoutId = $monerooService->extractId($created);
 
-                DB::transaction(function () use ($payout, $created, $providerReference) {
+                DB::transaction(function () use ($payout, $created, $providerPayoutId) {
                     $locked = Payout::query()->whereKey($payout->id)->lockForUpdate()->firstOrFail();
                     $locked->update([
-                        'provider' => 'FEDAPAY',
-                        'provider_ref' => $providerReference ?? $locked->provider_ref,
+                        'provider' => 'MONEROO',
+                        'provider_ref' => $providerPayoutId !== '' ? $providerPayoutId : $locked->provider_ref,
                         'failure_reason' => null,
                     ]);
                     $locked->events()->create([
@@ -93,14 +91,7 @@ class ProcessPayout implements ShouldQueue
                     ]);
                 });
 
-                $createdStatus = $fedaPayService->normalizePayoutStatus($created);
-                if (in_array($createdStatus, ['sent', 'failed', 'cancelled'], true)) {
-                    $this->applyProviderState($payout->id, $created, $fedaPayService, $walletService, $notifier);
-                    $payout = Payout::with(['user', 'events'])->find($this->payoutId);
-                    $providerPayoutId = $payout ? $this->resolveProviderPayoutId($payout, $fedaPayService) : $providerPayoutId;
-                } else {
-                    $latestProviderPayload = $created;
-                }
+                $latestProviderPayload = $created;
             }
 
             if (
@@ -108,49 +99,8 @@ class ProcessPayout implements ShouldQueue
                 && $payout
                 && !in_array((string) $payout->status, ['sent', 'failed', 'cancelled'], true)
             ) {
-                if (!$createdDuringThisRun) {
-                    $latestProviderPayload = $fedaPayService->retrievePayout($providerPayoutId);
-                    $this->applyProviderState($payout->id, $latestProviderPayload, $fedaPayService, $walletService, $notifier);
-                    $payout = Payout::with(['user', 'events'])->find($this->payoutId);
-                }
-
-                if (
-                    $payout
-                    && !in_array((string) $payout->status, ['sent', 'failed', 'cancelled'], true)
-                    && $this->shouldStartPayout($latestProviderPayload)
-                    && !$this->hasStartBeenRequested($payout)
-                ) {
-                    $phoneDigits = preg_replace('/\D+/', '', (string) $payout->phone) ?? '';
-                    $started = $fedaPayService->startPayout([
-                        [
-                            'id' => $providerPayoutId,
-                            'phone_number' => [
-                                'number' => $phoneDigits !== '' ? $phoneDigits : (string) $payout->phone,
-                                'country' => strtolower((string) $payout->country),
-                            ],
-                        ],
-                    ]);
-
-                    DB::transaction(function () use ($payout, $started) {
-                        $locked = Payout::query()->whereKey($payout->id)->lockForUpdate()->firstOrFail();
-                        $locked->events()->create([
-                            'provider_payload' => $started,
-                            'status' => 'start_requested',
-                        ]);
-                    });
-
-                    $latestProviderPayload = is_array($started) && array_is_list($started)
-                        ? (is_array($started[0] ?? null) ? $started[0] : $started)
-                        : $started;
-                }
-            }
-
-            if ($providerPayoutId && $payout) {
-                $retrieved = $latestProviderPayload;
-                if ($createdDuringThisRun || !$retrieved || $this->shouldRefreshAfterStart($latestProviderPayload)) {
-                    $retrieved = $fedaPayService->retrievePayout($providerPayoutId);
-                }
-                $this->applyProviderState($payout->id, $retrieved, $fedaPayService, $walletService, $notifier);
+                $latestProviderPayload = $monerooService->verifyPayout($providerPayoutId);
+                $this->applyProviderState($payout->id, $latestProviderPayload, $monerooService, $walletService, $notifier);
             }
         } catch (\Throwable $e) {
             Log::error('Payout processing failed', ['payout_id' => $payout->id, 'error' => $e->getMessage()]);
@@ -188,7 +138,7 @@ class ProcessPayout implements ShouldQueue
         return strtolower((string) ($meta['payout_method'] ?? 'mobile_money'));
     }
 
-    private function resolveProviderPayoutId(Payout $payout, FedaPayService $fedaPayService): ?int
+    private function resolveProviderPayoutId(Payout $payout, MonerooService $monerooService): ?string
     {
         $payloads = $payout->events()
             ->latest('id')
@@ -196,67 +146,15 @@ class ProcessPayout implements ShouldQueue
 
         foreach ($payloads as $payload) {
             if (is_array($payload)) {
-                $id = $fedaPayService->extractPayoutId($payload);
+                $id = $monerooService->extractId($payload);
                 if ($id) {
                     return $id;
                 }
             }
         }
 
-        if (is_numeric($payout->provider_ref)) {
-            return (int) $payout->provider_ref;
-        }
-
         $providerReference = trim((string) ($payout->provider_ref ?? ''));
-        if ($providerReference === '' && $payloads->isEmpty()) {
-            return null;
-        }
-
-        $matched = $fedaPayService->findPayout([
-            'reference' => $providerReference,
-            'merchant_reference' => (string) ($payout->idempotency_key ?? ''),
-        ]);
-
-        if (is_array($matched)) {
-            return $fedaPayService->extractPayoutId($matched);
-        }
-
-        return null;
-    }
-
-    private function shouldStartPayout(?array $providerPayload): bool
-    {
-        if (!$providerPayload) {
-            return true;
-        }
-
-        return $this->rawProviderStatus($providerPayload) === 'pending';
-    }
-
-    private function shouldRefreshAfterStart(?array $providerPayload): bool
-    {
-        if (!$providerPayload) {
-            return true;
-        }
-
-        return $this->rawProviderStatus($providerPayload) === 'pending';
-    }
-
-    private function rawProviderStatus(array $providerPayload): string
-    {
-        return strtolower(trim((string) (
-            Arr::get($providerPayload, 'status')
-            ?? Arr::get($providerPayload, 'data.status')
-            ?? Arr::get($providerPayload, 'payout.status')
-            ?? (is_array($providerPayload) && array_is_list($providerPayload) ? Arr::get($providerPayload, '0.status') : '')
-        )));
-    }
-
-    private function hasStartBeenRequested(Payout $payout): bool
-    {
-        return $payout->events()
-            ->where('status', 'start_requested')
-            ->exists();
+        return $providerReference !== '' ? $providerReference : null;
     }
 
     private function walletTxMeta(Payout $payout): array
@@ -282,31 +180,30 @@ class ProcessPayout implements ShouldQueue
     private function applyProviderState(
         string $payoutId,
         array $providerPayload,
-        FedaPayService $fedaPayService,
+        MonerooService $monerooService,
         WalletService $walletService,
         WalletPayoutNotificationService $notifier,
     ): void {
-        $normalized = $fedaPayService->normalizePayoutStatus($providerPayload);
-        $providerReference = $fedaPayService->extractPayoutReference($providerPayload);
-        $providerId = $fedaPayService->extractPayoutId($providerPayload);
+        $normalized = $monerooService->normalizePayoutStatus($providerPayload);
+        $providerId = $monerooService->extractId($providerPayload);
         $failureReason = trim((string) (
-            Arr::get($providerPayload, 'last_error_code')
-            ?? Arr::get($providerPayload, 'data.last_error_code')
-            ?? Arr::get($providerPayload, '0.last_error_code')
+            Arr::get($providerPayload, 'failure_message')
+            ?? Arr::get($providerPayload, 'data.failure_message')
+            ?? Arr::get($providerPayload, 'errors.0.message')
             ?? ''
         ));
 
-        $transition = DB::transaction(function () use ($payoutId, $normalized, $providerPayload, $providerReference, $providerId, $failureReason) {
+        $transition = DB::transaction(function () use ($payoutId, $normalized, $providerPayload, $providerId, $failureReason) {
             $payout = Payout::query()->with('user')->whereKey($payoutId)->lockForUpdate()->firstOrFail();
             $previousStatus = (string) $payout->status;
             $nextStatus = in_array($normalized, ['sent', 'failed', 'cancelled'], true) ? $normalized : 'processing';
 
             $payout->update([
                 'status' => $nextStatus,
-                'provider' => 'FEDAPAY',
-                'provider_ref' => $providerReference ?? ($providerId ? (string) $providerId : $payout->provider_ref),
+                'provider' => 'MONEROO',
+                'provider_ref' => $providerId !== '' ? $providerId : $payout->provider_ref,
                 'failure_reason' => in_array($nextStatus, ['failed', 'cancelled'], true)
-                    ? ($failureReason !== '' ? $failureReason : ($payout->failure_reason ?? 'FedaPay payout failed'))
+                    ? ($failureReason !== '' ? $failureReason : ($payout->failure_reason ?? 'Moneroo payout failed'))
                     : null,
             ]);
 

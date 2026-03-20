@@ -8,7 +8,7 @@ export type PaymentMethodOption = {
   title: string;
   description: string;
   badge?: string;
-  variant: "paypal" | "mobile_money" | "wallet" | "reward_wallet" | "bank_card";
+  variant: "paypal" | "mobile_money" | "wallet" | "reward_wallet" | "bank_card" | "moneroo";
   disabled?: boolean;
   disabledReason?: string;
 };
@@ -29,6 +29,10 @@ type PaymentMethodModalProps = {
 };
 
 const visualByVariant: Record<PaymentMethodOption["variant"], { image: string; label: string }> = {
+  moneroo: {
+    image: "https://img.icons8.com/?size=100&id=YsVvEs0F7slI&format=png&color=000000",
+    label: "Moneroo",
+  },
   mobile_money: {
     image: "https://img.icons8.com/?size=100&id=YsVvEs0F7slI&format=png&color=000000",
     label: "Mobile money",

@@ -100,7 +100,7 @@ function WalletClient() {
   const [topupAmount, setTopupAmount] = useState("");
   const [topupLoading, setTopupLoading] = useState(false);
   const [topupModalOpen, setTopupModalOpen] = useState(false);
-  const [topupProvider, setTopupProvider] = useState<"fedapay" | "paypal" | "bank_card">("fedapay");
+  const [topupProvider, setTopupProvider] = useState<"moneroo" | "bank_card">("moneroo");
   const [exchangeAmount, setExchangeAmount] = useState("");
   const [exchangeLoading, setExchangeLoading] = useState(false);
   const [limit, setLimit] = useState<10 | 25 | 50>(25);
@@ -251,25 +251,18 @@ function WalletClient() {
   const topupPaymentOptions = useMemo<PaymentMethodOption[]>(() => {
     return [
       {
-        key: "paypal",
-        title: "PayPal",
-        description: "Recharge le DB Wallet avec PayPal. Le montant est converti automatiquement en EUR côté PayPal.",
-        badge: "EUR",
-        variant: "paypal",
+        key: "moneroo",
+        title: "Mobile Money",
+        description: fedapayTopupDescription,
+        badge: "FCFA",
+        variant: "moneroo",
       },
       {
         key: "bank_card",
         title: "Carte bancaire",
-        description: "Recharge le DB Wallet par carte bancaire via l’interface sécurisée PayPal pour le moment.",
+        description: "Recharge le DB Wallet par carte bancaire via Moneroo.",
         badge: "CB",
         variant: "bank_card",
-      },
-      {
-        key: "fedapay",
-        title: "Mobile Money",
-        description: fedapayTopupDescription,
-        badge: "FCFA",
-        variant: "mobile_money",
       },
     ];
   }, []);
@@ -277,7 +270,7 @@ function WalletClient() {
     () => topupPaymentOptions.find((option) => option.key === topupProvider) ?? topupPaymentOptions[0] ?? null,
     [topupPaymentOptions, topupProvider],
   );
-  const topupProviderRequestValue = topupProvider === "bank_card" ? "paypal" : topupProvider;
+  const topupProviderRequestValue = topupProvider;
 
   useEffect(() => {
     const walletPaid = String(searchParams.get("wallet_paid") ?? "").toLowerCase();
@@ -286,8 +279,7 @@ function WalletClient() {
       return;
     }
 
-    const providerParam = String(searchParams.get("provider") ?? "fedapay").toLowerCase();
-    const provider = providerParam === "paypal" ? "paypal" : "fedapay";
+    const provider = "moneroo";
 
     if (["success", "paid", "completed"].includes(walletPaid)) {
       setBanner("Recharge wallet validée. Ton solde a été mis à jour.");
@@ -513,7 +505,7 @@ function WalletClient() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.25em] text-emerald-100/80">Recharge wallet</p>
-                    <p className="mt-1 text-sm text-emerald-50/85">Ajoute de l’argent sur ton DB Wallet via PayPal ou Mobile Money.</p>
+                    <p className="mt-1 text-sm text-emerald-50/85">Ajoute de l’argent sur ton DB Wallet via Mobile Money ou carte bancaire avec Moneroo.</p>
                   </div>
                   <div className="text-xs text-emerald-100/75">Minimum: 100 FCFA</div>
                 </div>
@@ -551,7 +543,7 @@ function WalletClient() {
                     </button>
                   </div>
 
-                  {selectedTopupOption?.key === "fedapay" ? (
+                  {selectedTopupOption?.key === "moneroo" ? (
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                       {SUPPORTED_FEDAPAY_COUNTRIES.map((countryOption) => (
                         <div key={countryOption.code} className="rounded-xl border border-emerald-200/15 bg-white/5 p-3">

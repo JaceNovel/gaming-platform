@@ -28,14 +28,10 @@ export const SUPPORTED_FEDAPAY_COUNTRIES: FedaPayCountryOption[] = [
   {
     code: "BJ",
     label: "Benin",
-    topupChannels: ["Mtn Benin", "Moov Benin", "BESTCASH Money", "Celtiis Cash", "Coris Money"],
+    topupChannels: ["Mtn Benin", "Moov Benin"],
     withdrawMethods: [
-      { value: "mtn", label: "Mtn Benin" },
-      { value: "moov", label: "Moov Benin" },
-      { value: "bestcash", label: "BESTCASH Money" },
-      { value: "celtiis", label: "Celtiis Cash" },
-      { value: "coris_money", label: "Coris Money" },
-      { value: "bank", label: "Banque" },
+      { value: "mtn_bj", label: "Mtn Benin" },
+      { value: "moov_bj", label: "Moov Benin" },
     ],
   },
   {
@@ -45,25 +41,31 @@ export const SUPPORTED_FEDAPAY_COUNTRIES: FedaPayCountryOption[] = [
     withdrawMethods: [
       { value: "moov_tg", label: "Moov Togo" },
       { value: "togocel", label: "Togocel T-Money" },
-      { value: "bank", label: "Banque" },
     ],
   },
   {
     code: "CI",
     label: "Cote d'Ivoire",
-    topupChannels: ["Mtn Cote d'Ivoire"],
+    topupChannels: ["Mtn Cote d'Ivoire", "Moov Cote d'Ivoire", "Orange Cote d'Ivoire", "Wave Cote d'Ivoire", "Djamo Cote d'Ivoire"],
     withdrawMethods: [
       { value: "mtn_ci", label: "Mtn Cote d'Ivoire" },
-      { value: "bank", label: "Banque" },
+      { value: "moov_ci", label: "Moov Cote d'Ivoire" },
+      { value: "orange_ci", label: "Orange Cote d'Ivoire" },
+      { value: "wave_ci", label: "Wave Cote d'Ivoire" },
+      { value: "djamo_ci", label: "Djamo Cote d'Ivoire" },
     ],
   },
   {
     code: "SN",
     label: "Senegal",
-    topupChannels: ["Free Senegal"],
+    topupChannels: ["Free Senegal", "Orange Senegal", "Wave Senegal", "E-money Senegal", "Wizall Senegal", "Djamo Senegal"],
     withdrawMethods: [
-      { value: "free_sn", label: "Free Senegal" },
-      { value: "bank", label: "Banque" },
+      { value: "freemoney_sn", label: "Free Senegal" },
+      { value: "orange_sn", label: "Orange Senegal" },
+      { value: "wave_sn", label: "Wave Senegal" },
+      { value: "e_money_sn", label: "E-money Senegal" },
+      { value: "wizall_sn", label: "Wizall Senegal" },
+      { value: "djamo_sn", label: "Djamo Senegal" },
     ],
   },
   {
@@ -72,7 +74,6 @@ export const SUPPORTED_FEDAPAY_COUNTRIES: FedaPayCountryOption[] = [
     topupChannels: ["Airtel Niger"],
     withdrawMethods: [
       { value: "airtel_ne", label: "Airtel Niger" },
-      { value: "bank", label: "Banque" },
     ],
   },
 ];
@@ -92,11 +93,11 @@ export const getWithdrawMethodsForCountry = (country: string): FedaPayWithdrawMe
 };
 
 export const getDefaultWithdrawMethod = (country: string): string => {
-  return getWithdrawMethodsForCountry(country)[0]?.value ?? "bank";
+  return getWithdrawMethodsForCountry(country)[0]?.value ?? "mtn_bj";
 };
 
 export const fedapayTopupDescription =
-  "Paiement via FedaPay avec les canaux Mobile Money supportés au Benin, Togo, Cote d'Ivoire, Senegal et Niger.";
+  "Paiement via Moneroo avec les canaux Mobile Money supportes au Benin, Togo, Cote d'Ivoire, Senegal et Niger.";
 
 export const filterWithdrawMethodsBySupport = (
   country: string,

@@ -20,6 +20,8 @@ use App\Http\Controllers\Api\GameController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\MonerooPaymentController;
+use App\Http\Controllers\Api\MonerooWebhookController;
 use App\Http\Controllers\Api\PayPalWebhookController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\FedaPayPayoutWebhookController;
@@ -162,6 +164,9 @@ Route::get('/tournaments/{slug}', [TournamentController::class, 'show']);
 
 // Webhooks (no auth required)
 Route::post('/payments/cinetpay/webhook', [PaymentWebhookController::class, 'handle'])->name('api.payments.cinetpay.webhook');
+Route::post('/payments/moneroo/webhook', [MonerooWebhookController::class, 'handle'])->name('api.payments.moneroo.webhook');
+Route::post('/payouts/moneroo/webhook', [MonerooWebhookController::class, 'handle'])->name('api.payouts.moneroo.webhook');
+Route::match(['get', 'post'], '/payments/moneroo/return', [MonerooPaymentController::class, 'redirectReturn'])->name('api.payments.moneroo.return');
 Route::match(['get', 'post'], '/payments/cinetpay/return', [PaymentWebhookController::class, 'redirect'])->name('api.payments.cinetpay.return');
 Route::match(['get', 'post'], '/payments/fedapay/return', [PaymentController::class, 'redirectFedapayReturn'])->name('api.payments.fedapay.return');
 Route::match(['get', 'post'], '/payments/paypal/return', [PaymentController::class, 'redirectPaypalReturn'])->name('api.payments.paypal.return');
@@ -201,6 +206,7 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
     Route::post('/cart/add', [CartController::class, 'add']);
 
     // Payments
+    Route::get('/payments/moneroo/status', [MonerooPaymentController::class, 'status'])->name('api.payments.moneroo.status');
     Route::get('/payments/cinetpay/status', [PaymentController::class, 'status'])->name('api.payments.cinetpay.status');
     Route::get('/payments/fedapay/status', [PaymentController::class, 'statusFedapay'])->name('api.payments.fedapay.status');
     Route::get('/payments/paypal/status', [PaymentController::class, 'statusPaypal'])->name('api.payments.paypal.status');
@@ -237,6 +243,7 @@ Route::middleware(['auth:sanctum', 'lastSeen'])->group(function () {
         Route::post('/wallet/withdraw', [WalletController::class, 'requestWithdraw']);
 
         // Payments
+        Route::post('/payments/moneroo/init', [MonerooPaymentController::class, 'init'])->name('api.payments.moneroo.init');
         Route::post('/payments/cinetpay/init', [PaymentController::class, 'init'])->name('api.payments.cinetpay.init');
         Route::post('/payments/fedapay/init', [PaymentController::class, 'initFedapay'])->name('api.payments.fedapay.init');
         Route::post('/payments/paypal/init', [PaymentController::class, 'initPaypal'])->name('api.payments.paypal.init');

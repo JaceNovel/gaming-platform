@@ -48,7 +48,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"fedapay" | "wallet">("fedapay");
+  const [paymentMethod, setPaymentMethod] = useState<"moneroo" | "wallet">("moneroo");
   const [buyerPhone, setBuyerPhone] = useState<string>("");
 
   useEffect(() => {
@@ -283,11 +283,11 @@ function MarketplaceListingClient({ id }: { id: number }) {
       const customer = buildCustomerPayload();
       const callbackUrl = `${window.location.origin}/order-confirmation?order=${orderId}`;
 
-      const payRes = await authFetch(`${API_BASE}/payments/fedapay/init`, {
+      const payRes = await authFetch(`${API_BASE}/payments/moneroo/init`, {
         method: "POST",
         body: JSON.stringify({
           order_id: orderId,
-          payment_method: "fedapay",
+          payment_method: "moneroo",
           amount: amountToCharge,
           currency,
           customer_email: customer.customer_email,
@@ -314,7 +314,7 @@ function MarketplaceListingClient({ id }: { id: number }) {
         setStatus("Paiement indisponible : URL manquante.");
         return;
       }
-      setStatus("Redirection vers Mobile Money...");
+      setStatus("Redirection vers Moneroo...");
       window.location.href = paymentUrl;
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Connexion au serveur impossible.");
@@ -523,15 +523,15 @@ function MarketplaceListingClient({ id }: { id: number }) {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod("fedapay")}
+                    onClick={() => setPaymentMethod("moneroo")}
                     className={`flex-1 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                      paymentMethod === "fedapay"
+                      paymentMethod === "moneroo"
                         ? "border-cyan-300/50 bg-cyan-400/10 text-cyan-100"
                         : "border-white/10 bg-white/5 text-white/70 hover:text-white"
                     }`}
                   >
                     <span className="inline-flex items-center justify-center gap-2">
-                      📲 Mobile Money
+                      📲 Mobile Money / Carte
                     </span>
                   </button>
                   <button

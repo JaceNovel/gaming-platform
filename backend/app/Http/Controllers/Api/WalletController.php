@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
 use App\Services\FedaPayService;
+use App\Services\MonerooService;
 use App\Services\PayPalService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
@@ -28,6 +29,7 @@ class WalletController extends Controller
     public function __construct(
         private WalletService $walletService,
         private FedaPayService $fedaPayService,
+        private MonerooService $monerooService,
         private PayPalService $payPalService,
     )
     {
@@ -52,7 +54,7 @@ class WalletController extends Controller
             'transactions' => $transactions,
             'withdraw_fee_amount' => self::WITHDRAW_FEE_AMOUNT,
             'payouts' => $payouts,
-            'payout_support' => $this->fedaPayService->payoutSupport(),
+            'payout_support' => $this->monerooService->payoutSupport(),
         ]);
     }
 
@@ -256,7 +258,8 @@ class WalletController extends Controller
         }
 
         $amount = round((float) $request->validated()['amount'], 2);
-        $provider = strtolower(trim((string) ($request->validated()['provider'] ?? 'fedapay')));
+        $requestedProvider = strtolower(trim((string) ($request->validated()['provider'] ?? 'moneroo')));
+        $provider = 'moneroo';
         $customerPhone = trim((string) ($request->validated()['customer_phone'] ?? $user->phone ?? ''));
         $customerCountry = strtoupper(trim((string) ($request->validated()['customer_country'] ?? $user->country_code ?? 'CI')));
 
@@ -301,11 +304,12 @@ class WalletController extends Controller
                     'order_id' => $order->id,
                     'wallet_transaction_id' => $walletTx->id,
                     'amount' => $amount,
-                    'method' => $provider,
+                    'method' => 'moneroo',
                     'status' => 'pending',
                     'webhook_data' => [
                         'source' => 'wallet_topup',
-                        'provider' => $provider,
+                        'provider' => 'moneroo',
+                        'requested_provider' => $requestedProvider,
                     ],
                 ]);
 
@@ -319,37 +323,24 @@ class WalletController extends Controller
                 ];
             });
 
-            if ($provider === 'paypal') {
-                $initResult = $this->payPalService->createCheckoutOrder($order, $user, [
-                    'amount' => $amount,
-                    'source_currency' => 'XOF',
-                    'currency' => (string) config('paypal.default_currency', 'EUR'),
-                    'description' => 'Recharge DB Wallet',
-                    'return_url' => route('api.payments.paypal.return', [
-                        'order_id' => $order->id,
-                    ]),
-                    'cancel_url' => route('api.payments.paypal.return', [
-                        'order_id' => $order->id,
-                        'cancelled' => 1,
-                    ]),
-                ]);
-            } else {
-                $initResult = $this->fedaPayService->initPayment($order, $user, [
-                    'amount' => $amount,
-                    'currency' => 'XOF',
-                    'description' => 'Recharge DB Wallet',
-                    'customer_phone' => $customerPhone,
-                    'customer_country' => $customerCountry,
-                    'customer_email' => $user->email,
-                    'merchant_reference' => (string) $order->reference,
-                    'metadata' => [
-                        'type' => 'wallet_topup',
-                        'order_id' => $order->id,
-                        'wallet_transaction_id' => $walletTx->id,
-                        'user_id' => $user->id,
-                    ],
-                ]);
-            }
+            $initResult = $this->monerooService->initPayment($order, $user, [
+                'amount' => $amount,
+                'currency' => 'XOF',
+                'description' => 'Recharge DB Wallet',
+                'customer_phone' => $customerPhone,
+                'customer_country' => $customerCountry,
+                'customer_email' => $user->email,
+                'return_url' => route('api.payments.moneroo.return', [
+                    'order_id' => $order->id,
+                    'provider' => 'moneroo',
+                ]),
+                'metadata' => [
+                    'type' => 'wallet_topup',
+                    'order_id' => (string) $order->id,
+                    'wallet_transaction_id' => (string) $walletTx->id,
+                    'user_id' => (string) $user->id,
+                ],
+            ]);
 
             DB::transaction(function () use ($order, $payment, $initResult, $amount) {
                 $paymentMeta = $payment->webhook_data ?? [];
@@ -376,7 +367,7 @@ class WalletController extends Controller
                         'amount' => (float) ($initResult['provider_amount'] ?? $amount),
                         'currency' => (string) ($initResult['provider_currency'] ?? 'XOF'),
                         'status' => 'pending',
-                        'provider' => (string) ($payment->method ?? 'fedapay'),
+                        'provider' => (string) ($payment->method ?? 'moneroo'),
                         'raw_payload' => [
                             'source' => 'wallet_topup',
                             'init_response' => $initResult['raw'] ?? null,
@@ -397,7 +388,7 @@ class WalletController extends Controller
                     'currency' => 'XOF',
                     'provider_currency' => $initResult['provider_currency'] ?? 'XOF',
                     'provider_amount' => $initResult['provider_amount'] ?? $amount,
-                    'provider' => $provider,
+                    'provider' => 'moneroo',
                     'status' => 'pending',
                 ],
             ]);
@@ -417,7 +408,7 @@ class WalletController extends Controller
 
             return response()->json([
                 'message' => config('app.debug')
-                    ? ('Recharge impossible: ' . $e->getMessage())
+                        ? ('Recharge impossible: ' . $e->getMessage())
                     : 'Impossible de démarrer la recharge wallet.',
             ], 502);
         }
@@ -495,7 +486,7 @@ class WalletController extends Controller
                 'currency' => (string) ($wallet->currency ?: 'FCFA'),
                 'country' => $country,
                 'phone' => $digits,
-                'provider' => 'FEDAPAY',
+                'provider' => 'MONEROO',
                 'status' => 'queued',
                 'idempotency_key' => $idempotencyKey,
             ]);
