@@ -1137,6 +1137,8 @@ class AliExpressBulkCatalogImportService
             $defaults = (array) ($supplierPayload['_storefront_defaults'] ?? []);
             $title = (string) $supplierProduct->title;
             $accessoryCategory = $this->inferAccessoryCategory($title);
+            $manualStorefrontPricing = $this->usesManualStorefrontPricing($options) || (bool) ($defaults['manual_storefront_pricing'] ?? false);
+            $storefrontVariants = is_array($defaults['storefront_variants'] ?? null) ? $defaults['storefront_variants'] : [];
 
             $product = Product::create([
                 'game_id' => null,
@@ -1158,13 +1160,13 @@ class AliExpressBulkCatalogImportService
                 'shipping_required' => true,
                 'delivery_type' => 'preorder',
                 'delivery_eta_days' => max(1, (int) ($options['delivery_eta_days'] ?? 12)),
-                'delivery_estimate_label' => 'Expedition groupee',
+                'delivery_estimate_label' => $manualStorefrontPricing ? 'Sur commande' : 'Expedition groupee',
                 'preferred_supplier_platform' => 'aliexpress',
-                'supplier_shipping_mode' => 'grouped',
+                'supplier_shipping_mode' => $manualStorefrontPricing ? 'manual' : 'grouped',
                 'grouping_threshold' => max(1, (int) ($options['grouping_threshold'] ?? 3)),
                 'grouping_current_count' => 0,
                 'supplier_margin_type' => 'percent',
-                'supplier_margin_value' => (float) ($options['margin_percent'] ?? 17),
+                'supplier_margin_value' => $manualStorefrontPricing ? 0 : (float) ($options['margin_percent'] ?? 17),
                 'supplier_shipping_fee' => 0,
                 'estimated_weight_grams' => (int) ($defaults['estimated_weight_grams'] ?? 0),
                 'estimated_cbm' => (float) ($defaults['estimated_cbm'] ?? 0),
@@ -1178,6 +1180,8 @@ class AliExpressBulkCatalogImportService
                     'source_unit_price' => $defaults['source_unit_price'] ?? null,
                     'supplier_product_id' => $supplierProduct->id,
                     'supplier_external_product_id' => $supplierProduct->external_product_id,
+                    'manual_storefront_pricing' => $manualStorefrontPricing ? true : null,
+                    'storefront_variants' => $storefrontVariants !== [] ? $storefrontVariants : null,
                 ], fn ($value) => $value !== null && $value !== ''),
                 'description' => $this->buildDescription($supplierProduct, $defaults),
             ]);
@@ -1194,6 +1198,27 @@ class AliExpressBulkCatalogImportService
     private function ensureStorefrontDefaults(SupplierProduct $supplierProduct, array $supplierPayload, array $options): array
     {
         $defaults = (array) ($supplierPayload['_storefront_defaults'] ?? []);
+        if ($this->usesManualStorefrontPricing($options)) {
+            $variants = $this->buildStorefrontVariantsForProduct($supplierPayload, $options);
+            $firstVariant = $variants[0] ?? [];
+            $priceFcfa = (int) ($firstVariant['sale_price_fcfa'] ?? 0);
+            $compareAtPriceFcfa = (int) ($firstVariant['compare_at_price_fcfa'] ?? 0);
+
+            $defaults['price_fcfa'] = $priceFcfa;
+            $defaults['old_price_fcfa'] = $compareAtPriceFcfa > $priceFcfa ? $compareAtPriceFcfa : null;
+            $defaults['main_image_url'] = $defaults['main_image_url'] ?? $supplierProduct->main_image_url;
+            $defaults['source_url'] = $defaults['source_url'] ?? $supplierProduct->source_url;
+            $defaults['estimated_weight_grams'] = (int) ($defaults['estimated_weight_grams'] ?? $options['default_weight_grams'] ?? 0);
+            $defaults['estimated_cbm'] = (float) ($defaults['estimated_cbm'] ?? $options['default_estimated_cbm'] ?? 0);
+            $defaults['source_logistics_profile'] = $defaults['source_logistics_profile'] ?? strtolower((string) ($options['source_logistics_profile'] ?? 'ordinary'));
+            $defaults['manual_storefront_pricing'] = true;
+            $defaults['storefront_variants'] = $variants;
+
+            $supplierPayload['_storefront_defaults'] = $defaults;
+
+            return $supplierPayload;
+        }
+
         if (($defaults['price_fcfa'] ?? null) !== null) {
             return $supplierPayload;
         }
@@ -1229,6 +1254,8 @@ class AliExpressBulkCatalogImportService
         $resolvedAccessoryCategory = $this->inferAccessoryCategory($productTitle);
         $supplierExternalProductId = trim((string) ($supplierPayload['external_product_id'] ?? ''));
         $supplierProductId = $supplierPayload['_supplier_product_id'] ?? null;
+        $manualStorefrontPricing = $this->usesManualStorefrontPricing($options) || (bool) ($defaults['manual_storefront_pricing'] ?? false);
+        $storefrontVariants = is_array($defaults['storefront_variants'] ?? null) ? $defaults['storefront_variants'] : [];
 
         $updates = [
             'price' => $defaults['price_fcfa'] ?? $product->price,
@@ -1238,11 +1265,18 @@ class AliExpressBulkCatalogImportService
             'estimated_cbm' => (float) ($defaults['estimated_cbm'] ?? $product->estimated_cbm ?? 0),
             'source_logistics_profile' => $defaults['source_logistics_profile'] ?? $product->source_logistics_profile,
             'grouping_threshold' => max(1, (int) ($options['grouping_threshold'] ?? $product->grouping_threshold ?? 3)),
-            'supplier_margin_value' => (float) ($options['margin_percent'] ?? $product->supplier_margin_value ?? 17),
+            'supplier_margin_value' => $manualStorefrontPricing ? 0 : (float) ($options['margin_percent'] ?? $product->supplier_margin_value ?? 17),
             'category' => 'accessory',
             'accessory_category' => $resolvedAccessoryCategory,
             'accessory_subcategory' => $this->inferAccessorySubcategory($productTitle),
         ];
+
+        if ($manualStorefrontPricing) {
+            $updates['shipping_fee'] = 0;
+            $updates['supplier_shipping_mode'] = 'manual';
+            $updates['supplier_shipping_fee'] = 0;
+            $updates['delivery_estimate_label'] = 'Sur commande';
+        }
 
         if (!$onlyFillMissing) {
             $updates['is_active'] = $publishProducts ? true : (bool) $product->is_active;
@@ -1259,6 +1293,8 @@ class AliExpressBulkCatalogImportService
         $details['import_source'] = $options['import_source'] ?? 'aliexpress_affiliate';
         $details['supplier_product_id'] = $supplierProductId ?? ($details['supplier_product_id'] ?? null);
         $details['supplier_external_product_id'] = $supplierExternalProductId !== '' ? $supplierExternalProductId : ($details['supplier_external_product_id'] ?? null);
+        $details['manual_storefront_pricing'] = $manualStorefrontPricing;
+        $details['storefront_variants'] = $storefrontVariants;
         $updates['details'] = array_filter($details, fn ($value) => $value !== null && $value !== '');
 
         $product->update($updates);
@@ -1267,6 +1303,10 @@ class AliExpressBulkCatalogImportService
 
     private function applyImportedTransitPricing(Product $product, array $supplierPayload, array $options): void
     {
+        if ($this->usesManualStorefrontPricing($options) || (bool) data_get($supplierPayload, '_storefront_defaults.manual_storefront_pricing')) {
+            return;
+        }
+
         if ((string) $product->preferred_supplier_platform !== 'aliexpress' || (string) $product->category !== 'accessory') {
             return;
         }
@@ -1427,6 +1467,127 @@ class AliExpressBulkCatalogImportService
             'url' => $url,
             'position' => 1,
         ]);
+    }
+
+    private function usesManualStorefrontPricing(array $options): bool
+    {
+        return (bool) ($options['manual_storefront_pricing'] ?? false);
+    }
+
+    private function buildStorefrontVariantsForProduct(array $supplierPayload, array $options): array
+    {
+        $skuRows = array_values(array_filter(array_map(static fn ($sku) => is_array($sku) ? $sku : null, Arr::wrap($supplierPayload['skus'] ?? []))));
+        $submittedPrices = [];
+
+        foreach (Arr::wrap($options['storefront_variant_prices'] ?? []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $externalSkuId = trim((string) ($row['external_sku_id'] ?? ''));
+            if ($externalSkuId === '') {
+                continue;
+            }
+
+            $submittedPrices[$externalSkuId] = $row;
+        }
+
+        $variants = [];
+        foreach ($skuRows as $index => $sku) {
+            $externalSkuId = trim((string) ($sku['external_sku_id'] ?? ''));
+            if ($externalSkuId === '') {
+                continue;
+            }
+
+            $submitted = $submittedPrices[$externalSkuId] ?? [];
+            $variantAttributes = is_array($submitted['variant_attributes_json'] ?? null)
+                ? $submitted['variant_attributes_json']
+                : (is_array($sku['variant_attributes_json'] ?? null) ? $sku['variant_attributes_json'] : []);
+            $label = trim((string) ($submitted['sku_label'] ?? $sku['sku_label'] ?? ''));
+            if ($label === '') {
+                $label = $this->formatStorefrontVariantLabel($variantAttributes, $externalSkuId);
+            }
+
+            $salePriceFcfa = max(0, (int) ($submitted['sale_price_fcfa'] ?? 0));
+            $compareAtPriceFcfa = max(0, (int) ($submitted['compare_at_price_fcfa'] ?? 0));
+
+            $variants[] = array_filter([
+                'id' => $externalSkuId,
+                'external_sku_id' => $externalSkuId,
+                'label' => $label,
+                'sku_label' => $label,
+                'variant_attributes_json' => $variantAttributes,
+                'supplier_unit_price' => $this->normalizeMoney($sku['unit_price'] ?? 0),
+                'supplier_currency_code' => strtoupper(trim((string) ($sku['currency_code'] ?? 'USD'))) ?: 'USD',
+                'sale_price_fcfa' => $salePriceFcfa,
+                'compare_at_price_fcfa' => $compareAtPriceFcfa > $salePriceFcfa ? $compareAtPriceFcfa : null,
+                'is_default' => $index === 0,
+            ], static fn ($value) => $value !== null && $value !== '');
+        }
+
+        if ($variants !== [] || $submittedPrices === []) {
+            return $variants;
+        }
+
+        $index = 0;
+        foreach ($submittedPrices as $externalSkuId => $submitted) {
+            $variantAttributes = is_array($submitted['variant_attributes_json'] ?? null) ? $submitted['variant_attributes_json'] : [];
+            $label = trim((string) ($submitted['sku_label'] ?? ''));
+            if ($label === '') {
+                $label = $this->formatStorefrontVariantLabel($variantAttributes, $externalSkuId);
+            }
+
+            $salePriceFcfa = max(0, (int) ($submitted['sale_price_fcfa'] ?? 0));
+            $compareAtPriceFcfa = max(0, (int) ($submitted['compare_at_price_fcfa'] ?? 0));
+
+            $variants[] = array_filter([
+                'id' => $externalSkuId,
+                'external_sku_id' => $externalSkuId,
+                'label' => $label,
+                'sku_label' => $label,
+                'variant_attributes_json' => $variantAttributes,
+                'sale_price_fcfa' => $salePriceFcfa,
+                'compare_at_price_fcfa' => $compareAtPriceFcfa > $salePriceFcfa ? $compareAtPriceFcfa : null,
+                'is_default' => $index === 0,
+            ], static fn ($value) => $value !== null && $value !== '');
+            $index++;
+        }
+
+        return $variants;
+    }
+
+    private function formatStorefrontVariantLabel(array $variantAttributes, string $fallbackId): string
+    {
+        $segments = [];
+
+        foreach ($variantAttributes as $attribute) {
+            if (is_array($attribute)) {
+                $value = trim((string) ($attribute['property_value'] ?? $attribute['value'] ?? ''));
+                if ($value !== '') {
+                    $segments[] = $value;
+                    continue;
+                }
+
+                foreach ($attribute as $candidate) {
+                    if (!is_array($candidate)) {
+                        $normalized = trim((string) $candidate);
+                        if ($normalized !== '') {
+                            $segments[] = $normalized;
+                        }
+                    }
+                }
+                continue;
+            }
+
+            $normalized = trim((string) $attribute);
+            if ($normalized !== '') {
+                $segments[] = $normalized;
+            }
+        }
+
+        $segments = array_values(array_unique(array_filter($segments)));
+
+        return $segments !== [] ? implode(' / ', $segments) : ('Option ' . $fallbackId);
     }
 
     private function inferAccessoryCategory(string $title): string

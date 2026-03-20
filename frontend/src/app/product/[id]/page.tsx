@@ -9,7 +9,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
-import { buildGroupedDeliveryMessages, formatGroupedFcfa, parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
+import { formatGroupedFcfa, parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
 import {
   getStoredStorefrontCountry,
   onStorefrontCountryChanged,
@@ -17,6 +17,7 @@ import {
   setStoredStorefrontCountry,
   type StorefrontCountry,
 } from "@/lib/storefrontCountry";
+import { buildCartItemKey, normalizeStorefrontVariants, resolveStorefrontVariant } from "@/lib/storefrontVariants";
 
 type ApiProduct = {
   id: number | string;
@@ -54,11 +55,14 @@ type ApiProduct = {
     banner?: string | null;
     brand?: string | null;
     stock?: number | null;
+    storefront_variants?: unknown[] | null;
+    manual_storefront_pricing?: boolean | null;
   } | null;
 };
 
 type CartProduct = {
   id: number | string;
+  cartKey?: string;
   name: string;
   description?: string;
   price: number;
@@ -72,6 +76,8 @@ type CartProduct = {
   groupingRemainingValue?: number;
   groupingMinimumValue?: number;
   accessoryCategory?: string | null;
+  selectedStorefrontVariantId?: string;
+  selectedStorefrontVariantLabel?: string;
 };
 
 const normalizeTags = (product: ApiProduct | null): string[] => {
@@ -141,6 +147,7 @@ export default function PremiumAccessoryDesktopPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
   const [redirecting, setRedirecting] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState("");
 
   useEffect(() => {
     setStorefrontCountryCode(getStoredStorefrontCountry());
@@ -218,29 +225,18 @@ export default function PremiumAccessoryDesktopPage() {
 
   const images = useMemo(() => extractImages(product).map((image) => toDisplayImageSrc(image) ?? image), [product]);
   const activeImage = images[activeImageIndex] ?? images[0] ?? "/file.svg";
-  const priceValue = useMemo(() => parseGroupedNumber(product?.computed_final_price ?? product?.discount_price ?? product?.price), [product?.computed_final_price, product?.discount_price, product?.price]);
+  const storefrontVariants = useMemo(() => normalizeStorefrontVariants(product?.details?.storefront_variants), [product?.details?.storefront_variants]);
+  const selectedVariant = useMemo(
+    () => resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId),
+    [product?.details?.storefront_variants, selectedVariantId],
+  );
+  const priceValue = useMemo(
+    () => selectedVariant?.salePriceFcfa ?? parseGroupedNumber(product?.computed_final_price ?? product?.discount_price ?? product?.price),
+    [product?.computed_final_price, product?.discount_price, product?.price, selectedVariant?.salePriceFcfa],
+  );
   const stockValue = useMemo(() => parseGroupedNumber(product?.stock ?? product?.stock_quantity ?? product?.details?.stock), [product?.details?.stock, product?.stock, product?.stock_quantity]);
   const description = useMemo(() => sanitizeDescription(product), [product]);
   const tags = useMemo(() => normalizeTags(product), [product]);
-  const progressLabel = useMemo(() => {
-    if (product?.grouping_progress_label) return product.grouping_progress_label;
-    const current = parseGroupedNumber(product?.grouping_progress);
-    const required = Math.max(1, parseGroupedNumber(product?.grouping_threshold));
-    return `${current}/${required}`;
-  }, [product?.grouping_progress, product?.grouping_progress_label, product?.grouping_threshold]);
-  const remainingValue = useMemo(() => {
-    const direct = parseGroupedNumber(product?.grouping_remaining_value);
-    if (direct > 0) return direct;
-    return Math.max(0, parseGroupedNumber(product?.grouping_minimum_value) - parseGroupedNumber(product?.grouping_current_value));
-  }, [product?.grouping_current_value, product?.grouping_minimum_value, product?.grouping_remaining_value]);
-  const deliveryMessages = useMemo(
-    () => buildGroupedDeliveryMessages({
-      shippingFee: product?.shipping_fee,
-      remainingValue,
-      freeShippingEligible: product?.free_shipping_eligible,
-    }),
-    [product?.free_shipping_eligible, product?.shipping_fee, remainingValue],
-  );
   const activeCountry = useMemo(
     () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
     [storefrontCountries, storefrontCountryCode],
@@ -249,6 +245,10 @@ export default function PremiumAccessoryDesktopPage() {
   const heroKicker = useMemo(() => {
     return product?.details?.brand || product?.accessory_subcategory || product?.accessory_category || "Showroom edit";
   }, [product?.accessory_category, product?.accessory_subcategory, product?.details?.brand]);
+  useEffect(() => {
+    const resolved = resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId);
+    setSelectedVariantId(resolved?.id ?? "");
+  }, [product?.details?.storefront_variants]);
   const showroomNotes = useMemo(
     () => [
       {
@@ -256,15 +256,15 @@ export default function PremiumAccessoryDesktopPage() {
         text: "Composition large, contraste fort et lecture instantanee pour mettre le produit en scene comme une piece centrale du setup.",
       },
       {
-        title: "Narration commerciale",
-        text: "Le client voit d'abord le benefice, ensuite la progression du lot, puis seulement les details logistiques utiles a la conversion.",
+        title: "Choix client",
+        text: selectedVariant ? `Version active: ${selectedVariant.label}. Le prix affiche correspond a cette option.` : "Chaque version peut etre vendue avec son propre prix sans reprendre les calculs fournisseur.",
       },
       {
         title: "Signal de valeur",
-        text: "Prix, image hero, reste a debloquer et quote-part lot sont rendus visibles en un seul regard, sans saturation inutile.",
+        text: "Prix, image hero et informations utiles restent visibles en un seul regard, sans exposer la logique fournisseur.",
       },
     ],
-    [],
+    [selectedVariant],
   );
 
   const handleAddToCart = (event: MouseEvent<HTMLButtonElement>) => {
@@ -278,16 +278,18 @@ export default function PremiumAccessoryDesktopPage() {
       cart = [];
     }
 
-    const existing = cart.find((item) => String(item.id) === String(product.id));
+    const cartKey = buildCartItemKey(product.id, selectedVariant?.id);
+    const existing = cart.find((item) => String(item.cartKey ?? buildCartItemKey(item.id, item.selectedStorefrontVariantId)) === cartKey);
     if (existing) {
       existing.quantity = Math.max(1, Number(existing.quantity ?? 1) + 1);
       existing.shippingFee = parseGroupedNumber(product.shipping_fee);
-      existing.groupingProgressLabel = progressLabel;
-      existing.groupingRemainingValue = remainingValue;
-      existing.groupingMinimumValue = parseGroupedNumber(product.grouping_minimum_value);
+      existing.cartKey = cartKey;
+      existing.selectedStorefrontVariantId = selectedVariant?.id ?? undefined;
+      existing.selectedStorefrontVariantLabel = selectedVariant?.label ?? undefined;
     } else {
       cart.push({
         id: product.id,
+        cartKey,
         name: String(product.name ?? product.title ?? "Produit"),
         description,
         price: priceValue,
@@ -297,10 +299,9 @@ export default function PremiumAccessoryDesktopPage() {
         displaySection: product.display_section ?? null,
         deliveryEstimateLabel: product.delivery_estimate_label ?? null,
         shippingFee: parseGroupedNumber(product.shipping_fee),
-        groupingProgressLabel: progressLabel,
-        groupingRemainingValue: remainingValue,
-        groupingMinimumValue: parseGroupedNumber(product.grouping_minimum_value),
         accessoryCategory: product.accessory_category ?? null,
+        selectedStorefrontVariantId: selectedVariant?.id ?? undefined,
+        selectedStorefrontVariantLabel: selectedVariant?.label ?? undefined,
       });
     }
 
@@ -318,7 +319,9 @@ export default function PremiumAccessoryDesktopPage() {
       return;
     }
 
-    router.push(`/checkout?product=${encodeURIComponent(String(product?.id ?? id ?? ""))}`);
+    const params = new URLSearchParams({ product: String(product?.id ?? id ?? "") });
+    if (selectedVariant?.id) params.set("variant", selectedVariant.id);
+    router.push(`/checkout?${params.toString()}`);
   };
 
   if (loading || redirecting || isDesktop === null) {
@@ -380,7 +383,7 @@ export default function PremiumAccessoryDesktopPage() {
             <span className="h-1 w-1 rounded-full bg-white/35" />
             <span>{heroKicker}</span>
             <span className="h-1 w-1 rounded-full bg-white/35" />
-            <span>{deliveryMessages.short}</span>
+            <span>{selectedVariant?.label ?? "Choix client"}</span>
           </div>
           <div className="text-[11px] uppercase tracking-[0.28em] text-white/42">Desktop premium experience</div>
         </div>
@@ -443,7 +446,7 @@ export default function PremiumAccessoryDesktopPage() {
                   <div className="rounded-[30px] border border-white/12 bg-black/35 px-5 py-4 text-right backdrop-blur-md shadow-[0_18px_40px_rgba(0,0,0,0.18)]">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/45">Prix observe</div>
                     <div className="mt-2 text-4xl font-black text-amber-200">{formatGroupedFcfa(priceValue)}</div>
-                    <div className="mt-3 text-xs text-white/60">{deliveryMessages.feeLabel}</div>
+                    <div className="mt-3 text-xs text-white/60">{selectedVariant ? `Option: ${selectedVariant.label}` : "Prix du site"}</div>
                   </div>
                 </div>
 
@@ -454,14 +457,14 @@ export default function PremiumAccessoryDesktopPage() {
 
                 <div className="absolute inset-x-8 bottom-8 grid grid-cols-3 gap-4">
                   <div className="rounded-[28px] border border-white/12 bg-black/30 px-5 py-4 backdrop-blur-md shadow-[0_16px_40px_rgba(0,0,0,0.16)]">
-                    <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Progression lot</div>
-                    <div className="mt-2 text-3xl font-black text-white">{progressLabel}</div>
-                    <div className="mt-2 text-xs text-white/60">Palier client en cours</div>
+                    <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Choix disponible</div>
+                    <div className="mt-2 text-3xl font-black text-white">{selectedVariant?.label ?? `${Math.max(storefrontVariants.length, 1)} option(s)`}</div>
+                    <div className="mt-2 text-xs text-white/60">Version actuellement selectionnee</div>
                   </div>
                   <div className="rounded-[28px] border border-cyan-300/16 bg-cyan-300/7 px-5 py-4 backdrop-blur-md shadow-[0_16px_40px_rgba(12,27,45,0.22)]">
-                    <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Reste a debloquer</div>
-                    <div className="mt-2 text-3xl font-black text-cyan-200">{formatGroupedFcfa(remainingValue)}</div>
-                    <div className="mt-2 text-xs text-white/60">Pour la Livraison Gratuite et rapide</div>
+                    <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Pays de livraison</div>
+                    <div className="mt-2 text-3xl font-black text-cyan-200">{activeCountry?.code ?? storefrontCountryCode}</div>
+                    <div className="mt-2 text-xs text-white/60">{activeCountry?.name ?? "Livraison locale"}</div>
                   </div>
                   <div className="rounded-[28px] border border-white/12 bg-black/30 px-5 py-4 backdrop-blur-md shadow-[0_16px_40px_rgba(0,0,0,0.16)]">
                     <div className="text-[11px] uppercase tracking-[0.26em] text-white/40">Disponibilite</div>
@@ -501,15 +504,32 @@ export default function PremiumAccessoryDesktopPage() {
                   <div className="mt-2 text-3xl font-black text-white">{formatGroupedFcfa(priceValue)}</div>
                 </div>
                 <div className="rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100">
-                  {deliveryMessages.short}
+                  Prix manuel
                 </div>
               </div>
+
+              {storefrontVariants.length > 0 ? (
+                <div className="mt-6 rounded-[28px] border border-white/10 bg-black/18 p-5">
+                  <div className="text-[11px] uppercase tracking-[0.28em] text-white/45">Choix du client</div>
+                  <select
+                    value={selectedVariant?.id ?? ""}
+                    onChange={(event) => setSelectedVariantId(event.target.value)}
+                    className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white outline-none"
+                  >
+                    {storefrontVariants.map((variant) => (
+                      <option key={variant.id} value={variant.id} className="bg-slate-950 text-white">
+                        {variant.label} · {formatGroupedFcfa(variant.salePriceFcfa)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
 
               <div className="mt-6 rounded-[28px] border border-white/10 bg-[#09101b] p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-[0.26em] text-white/42">Pays de livraison</div>
-                    <div className="mt-2 text-sm text-white/70">Choisis la zone client pour recalculer le lot et la livraison.</div>
+                    <div className="mt-2 text-sm text-white/70">Choisis la zone client pour afficher les informations de livraison.</div>
                   </div>
                   <Headphones className="h-5 w-5 text-cyan-200" />
                 </div>
@@ -535,10 +555,10 @@ export default function PremiumAccessoryDesktopPage() {
 
               <div className="mt-6 rounded-[28px] border border-cyan-300/18 bg-cyan-300/6 p-5">
                 <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-100/65">Message client</div>
-                <p className="mt-3 text-sm leading-7 text-cyan-50">{deliveryMessages.detail}</p>
+                <p className="mt-3 text-sm leading-7 text-cyan-50">{customerNotice || "Choisis simplement la version qui te convient. Chaque choix conserve son propre prix de vente sur le site."}</p>
                 <div className="mt-4 flex items-center justify-between text-xs text-cyan-100/75">
-                  <span>Statut lot</span>
-                  <span className="font-semibold">{deliveryMessages.feeLabel}</span>
+                  <span>Choix</span>
+                  <span className="font-semibold">{selectedVariant?.label ?? "Standard"}</span>
                 </div>
               </div>
 
@@ -565,8 +585,8 @@ export default function PremiumAccessoryDesktopPage() {
                   <div className="mt-2 font-semibold text-white">{product.accessory_subcategory || product.accessory_category || product.category || "Gaming gear"}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Valeur lot</div>
-                  <div className="mt-2 font-semibold text-white">{formatGroupedFcfa(parseGroupedNumber(product.grouping_current_value))}</div>
+                  <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Options</div>
+                  <div className="mt-2 font-semibold text-white">{Math.max(storefrontVariants.length, 1)}</div>
                 </div>
               </div>
 
@@ -576,7 +596,7 @@ export default function PremiumAccessoryDesktopPage() {
                   <div className="text-[11px] uppercase tracking-[0.24em] text-white/45">Concierge gaming</div>
                 </div>
                 <p className="mt-3 text-sm leading-7 text-white/68">
-                  Si tu veux optimiser plusieurs accessoires ensemble, le groupage continue automatiquement a s'ajuster pour proteger le meilleur cout global possible.
+                  Si le produit propose plusieurs versions, tu peux choisir celle que tu veux avant validation. Le prix affiche reste celui defini pour cette option.
                 </p>
               </div>
 
@@ -598,23 +618,23 @@ export default function PremiumAccessoryDesktopPage() {
             <div className="text-[11px] uppercase tracking-[0.28em] text-white/40">Pourquoi ce produit</div>
             <h2 className="mt-3 text-3xl font-black tracking-[-0.03em] text-white">Une fiche orientee desktop, pour vendre un setup et pas juste un SKU.</h2>
             <p className="mt-5 text-sm leading-7 text-white/68">
-              Cette experience met en avant la valeur percue du produit, la progression du lot et le benefice client sans exposer la complexite logistique. Elle est volontairement reservee au desktop pour garder une composition riche, editorialisee et premium.
+              Cette experience met en avant la valeur percue du produit, les choix disponibles et le benefice client sans exposer la complexite fournisseur. Elle est volontairement reservee au desktop pour garder une composition riche, editorialisee et premium.
             </p>
           </div>
 
           <div className="rounded-[34px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-7 backdrop-blur-sm">
             <div className="grid grid-cols-3 gap-4">
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Valeur minimum</div>
-                <div className="mt-3 text-2xl font-black text-white">{formatGroupedFcfa(parseGroupedNumber(product.grouping_minimum_value))}</div>
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Prix du site</div>
+                <div className="mt-3 text-2xl font-black text-white">{formatGroupedFcfa(priceValue)}</div>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Quote-part lot</div>
-                <div className="mt-3 text-2xl font-black text-cyan-200">{deliveryMessages.feeLabel}</div>
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Choix actif</div>
+                <div className="mt-3 text-2xl font-black text-cyan-200">{selectedVariant?.label ?? "Standard"}</div>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Etat lot</div>
-                <div className="mt-3 text-2xl font-black text-white">{deliveryMessages.short}</div>
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/40">Livraison</div>
+                <div className="mt-3 text-2xl font-black text-white">{activeCountry?.name ?? "Locale"}</div>
               </div>
             </div>
           </div>

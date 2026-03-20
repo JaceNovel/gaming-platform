@@ -705,12 +705,12 @@ export default function AccessoiresPage() {
                                         <span className="font-semibold text-white">{formatFcfa(price)}</span>
                                       </div>
                                       <div className="flex items-center justify-between text-white/70">
-                                        <span>Logistique lot</span>
-                                        <span className="font-semibold text-white">Incluse</span>
+                                        <span>Livraison</span>
+                                        <span className="font-semibold text-white">Disponible</span>
                                       </div>
                                       <div className="flex items-center justify-between text-white/70">
-                                        <span>Progression lot</span>
-                                        <span className="font-semibold text-white">{p.grouping_progress_label || "—"}</span>
+                                        <span>Choix client</span>
+                                        <span className="font-semibold text-white">Voir détail</span>
                                       </div>
                                     </div>
 

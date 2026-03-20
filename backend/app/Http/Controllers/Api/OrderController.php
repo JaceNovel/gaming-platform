@@ -62,6 +62,43 @@ class OrderController extends Controller
             ]);
         }
     }
+
+    private function storefrontVariants(Product $product): array
+    {
+        $details = is_array($product->details) ? $product->details : [];
+        $variants = $details['storefront_variants'] ?? [];
+
+        return is_array($variants) ? array_values(array_filter($variants, static fn ($variant) => is_array($variant))) : [];
+    }
+
+    private function resolveSelectedStorefrontVariant(Product $product, ?string $requestedVariantId): ?array
+    {
+        $variants = $this->storefrontVariants($product);
+        if ($variants === []) {
+            return null;
+        }
+
+        $normalizedRequestedId = trim((string) ($requestedVariantId ?? ''));
+        if ($normalizedRequestedId !== '') {
+            foreach ($variants as $variant) {
+                $candidateId = trim((string) ($variant['id'] ?? $variant['external_sku_id'] ?? ''));
+                if ($candidateId !== '' && $candidateId === $normalizedRequestedId) {
+                    return $variant;
+                }
+            }
+
+            return null;
+        }
+
+        foreach ($variants as $variant) {
+            if ((bool) ($variant['is_default'] ?? false)) {
+                return $variant;
+            }
+        }
+
+        return $variants[0] ?? null;
+    }
+
     private function resolveOrderForUser(Request $request, string $orderIdOrReference): Order
     {
         $needle = urldecode($orderIdOrReference);
@@ -296,6 +333,7 @@ class OrderController extends Controller
             'items.*.qty' => 'nullable|integer|min:1',
             'items.*.game_id' => 'nullable|string|max:255',
             'items.*.redeem_denomination_id' => 'nullable|exists:redeem_denominations,id',
+            'items.*.selected_storefront_variant_id' => 'nullable|string|max:255',
             'destination_country_code' => 'nullable|string|size:2',
             'shipping_address_line1' => 'nullable|string|max:255',
             'shipping_city' => 'nullable|string|max:80',
@@ -434,6 +472,24 @@ class OrderController extends Controller
 
             $unitPrice = $product->discount_price ?? $product->price;
             $lineTotal = $unitPrice * $quantity;
+            $selectedStorefrontVariant = null;
+
+            $storefrontVariants = $this->storefrontVariants($product);
+            if ($storefrontVariants !== []) {
+                $selectedStorefrontVariant = $this->resolveSelectedStorefrontVariant($product, $item['selected_storefront_variant_id'] ?? null);
+
+                if (!$selectedStorefrontVariant) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Choisis une option valide pour le produit ' . ($product->name ?? $product->title ?? ('#' . $product->id)) . '.',
+                    ]);
+                }
+
+                $variantPrice = (float) ($selectedStorefrontVariant['sale_price_fcfa'] ?? 0);
+                if ($variantPrice > 0) {
+                    $unitPrice = $variantPrice;
+                    $lineTotal = $unitPrice * $quantity;
+                }
+            }
 
             $unitShippingFee = (float) ($product->shipping_fee ?? 0);
             if (!is_finite($unitShippingFee) || $unitShippingFee < 0) {
@@ -490,6 +546,8 @@ class OrderController extends Controller
                 'delivery_type' => $deliveryType,
                 'delivery_eta_days' => $deliveryEtaDays,
                 'destination_country_code' => $destinationCountryCode ?: null,
+                'selected_storefront_variant_id' => $selectedStorefrontVariant['id'] ?? $selectedStorefrontVariant['external_sku_id'] ?? null,
+                'selected_storefront_variant_label' => $selectedStorefrontVariant['label'] ?? $selectedStorefrontVariant['sku_label'] ?? null,
             ];
         }
 

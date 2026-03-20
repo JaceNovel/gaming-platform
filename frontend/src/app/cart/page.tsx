@@ -14,11 +14,12 @@ import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { fedapayTopupDescription } from "@/lib/fedapayChannels";
 import { emitWalletUpdated } from "@/lib/walletEvents";
-import { buildGroupedDeliveryMessages } from "@/lib/groupedDeliveryMessaging";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
+import { buildCartItemKey } from "@/lib/storefrontVariants";
 
 type CartItem = {
   id: number;
+  cartKey?: string;
   name: string;
   description?: string;
   price: number;
@@ -33,6 +34,12 @@ type CartItem = {
   groupingProgressLabel?: string;
   groupingRemainingValue?: number;
   groupingMinimumValue?: number;
+  selectedStorefrontVariantId?: string;
+  selectedStorefrontVariantLabel?: string;
+};
+
+const getCartItemKey = (item: Pick<CartItem, "id" | "cartKey" | "selectedStorefrontVariantId">): string => {
+  return String(item.cartKey ?? buildCartItemKey(item.id, item.selectedStorefrontVariantId));
 };
 
 const legacyDeliveryLabelToBadge = (raw?: string | null): DeliveryBadgeDisplay | null => {
@@ -226,9 +233,9 @@ function CartScreen() {
     );
   };
 
-  const removeItem = (id: number) => {
+  const removeItem = (itemKey: string) => {
     setCartItems((prev) => {
-      const next = prev.filter((item) => item.id !== id);
+      const next = prev.filter((item) => getCartItemKey(item) !== itemKey);
       if (typeof window !== "undefined") {
         localStorage.setItem("bbshop_cart", JSON.stringify(next));
         emitCartUpdated({ action: "remove" });
@@ -237,10 +244,10 @@ function CartScreen() {
     });
   };
 
-  const updateQuantity = (id: number, nextQuantity: number) => {
+  const updateQuantity = (itemKey: string, nextQuantity: number) => {
     const q = Math.max(1, Number(nextQuantity || 1));
     setCartItems((prev) => {
-      const next = prev.map((item) => (item.id === id ? { ...item, quantity: q } : item));
+      const next = prev.map((item) => (getCartItemKey(item) === itemKey ? { ...item, quantity: q } : item));
       if (typeof window !== "undefined") {
         localStorage.setItem("bbshop_cart", JSON.stringify(next));
         emitCartUpdated({ action: "update" });
@@ -249,9 +256,9 @@ function CartScreen() {
     });
   };
 
-  const updateGameId = (id: number, nextGameId: string) => {
+  const updateGameId = (itemKey: string, nextGameId: string) => {
     setCartItems((prev) => {
-      const next = prev.map((item) => (item.id === id ? { ...item, gameId: nextGameId } : item));
+      const next = prev.map((item) => (getCartItemKey(item) === itemKey ? { ...item, gameId: nextGameId } : item));
       if (typeof window !== "undefined") {
         localStorage.setItem("bbshop_cart", JSON.stringify(next));
         emitCartUpdated({ action: "update" });
@@ -438,6 +445,7 @@ function CartScreen() {
           items: cartItems.map((item) => ({
             product_id: item.id,
             quantity: item.quantity,
+            ...(item.selectedStorefrontVariantId ? { selected_storefront_variant_id: item.selectedStorefrontVariantId } : {}),
             ...(requiresGameIdForItem(item) ? { game_id: String(item.gameId ?? "").trim() } : {}),
           })),
           ...(hasPhysicalItems
@@ -633,10 +641,11 @@ function CartScreen() {
               <SectionTitle eyebrow="Articles" label="Dans ton panier" />
               <div className="space-y-4">
                 {cartItems.length ? cartItems.map((item) => (
-                  <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div key={getCartItemKey(item)} className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
                         <p className="text-base font-semibold text-white">{item.name}</p>
+                        {item.selectedStorefrontVariantLabel ? <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-cyan-200">Choix: {item.selectedStorefrontVariantLabel}</p> : null}
 
                         {(() => {
                           const badge =
@@ -658,7 +667,7 @@ function CartScreen() {
                             <input
                               type="text"
                               value={item.gameId ?? ""}
-                              onChange={(e) => updateGameId(item.id, e.target.value)}
+                              onChange={(e) => updateGameId(getCartItemKey(item), e.target.value)}
                               placeholder="Ex: votre Game ID / User ID"
                               className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
                             />
@@ -671,7 +680,7 @@ function CartScreen() {
                             <button
                               type="button"
                               className="px-2 sm:px-3 py-2 text-sm text-white/80 hover:bg-white/10"
-                              onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                              onClick={() => updateQuantity(getCartItemKey(item), item.quantity - 1)}
                               aria-label="Diminuer la quantité"
                             >
                               −
@@ -680,13 +689,13 @@ function CartScreen() {
                               type="number"
                               min={1}
                               value={item.quantity}
-                              onChange={(e) => updateQuantity(item.id, Number(e.target.value))}
+                              onChange={(e) => updateQuantity(getCartItemKey(item), Number(e.target.value))}
                               className="w-12 sm:w-16 bg-transparent px-2 py-2 text-center text-sm text-white outline-none"
                             />
                             <button
                               type="button"
                               className="px-2 sm:px-3 py-2 text-sm text-white/80 hover:bg-white/10"
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                              onClick={() => updateQuantity(getCartItemKey(item), item.quantity + 1)}
                               aria-label="Augmenter la quantité"
                             >
                               +
@@ -699,20 +708,10 @@ function CartScreen() {
                           <p className="text-sm sm:text-base font-bold text-cyan-200 break-words">
                             {(item.price * item.quantity).toLocaleString()} FCFA
                           </p>
-                          {item.groupingProgressLabel ? (
-                            <p className="mt-1 text-xs text-cyan-100/80 break-words">
-                              Lot en cours: {item.groupingProgressLabel}
-                              {` • ${buildGroupedDeliveryMessages({
-                                shippingFee: item.shippingFee,
-                                remainingValue: item.groupingRemainingValue,
-                                freeShippingEligible: Number(item.groupingRemainingValue ?? 0) <= 0,
-                              }).detail}`}
-                            </p>
-                          ) : null}
                         </div>
                         <button
                           type="button"
-                          onClick={() => removeItem(item.id)}
+                          onClick={() => removeItem(getCartItemKey(item))}
                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 text-white/70 transition hover:bg-white/10 hover:text-white"
                           aria-label="Supprimer l'article"
                           title="Supprimer"

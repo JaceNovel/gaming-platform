@@ -12,16 +12,19 @@ import { fedapayTopupDescription } from "@/lib/fedapayChannels";
 import { emitWalletUpdated } from "@/lib/walletEvents";
 import { buildMapsUrlFromCoords, isValidShippingInfo, readShippingInfo, writeShippingInfo } from "@/lib/shippingInfo";
 import { getStoredStorefrontCountry, onStorefrontCountryChanged } from "@/lib/storefrontCountry";
+import { resolveStorefrontVariant } from "@/lib/storefrontVariants";
 
 function CheckoutScreen() {
   const { authFetch, user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const productId = Number(searchParams.get("product"));
+  const selectedVariantId = String(searchParams.get("variant") ?? "").trim();
   const [quantity, setQuantity] = useState(1);
   const [productType, setProductType] = useState<string | null>(null);
   const [productName, setProductName] = useState<string>("");
   const [productPrice, setProductPrice] = useState<number>(0);
+  const [selectedVariantLabel, setSelectedVariantLabel] = useState<string>("");
   const [shippingRequired, setShippingRequired] = useState(false);
   const [gameId, setGameId] = useState<string>("");
   const [status, setStatus] = useState<string | null>(null);
@@ -60,16 +63,27 @@ function CheckoutScreen() {
       setProductName(String(data?.name ?? data?.title ?? "").trim());
       setShippingRequired(Boolean(data?.shipping_required ?? false));
 
+      const selectedVariant = resolveStorefrontVariant(data?.details?.storefront_variants, selectedVariantId);
+      setSelectedVariantLabel(selectedVariant?.label ?? "");
+
       const discountPrice = typeof data?.computed_final_price === "number" ? data.computed_final_price : Number(data?.computed_final_price ?? data?.discount_price ?? NaN);
       const basePrice = typeof data?.price === "number" ? data.price : Number(data?.price ?? NaN);
       const priceFcfa = typeof data?.price_fcfa === "number" ? data.price_fcfa : Number(data?.price_fcfa ?? NaN);
-      const resolved = Number.isFinite(discountPrice) && discountPrice > 0 ? discountPrice : Number.isFinite(basePrice) && basePrice > 0 ? basePrice : Number.isFinite(priceFcfa) && priceFcfa > 0 ? priceFcfa : 0;
+      const resolved = selectedVariant?.salePriceFcfa
+        ? selectedVariant.salePriceFcfa
+        : Number.isFinite(discountPrice) && discountPrice > 0
+          ? discountPrice
+          : Number.isFinite(basePrice) && basePrice > 0
+            ? basePrice
+            : Number.isFinite(priceFcfa) && priceFcfa > 0
+              ? priceFcfa
+              : 0;
       setProductPrice(resolved);
     })();
     return () => {
       active = false;
     };
-  }, [destinationCountryCode, isValidProduct, productId]);
+  }, [destinationCountryCode, isValidProduct, productId, selectedVariantId]);
 
   const requiresGameId = useMemo(() => {
     const t = String(productType ?? "").toLowerCase();
@@ -219,6 +233,7 @@ function CheckoutScreen() {
             {
               product_id: productId,
               quantity,
+              ...(selectedVariantId ? { selected_storefront_variant_id: selectedVariantId } : {}),
               ...(requiresGameId ? { game_id: gameId.trim() } : {}),
             },
           ],
@@ -653,6 +668,7 @@ function CheckoutScreen() {
               <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
                 <p className="text-sm text-white/60">Produit</p>
                 <p className="mt-2 text-lg font-semibold text-white">{productName || `Produit #${isValidProduct ? productId : "-"}`}</p>
+                {selectedVariantLabel ? <p className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-cyan-200">Choix: {selectedVariantLabel}</p> : null}
               </div>
 
               <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 text-sm">

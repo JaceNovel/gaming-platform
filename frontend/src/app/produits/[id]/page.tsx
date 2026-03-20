@@ -12,9 +12,10 @@ import DeliveryBadge from "@/components/ui/DeliveryBadge";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
 import { openTidioChat } from "@/lib/tidioChat";
 import { emitCartUpdated } from "@/lib/cartEvents";
-import { buildGroupedDeliveryMessages, parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
+import { parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getStoredStorefrontCountry, onStorefrontCountryChanged, sanitizeStorefrontCustomerNotice, setStoredStorefrontCountry, type StorefrontCountry } from "@/lib/storefrontCountry";
+import { buildCartItemKey, normalizeStorefrontVariants, resolveStorefrontVariant } from "@/lib/storefrontVariants";
 
 type ApiProduct = {
   id: number | string;
@@ -36,6 +37,8 @@ type ApiProduct = {
     video?: string | null;
     brand?: string | null;
     stock?: number | null;
+    storefront_variants?: unknown[] | null;
+    manual_storefront_pricing?: boolean | null;
   } | null;
   price?: number | string | null;
   discount_price?: number | string | null;
@@ -331,6 +334,7 @@ export default function ProductDetailsPage() {
   const [storefrontCountries, setStorefrontCountries] = useState<StorefrontCountry[]>([]);
   const [storefrontCountryCode, setStorefrontCountryCode] = useState("TG");
   const [redirectingToAccessories, setRedirectingToAccessories] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState("");
   const id = params?.id;
 
   useEffect(() => {
@@ -450,9 +454,14 @@ export default function ProductDetailsPage() {
   const displayVideo = useMemo(() => (videoRaw ? toDisplayImageSrc(videoRaw) ?? videoRaw : null), [videoRaw]);
   const displayBanner = useMemo(() => toDisplayImageSrc(bannerImage) ?? bannerImage, [bannerImage]);
   const tags = useMemo(() => normalizeTags(product), [product]);
+  const storefrontVariants = useMemo(() => normalizeStorefrontVariants(product?.details?.storefront_variants), [product?.details?.storefront_variants]);
+  const selectedVariant = useMemo(
+    () => resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId),
+    [product?.details?.storefront_variants, selectedVariantId]
+  );
   const priceValue = useMemo(
-    () => Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0) || 0,
-    [product]
+    () => selectedVariant?.salePriceFcfa ?? Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0) || 0,
+    [product, selectedVariant?.salePriceFcfa]
   );
   const description =
     sanitizeCustomerDescription(product?.description ?? product?.details?.description)
@@ -493,6 +502,10 @@ export default function ProductDetailsPage() {
     setRedirectingToAccessories(true);
     router.replace("/accessoires");
   }, [isAccessoryProduct, product, router]);
+  useEffect(() => {
+    const resolved = resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId);
+    setSelectedVariantId(resolved?.id ?? "");
+  }, [product?.details?.storefront_variants]);
   const activeStorefrontCountry = useMemo(
     () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
     [storefrontCountries, storefrontCountryCode]
@@ -501,33 +514,6 @@ export default function ProductDetailsPage() {
     () => sanitizeStorefrontCustomerNotice(activeStorefrontCountry?.customer_notice),
     [activeStorefrontCountry?.customer_notice]
   );
-  const groupedProgressLabel = useMemo(() => {
-    if (product?.grouping_progress_label) return product.grouping_progress_label;
-    const progress = Math.max(0, parseNumber(product?.grouping_progress));
-    const threshold = Math.max(1, parseNumber(product?.grouping_threshold));
-    return `${progress}/${threshold}`;
-  }, [product?.grouping_progress, product?.grouping_progress_label, product?.grouping_threshold]);
-  const groupedRemainingValue = useMemo(() => {
-    const direct = parseNumber(product?.grouping_remaining_value);
-    if (direct > 0) return direct;
-    return Math.max(0, parseNumber(product?.grouping_minimum_value) - parseNumber(product?.grouping_current_value));
-  }, [product?.grouping_current_value, product?.grouping_minimum_value, product?.grouping_remaining_value]);
-  const groupedDeliveryMessage = useMemo(() => {
-    if (!isAccessoryProduct) return null;
-    return buildGroupedDeliveryMessages({
-      shippingFee: product?.shipping_fee,
-      remainingValue: groupedRemainingValue,
-      freeShippingEligible: product?.free_shipping_eligible,
-    }).detail;
-  }, [groupedRemainingValue, isAccessoryProduct, product?.free_shipping_eligible, product?.shipping_fee]);
-  const groupedFeeLabel = useMemo(() => {
-    if (!isAccessoryProduct) return null;
-    return buildGroupedDeliveryMessages({
-      shippingFee: product?.shipping_fee,
-      remainingValue: groupedRemainingValue,
-      freeShippingEligible: product?.free_shipping_eligible,
-    }).feeLabel;
-  }, [groupedRemainingValue, isAccessoryProduct, product?.free_shipping_eligible, product?.shipping_fee]);
 
   const persistToCart = () => {
     if (!product || typeof window === "undefined") return;
@@ -544,25 +530,27 @@ export default function ProductDetailsPage() {
       deliveryEstimateLabel?: string | null;
       deliveryLabel?: string;
       shippingFee?: number;
-      groupingProgressLabel?: string;
-      groupingRemainingValue?: number;
-      groupingMinimumValue?: number;
+      cartKey?: string;
+      selectedStorefrontVariantId?: string;
+      selectedStorefrontVariantLabel?: string;
     }>;
     try {
       cart = cartRaw ? JSON.parse(cartRaw) : [];
     } catch {
       cart = [];
     }
-    const existing = cart.find((item) => item.id === product.id);
+    const cartKey = buildCartItemKey(product.id, selectedVariant?.id);
+    const existing = cart.find((item) => String(item.cartKey ?? buildCartItemKey(item.id, item.selectedStorefrontVariantId)) === cartKey);
     if (existing) {
       existing.quantity = Number(existing.quantity ?? 0) + 1;
       existing.shippingFee = Number(product.shipping_fee ?? 0) || 0;
-      existing.groupingProgressLabel = groupedProgressLabel;
-      existing.groupingRemainingValue = groupedRemainingValue;
-      existing.groupingMinimumValue = parseNumber(product.grouping_minimum_value);
+      existing.cartKey = cartKey;
+      existing.selectedStorefrontVariantId = selectedVariant?.id ?? undefined;
+      existing.selectedStorefrontVariantLabel = selectedVariant?.label ?? undefined;
     } else {
       cart.push({
         id: product.id,
+        cartKey,
         name: product.name ?? product.title ?? "Produit",
         price: priceValue,
         priceLabel: formatPrice(priceValue),
@@ -572,9 +560,8 @@ export default function ProductDetailsPage() {
         deliveryEstimateLabel: product.delivery_estimate_label ?? null,
         deliveryLabel: delivery?.desktopLabel ?? undefined,
         shippingFee: Number(product.shipping_fee ?? 0) || 0,
-        groupingProgressLabel: groupedProgressLabel,
-        groupingRemainingValue: groupedRemainingValue,
-        groupingMinimumValue: parseNumber(product.grouping_minimum_value),
+        selectedStorefrontVariantId: selectedVariant?.id ?? undefined,
+        selectedStorefrontVariantLabel: selectedVariant?.label ?? undefined,
         quantity: 1,
       });
     }
@@ -627,10 +614,13 @@ export default function ProductDetailsPage() {
       return;
     }
 
-    router.push(`/checkout?product=${checkoutProductId}`);
+    const params = new URLSearchParams({ product: String(checkoutProductId) });
+    if (selectedVariant?.id) params.set("variant", selectedVariant.id);
+    router.push(`/checkout?${params.toString()}`);
   };
 
   const infoRows: Array<{ label: string; value: React.ReactNode }> = [
+    ...(selectedVariant ? [{ label: "Choix", value: selectedVariant.label }] : []),
     { label: "Catégorie", value: categoryLabel },
     ...(delivery ? [{ label: "Livraison", value: isAccessoryProduct ? "Livraison disponible" : <DeliveryBadge delivery={delivery} /> }] : []),
     { label: "Marque", value: brandLabel ?? "N/A" },
@@ -716,11 +706,20 @@ export default function ProductDetailsPage() {
                   <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">{categoryLabel}</p>
                   <h1 className="text-2xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
                   <p className="text-2xl font-black text-[#ff4b63]">{formatPrice(priceValue)}</p>
-                  {isAccessoryProduct ? (
+                  {storefrontVariants.length > 0 ? (
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/75">
-                      <p className="font-semibold text-white">Progression lot: {groupedProgressLabel}</p>
-                      <p className="mt-1 text-xs text-white/65">{groupedDeliveryMessage}</p>
-                      {groupedFeeLabel ? <p className="mt-2 text-xs font-semibold text-amber-200">{groupedFeeLabel}</p> : null}
+                      <p className="font-semibold text-white">Choix du client</p>
+                      <select
+                        value={selectedVariant?.id ?? ""}
+                        onChange={(event) => setSelectedVariantId(event.target.value)}
+                        className="mt-3 w-full rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm font-semibold text-white outline-none"
+                      >
+                        {storefrontVariants.map((variant) => (
+                          <option key={variant.id} value={variant.id} className="bg-slate-950 text-white">
+                            {variant.label} · {formatPrice(variant.salePriceFcfa)}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   ) : null}
                 </div>
@@ -815,11 +814,20 @@ export default function ProductDetailsPage() {
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
                   <h1 className="text-3xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
                   <p className="mt-3 text-3xl font-bold text-[#ff4b63]">{formatPrice(priceValue)}</p>
-                  {isAccessoryProduct ? (
+                  {storefrontVariants.length > 0 ? (
                     <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/75">
-                      <p className="font-semibold text-white">Progression lot: {groupedProgressLabel}</p>
-                      <p className="mt-1">{groupedDeliveryMessage}</p>
-                      {groupedFeeLabel ? <p className="mt-2 text-xs font-semibold text-amber-200">{groupedFeeLabel}</p> : null}
+                      <p className="font-semibold text-white">Choix du client</p>
+                      <select
+                        value={selectedVariant?.id ?? ""}
+                        onChange={(event) => setSelectedVariantId(event.target.value)}
+                        className="mt-3 w-full rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm font-semibold text-white outline-none"
+                      >
+                        {storefrontVariants.map((variant) => (
+                          <option key={variant.id} value={variant.id} className="bg-slate-950 text-white">
+                            {variant.label} · {formatPrice(variant.salePriceFcfa)}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   ) : null}
                   <p className="mt-4 text-base text-white/70">{description}</p>

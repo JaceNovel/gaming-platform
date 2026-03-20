@@ -19,6 +19,12 @@ class AliExpressTransitPricingService
 
     public function usesTransitPricing(Product $product): bool
     {
+        $details = is_array($product->details) ? $product->details : [];
+
+        if ((bool) ($details['manual_storefront_pricing'] ?? false)) {
+            return false;
+        }
+
         return strtolower(trim((string) ($product->type ?? ''))) === 'item'
             && strtolower(trim((string) ($product->category ?? ''))) === 'accessory'
             && strtolower(trim((string) ($product->preferred_supplier_platform ?? ''))) === 'aliexpress';

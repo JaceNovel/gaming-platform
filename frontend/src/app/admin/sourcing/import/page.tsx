@@ -85,8 +85,25 @@ type RemoteProductPayload = {
   category_path_json?: unknown[] | null;
   attributes_json?: Record<string, unknown> | null;
   product_payload_json?: Record<string, unknown> | null;
-  skus?: unknown[] | null;
+  skus?: ImportedSkuPayload[] | null;
   _storefront_defaults?: Record<string, unknown> | null;
+};
+
+type ImportedSkuPayload = {
+  external_sku_id?: string | null;
+  sku_label?: string | null;
+  variant_attributes_json?: unknown;
+  unit_price?: number | string | null;
+  currency_code?: string | null;
+};
+
+type StorefrontVariantPriceInput = {
+  external_sku_id: string;
+  sku_label: string;
+  variant_attributes_json: Record<string, unknown>[] | Record<string, unknown>;
+  supplier_price_label: string;
+  sale_price_fcfa: string;
+  compare_at_price_fcfa: string;
 };
 
 type CategoryPrediction = {
@@ -1568,6 +1585,72 @@ const toInputString = (value: unknown): string => {
 
 const trimInput = (value: unknown): string => toInputString(value).trim();
 
+const variantLabelFromAttributes = (attributes: unknown, fallbackId: string): string => {
+  if (Array.isArray(attributes)) {
+    const values = attributes
+      .flatMap((entry) => {
+        if (entry && typeof entry === "object") {
+          const row = entry as Record<string, unknown>;
+          return [row.property_value, row.value, row.property_name].map((value) => String(value ?? "").trim()).filter(Boolean);
+        }
+
+        const normalized = String(entry ?? "").trim();
+        return normalized ? [normalized] : [];
+      })
+      .filter(Boolean);
+
+    if (values.length) return Array.from(new Set(values)).join(" / ");
+  }
+
+  if (attributes && typeof attributes === "object") {
+    const values = Object.values(attributes as Record<string, unknown>)
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean);
+
+    if (values.length) return Array.from(new Set(values)).join(" / ");
+  }
+
+  return fallbackId ? `Option ${fallbackId}` : "Option par défaut";
+};
+
+const buildStorefrontVariantPriceInputs = (skus: ImportedSkuPayload[] | null | undefined): StorefrontVariantPriceInput[] => {
+  if (!Array.isArray(skus) || skus.length === 0) {
+    return [
+      {
+        external_sku_id: "default",
+        sku_label: "Option par défaut",
+        variant_attributes_json: {},
+        supplier_price_label: "—",
+        sale_price_fcfa: "",
+        compare_at_price_fcfa: "",
+      },
+    ];
+  }
+
+  return skus
+    .map((sku, index) => {
+      const externalSkuId = trimInput(sku.external_sku_id) || `default-${index + 1}`;
+      const variantAttributes = Array.isArray(sku.variant_attributes_json)
+        ? (sku.variant_attributes_json as Record<string, unknown>[])
+        : (sku.variant_attributes_json && typeof sku.variant_attributes_json === "object"
+          ? (sku.variant_attributes_json as Record<string, unknown>)
+          : {});
+      const skuLabel = trimInput(sku.sku_label) || variantLabelFromAttributes(variantAttributes, externalSkuId);
+      const supplierPrice = trimInput(sku.unit_price);
+      const supplierCurrency = trimInput(sku.currency_code).toUpperCase() || "USD";
+
+      return {
+        external_sku_id: externalSkuId,
+        sku_label: skuLabel,
+        variant_attributes_json: variantAttributes,
+        supplier_price_label: supplierPrice ? `${supplierPrice} ${supplierCurrency}` : "—",
+        sale_price_fcfa: "",
+        compare_at_price_fcfa: "",
+      } satisfies StorefrontVariantPriceInput;
+    })
+    .filter((sku) => Boolean(sku.external_sku_id));
+};
+
 const DS_BULK_IMPORT_TEMPLATES: Record<"ds-text-search" | "ds-feed-itemids-get", string> = {
   "ds-text-search": stringifyTemplate({
     keyWord: "gaming accessories",
@@ -1629,6 +1712,7 @@ export default function AdminSourcingImportPage() {
   const [publishStorefrontProduct, setPublishStorefrontProduct] = useState(false);
   const [usdToXofRate, setUsdToXofRate] = useState("620");
   const [remoteProductData, setRemoteProductData] = useState<RemoteProductPayload | null>(null);
+  const [storefrontVariantPrices, setStorefrontVariantPrices] = useState<StorefrontVariantPriceInput[]>([]);
   const [predictionDescription, setPredictionDescription] = useState("");
   const [predictingCategory, setPredictingCategory] = useState(false);
   const [predictedCategory, setPredictedCategory] = useState<CategoryPrediction | null>(null);
@@ -1742,6 +1826,7 @@ export default function AdminSourcingImportPage() {
     setIopPayload(IOP_TEMPLATES[defaultOperation]);
     setRemoteMode(platform === "aliexpress" ? "ds_product" : "standard");
     setAutoCreateStorefrontProduct(platform === "aliexpress");
+    setStorefrontVariantPrices([]);
   }, [platform]);
 
   const handleDsBulkImport = async () => {
@@ -1886,6 +1971,28 @@ export default function AdminSourcingImportPage() {
     setSuccess("");
     try {
       const parsedSkus = JSON.parse(skusJson);
+      const manualVariantPricing = platform === "aliexpress" && autoCreateStorefrontProduct;
+      const normalizedVariantPrices = manualVariantPricing
+        ? storefrontVariantPrices.map((variant) => ({
+            external_sku_id: trimInput(variant.external_sku_id),
+            sku_label: trimInput(variant.sku_label),
+            variant_attributes_json: variant.variant_attributes_json,
+            sale_price_fcfa: trimInput(variant.sale_price_fcfa) ? Number(trimInput(variant.sale_price_fcfa)) : 0,
+            compare_at_price_fcfa: trimInput(variant.compare_at_price_fcfa) ? Number(trimInput(variant.compare_at_price_fcfa)) : null,
+          }))
+        : [];
+
+      if (manualVariantPricing) {
+        if (normalizedVariantPrices.length === 0) {
+          throw new Error("Préremplis le produit fournisseur puis saisis au moins un prix de vente manuel.");
+        }
+
+        const invalidVariant = normalizedVariantPrices.find((variant) => !variant.external_sku_id || variant.sale_price_fcfa <= 0);
+        if (invalidVariant) {
+          throw new Error("Renseigne un prix de vente manuel supérieur à 0 pour chaque choix client.");
+        }
+      }
+
       const res = await fetch(`${API_BASE}/admin/sourcing/catalog/import`, {
         method: "POST",
         headers: {
@@ -1907,7 +2014,8 @@ export default function AdminSourcingImportPage() {
           _storefront_defaults: remoteProductData?._storefront_defaults ?? undefined,
           auto_create_storefront_product: autoCreateStorefrontProduct || undefined,
           publish_storefront_product: publishStorefrontProduct || undefined,
-          usd_to_xof_rate: trimInput(usdToXofRate) ? Number(trimInput(usdToXofRate)) : undefined,
+          manual_storefront_pricing: manualVariantPricing || undefined,
+          storefront_variant_prices: manualVariantPricing ? normalizedVariantPrices : undefined,
           skus: parsedSkus,
         }),
       });
@@ -1925,6 +2033,7 @@ export default function AdminSourcingImportPage() {
       setSourceUrl("");
       setMainImageUrl("");
       setRemoteProductData(null);
+      setStorefrontVariantPrices([]);
       await loadAll();
     } catch (err: any) {
       setError(err?.message ?? "Import impossible. Vérifie le JSON des SKU.");
@@ -1973,6 +2082,7 @@ export default function AdminSourcingImportPage() {
       setMainImageUrl(toInputString(product?.main_image_url));
       setSkusJson(JSON.stringify(product?.skus ?? [], null, 2));
       setRemoteProductData(product ?? null);
+      setStorefrontVariantPrices(buildStorefrontVariantPriceInputs(product?.skus));
       setSuccess("Produit fournisseur chargé depuis l’API et formulaire prérempli.");
     } catch (err: any) {
       setError(err?.message ?? "Chargement API impossible");
@@ -2548,7 +2658,7 @@ export default function AdminSourcingImportPage() {
               <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900">Ajout au site</h3>
-                  <p className="text-xs text-slate-500">Crée aussi le produit storefront et le mapping par défaut pendant l’import.</p>
+                  <p className="text-xs text-slate-500">Crée aussi le produit storefront et le mapping par défaut pendant l’import, avec des prix de vente saisis manuellement.</p>
                 </div>
                 <label className="flex items-center gap-2 text-sm text-slate-700">
                   <input type="checkbox" checked={autoCreateStorefrontProduct} onChange={(e) => setAutoCreateStorefrontProduct(e.target.checked)} />
@@ -2558,10 +2668,52 @@ export default function AdminSourcingImportPage() {
                   <input type="checkbox" checked={publishStorefrontProduct} onChange={(e) => setPublishStorefrontProduct(e.target.checked)} />
                   Publier immédiatement le produit
                 </label>
-                <label className="grid gap-1 text-sm sm:max-w-[180px]">
-                  <span className="text-slate-600">Taux USD → FCFA</span>
-                  <input value={usdToXofRate} onChange={(e) => setUsdToXofRate(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2" />
-                </label>
+                {autoCreateStorefrontProduct ? (
+                  <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900">Prix de vente manuels</h4>
+                      <p className="text-xs text-slate-500">Aucune règle automatique de frais fournisseur n’est appliquée ici. Renseigne ton prix de vente pour chaque choix client.</p>
+                    </div>
+                    <div className="grid gap-3">
+                      {storefrontVariantPrices.map((variant, index) => (
+                        <div key={`${variant.external_sku_id}-${index}`} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1.2fr_0.8fr_0.8fr]">
+                          <div>
+                            <div className="text-sm font-medium text-slate-900">{variant.sku_label || `Choix ${index + 1}`}</div>
+                            <div className="mt-1 text-xs text-slate-500">SKU: {variant.external_sku_id} · Prix fournisseur: {variant.supplier_price_label}</div>
+                          </div>
+                          <label className="grid gap-1 text-sm">
+                            <span className="text-slate-600">Prix vente site (FCFA)</span>
+                            <input
+                              value={variant.sale_price_fcfa}
+                              onChange={(e) => {
+                                const next = [...storefrontVariantPrices];
+                                next[index] = { ...variant, sale_price_fcfa: e.target.value };
+                                setStorefrontVariantPrices(next);
+                              }}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                              inputMode="numeric"
+                              placeholder="25000"
+                            />
+                          </label>
+                          <label className="grid gap-1 text-sm">
+                            <span className="text-slate-600">Ancien prix (optionnel)</span>
+                            <input
+                              value={variant.compare_at_price_fcfa}
+                              onChange={(e) => {
+                                const next = [...storefrontVariantPrices];
+                                next[index] = { ...variant, compare_at_price_fcfa: e.target.value };
+                                setStorefrontVariantPrices(next);
+                              }}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                              inputMode="numeric"
+                              placeholder="30000"
+                            />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <label className="grid gap-1 text-sm">

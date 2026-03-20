@@ -64,6 +64,13 @@ class AdminSupplierCatalogController extends Controller
             'replace_missing_skus' => 'sometimes|boolean',
             'auto_create_storefront_product' => 'sometimes|boolean',
             'publish_storefront_product' => 'sometimes|boolean',
+            'manual_storefront_pricing' => 'sometimes|boolean',
+            'storefront_variant_prices' => 'nullable|array|min:1',
+            'storefront_variant_prices.*.external_sku_id' => 'required|string|max:255',
+            'storefront_variant_prices.*.sku_label' => 'nullable|string|max:255',
+            'storefront_variant_prices.*.variant_attributes_json' => 'nullable|array',
+            'storefront_variant_prices.*.sale_price_fcfa' => 'required|integer|min:0',
+            'storefront_variant_prices.*.compare_at_price_fcfa' => 'nullable|integer|min:0',
             'usd_to_xof_rate' => 'nullable|numeric|min:1',
             'grouping_threshold' => 'nullable|integer|min:1|max:500',
             'margin_percent' => 'nullable|numeric|min:0|max:1000',
@@ -99,6 +106,8 @@ class AdminSupplierCatalogController extends Controller
             if ((string) $account->platform === 'aliexpress') {
                 $storefront = $aliExpressBulkCatalogImportService->syncStorefrontProductFromSupplierImport($product, $data, [
                     'publish_products' => (bool) ($data['publish_storefront_product'] ?? false),
+                    'manual_storefront_pricing' => (bool) ($data['manual_storefront_pricing'] ?? false),
+                    'storefront_variant_prices' => $data['storefront_variant_prices'] ?? [],
                     'usd_to_xof_rate' => $data['usd_to_xof_rate'] ?? 620,
                     'grouping_threshold' => $data['grouping_threshold'] ?? 3,
                     'margin_percent' => $data['margin_percent'] ?? 17,
