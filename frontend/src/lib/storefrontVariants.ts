@@ -71,7 +71,7 @@ export const normalizeStorefrontVariants = (raw: unknown): StorefrontVariant[] =
         isDefault: Boolean(row.is_default ?? (index === 0)),
       } satisfies StorefrontVariant;
     })
-    .filter((entry): entry is StorefrontVariant => Boolean(entry));
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
   return variants;
 };
