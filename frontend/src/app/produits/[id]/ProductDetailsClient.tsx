@@ -349,7 +349,7 @@ export default function ProductDetailsPage() {
   const { triggerFlight, overlay } = useCartFlight();
   const { user } = useAuth();
   const { language } = useLanguage();
-  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | number | null>(null);
+  const statusTimeoutRef = useRef<number | null>(null);
   const [product, setProduct] = useState<ApiProduct | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);

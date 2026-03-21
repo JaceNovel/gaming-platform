@@ -226,8 +226,8 @@ export default function AccessoiresPage() {
   const [shareStatus, setShareStatus] = useState<string | null>(null);
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
-  const searchCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shareTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchCloseTimeoutRef = useRef<number | null>(null);
+  const shareTimeoutRef = useRef<number | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const copy = useMemo(
@@ -687,7 +687,7 @@ export default function AccessoiresPage() {
                     setSearchOpen(true);
                   }}
                   onBlur={() => {
-                    searchCloseTimeoutRef.current = setTimeout(() => setSearchOpen(false), 120);
+                    searchCloseTimeoutRef.current = window.setTimeout(() => setSearchOpen(false), 120);
                   }}
                   placeholder={copy.searchPlaceholder}
                   className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35 md:text-base"
