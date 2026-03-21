@@ -1377,6 +1377,20 @@ class AliExpressBulkCatalogImportService
             ? $supplierProduct->skus
             : $supplierProduct->skus()->get();
 
+        $preferredMainImageUrl = $this->normalizeImageComparisonValue($supplierProduct->main_image_url);
+        if ($preferredMainImageUrl !== '') {
+            $matchingByImage = $skus
+                ->filter(static fn (SupplierProductSku $sku) => (bool) $sku->is_active)
+                ->sortBy('id')
+                ->first(function (SupplierProductSku $sku) use ($preferredMainImageUrl) {
+                    return $this->normalizeImageComparisonValue($this->resolveSupplierSkuImageUrl($sku)) === $preferredMainImageUrl;
+                });
+
+            if ($matchingByImage) {
+                return $matchingByImage;
+            }
+        }
+
         $activeSkus = $skus->filter(static fn (SupplierProductSku $sku) => (bool) $sku->is_active)->sortBy('id')->values();
         if ($activeSkus->isEmpty()) {
             return $skus->sortBy('id')->first();
@@ -1387,6 +1401,47 @@ class AliExpressBulkCatalogImportService
         });
 
         return $numericSku ?: $activeSkus->first();
+    }
+
+    private function resolveSupplierSkuImageUrl(?SupplierProductSku $supplierSku): ?string
+    {
+        if (! $supplierSku) {
+            return null;
+        }
+
+        $variantAttributes = is_array($supplierSku->variant_attributes_json) ? $supplierSku->variant_attributes_json : [];
+        $skuPayload = is_array($supplierSku->sku_payload_json) ? $supplierSku->sku_payload_json : [];
+
+        return $this->resolveStorefrontVariantImageUrl([
+            'external_sku_id' => $supplierSku->external_sku_id,
+            'sku_payload_json' => $skuPayload,
+            'image_url' => $skuPayload['image_url'] ?? null,
+            'image' => $skuPayload['image'] ?? null,
+            'sku_image' => $skuPayload['sku_image'] ?? null,
+        ], [], $variantAttributes);
+    }
+
+    private function normalizeImageComparisonValue(?string $url): string
+    {
+        $normalized = trim((string) $url);
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (str_starts_with($normalized, '//')) {
+            $normalized = 'https:' . $normalized;
+        }
+
+        $parts = parse_url($normalized);
+        if ($parts === false) {
+            return $normalized;
+        }
+
+        $scheme = isset($parts['scheme']) ? strtolower((string) $parts['scheme']) . '://' : '';
+        $host = isset($parts['host']) ? strtolower((string) $parts['host']) : '';
+        $path = (string) ($parts['path'] ?? '');
+
+        return $scheme . $host . $path;
     }
 
     private function resolveSelectedSkuIdFromSupplierSku(?SupplierProductSku $supplierSku): ?string
