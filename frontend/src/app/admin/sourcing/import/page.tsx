@@ -98,12 +98,6 @@ type ImportedSkuPayload = {
   currency_code?: string | null;
 };
 
-type StorefrontVariantPreview = {
-  external_sku_id: string;
-  sku_label: string;
-  supplier_price_label: string;
-};
-
 type CategoryPrediction = {
   category_id?: string | null;
   category_name?: string | null;
@@ -1611,32 +1605,6 @@ const variantLabelFromAttributes = (attributes: unknown, fallbackId: string): st
   return fallbackId ? `Option ${fallbackId}` : "Option par défaut";
 };
 
-const buildStorefrontVariantPreview = (skus: ImportedSkuPayload[] | null | undefined): StorefrontVariantPreview[] => {
-  if (!Array.isArray(skus) || skus.length === 0) {
-    return [];
-  }
-
-  return skus
-    .map((sku, index) => {
-      const externalSkuId = trimInput(sku.external_sku_id) || `default-${index + 1}`;
-      const variantAttributes = Array.isArray(sku.variant_attributes_json)
-        ? (sku.variant_attributes_json as Record<string, unknown>[])
-        : (sku.variant_attributes_json && typeof sku.variant_attributes_json === "object"
-          ? (sku.variant_attributes_json as Record<string, unknown>)
-          : {});
-      const skuLabel = trimInput(sku.sku_label) || variantLabelFromAttributes(variantAttributes, externalSkuId);
-      const supplierPrice = trimInput(sku.unit_price);
-      const supplierCurrency = trimInput(sku.currency_code).toUpperCase() || "USD";
-
-      return {
-        external_sku_id: externalSkuId,
-        sku_label: skuLabel,
-        supplier_price_label: supplierPrice ? `${supplierPrice} ${supplierCurrency}` : "—",
-      } satisfies StorefrontVariantPreview;
-    })
-    .filter((sku) => Boolean(sku.external_sku_id));
-};
-
 const storefrontDefaultSalePrice = (product: RemoteProductPayload | null | undefined): string => {
   const defaults = product?._storefront_defaults;
   if (!defaults || typeof defaults !== "object") return "";
@@ -1705,7 +1673,6 @@ export default function AdminSourcingImportPage() {
   const [publishStorefrontProduct, setPublishStorefrontProduct] = useState(false);
   const [usdToXofRate, setUsdToXofRate] = useState("620");
   const [remoteProductData, setRemoteProductData] = useState<RemoteProductPayload | null>(null);
-  const [storefrontVariantsPreview, setStorefrontVariantsPreview] = useState<StorefrontVariantPreview[]>([]);
   const [storefrontSalePriceFcfa, setStorefrontSalePriceFcfa] = useState("");
   const [predictionDescription, setPredictionDescription] = useState("");
   const [predictingCategory, setPredictingCategory] = useState(false);
@@ -1820,7 +1787,6 @@ export default function AdminSourcingImportPage() {
     setIopPayload(IOP_TEMPLATES[defaultOperation]);
     setRemoteMode(platform === "aliexpress" ? "ds_product" : "standard");
     setAutoCreateStorefrontProduct(platform === "aliexpress");
-    setStorefrontVariantsPreview([]);
     setStorefrontSalePriceFcfa("");
   }, [platform]);
 
@@ -2017,7 +1983,6 @@ export default function AdminSourcingImportPage() {
       setSourceUrl("");
       setMainImageUrl("");
       setRemoteProductData(null);
-      setStorefrontVariantsPreview([]);
       setStorefrontSalePriceFcfa("");
       await loadAll();
     } catch (err: any) {
@@ -2067,7 +2032,6 @@ export default function AdminSourcingImportPage() {
       setMainImageUrl(toInputString(product?.main_image_url));
       setSkusJson(JSON.stringify(product?.skus ?? [], null, 2));
       setRemoteProductData(product ?? null);
-      setStorefrontVariantsPreview(buildStorefrontVariantPreview(product?.skus));
       setStorefrontSalePriceFcfa(storefrontDefaultSalePrice(product ?? null));
       setSuccess("Produit fournisseur chargé depuis l’API et formulaire prérempli.");
     } catch (err: any) {
@@ -2658,7 +2622,7 @@ export default function AdminSourcingImportPage() {
                   <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
                     <div>
                       <h4 className="text-sm font-semibold text-slate-900">Prix final du produit</h4>
-                      <p className="text-xs text-slate-500">Après le préremplissage fournisseur, saisis le prix de vente unique du produit sur le site. Les éventuels choix client seront conservés automatiquement avec ce même prix.</p>
+                      <p className="text-xs text-slate-500">Après le préremplissage fournisseur, saisis le prix de vente unique du produit sur le site. Un seul article storefront sera importé.</p>
                     </div>
                     <label className="grid gap-1 text-sm">
                       <span className="text-slate-600">Prix vente site (FCFA)</span>
@@ -2670,19 +2634,6 @@ export default function AdminSourcingImportPage() {
                         placeholder="25000"
                       />
                     </label>
-                    {storefrontVariantsPreview.length > 0 ? (
-                      <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Choix client détectés</div>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {storefrontVariantsPreview.map((variant, index) => (
-                            <div key={`${variant.external_sku_id}-${index}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                              <div className="text-sm font-medium text-slate-900">{variant.sku_label || `Choix ${index + 1}`}</div>
-                              <div className="mt-1 text-xs text-slate-500">SKU: {variant.external_sku_id} · Prix fournisseur: {variant.supplier_price_label}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
                 ) : null}
               </div>

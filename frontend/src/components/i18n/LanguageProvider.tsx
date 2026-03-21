@@ -125,7 +125,7 @@ const translations = {
     "header.nav.marketplace": "Comptes de jeu",
     "header.nav.accessories": "Accessoires",
     "header.emptyGames": "Aucun jeu pour le moment.",
-    "header.help": "Assistance 24h/24 et 7j/7",
+    "header.help": "7j/7",
     "header.wallet": "DB Wallet",
     "header.profile": "Mon Profil",
     "header.offer": "Voir l'offre",

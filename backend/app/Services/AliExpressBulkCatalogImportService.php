@@ -1199,9 +1199,26 @@ class AliExpressBulkCatalogImportService
     {
         $defaults = (array) ($supplierPayload['_storefront_defaults'] ?? []);
         if ($this->usesManualStorefrontPricing($options)) {
+            $singleSalePriceFcfa = max(0, (int) ($options['storefront_sale_price_fcfa'] ?? 0));
+
+            if ($singleSalePriceFcfa > 0 && empty($options['storefront_variant_prices'] ?? [])) {
+                $defaults['price_fcfa'] = $singleSalePriceFcfa;
+                $defaults['old_price_fcfa'] = null;
+                $defaults['main_image_url'] = $defaults['main_image_url'] ?? $supplierProduct->main_image_url;
+                $defaults['source_url'] = $defaults['source_url'] ?? $supplierProduct->source_url;
+                $defaults['estimated_weight_grams'] = (int) ($defaults['estimated_weight_grams'] ?? $options['default_weight_grams'] ?? 0);
+                $defaults['estimated_cbm'] = (float) ($defaults['estimated_cbm'] ?? $options['default_estimated_cbm'] ?? 0);
+                $defaults['source_logistics_profile'] = $defaults['source_logistics_profile'] ?? strtolower((string) ($options['source_logistics_profile'] ?? 'ordinary'));
+                $defaults['manual_storefront_pricing'] = true;
+                $defaults['storefront_variants'] = [];
+
+                $supplierPayload['_storefront_defaults'] = $defaults;
+
+                return $supplierPayload;
+            }
+
             $variants = $this->buildStorefrontVariantsForProduct($supplierPayload, $options);
             $firstVariant = $variants[0] ?? [];
-            $singleSalePriceFcfa = max(0, (int) ($options['storefront_sale_price_fcfa'] ?? 0));
             $priceFcfa = $singleSalePriceFcfa > 0 ? $singleSalePriceFcfa : (int) ($firstVariant['sale_price_fcfa'] ?? 0);
             $compareAtPriceFcfa = $singleSalePriceFcfa > 0 ? 0 : (int) ($firstVariant['compare_at_price_fcfa'] ?? 0);
 
