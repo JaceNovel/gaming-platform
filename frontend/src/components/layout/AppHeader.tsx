@@ -480,7 +480,7 @@ export default function AppHeader() {
               </div>
             </Link>
 
-            <nav className="flex min-w-0 items-center justify-center gap-1 overflow-hidden text-sm font-semibold text-white/85 xl:gap-2">
+            <nav className="flex min-w-0 items-center justify-center gap-1 overflow-visible text-sm font-semibold text-white/85 xl:gap-2">
               {(
                 [
                   { key: "recharge" as const, label: t("header.nav.recharge") },
