@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { API_BASE } from "@/lib/config";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
 
 type SupplierAccount = {
   id: number;
@@ -93,6 +94,7 @@ type ImportedSkuPayload = {
   external_sku_id?: string | null;
   sku_label?: string | null;
   variant_attributes_json?: unknown;
+  sku_payload_json?: Record<string, unknown> | null;
   unit_price?: number | string | null;
   currency_code?: string | null;
 };
@@ -102,6 +104,7 @@ type StorefrontVariantPriceInput = {
   sku_label: string;
   variant_attributes_json: Record<string, unknown>[] | Record<string, unknown>;
   supplier_price_label: string;
+  image_url: string;
   sale_price_fcfa: string;
   compare_at_price_fcfa: string;
 };
@@ -1613,6 +1616,47 @@ const variantLabelFromAttributes = (attributes: unknown, fallbackId: string): st
   return fallbackId ? `Option ${fallbackId}` : "Option par défaut";
 };
 
+const variantImageFromAttributes = (attributes: unknown): string => {
+  if (Array.isArray(attributes)) {
+    for (const entry of attributes) {
+      if (!entry || typeof entry !== "object") continue;
+      const row = entry as Record<string, unknown>;
+      const candidate = trimInput(row.sku_image ?? row.image_url ?? row.image);
+      if (candidate) return candidate;
+    }
+  }
+
+  if (attributes && typeof attributes === "object") {
+    const row = attributes as Record<string, unknown>;
+    return trimInput(row.sku_image ?? row.image_url ?? row.image);
+  }
+
+  return "";
+};
+
+const variantImageFromSkuPayload = (skuPayload: unknown): string => {
+  if (!skuPayload || typeof skuPayload !== "object") return "";
+
+  const row = skuPayload as Record<string, unknown>;
+  return trimInput(
+    row.image_url
+    ?? row.image
+    ?? row.sku_image
+    ?? row.skuImage
+    ?? row.sku_image_url
+    ?? (row.productSkuImageDTO && typeof row.productSkuImageDTO === "object" ? (row.productSkuImageDTO as Record<string, unknown>).skuImage : null),
+  );
+};
+
+const resolveImportedSkuImageUrl = (sku: ImportedSkuPayload | null | undefined): string => {
+  if (!sku) return "";
+
+  const fromAttributes = variantImageFromAttributes(sku.variant_attributes_json);
+  if (fromAttributes) return fromAttributes;
+
+  return variantImageFromSkuPayload(sku.sku_payload_json);
+};
+
 const buildStorefrontVariantPriceInputs = (skus: ImportedSkuPayload[] | null | undefined): StorefrontVariantPriceInput[] => {
   if (!Array.isArray(skus) || skus.length === 0) {
     return [
@@ -1621,6 +1665,7 @@ const buildStorefrontVariantPriceInputs = (skus: ImportedSkuPayload[] | null | u
         sku_label: "Option par défaut",
         variant_attributes_json: {},
         supplier_price_label: "—",
+        image_url: "",
         sale_price_fcfa: "",
         compare_at_price_fcfa: "",
       },
@@ -1644,6 +1689,7 @@ const buildStorefrontVariantPriceInputs = (skus: ImportedSkuPayload[] | null | u
         sku_label: skuLabel,
         variant_attributes_json: variantAttributes,
         supplier_price_label: supplierPrice ? `${supplierPrice} ${supplierCurrency}` : "—",
+        image_url: resolveImportedSkuImageUrl(sku),
         sale_price_fcfa: "",
         compare_at_price_fcfa: "",
       } satisfies StorefrontVariantPriceInput;
@@ -1977,6 +2023,7 @@ export default function AdminSourcingImportPage() {
             external_sku_id: trimInput(variant.external_sku_id),
             sku_label: trimInput(variant.sku_label),
             variant_attributes_json: variant.variant_attributes_json,
+            image_url: trimInput(variant.image_url) || undefined,
             sale_price_fcfa: trimInput(variant.sale_price_fcfa) ? Number(trimInput(variant.sale_price_fcfa)) : 0,
             compare_at_price_fcfa: trimInput(variant.compare_at_price_fcfa) ? Number(trimInput(variant.compare_at_price_fcfa)) : null,
           }))
@@ -2676,11 +2723,38 @@ export default function AdminSourcingImportPage() {
                     </div>
                     <div className="grid gap-3">
                       {storefrontVariantPrices.map((variant, index) => (
-                        <div key={`${variant.external_sku_id}-${index}`} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1.2fr_0.8fr_0.8fr]">
+                        <div key={`${variant.external_sku_id}-${index}`} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-[1.05fr_1.25fr_0.8fr_0.8fr]">
                           <div>
                             <div className="text-sm font-medium text-slate-900">{variant.sku_label || `Choix ${index + 1}`}</div>
                             <div className="mt-1 text-xs text-slate-500">SKU: {variant.external_sku_id} · Prix fournisseur: {variant.supplier_price_label}</div>
                           </div>
+                          <label className="grid gap-1 text-sm">
+                            <span className="text-slate-600">Image spécifique</span>
+                            <div className="flex gap-3 rounded-xl border border-slate-200 bg-white p-2">
+                              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+                                {trimInput(variant.image_url) ? (
+                                  <img
+                                    src={toDisplayImageSrc(trimInput(variant.image_url)) ?? trimInput(variant.image_url)}
+                                    alt={variant.sku_label || `Choix ${index + 1}`}
+                                    className="h-full w-full object-cover"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <span className="px-2 text-center text-[10px] font-medium uppercase tracking-[0.16em] text-slate-400">Pas d'image</span>
+                                )}
+                              </div>
+                              <input
+                                value={variant.image_url}
+                                onChange={(e) => {
+                                  const next = [...storefrontVariantPrices];
+                                  next[index] = { ...variant, image_url: e.target.value };
+                                  setStorefrontVariantPrices(next);
+                                }}
+                                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2"
+                                placeholder="https://.../image-variante.jpg"
+                              />
+                            </div>
+                          </label>
                           <label className="grid gap-1 text-sm">
                             <span className="text-slate-600">Prix vente site (FCFA)</span>
                             <input

@@ -1206,7 +1206,7 @@ class AliExpressBulkCatalogImportService
 
             $defaults['price_fcfa'] = $priceFcfa;
             $defaults['old_price_fcfa'] = $compareAtPriceFcfa > $priceFcfa ? $compareAtPriceFcfa : null;
-            $defaults['main_image_url'] = $defaults['main_image_url'] ?? $supplierProduct->main_image_url;
+            $defaults['main_image_url'] = $defaults['main_image_url'] ?? ($firstVariant['image_url'] ?? null) ?? $supplierProduct->main_image_url;
             $defaults['source_url'] = $defaults['source_url'] ?? $supplierProduct->source_url;
             $defaults['estimated_weight_grams'] = (int) ($defaults['estimated_weight_grams'] ?? $options['default_weight_grams'] ?? 0);
             $defaults['estimated_cbm'] = (float) ($defaults['estimated_cbm'] ?? $options['default_estimated_cbm'] ?? 0);
@@ -1503,6 +1503,7 @@ class AliExpressBulkCatalogImportService
             $variantAttributes = is_array($submitted['variant_attributes_json'] ?? null)
                 ? $submitted['variant_attributes_json']
                 : (is_array($sku['variant_attributes_json'] ?? null) ? $sku['variant_attributes_json'] : []);
+            $imageUrl = $this->resolveStorefrontVariantImageUrl($sku, $submitted, $variantAttributes);
             $label = trim((string) ($submitted['sku_label'] ?? $sku['sku_label'] ?? ''));
             if ($label === '') {
                 $label = $this->formatStorefrontVariantLabel($variantAttributes, $externalSkuId);
@@ -1516,6 +1517,7 @@ class AliExpressBulkCatalogImportService
                 'external_sku_id' => $externalSkuId,
                 'label' => $label,
                 'sku_label' => $label,
+                'image_url' => $imageUrl,
                 'variant_attributes_json' => $variantAttributes,
                 'supplier_unit_price' => $this->normalizeMoney($sku['unit_price'] ?? 0),
                 'supplier_currency_code' => strtoupper(trim((string) ($sku['currency_code'] ?? 'USD'))) ?: 'USD',
@@ -1532,6 +1534,7 @@ class AliExpressBulkCatalogImportService
         $index = 0;
         foreach ($submittedPrices as $externalSkuId => $submitted) {
             $variantAttributes = is_array($submitted['variant_attributes_json'] ?? null) ? $submitted['variant_attributes_json'] : [];
+            $imageUrl = $this->resolveStorefrontVariantImageUrl([], $submitted, $variantAttributes);
             $label = trim((string) ($submitted['sku_label'] ?? ''));
             if ($label === '') {
                 $label = $this->formatStorefrontVariantLabel($variantAttributes, $externalSkuId);
@@ -1545,6 +1548,7 @@ class AliExpressBulkCatalogImportService
                 'external_sku_id' => $externalSkuId,
                 'label' => $label,
                 'sku_label' => $label,
+                'image_url' => $imageUrl,
                 'variant_attributes_json' => $variantAttributes,
                 'sale_price_fcfa' => $salePriceFcfa,
                 'compare_at_price_fcfa' => $compareAtPriceFcfa > $salePriceFcfa ? $compareAtPriceFcfa : null,
@@ -1554,6 +1558,47 @@ class AliExpressBulkCatalogImportService
         }
 
         return $variants;
+    }
+
+    private function resolveStorefrontVariantImageUrl(array $sku, array $submitted = [], array $variantAttributes = []): ?string
+    {
+        $candidate = trim((string) ($submitted['image_url'] ?? ''));
+        if ($candidate !== '') {
+            return $candidate;
+        }
+
+        foreach ($variantAttributes as $attribute) {
+            if (!is_array($attribute)) {
+                continue;
+            }
+
+            $candidate = trim((string) ($attribute['sku_image'] ?? $attribute['image_url'] ?? $attribute['image'] ?? ''));
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+
+        $skuPayload = is_array($sku['sku_payload_json'] ?? null) ? $sku['sku_payload_json'] : [];
+        foreach ([
+            $sku['image_url'] ?? null,
+            $sku['image'] ?? null,
+            $sku['sku_image'] ?? null,
+            $skuPayload['image_url'] ?? null,
+            $skuPayload['image'] ?? null,
+            $skuPayload['sku_image'] ?? null,
+            $skuPayload['skuImage'] ?? null,
+            Arr::get($skuPayload, 'sku_image_url'),
+            Arr::get($skuPayload, 'productSkuImageDTO.skuImage'),
+            Arr::get($skuPayload, 'skuPropertyImagePath'),
+            Arr::get($skuPayload, 'skuPropertyImageSummPath'),
+        ] as $rawCandidate) {
+            $candidate = trim((string) ($rawCandidate ?? ''));
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function formatStorefrontVariantLabel(array $variantAttributes, string $fallbackId): string

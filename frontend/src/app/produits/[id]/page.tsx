@@ -68,6 +68,11 @@ type ApiProduct = {
   tags?: Array<{ name?: string | null } | string> | string[] | string | null;
 };
 
+const variantImageFromStorefrontVariant = (variant: ReturnType<typeof resolveStorefrontVariant>): string | null => {
+  const candidate = String(variant?.imageUrl ?? "").trim();
+  return candidate || null;
+};
+
 const formatPrice = (value: number) => `${new Intl.NumberFormat("fr-FR").format(Math.max(0, value))} FCFA`;
 
 const parseNumber = (value: number | string | null | undefined): number => parseGroupedNumber(value);
@@ -439,7 +444,7 @@ export default function ProductDetailsPage() {
   const mainImage = useMemo(() => extractImage(product), [product]);
   const carouselImages = useMemo(() => extractImages(product), [product]);
   const mergedCarouselImages = useMemo(() => {
-    const base = carouselImages.length ? carouselImages : mainImage ? [mainImage] : [];
+    const base = [selectedVariantImage, ...(carouselImages.length ? carouselImages : mainImage ? [mainImage] : [])];
     const normalized = base
       .map((url) => String(url ?? "").trim())
       .filter(Boolean);
@@ -448,7 +453,7 @@ export default function ProductDetailsPage() {
       if (!unique.includes(url)) unique.push(url);
     }
     return unique;
-  }, [carouselImages, mainImage]);
+  }, [carouselImages, mainImage, selectedVariantImage]);
   const bannerImage = useMemo(() => extractBanner(product), [product]);
   const videoRaw = useMemo(() => extractVideo(product), [product]);
   const displayVideo = useMemo(() => (videoRaw ? toDisplayImageSrc(videoRaw) ?? videoRaw : null), [videoRaw]);
@@ -459,6 +464,7 @@ export default function ProductDetailsPage() {
     () => resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId),
     [product?.details?.storefront_variants, selectedVariantId]
   );
+  const selectedVariantImage = useMemo(() => variantImageFromStorefrontVariant(selectedVariant), [selectedVariant]);
   const priceValue = useMemo(
     () => selectedVariant?.salePriceFcfa ?? (Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0) || 0),
     [product, selectedVariant?.salePriceFcfa]
@@ -506,6 +512,9 @@ export default function ProductDetailsPage() {
     const resolved = resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId);
     setSelectedVariantId(resolved?.id ?? "");
   }, [product?.details?.storefront_variants]);
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [selectedVariant?.id]);
   const activeStorefrontCountry = useMemo(
     () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
     [storefrontCountries, storefrontCountryCode]

@@ -3,6 +3,7 @@ export type StorefrontVariant = {
   label: string;
   salePriceFcfa: number;
   compareAtPriceFcfa?: number | null;
+  imageUrl?: string | null;
   attributes?: unknown[] | Record<string, unknown> | null;
   isDefault?: boolean;
 };
@@ -43,6 +44,25 @@ const labelFromAttributes = (attributes: unknown, fallbackId: string): string =>
   return fallbackId ? `Option ${fallbackId}` : "Option";
 };
 
+const imageFromAttributes = (attributes: unknown): string | null => {
+  if (Array.isArray(attributes)) {
+    for (const entry of attributes) {
+      if (!entry || typeof entry !== "object") continue;
+      const row = entry as Record<string, unknown>;
+      const candidate = String(row.sku_image ?? row.image_url ?? row.image ?? "").trim();
+      if (candidate) return candidate;
+    }
+  }
+
+  if (attributes && typeof attributes === "object") {
+    const row = attributes as Record<string, unknown>;
+    const candidate = String(row.sku_image ?? row.image_url ?? row.image ?? "").trim();
+    if (candidate) return candidate;
+  }
+
+  return null;
+};
+
 export const normalizeStorefrontVariants = (raw: unknown): StorefrontVariant[] => {
   if (!Array.isArray(raw)) return [];
 
@@ -61,12 +81,14 @@ export const normalizeStorefrontVariants = (raw: unknown): StorefrontVariant[] =
       const label = String(row.label ?? row.sku_label ?? "").trim() || labelFromAttributes(attributes, id);
       const salePriceFcfa = Math.max(0, Math.round(toNumber(row.sale_price_fcfa ?? row.price_fcfa ?? row.price)));
       const compareAtPriceFcfa = Math.max(0, Math.round(toNumber(row.compare_at_price_fcfa ?? row.old_price_fcfa ?? row.compare_at_price)));
+      const imageUrl = String(row.image_url ?? row.image ?? "").trim() || imageFromAttributes(attributes);
 
       return {
         id,
         label,
         salePriceFcfa,
         compareAtPriceFcfa: compareAtPriceFcfa > salePriceFcfa ? compareAtPriceFcfa : null,
+        imageUrl: imageUrl || null,
         attributes,
         isDefault: Boolean(row.is_default ?? (index === 0)),
       } satisfies StorefrontVariant;

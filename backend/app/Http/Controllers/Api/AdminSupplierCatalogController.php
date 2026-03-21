@@ -69,6 +69,7 @@ class AdminSupplierCatalogController extends Controller
             'storefront_variant_prices.*.external_sku_id' => 'required|string|max:255',
             'storefront_variant_prices.*.sku_label' => 'nullable|string|max:255',
             'storefront_variant_prices.*.variant_attributes_json' => 'nullable|array',
+            'storefront_variant_prices.*.image_url' => 'nullable|url|max:2048',
             'storefront_variant_prices.*.sale_price_fcfa' => 'required|integer|min:0',
             'storefront_variant_prices.*.compare_at_price_fcfa' => 'nullable|integer|min:0',
             'usd_to_xof_rate' => 'nullable|numeric|min:1',

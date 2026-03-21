@@ -80,6 +80,11 @@ type CartProduct = {
   selectedStorefrontVariantLabel?: string;
 };
 
+const variantImageFromStorefrontVariant = (variant: ReturnType<typeof resolveStorefrontVariant>): string | null => {
+  const candidate = String(variant?.imageUrl ?? "").trim();
+  return candidate || null;
+};
+
 const normalizeTags = (product: ApiProduct | null): string[] => {
   if (!product?.tags) return [];
   if (Array.isArray(product.tags)) {
@@ -223,13 +228,23 @@ export default function PremiumAccessoryDesktopPage() {
     };
   }, []);
 
-  const images = useMemo(() => extractImages(product).map((image) => toDisplayImageSrc(image) ?? image), [product]);
-  const activeImage = images[activeImageIndex] ?? images[0] ?? "/file.svg";
   const storefrontVariants = useMemo(() => normalizeStorefrontVariants(product?.details?.storefront_variants), [product?.details?.storefront_variants]);
   const selectedVariant = useMemo(
     () => resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId),
     [product?.details?.storefront_variants, selectedVariantId],
   );
+  const selectedVariantImage = useMemo(() => variantImageFromStorefrontVariant(selectedVariant), [selectedVariant]);
+  const images = useMemo(() => {
+    const base = [selectedVariantImage, ...extractImages(product)];
+    const unique: string[] = [];
+    for (const raw of base) {
+      const normalized = String(raw ?? "").trim();
+      if (!normalized || unique.includes(normalized)) continue;
+      unique.push(toDisplayImageSrc(normalized) ?? normalized);
+    }
+    return unique;
+  }, [product, selectedVariantImage]);
+  const activeImage = images[activeImageIndex] ?? images[0] ?? "/file.svg";
   const priceValue = useMemo(
     () => selectedVariant?.salePriceFcfa ?? parseGroupedNumber(product?.computed_final_price ?? product?.discount_price ?? product?.price),
     [product?.computed_final_price, product?.discount_price, product?.price, selectedVariant?.salePriceFcfa],
@@ -249,6 +264,9 @@ export default function PremiumAccessoryDesktopPage() {
     const resolved = resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId);
     setSelectedVariantId(resolved?.id ?? "");
   }, [product?.details?.storefront_variants]);
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [selectedVariant?.id]);
   const showroomNotes = useMemo(
     () => [
       {

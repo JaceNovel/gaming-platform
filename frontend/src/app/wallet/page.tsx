@@ -82,6 +82,19 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 };
 
+const parseApiPayload = async (response: Response): Promise<{ message?: string | null; data?: any } | null> => {
+  const raw = await response.text().catch(() => "");
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { message: raw.trim() || null };
+  }
+};
+
 function WalletClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -401,7 +414,7 @@ function WalletClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: amountValue, provider: topupProviderRequestValue }),
       });
-      const data = await res.json().catch(() => null);
+      const data = await parseApiPayload(res);
       if (!res.ok) {
         setBanner(data?.message ?? "Impossible de démarrer la recharge wallet.");
         return;

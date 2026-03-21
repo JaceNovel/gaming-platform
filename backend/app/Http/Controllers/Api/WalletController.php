@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -433,10 +434,25 @@ class WalletController extends Controller
                 });
             }
 
+            Log::error('wallet:topup-init-failed', [
+                'user_id' => $user->id,
+                'wallet_id' => $wallet->wallet_id,
+                'amount' => $amount,
+                'provider' => $provider,
+                'requested_provider' => $requestedProvider,
+                'order_id' => $order?->id,
+                'payment_id' => $payment?->id,
+                'wallet_transaction_id' => $walletTx?->id,
+                'message' => $e->getMessage(),
+                'code' => $e->getCode(),
+            ]);
+
+            $safeMessage = $this->mapTopupFailureMessage($e);
+
             return response()->json([
                 'message' => config('app.debug')
-                        ? ('Recharge impossible: ' . $e->getMessage())
-                    : 'Impossible de démarrer la recharge wallet.',
+                    ? ('Recharge impossible: ' . $e->getMessage())
+                    : $safeMessage,
             ], 502);
         } finally {
             Cache::forget($throttleKey);
@@ -637,6 +653,21 @@ class WalletController extends Controller
             'provider' => 'moneroo',
             'status' => 'pending',
         ];
+    }
+
+    private function mapTopupFailureMessage(\Throwable $e): string
+    {
+        $message = trim((string) $e->getMessage());
+
+        return match (true) {
+            $message === '' => 'Impossible de démarrer la recharge wallet.',
+            str_contains($message, 'Moneroo not configured') => 'Le paiement Moneroo n\'est pas encore configuré sur le serveur.',
+            str_contains($message, 'Moneroo return URL is not configured') => 'L\'URL de retour Moneroo est absente sur le serveur.',
+            str_contains($message, 'Moneroo requires a customer email address') => 'Ajoute une adresse email à ton compte avant de recharger le wallet.',
+            str_contains($message, 'customer.last name') => 'Le nom du client est incomplet pour initier le paiement.',
+            str_contains($message, 'too many requests') => 'Le service de paiement est temporairement saturé. Réessaie dans un instant.',
+            default => 'Impossible de démarrer la recharge wallet.',
+        };
     }
 
     private function findRecipient(string $query, int $senderId): ?User
