@@ -17,6 +17,7 @@ use App\Services\MonerooService;
 use App\Services\PayPalService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -262,12 +263,37 @@ class WalletController extends Controller
         $provider = 'moneroo';
         $customerPhone = trim((string) ($request->validated()['customer_phone'] ?? $user->phone ?? ''));
         $customerCountry = strtoupper(trim((string) ($request->validated()['customer_country'] ?? $user->country_code ?? 'CI')));
+        $throttleKey = sprintf('wallet:topup:init:%s:%s:%s', $user->id, $provider, number_format($amount, 2, '.', ''));
 
         $order = null;
         $payment = null;
         $walletTx = null;
 
         try {
+            $existingPendingTopup = $this->findReusablePendingTopup($user, $amount);
+            if ($existingPendingTopup) {
+                return response()->json([
+                    'success' => true,
+                    'reused' => true,
+                    'data' => $existingPendingTopup,
+                ]);
+            }
+
+            if (!Cache::add($throttleKey, now()->toIso8601String(), now()->addSeconds(15))) {
+                $existingPendingTopup = $this->findReusablePendingTopup($user, $amount);
+                if ($existingPendingTopup) {
+                    return response()->json([
+                        'success' => true,
+                        'reused' => true,
+                        'data' => $existingPendingTopup,
+                    ]);
+                }
+
+                return response()->json([
+                    'message' => 'Une recharge est deja en cours. Patiente quelques secondes.',
+                ], 429);
+            }
+
             ['order' => $order, 'payment' => $payment, 'walletTx' => $walletTx] = DB::transaction(function () use ($user, $wallet, $amount, $provider) {
                 $reference = 'WTU-' . strtoupper(Str::random(10));
 
@@ -412,6 +438,8 @@ class WalletController extends Controller
                         ? ('Recharge impossible: ' . $e->getMessage())
                     : 'Impossible de démarrer la recharge wallet.',
             ], 502);
+        } finally {
+            Cache::forget($throttleKey);
         }
     }
 
@@ -569,6 +597,46 @@ class WalletController extends Controller
                 // best effort sync on read
             }
         }
+    }
+
+    private function findReusablePendingTopup(User $user, float $amount): ?array
+    {
+        $payment = Payment::query()
+            ->with(['order', 'walletTransaction'])
+            ->where('method', 'moneroo')
+            ->where('status', 'pending')
+            ->where('amount', $amount)
+            ->where('created_at', '>=', now()->subMinutes(15))
+            ->whereHas('order', function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                    ->where('type', 'wallet_topup')
+                    ->whereIn('status', [Order::STATUS_PAYMENT_PROCESSING, Order::STATUS_AWAITING_PAYMENT]);
+            })
+            ->latest('created_at')
+            ->first();
+
+        if (!$payment || !$payment->order || !$payment->walletTransaction) {
+            return null;
+        }
+
+        $paymentUrl = trim((string) Arr::get($payment->webhook_data, 'init_response.checkout_url', ''));
+        if ($paymentUrl === '') {
+            return null;
+        }
+
+        return [
+            'payment_url' => $paymentUrl,
+            'transaction_id' => (string) ($payment->transaction_id ?? ''),
+            'payment_id' => $payment->id,
+            'order_id' => $payment->order_id,
+            'wallet_transaction_id' => $payment->wallet_transaction_id,
+            'amount' => (float) $payment->amount,
+            'currency' => 'XOF',
+            'provider_currency' => (string) (Arr::get($payment->webhook_data, 'provider_currency', 'XOF')),
+            'provider_amount' => (float) (Arr::get($payment->webhook_data, 'provider_amount', $payment->amount)),
+            'provider' => 'moneroo',
+            'status' => 'pending',
+        ];
     }
 
     private function findRecipient(string $query, int $senderId): ?User

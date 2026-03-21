@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\WalletAccount;
 use App\Models\WalletTransaction;
 use App\Services\FedaPayService;
+use App\Services\MonerooService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
 use PHPUnit\Framework\Attributes\Test;
@@ -437,6 +438,100 @@ class DbWalletTest extends TestCase
             'payout_id' => $payout->id,
             'status' => 'processing',
         ]);
+    }
+
+    #[Test]
+    public function wallet_topup_reuses_recent_pending_moneroo_payment(): void
+    {
+        $user = User::factory()->create([
+            'name' => 'TOPUP USER',
+            'email' => 'topup-user@example.com',
+            'phone' => '22501020304',
+            'country_code' => 'CI',
+        ]);
+
+        $wallet = WalletAccount::create([
+            'user_id' => $user->id,
+            'wallet_id' => 'DBW-TOPUP-REUSE-0001',
+            'currency' => 'FCFA',
+            'balance' => 0,
+            'bonus_balance' => 0,
+            'reward_balance' => 0,
+            'status' => 'active',
+        ]);
+
+        $order = Order::create([
+            'user_id' => $user->id,
+            'type' => 'wallet_topup',
+            'status' => Order::STATUS_PAYMENT_PROCESSING,
+            'total_price' => 5000,
+            'items' => [],
+            'meta' => [
+                'type' => 'wallet_topup',
+                'source' => 'wallet_page',
+                'wallet_id' => $wallet->wallet_id,
+                'wallet_account_id' => $wallet->id,
+            ],
+            'reference' => 'WTU-EXISTING-0001',
+        ]);
+
+        $walletTx = WalletTransaction::create([
+            'wallet_account_id' => $wallet->id,
+            'type' => 'credit',
+            'amount' => 5000,
+            'reference' => 'WTOPUP-WTU-EXISTING-0001',
+            'meta' => [
+                'type' => 'wallet_topup',
+                'reason' => 'topup',
+                'order_id' => $order->id,
+            ],
+            'status' => 'pending',
+            'provider' => 'moneroo',
+        ]);
+
+        $payment = Payment::create([
+            'order_id' => $order->id,
+            'wallet_transaction_id' => $walletTx->id,
+            'amount' => 5000,
+            'method' => 'moneroo',
+            'status' => 'pending',
+            'transaction_id' => 'moneroo-existing-123',
+            'webhook_data' => [
+                'source' => 'wallet_topup',
+                'provider' => 'moneroo',
+                'provider_currency' => 'XOF',
+                'provider_amount' => 5000,
+                'init_response' => [
+                    'checkout_url' => 'https://checkout.moneroo.io/pay/existing-123',
+                ],
+            ],
+        ]);
+
+        $order->update(['payment_id' => $payment->id]);
+
+        $mockMoneroo = Mockery::mock(MonerooService::class)->makePartial();
+        $mockMoneroo->shouldReceive('initPayment')->never();
+        $this->app->instance(MonerooService::class, $mockMoneroo);
+
+        $this->actingAs($user, 'sanctum');
+
+        $response = $this->postJson('/api/wallet/topup', [
+            'amount' => 5000,
+            'provider' => 'moneroo',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('reused', true)
+            ->assertJsonPath('data.payment_url', 'https://checkout.moneroo.io/pay/existing-123')
+            ->assertJsonPath('data.transaction_id', 'moneroo-existing-123')
+            ->assertJsonPath('data.order_id', $order->id)
+            ->assertJsonPath('data.payment_id', $payment->id)
+            ->assertJsonPath('data.wallet_transaction_id', $walletTx->id);
+
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertDatabaseCount('wallet_transactions', 1);
     }
 
     #[Test]

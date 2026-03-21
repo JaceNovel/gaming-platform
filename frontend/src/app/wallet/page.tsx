@@ -9,7 +9,7 @@ import PaymentMethodModal, { type PaymentMethodOption } from "@/components/payme
 import SectionTitle from "@/components/ui/SectionTitle";
 import GlowButton from "@/components/ui/GlowButton";
 import { API_BASE } from "@/lib/config";
-import { SUPPORTED_FEDAPAY_COUNTRIES, fedapayTopupDescription } from "@/lib/fedapayChannels";
+import { fedapayTopupDescription } from "@/lib/fedapayChannels";
 import { openTidioChat } from "@/lib/tidioChat";
 import { emitWalletUpdated } from "@/lib/walletEvents";
 
@@ -107,6 +107,7 @@ function WalletClient() {
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
 
   const refreshSeq = useRef(0);
+  const topupSubmitLockRef = useRef(false);
 
   const hasPendingTx = useMemo(
     () => transactions.some((tx) => String(tx.status ?? "").toLowerCase() === "pending"),
@@ -380,14 +381,16 @@ function WalletClient() {
   };
 
   const handleTopup = async () => {
-    if (topupLoading) {
+    if (topupLoading || topupSubmitLockRef.current) {
       return;
     }
 
+    topupSubmitLockRef.current = true;
     setBanner(null);
     const amountValue = Math.round(Number(topupAmount || 0));
     if (!Number.isFinite(amountValue) || amountValue < 100) {
       setBanner("Le montant minimum de recharge est 100 FCFA.");
+      topupSubmitLockRef.current = false;
       return;
     }
 
@@ -416,6 +419,7 @@ function WalletClient() {
       setBanner("Impossible de démarrer la recharge wallet.");
     } finally {
       setTopupLoading(false);
+      topupSubmitLockRef.current = false;
     }
   };
 
@@ -542,19 +546,6 @@ function WalletClient() {
                       Changer
                     </button>
                   </div>
-
-                  {selectedTopupOption?.key === "moneroo" ? (
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                      {SUPPORTED_FEDAPAY_COUNTRIES.map((countryOption) => (
-                        <div key={countryOption.code} className="rounded-xl border border-emerald-200/15 bg-white/5 p-3">
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-100/75">
-                            {countryOption.code} · {countryOption.label}
-                          </p>
-                          <p className="mt-2 text-xs leading-5 text-emerald-50/80">{countryOption.topupChannels.join(" • ")}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
               </div>
 
