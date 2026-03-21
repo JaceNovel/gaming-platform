@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Sparkles } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { emitCartUpdated } from "@/lib/cartEvents";
@@ -189,6 +190,7 @@ function HeroBackdrop() {
 
 export default function AccessoiresPage() {
   const router = useRouter();
+  const { language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<AccessoryProduct[]>([]);
@@ -205,6 +207,111 @@ export default function AccessoiresPage() {
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const searchCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
+
+  const copy = useMemo(
+    () =>
+      language === "fr"
+        ? {
+            shipping: "Livraison",
+            shippingTitle: "Lien Google Maps + Ville + Téléphone",
+            shippingSubtitle: "Renseigne une adresse locale claire pour faciliter la livraison finale.",
+            close: "Fermer",
+            mapsLabel: "Lien Google Maps *",
+            mapsPlaceholder: "https://maps.google.com/...",
+            currentPosition: "Ma position actuelle",
+            cityLabel: "Ville *",
+            cityPlaceholder: "Ex: Douala",
+            phoneLabel: "Téléphone (WhatsApp) *",
+            phonePlaceholder: "Ex: 690000000",
+            geoUnsupported: "La géolocalisation n'est pas supportée sur cet appareil.",
+            geoLoading: "Récupération de la position...",
+            geoInvalid: "Position invalide.",
+            geoAdded: "Position ajoutée.",
+            geoFailed: "Impossible de récupérer la position. Autorise la localisation puis réessaie.",
+            shippingMissing: "Merci de renseigner Lien Maps, Ville et Téléphone.",
+            save: "Enregistrer",
+            catalog: "Catalogue",
+            title: "Accessoires Gaming",
+            subtitle: "Prix et livraison clairs, avant paiement.",
+            searchPlaceholder: "Rechercher un casque, clavier, manette, support...",
+            clear: "Effacer",
+            liveSuggestions: "Suggestions en direct",
+            accessory: "Accessoire",
+            noSearchResults: "Aucun produit ne correspond à ta recherche.",
+            scrollHint: "Défile horizontalement pour voir tout.",
+            returnHere: "Revenir ici",
+            noProducts: "Aucun produit pour le moment.",
+            detail: "Voir le détail",
+            deliveryAvailable: "Livraison disponible",
+            bestPrice: "Meilleur Prix",
+            price: "Prix",
+            delivery: "Livraison",
+            customerChoice: "Choix client",
+            seeDetail: "Voir détail",
+            view: "Voir",
+            cart: "Panier",
+            image: "Image",
+            loadAccessories: "Impossible de charger les accessoires",
+            loadGeneric: "Impossible de charger",
+          }
+        : {
+            shipping: "Shipping",
+            shippingTitle: "Google Maps link + City + Phone",
+            shippingSubtitle: "Provide a clear local address to make final delivery easier.",
+            close: "Close",
+            mapsLabel: "Google Maps link *",
+            mapsPlaceholder: "https://maps.google.com/...",
+            currentPosition: "My current location",
+            cityLabel: "City *",
+            cityPlaceholder: "Example: Douala",
+            phoneLabel: "Phone (WhatsApp) *",
+            phonePlaceholder: "Example: 690000000",
+            geoUnsupported: "Geolocation is not supported on this device.",
+            geoLoading: "Fetching your location...",
+            geoInvalid: "Invalid location.",
+            geoAdded: "Location added.",
+            geoFailed: "Unable to get your location. Allow location access and try again.",
+            shippingMissing: "Please provide Maps link, city, and phone number.",
+            save: "Save",
+            catalog: "Catalog",
+            title: "Gaming Accessories",
+            subtitle: "Clear pricing and delivery before payment.",
+            searchPlaceholder: "Search a headset, keyboard, controller, stand...",
+            clear: "Clear",
+            liveSuggestions: "Live suggestions",
+            accessory: "Accessory",
+            noSearchResults: "No product matches your search.",
+            scrollHint: "Scroll horizontally to see everything.",
+            returnHere: "Back here",
+            noProducts: "No products available right now.",
+            detail: "View details",
+            deliveryAvailable: "Delivery available",
+            bestPrice: "Best price",
+            price: "Price",
+            delivery: "Delivery",
+            customerChoice: "Customer choice",
+            seeDetail: "View details",
+            view: "View",
+            cart: "Cart",
+            image: "Image",
+            loadAccessories: "Unable to load accessories",
+            loadGeneric: "Unable to load",
+          },
+    [language],
+  );
+
+  const categoryOrder = useMemo(
+    () =>
+      language === "fr"
+        ? CATEGORY_ORDER
+        : [
+            { key: "audio" as const, label: "Gaming Audio", navLabel: "🎧 Gaming Audio" },
+            { key: "keyboard_mouse" as const, label: "Keyboard & Mouse", navLabel: "🖱️ Keyboard & Mouse" },
+            { key: "mobile" as const, label: "Mobile Gaming", navLabel: "🎮 Mobile Gaming" },
+            { key: "setup_comfort" as const, label: "Setup & Comfort", navLabel: "🪑 Setup & Comfort" },
+          ],
+    [language],
+  );
 
   useEffect(() => {
     const existing = readShippingInfo();
@@ -230,22 +337,22 @@ export default function AccessoiresPage() {
     setShippingStatus(null);
     if (typeof window === "undefined") return;
     if (!("geolocation" in navigator)) {
-      setShippingStatus("La géolocalisation n'est pas supportée sur cet appareil.");
+      setShippingStatus(copy.geoUnsupported);
       return;
     }
-    setShippingStatus("Récupération de la position...");
+    setShippingStatus(copy.geoLoading);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const url = buildMapsUrlFromCoords(pos.coords.latitude, pos.coords.longitude);
         if (!url) {
-          setShippingStatus("Position invalide.");
+          setShippingStatus(copy.geoInvalid);
           return;
         }
         setShippingMapsUrl(url);
-        setShippingStatus("Position ajoutée.");
+        setShippingStatus(copy.geoAdded);
       },
       () => {
-        setShippingStatus("Impossible de récupérer la position. Autorise la localisation puis réessaie.");
+        setShippingStatus(copy.geoFailed);
       },
       { enableHighAccuracy: true, timeout: 12000 },
     );
@@ -293,7 +400,7 @@ export default function AccessoiresPage() {
         });
         const res = await fetch(`${API_BASE}/products?${qs.toString()}`, { headers: { Accept: "application/json" } });
         const payload = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(payload?.message ?? "Impossible de charger les accessoires");
+        if (!res.ok) throw new Error(payload?.message ?? copy.loadAccessories);
 
         const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.data?.data) ? payload.data.data : [];
         const items = (Array.isArray(rows) ? rows : []) as AccessoryProduct[];
@@ -306,7 +413,7 @@ export default function AccessoiresPage() {
       } catch (e: any) {
         if (!active) return;
         setProducts([]);
-        setError(e?.message ?? "Impossible de charger");
+        setError(e?.message ?? copy.loadGeneric);
       } finally {
         if (active) setLoading(false);
       }
@@ -315,7 +422,7 @@ export default function AccessoiresPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [copy.loadAccessories, copy.loadGeneric]);
 
   const filteredProducts = useMemo(() => {
     const query = normalizeSearchText(deferredSearchQuery);
@@ -385,26 +492,26 @@ export default function AccessoiresPage() {
           <div className="relative w-full max-w-lg rounded-[28px] border border-white/10 bg-black/75 p-5 backdrop-blur">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Livraison</p>
-                <h2 className="mt-1 text-lg font-semibold">Lien Google Maps + Ville + Téléphone</h2>
-                <p className="mt-1 text-sm text-white/60">Renseigne une adresse locale claire pour faciliter la livraison finale.</p>
+                <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">{copy.shipping}</p>
+                <h2 className="mt-1 text-lg font-semibold">{copy.shippingTitle}</h2>
+                <p className="mt-1 text-sm text-white/60">{copy.shippingSubtitle}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setShippingOpen(false)}
                 className="rounded-2xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
               >
-                Fermer
+                {copy.close}
               </button>
             </div>
 
             <div className="mt-4 grid gap-3">
               <div className="grid gap-1">
-                <label className="text-xs text-white/70">Lien Google Maps *</label>
+                <label className="text-xs text-white/70">{copy.mapsLabel}</label>
                 <input
                   value={shippingMapsUrl}
                   onChange={(e) => setShippingMapsUrl(e.target.value)}
-                  placeholder="https://maps.google.com/..."
+                  placeholder={copy.mapsPlaceholder}
                   className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none"
                 />
                 <div className="flex gap-2">
@@ -413,27 +520,27 @@ export default function AccessoiresPage() {
                     onClick={fillCurrentPosition}
                     className="rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/15"
                   >
-                    Ma position actuelle
+                    {copy.currentPosition}
                   </button>
                 </div>
               </div>
 
               <div className="grid gap-1">
-                <label className="text-xs text-white/70">Ville *</label>
+                <label className="text-xs text-white/70">{copy.cityLabel}</label>
                 <input
                   value={shippingCity}
                   onChange={(e) => setShippingCity(e.target.value)}
-                  placeholder="Ex: Douala"
+                  placeholder={copy.cityPlaceholder}
                   className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none"
                 />
               </div>
 
               <div className="grid gap-1">
-                <label className="text-xs text-white/70">Téléphone (WhatsApp) *</label>
+                <label className="text-xs text-white/70">{copy.phoneLabel}</label>
                 <input
                   value={shippingPhone}
                   onChange={(e) => setShippingPhone(e.target.value)}
-                  placeholder="Ex: 690000000"
+                  placeholder={copy.phonePlaceholder}
                   className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none"
                 />
               </div>
@@ -446,7 +553,7 @@ export default function AccessoiresPage() {
                   onClick={() => {
                     const info = { mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() };
                     if (!isValidShippingInfo(info)) {
-                      setShippingStatus("Merci de renseigner Lien Maps, Ville et Téléphone.");
+                      setShippingStatus(copy.shippingMissing);
                       return;
                     }
                     writeShippingInfo(info);
@@ -457,7 +564,7 @@ export default function AccessoiresPage() {
                   }}
                   className="flex-1 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/15"
                 >
-                  Enregistrer
+                  {copy.save}
                 </button>
               </div>
             </div>
@@ -470,13 +577,13 @@ export default function AccessoiresPage() {
           <header className="p-2">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Catalogue</p>
-                <h1 className="mt-1 text-2xl md:text-3xl font-semibold">Accessoires Gaming</h1>
-                <p className="mt-2 text-sm text-white/60">Prix & livraison clairs, avant paiement.</p>
+                <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">{copy.catalog}</p>
+                <h1 className="mt-1 text-2xl md:text-3xl font-semibold">{copy.title}</h1>
+                <p className="mt-2 text-sm text-white/60">{copy.subtitle}</p>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {CATEGORY_ORDER.map((c) => (
+                {categoryOrder.map((c) => (
                   <button
                     key={c.key}
                     type="button"
@@ -507,7 +614,7 @@ export default function AccessoiresPage() {
                   onBlur={() => {
                     searchCloseTimeoutRef.current = setTimeout(() => setSearchOpen(false), 120);
                   }}
-                  placeholder="Rechercher un casque, clavier, manette, support..."
+                  placeholder={copy.searchPlaceholder}
                   className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35 md:text-base"
                 />
                 {searchQuery ? (
@@ -519,12 +626,12 @@ export default function AccessoiresPage() {
                     }}
                     className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/75 transition hover:bg-white/10"
                   >
-                    Effacer
+                    {copy.clear}
                   </button>
                 ) : (
                   <span className="hidden items-center gap-1 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100 md:inline-flex">
                     <Sparkles className="h-3.5 w-3.5" />
-                    Suggestions en direct
+                    {copy.liveSuggestions}
                   </span>
                 )}
               </div>
@@ -555,7 +662,7 @@ export default function AccessoiresPage() {
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-semibold text-white">{name}</div>
                           <div className="mt-0.5 flex items-center gap-2 text-xs text-white/55">
-                            <span>{CATEGORY_ORDER.find((item) => item.key === category)?.label ?? "Accessoire"}</span>
+                              <span>{categoryOrder.find((item) => item.key === category)?.label ?? copy.accessory}</span>
                             <span className="text-cyan-200">{formatFcfa(parseNumber(product.discount_price ?? product.price))}</span>
                           </div>
                         </div>
@@ -570,7 +677,7 @@ export default function AccessoiresPage() {
           <div className="mt-6 space-y-8">
             {!loading && searchQuery.trim() && filteredProducts.length === 0 ? (
               <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 text-sm text-white/70">
-                Aucun produit ne correspond à ta recherche.
+                {copy.noSearchResults}
               </div>
             ) : null}
 
@@ -580,7 +687,7 @@ export default function AccessoiresPage() {
               </div>
             )}
 
-            {CATEGORY_ORDER.map((cat) => {
+            {categoryOrder.map((cat) => {
               const items = grouped[cat.key] ?? [];
               return (
                 <section
@@ -593,7 +700,7 @@ export default function AccessoiresPage() {
                   <div className="flex items-end justify-between gap-4">
                     <div>
                       <h2 className="text-lg md:text-xl font-semibold">{cat.label}</h2>
-                      <p className="mt-1 text-sm text-white/55">Défile horizontalement pour voir tout.</p>
+                      <p className="mt-1 text-sm text-white/55">{copy.scrollHint}</p>
                     </div>
                     <Link
                       href="#"
@@ -603,7 +710,7 @@ export default function AccessoiresPage() {
                       }}
                       className="text-sm font-semibold text-cyan-100 hover:text-cyan-50"
                     >
-                      Revenir ici
+                      {copy.returnHere}
                     </Link>
                   </div>
 
@@ -614,7 +721,7 @@ export default function AccessoiresPage() {
                         <div className="h-24 w-full rounded bg-white/10" />
                       </div>
                     ) : items.length === 0 ? (
-                      <div className="text-sm text-white/60">Aucun produit pour le moment.</div>
+                      <div className="text-sm text-white/60">{copy.noProducts}</div>
                     ) : (
                       <>
                         {/* Mobile: small cards, click -> detail */}
@@ -658,7 +765,7 @@ export default function AccessoiresPage() {
 
                                 <div className="px-3 pb-3">
                                   <div className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-center text-xs font-semibold text-white/80">
-                                    Voir le détail
+                                    {copy.detail}
                                   </div>
                                 </div>
                               </Link>
@@ -692,25 +799,25 @@ export default function AccessoiresPage() {
                                       <span
                                         className="inline-flex items-center rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100"
                                       >
-                                        Livraison disponible
+                                        {copy.deliveryAvailable}
                                       </span>
                                       <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80">
-                                        Meilleur Prix
+                                        {copy.bestPrice}
                                       </span>
                                     </div>
 
                                     <div className="mt-4 grid gap-1 text-sm">
                                       <div className="flex items-center justify-between text-white/70">
-                                        <span>Prix</span>
+                                        <span>{copy.price}</span>
                                         <span className="font-semibold text-white">{formatFcfa(price)}</span>
                                       </div>
                                       <div className="flex items-center justify-between text-white/70">
-                                        <span>Livraison</span>
-                                        <span className="font-semibold text-white">Disponible</span>
+                                        <span>{copy.delivery}</span>
+                                        <span className="font-semibold text-white">{copy.deliveryAvailable}</span>
                                       </div>
                                       <div className="flex items-center justify-between text-white/70">
-                                        <span>Choix client</span>
-                                        <span className="font-semibold text-white">Voir détail</span>
+                                        <span>{copy.customerChoice}</span>
+                                        <span className="font-semibold text-white">{copy.seeDetail}</span>
                                       </div>
                                     </div>
 
@@ -724,7 +831,7 @@ export default function AccessoiresPage() {
                                         }}
                                         className="flex-1 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/15 transition"
                                       >
-                                        Voir
+                                        {copy.view}
                                       </button>
 
                                       <button
@@ -737,7 +844,7 @@ export default function AccessoiresPage() {
                                         }}
                                         className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/85 hover:bg-white/10 transition"
                                       >
-                                        Panier
+                                        {copy.cart}
                                       </button>
                                     </div>
                                   </div>
@@ -747,7 +854,7 @@ export default function AccessoiresPage() {
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={imgSrc} alt={name} className="h-full w-full object-cover" loading="lazy" />
                                     ) : (
-                                      <div className="grid h-full w-full place-items-center bg-white/10 text-xs text-white/60">Image</div>
+                                      <div className="grid h-full w-full place-items-center bg-white/10 text-xs text-white/60">{copy.image}</div>
                                     )}
                                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-l from-transparent to-black/15" />
                                   </div>

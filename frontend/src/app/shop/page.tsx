@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
@@ -66,6 +67,7 @@ const hrefForSelection = (key: CategoryKey, gameSlug?: string) => {
 
 export default function ShopPage() {
   const router = useRouter();
+  const { language } = useLanguage();
   const [isDesktop, setIsDesktop] = useState(false);
   const [activeCategory, setActiveCategory] = useState<CategoryKey | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -73,6 +75,63 @@ export default function ShopPage() {
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<MenuGame[]>([]);
   const [query, setQuery] = useState("");
+
+  const copy = useMemo(
+    () =>
+      language === "fr"
+        ? {
+            redirecting: "Redirection...",
+            title: "Catégorie",
+            subtitle: "Sélectionne le type d'achat que tu souhaites.",
+            loadGames: "Impossible de charger les jeux",
+            loadGeneric: "Impossible de charger",
+            gameFallback: "Jeux",
+            categories: {
+              recharges: "Recharges",
+              abonnements: "Abonnements",
+              accounts: "Comptes de jeu",
+              accessoires: "Accessoires",
+            },
+            helpPrefix: "Besoin d’aide ? Va sur",
+            helpLink: "Aide",
+            chooseGame: "Choisir un jeu",
+            close: "Fermer",
+            search: "Rechercher un jeu...",
+            offers: "Voir les offres",
+            empty: "Aucun jeu trouvé.",
+          }
+        : {
+            redirecting: "Redirecting...",
+            title: "Category",
+            subtitle: "Select the type of purchase you want.",
+            loadGames: "Unable to load games",
+            loadGeneric: "Unable to load",
+            gameFallback: "Games",
+            categories: {
+              recharges: "Top-ups",
+              abonnements: "Subscriptions",
+              accounts: "Gaming Accounts",
+              accessoires: "Accessories",
+            },
+            helpPrefix: "Need help? Go to",
+            helpLink: "Help",
+            chooseGame: "Choose a game",
+            close: "Close",
+            search: "Search a game...",
+            offers: "View offers",
+            empty: "No game found.",
+          },
+    [language],
+  );
+
+  const categories = useMemo(
+    () =>
+      CATEGORIES.map((category) => ({
+        ...category,
+        title: copy.categories[category.key],
+      })),
+    [copy.categories],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -87,14 +146,6 @@ export default function ShopPage() {
     if (!isDesktop) return;
     router.replace("/recharges");
   }, [isDesktop, router]);
-
-  if (isDesktop) {
-    return (
-      <main className="min-h-[100dvh] bg-[#04020c] text-white grid place-items-center px-6">
-        <p className="text-sm text-white/70">Redirection…</p>
-      </main>
-    );
-  }
 
   const openCategory = (key: CategoryKey) => {
     if (key === "accessoires") {
@@ -122,12 +173,12 @@ export default function ShopPage() {
         });
         const payload = await res.json().catch(() => null);
         if (!active) return;
-        if (!res.ok) throw new Error(payload?.message ?? "Impossible de charger les jeux");
+        if (!res.ok) throw new Error(payload?.message ?? copy.loadGames);
         setGames(parseGamesPayload(payload));
       } catch (e: any) {
         if (!active) return;
         setGames([]);
-        setError(e?.message ?? "Impossible de charger");
+        setError(e?.message ?? copy.loadGeneric);
       } finally {
         if (active) setLoading(false);
       }
@@ -136,7 +187,7 @@ export default function ShopPage() {
     return () => {
       active = false;
     };
-  }, [modalOpen, activeCategory]);
+  }, [activeCategory, copy.loadGames, copy.loadGeneric, modalOpen]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -145,9 +196,17 @@ export default function ShopPage() {
   }, [games, query]);
 
   const activeTitle = useMemo(() => {
-    const found = CATEGORIES.find((c) => c.key === activeCategory);
-    return found?.title ?? "Jeux";
-  }, [activeCategory]);
+    const found = categories.find((c) => c.key === activeCategory);
+    return found?.title ?? copy.gameFallback;
+  }, [activeCategory, categories, copy.gameFallback]);
+
+  if (isDesktop) {
+    return (
+      <main className="min-h-[100dvh] bg-[#04020c] text-white grid place-items-center px-6">
+        <p className="text-sm text-white/70">{copy.redirecting}</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-[100dvh] bg-transparent text-white">
@@ -155,12 +214,12 @@ export default function ShopPage() {
 
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
         <div className="space-y-2">
-          <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Catégorie</h1>
-          <p className="text-sm text-white/60">Sélectionne le type d’achat que tu souhaites.</p>
+          <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{copy.title}</h1>
+          <p className="text-sm text-white/60">{copy.subtitle}</p>
         </div>
 
         <div className="mt-8 grid grid-cols-2 gap-4">
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <button
               key={c.key}
               type="button"
@@ -182,7 +241,7 @@ export default function ShopPage() {
         </div>
 
         <p className="mt-8 text-center text-xs text-white/45">
-          Besoin d’aide ? Va sur <Link className="underline hover:text-white" href="/help">Aide</Link>
+          {copy.helpPrefix} <Link className="underline hover:text-white" href="/help">{copy.helpLink}</Link>
         </p>
       </div>
 
@@ -199,7 +258,7 @@ export default function ShopPage() {
           <div className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-white/10 bg-black/70 backdrop-blur shadow-[0_30px_90px_rgba(0,0,0,0.7)]">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Choisir un jeu</p>
+                <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">{copy.chooseGame}</p>
                 <p className="mt-1 text-base font-semibold text-white">{activeTitle}</p>
               </div>
               <button
@@ -209,7 +268,7 @@ export default function ShopPage() {
                   setActiveCategory(null);
                 }}
                 className="grid h-9 w-9 place-items-center rounded-2xl border border-white/10 bg-white/5 text-white/70 hover:text-white"
-                aria-label="Fermer"
+                aria-label={copy.close}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -221,7 +280,7 @@ export default function ShopPage() {
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Rechercher un jeu…"
+                  placeholder={copy.search}
                   className="w-full rounded-2xl border border-white/10 bg-white/5 px-10 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-cyan-300/40"
                 />
               </div>
@@ -268,7 +327,7 @@ export default function ShopPage() {
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-white truncate">{g.name}</p>
-                            <p className="text-xs text-white/55">Voir les offres</p>
+                            <p className="text-xs text-white/55">{copy.offers}</p>
                           </div>
                         </button>
                       );
@@ -276,7 +335,7 @@ export default function ShopPage() {
 
                 {!loading && !error && filtered.length === 0 ? (
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/70">
-                    Aucun jeu trouvé.
+                    {copy.empty}
                   </div>
                 ) : null}
               </div>

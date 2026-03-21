@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { ArrowLeft, Search, SlidersHorizontal } from "lucide-react";
 import ProductCard from "@/components/ui/ProductCard";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
@@ -59,9 +60,6 @@ type Paginated<T> = {
   next_page_url?: string | null;
   prev_page_url?: string | null;
 };
-
-
-const formatNumber = (value: number) => new Intl.NumberFormat("fr-FR").format(value);
 
 const isPromoFromPrices = (price: number, discountPrice: number) => {
   if (!Number.isFinite(price) || price <= 0) return false;
@@ -127,6 +125,51 @@ export default function ProductsCatalogPage({
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { language, formatNumber } = useLanguage();
+
+  const copy = useMemo(
+    () =>
+      language === "fr"
+        ? {
+            home: "Accueil",
+            gameFallback: "Jeu",
+            back: "Retour",
+            search: "Rechercher...",
+            recent: "Plus récents",
+            popular: "Populaires",
+            loadProducts: "Impossible de charger les produits",
+            loadGeneric: "Impossible de charger",
+            gameNotFound: "Jeu introuvable.",
+            productFallback: "Produit",
+            noProducts: "Aucun produit pour le moment.",
+            instant: "Instant",
+            instantDesktop: "Instantané",
+            promo: "Promo",
+            top: "Top",
+            previousPage: "Page précédente",
+            nextPage: "Page suivante",
+          }
+        : {
+            home: "Home",
+            gameFallback: "Game",
+            back: "Back",
+            search: "Search...",
+            recent: "Newest",
+            popular: "Popular",
+            loadProducts: "Unable to load products",
+            loadGeneric: "Unable to load",
+            gameNotFound: "Game not found.",
+            productFallback: "Product",
+            noProducts: "No products available right now.",
+            instant: "Instant",
+            instantDesktop: "Instant",
+            promo: "Promo",
+            top: "Top",
+            previousPage: "Previous page",
+            nextPage: "Next page",
+          },
+    [language],
+  );
 
   const gameSlug = useMemo(() => {
     const raw = gameSlugParam ?? (params?.gameSlug as string | undefined);
@@ -213,7 +256,7 @@ export default function ProductsCatalogPage({
     const res = await fetch(`${API_BASE}/products?${qs.toString()}`, { headers: { Accept: "application/json" } });
     const payload = await res.json().catch(() => null);
     if (!res.ok) {
-      throw new Error(payload?.message ?? "Impossible de charger les produits");
+      throw new Error(payload?.message ?? copy.loadProducts);
     }
     const parsed = parsePaginator<ProductRow>(payload);
     setMeta(parsed.meta);
@@ -226,7 +269,7 @@ export default function ProductsCatalogPage({
     try {
       await loadPage(page);
     } catch (e: any) {
-      setError(e?.message ?? "Impossible de charger");
+      setError(e?.message ?? copy.loadGeneric);
       setItems([]);
       setMeta(null);
     } finally {
@@ -273,16 +316,16 @@ export default function ProductsCatalogPage({
   }, [meta, lastPage, page]);
 
   const breadcrumb = useMemo(() => {
-    const root = [{ label: "Accueil", href: "/" }];
+    const root = [{ label: copy.home, href: "/" }];
     if (mode === "simple") {
       return [...root, { label: title, href: "#" }];
     }
 
     const baseHref = shopType === "recharge" ? "/recharges" : shopType === "subscription" ? "/abonnements" : "/catalogue";
     const label = title;
-    const leaf = game?.name ? game.name : gameSlug ? gameSlug : "Jeu";
+    const leaf = game?.name ? game.name : gameSlug ? gameSlug : copy.gameFallback;
     return [...root, { label, href: baseHref }, { label: leaf, href: "#" }];
-  }, [mode, title, shopType, game?.name, gameSlug]);
+  }, [copy.gameFallback, copy.home, game?.name, gameSlug, mode, shopType, title]);
 
   const headerTitle = mode === "game" ? `${title}${game?.name ? ` • ${game.name}` : gameSlug ? ` • ${gameSlug}` : ""}` : title;
   return (
@@ -315,7 +358,7 @@ export default function ProductsCatalogPage({
             className="hidden sm:inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10"
           >
             <ArrowLeft className="h-4 w-4" />
-            Retour
+            {copy.back}
           </button>
         </div>
 
@@ -326,7 +369,7 @@ export default function ProductsCatalogPage({
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Rechercher..."
+                placeholder={copy.search}
                 className="w-full rounded-2xl border border-white/10 bg-white/5 px-10 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-cyan-300/40"
               />
             </div>
@@ -339,8 +382,8 @@ export default function ProductsCatalogPage({
                   onChange={(e) => setSort(e.target.value as any)}
                   className="bg-transparent text-sm text-white/80 outline-none"
                 >
-                  <option value="recent">Plus récents</option>
-                  <option value="popular">Populaires</option>
+                  <option value="recent">{copy.recent}</option>
+                  <option value="popular">{copy.popular}</option>
                 </select>
               </div>
             </div>
@@ -355,7 +398,7 @@ export default function ProductsCatalogPage({
 
         {mode === "game" && !loading && gameSlug && !game ? (
           <div className="mt-10 rounded-[28px] border border-white/10 bg-white/5 p-10 text-center text-white/70">
-            Jeu introuvable.
+            {copy.gameNotFound}
           </div>
         ) : (
           <>
@@ -375,7 +418,7 @@ export default function ProductsCatalogPage({
                     const likesValue = Number(p.likes_count ?? 0);
                     const likes = Number.isFinite(likesValue) ? likesValue : 0;
 
-                    const displayTitle = String(p.name ?? p.title ?? "Produit").trim() || "Produit";
+                    const displayTitle = String(p.name ?? p.title ?? copy.productFallback).trim() || copy.productFallback;
 
                     const img =
                       p.image_url ??
@@ -417,12 +460,12 @@ export default function ProductsCatalogPage({
                           <div className="absolute left-2 top-2 z-10 flex flex-wrap gap-1.5">
                             {isInstant ? (
                               <span className="rounded-full border border-amber-200/20 bg-amber-400/10 px-2 py-1 text-[10px] font-semibold text-amber-100 backdrop-blur">
-                                Instant
+                                {copy.instant}
                               </span>
                             ) : null}
                             {isPromo ? (
                               <span className="rounded-full border border-rose-200/20 bg-rose-400/10 px-2 py-1 text-[10px] font-semibold text-rose-100 backdrop-blur">
-                                Promo
+                                {copy.promo}
                               </span>
                             ) : null}
                             {showVip ? (
@@ -432,7 +475,7 @@ export default function ProductsCatalogPage({
                             ) : null}
                             {isTop ? (
                               <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold text-emerald-100 backdrop-blur">
-                                Top
+                                {copy.top}
                               </span>
                             ) : null}
                           </div>
@@ -472,7 +515,7 @@ export default function ProductsCatalogPage({
 
               {!loading && !error && items.length === 0 ? (
                 <div className="col-span-2 rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-sm text-white/70">
-                  Aucun produit pour le moment.
+                  {copy.noProducts}
                 </div>
               ) : null}
             </div>
@@ -495,7 +538,7 @@ export default function ProductsCatalogPage({
                   const likesValue = Number(p.likes_count ?? 0);
                   const likes = Number.isFinite(likesValue) ? likesValue : 0;
 
-                  const displayTitle = String(p.name ?? p.title ?? "Produit").trim() || "Produit";
+                  const displayTitle = String(p.name ?? p.title ?? copy.productFallback).trim() || copy.productFallback;
                   const displaySubtitle =
                     String(p.category_entity?.name ?? p.category ?? p.game?.name ?? "").trim() || undefined;
 
@@ -544,17 +587,17 @@ export default function ProductsCatalogPage({
                               <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
                                 {isInstant ? (
                                   <span className="rounded-full border border-amber-200/20 bg-amber-400/10 px-2 py-1 text-[11px] font-semibold text-amber-100 backdrop-blur">
-                                    Instantané
+                                    {copy.instantDesktop}
                                   </span>
                                 ) : null}
                                 {isPromo ? (
                                   <span className="rounded-full border border-amber-200/20 bg-amber-400/10 px-2 py-1 text-[11px] font-semibold text-amber-100 backdrop-blur">
-                                    Promo
+                                    {copy.promo}
                                   </span>
                                 ) : null}
                                 {isTop ? (
                                   <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[11px] font-semibold text-emerald-100 backdrop-blur">
-                                    Top
+                                    {copy.top}
                                   </span>
                                 ) : null}
                               </div>
@@ -591,7 +634,7 @@ export default function ProductsCatalogPage({
                 })
               ) : (
                 <div className="col-span-full rounded-[28px] border border-white/10 bg-white/5 p-10 text-center text-white/70">
-                  Aucun produit pour le moment.
+                  {copy.noProducts}
                 </div>
               )}
             </div>
@@ -603,7 +646,7 @@ export default function ProductsCatalogPage({
                   onClick={() => setUrlPage(page - 1)}
                   disabled={page <= 1}
                   className="rounded-lg px-2 py-1 text-cyan-200/80 hover:text-cyan-200 disabled:opacity-40"
-                  aria-label="Page précédente"
+                  aria-label={copy.previousPage}
                 >
                   &lt;
                 </button>
@@ -636,7 +679,7 @@ export default function ProductsCatalogPage({
                   onClick={() => setUrlPage(page + 1)}
                   disabled={page >= lastPage}
                   className="rounded-lg px-2 py-1 text-cyan-200/80 hover:text-cyan-200 disabled:opacity-40"
-                  aria-label="Page suivante"
+                  aria-label={copy.nextPage}
                 >
                   &gt;
                 </button>

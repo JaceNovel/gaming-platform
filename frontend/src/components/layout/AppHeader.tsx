@@ -52,7 +52,8 @@ function LanguageToggle({
     <div
       role="group"
       aria-label={ariaLabel}
-      className="inline-flex items-center rounded-full border border-white/10 bg-white/5 p-1 shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
+      translate="no"
+      className="notranslate inline-flex min-w-[92px] items-center rounded-full border border-white/10 bg-white/5 p-1 shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
     >
       {(["en", "fr"] as const).map((option) => {
         const active = option === language;
@@ -62,11 +63,11 @@ function LanguageToggle({
             type="button"
             onClick={() => onChange(option)}
             className={
-              "rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.24em] transition " +
+              "min-w-[40px] rounded-full px-3 py-1 text-center text-[11px] font-black uppercase tracking-[0.2em] transition " +
               (active ? "bg-white text-slate-950" : "text-white/72 hover:text-white")
             }
           >
-            {option}
+            {option.toUpperCase()}
           </button>
         );
       })}
@@ -443,7 +444,8 @@ export default function AppHeader() {
         ref={(el) => {
           headerRef.current = el;
         }}
-        className="fixed top-0 z-50 hidden w-full border-b border-white/10 bg-gradient-to-r from-[#0b0214]/85 via-[#22063d]/75 to-[#0b0214]/85 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur lg:block"
+        translate="no"
+        className="notranslate fixed top-0 z-50 hidden w-full border-b border-white/10 bg-gradient-to-r from-[#0b0214]/85 via-[#22063d]/75 to-[#0b0214]/85 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur lg:block"
       >
         {promoActive ? (
           <div className="border-b border-white/10 bg-white/5">
@@ -463,8 +465,8 @@ export default function AppHeader() {
           </div>
         ) : null}
         <div className="mx-auto w-full max-w-7xl px-6">
-          <div className="flex h-[64px] w-full items-center justify-between gap-6 whitespace-nowrap">
-            <Link href="/" className="flex items-center gap-3">
+          <div className="grid h-[64px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4">
+            <Link href="/" className="flex items-center gap-3 pr-2">
               <Image
                 src="/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png"
                 alt="PRIME Gaming"
@@ -478,7 +480,7 @@ export default function AppHeader() {
               </div>
             </Link>
 
-            <nav className="flex min-w-0 flex-1 flex-nowrap items-center justify-center gap-1 text-sm font-semibold text-white/85">
+            <nav className="flex min-w-0 items-center justify-center gap-1 overflow-hidden text-sm font-semibold text-white/85 xl:gap-2">
               {(
                 [
                   { key: "recharge" as const, label: t("header.nav.recharge") },
@@ -498,7 +500,7 @@ export default function AppHeader() {
                         menuButtonRefs.current[key] = el;
                       }}
                       type="button"
-                      className={`relative inline-flex items-center gap-1.5 rounded-xl px-3 py-2 transition ${
+                      className={`relative inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 transition xl:px-3 ${
                         isOpen ? "bg-white/10 text-white" : "hover:bg-white/8 hover:text-white"
                       } after:absolute after:inset-x-3 after:bottom-1 after:h-px after:bg-gradient-to-r after:from-transparent after:via-cyan-200/60 after:to-transparent after:opacity-0 after:transition after:duration-200 hover:after:opacity-100 ${
                         isOpen ? "after:opacity-100" : ""
@@ -577,7 +579,7 @@ export default function AppHeader() {
 
               <Link
                 href="/accessoires"
-                className={`relative inline-flex items-center rounded-xl px-3 py-2 transition after:absolute after:inset-x-3 after:bottom-1 after:h-px after:bg-gradient-to-r after:from-transparent after:via-fuchsia-200/55 after:to-transparent after:opacity-0 after:transition after:duration-200 hover:after:opacity-100 ${
+                className={`relative inline-flex shrink-0 items-center rounded-xl px-2.5 py-2 transition xl:px-3 after:absolute after:inset-x-3 after:bottom-1 after:h-px after:bg-gradient-to-r after:from-transparent after:via-fuchsia-200/55 after:to-transparent after:opacity-0 after:transition after:duration-200 hover:after:opacity-100 ${
                   pathname === "/accessoires" ? "bg-white/10 text-white" : "hover:bg-white/8 hover:text-white"
                 }`}
               >
@@ -585,25 +587,25 @@ export default function AppHeader() {
               </Link>
             </nav>
 
-            <div className="flex flex-nowrap items-center gap-2">
+            <div className="flex items-center justify-end gap-2 pl-2">
               <LanguageToggle language={language} onChange={setLanguage} ariaLabel={t("language.switcher.aria")} />
               <Link
                 href="/help"
-                className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
               >
                 <span aria-hidden="true" className="text-base leading-none">🎧</span>
                 <span className="whitespace-nowrap">{t("header.help")}</span>
               </Link>
               <Link
                 href="/wallet"
-                className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(217,70,239,0.10)]"
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(217,70,239,0.10)]"
               >
                 <span aria-hidden="true" className="text-base leading-none">💳</span>
                 <span className="whitespace-nowrap">DB Wallet</span>
               </Link>
               <Link
                 href="/account"
-                className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(139,92,246,0.10)]"
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(139,92,246,0.10)]"
               >
                 <span aria-hidden="true" className="text-base leading-none">👤</span>
                 <span className="whitespace-nowrap">{t("header.profile")}</span>
@@ -643,7 +645,7 @@ export default function AppHeader() {
         </div>
       </header>
 
-      <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-black/55 backdrop-blur lg:hidden">
+      <header translate="no" className="notranslate fixed top-0 z-50 w-full border-b border-white/10 bg-black/55 backdrop-blur lg:hidden">
         <div className="mx-auto flex w-full items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
             <Image

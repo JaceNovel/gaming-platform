@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Search } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 
@@ -24,10 +25,37 @@ const parseGamesPayload = (payload: any): MenuGame[] => {
 };
 
 export default function AbonnementsIndexPage() {
+  const { language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<MenuGame[]>([]);
   const [query, setQuery] = useState("");
+
+  const copy = useMemo(
+    () =>
+      language === "fr"
+        ? {
+            home: "Accueil",
+            title: "Abonnements",
+            subtitle: "Choisis ton jeu pour afficher les abonnements disponibles.",
+            search: "Rechercher un jeu...",
+            loadGames: "Impossible de charger les jeux",
+            loadGeneric: "Impossible de charger",
+            cta: "Voir les abonnements",
+            empty: "Aucun jeu disponible.",
+          }
+        : {
+            home: "Home",
+            title: "Subscriptions",
+            subtitle: "Choose your game to see available subscriptions.",
+            search: "Search a game...",
+            loadGames: "Unable to load games",
+            loadGeneric: "Unable to load",
+            cta: "View subscriptions",
+            empty: "No games available.",
+          },
+    [language],
+  );
 
   useEffect(() => {
     let active = true;
@@ -41,11 +69,11 @@ export default function AbonnementsIndexPage() {
         });
         const payload = await res.json().catch(() => null);
         if (!active) return;
-        if (!res.ok) throw new Error(payload?.message ?? "Impossible de charger les jeux");
+        if (!res.ok) throw new Error(payload?.message ?? copy.loadGames);
         setGames(parseGamesPayload(payload));
       } catch (e: any) {
         if (!active) return;
-        setError(e?.message ?? "Impossible de charger");
+        setError(e?.message ?? copy.loadGeneric);
         setGames([]);
       } finally {
         if (active) setLoading(false);
@@ -55,7 +83,7 @@ export default function AbonnementsIndexPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [copy.loadGames, copy.loadGeneric]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -69,13 +97,13 @@ export default function AbonnementsIndexPage() {
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
             <Link href="/" className="hover:text-white">
-              Accueil
+              {copy.home}
             </Link>
             <span className="text-white/30">/</span>
-            <span className="text-white/80">Abonnements</span>
+            <span className="text-white/80">{copy.title}</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Abonnements</h1>
-          <p className="text-sm text-white/60">Choisis ton jeu pour afficher les abonnements disponibles.</p>
+          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">{copy.title}</h1>
+          <p className="text-sm text-white/60">{copy.subtitle}</p>
         </div>
 
         <div className="mt-8 rounded-[28px] border border-white/10 bg-black/40 p-4 backdrop-blur">
@@ -84,7 +112,7 @@ export default function AbonnementsIndexPage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher un jeu..."
+              placeholder={copy.search}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-10 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-cyan-300/40"
             />
           </div>
@@ -122,14 +150,14 @@ export default function AbonnementsIndexPage() {
                     </div>
                     <div className="mt-4">
                       <p className="text-base font-black text-white">{g.name}</p>
-                      <p className="mt-1 text-sm text-white/60">Voir les abonnements</p>
+                      <p className="mt-1 text-sm text-white/60">{copy.cta}</p>
                     </div>
                   </Link>
                 );
               })}
 
           {!loading && !error && filtered.length === 0 ? (
-            <div className="col-span-full rounded-[28px] border border-white/10 bg-white/5 p-10 text-center text-white/70">Aucun jeu disponible.</div>
+            <div className="col-span-full rounded-[28px] border border-white/10 bg-white/5 p-10 text-center text-white/70">{copy.empty}</div>
           ) : null}
         </div>
       </div>

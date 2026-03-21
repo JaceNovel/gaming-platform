@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 export type SiteLanguage = "en" | "fr";
 
@@ -17,20 +17,7 @@ type LanguageContextValue = {
   formatDateTime: (value: string | number | Date) => string;
 };
 
-declare global {
-  interface Window {
-    google?: {
-      translate?: {
-        TranslateElement?: new (options: Record<string, unknown>, elementId: string) => unknown;
-      };
-    };
-    primeGoogleTranslateInit?: () => void;
-  }
-}
-
 const STORAGE_KEY = "prime.site.language";
-const GOOGLE_ELEMENT_ID = "prime-google-translate-element";
-const GOOGLE_SCRIPT_ID = "prime-google-translate-script";
 
 const translations = {
   en: {
@@ -135,10 +122,10 @@ const translations = {
     "language.switcher.aria": "Changer la langue du site",
     "header.nav.recharge": "Recharges",
     "header.nav.subscription": "Abonnements",
-    "header.nav.marketplace": "Gaming Accounts",
+    "header.nav.marketplace": "Comptes de jeu",
     "header.nav.accessories": "Accessoires",
     "header.emptyGames": "Aucun jeu pour le moment.",
-    "header.help": "Support 24/7",
+    "header.help": "Assistance 24h/24 et 7j/7",
     "header.wallet": "DB Wallet",
     "header.profile": "Mon Profil",
     "header.offer": "Voir l'offre",
@@ -147,7 +134,7 @@ const translations = {
     "header.close": "Fermer",
     "header.emptyNotifications": "Aucune notification pour le moment.",
     "header.emptyInbox": "Aucun message pour le moment.",
-    "header.vip.update": "Update Plan",
+    "header.vip.update": "Changer de plan",
     "header.vip.platinum": "VIP Platine 💎",
     "header.vip.bronze": "VIP Bronze 🥉",
     "footer.about": "À propos",
@@ -220,32 +207,6 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 function replaceTemplate(input: string, values?: TranslateValues) {
   if (!values) return input;
   return Object.entries(values).reduce((result, [key, value]) => result.replaceAll(`{${key}}`, String(value)), input);
-}
-
-function setGoogleTranslateCookie(language: SiteLanguage) {
-  if (typeof document === "undefined" || typeof window === "undefined") return;
-
-  const target = language === "en" ? "/fr/en" : "/fr/fr";
-  const hostname = window.location.hostname.replace(/^www\./, "");
-
-  document.cookie = `googtrans=${target}; path=/`;
-  if (hostname.includes(".")) {
-    document.cookie = `googtrans=${target}; path=/; domain=.${hostname}`;
-  }
-}
-
-function applyTranslateSelection(language: SiteLanguage) {
-  if (typeof document === "undefined") return false;
-
-  setGoogleTranslateCookie(language);
-
-  const combo = document.querySelector(".goog-te-combo") as HTMLSelectElement | null;
-  if (!combo) return false;
-  if (combo.value === language) return true;
-
-  combo.value = language;
-  combo.dispatchEvent(new Event("change"));
-  return true;
 }
 
 function LanguagePicker({
@@ -323,7 +284,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [draftLanguage, setDraftLanguage] = useState<SiteLanguage>("en");
   const [isHydrated, setIsHydrated] = useState(false);
   const [hasExplicitChoice, setHasExplicitChoice] = useState(false);
-  const translateReadyRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -334,70 +294,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     setLanguageState(nextLanguage);
     setDraftLanguage(nextLanguage);
     setHasExplicitChoice(stored === "fr" || stored === "en");
-    setGoogleTranslateCookie(nextLanguage);
     setIsHydrated(true);
   }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.lang = language;
-  }, [language]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof document === "undefined") return;
-
-    const initTranslate = () => {
-      if (translateReadyRef.current) return;
-      if (!window.google?.translate?.TranslateElement) return;
-
-      new window.google.translate.TranslateElement(
-        {
-          pageLanguage: "fr",
-          includedLanguages: "en,fr",
-          autoDisplay: false,
-        },
-        GOOGLE_ELEMENT_ID,
-      );
-
-      translateReadyRef.current = true;
-      window.setTimeout(() => {
-        applyTranslateSelection(language);
-      }, 150);
-    };
-
-    window.primeGoogleTranslateInit = initTranslate;
-
-    if (window.google?.translate?.TranslateElement) {
-      initTranslate();
-      return;
-    }
-
-    if (!document.getElementById(GOOGLE_SCRIPT_ID)) {
-      const script = document.createElement("script");
-      script.id = GOOGLE_SCRIPT_ID;
-      script.src = "https://translate.google.com/translate_a/element.js?cb=primeGoogleTranslateInit";
-      script.async = true;
-      document.body.appendChild(script);
-    }
-
-    return () => {
-      window.primeGoogleTranslateInit = undefined;
-    };
-  }, [language]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let attempts = 0;
-    const timer = window.setInterval(() => {
-      attempts += 1;
-      const applied = applyTranslateSelection(language);
-      if (applied || attempts >= 30) {
-        window.clearInterval(timer);
-      }
-    }, 250);
-
-    return () => window.clearInterval(timer);
   }, [language]);
 
   const setLanguage = useCallback((nextLanguage: SiteLanguage) => {
@@ -407,7 +309,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(STORAGE_KEY, nextLanguage);
     }
-    applyTranslateSelection(nextLanguage);
   }, []);
 
   const value = useMemo<LanguageContextValue>(() => {
@@ -433,7 +334,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   return (
     <LanguageContext.Provider value={value}>
       {children}
-      <div id={GOOGLE_ELEMENT_ID} className="sr-only" aria-hidden="true" />
       {isHydrated && !hasExplicitChoice ? (
         <LanguagePicker
           selected={draftLanguage}

@@ -1201,12 +1201,13 @@ class AliExpressBulkCatalogImportService
         if ($this->usesManualStorefrontPricing($options)) {
             $variants = $this->buildStorefrontVariantsForProduct($supplierPayload, $options);
             $firstVariant = $variants[0] ?? [];
-            $priceFcfa = (int) ($firstVariant['sale_price_fcfa'] ?? 0);
-            $compareAtPriceFcfa = (int) ($firstVariant['compare_at_price_fcfa'] ?? 0);
+            $singleSalePriceFcfa = max(0, (int) ($options['storefront_sale_price_fcfa'] ?? 0));
+            $priceFcfa = $singleSalePriceFcfa > 0 ? $singleSalePriceFcfa : (int) ($firstVariant['sale_price_fcfa'] ?? 0);
+            $compareAtPriceFcfa = $singleSalePriceFcfa > 0 ? 0 : (int) ($firstVariant['compare_at_price_fcfa'] ?? 0);
 
             $defaults['price_fcfa'] = $priceFcfa;
             $defaults['old_price_fcfa'] = $compareAtPriceFcfa > $priceFcfa ? $compareAtPriceFcfa : null;
-            $defaults['main_image_url'] = $defaults['main_image_url'] ?? ($firstVariant['image_url'] ?? null) ?? $supplierProduct->main_image_url;
+            $defaults['main_image_url'] = $defaults['main_image_url'] ?? $supplierProduct->main_image_url ?? ($firstVariant['image_url'] ?? null);
             $defaults['source_url'] = $defaults['source_url'] ?? $supplierProduct->source_url;
             $defaults['estimated_weight_grams'] = (int) ($defaults['estimated_weight_grams'] ?? $options['default_weight_grams'] ?? 0);
             $defaults['estimated_cbm'] = (float) ($defaults['estimated_cbm'] ?? $options['default_estimated_cbm'] ?? 0);
@@ -1471,6 +1472,14 @@ class AliExpressBulkCatalogImportService
 
     private function usesManualStorefrontPricing(array $options): bool
     {
+        if ((int) ($options['storefront_sale_price_fcfa'] ?? 0) > 0) {
+            return true;
+        }
+
+        if (! empty($options['storefront_variant_prices'] ?? [])) {
+            return true;
+        }
+
         return (bool) ($options['manual_storefront_pricing'] ?? false);
     }
 
@@ -1478,6 +1487,7 @@ class AliExpressBulkCatalogImportService
     {
         $skuRows = array_values(array_filter(array_map(static fn ($sku) => is_array($sku) ? $sku : null, Arr::wrap($supplierPayload['skus'] ?? []))));
         $submittedPrices = [];
+        $singleSalePriceFcfa = max(0, (int) ($options['storefront_sale_price_fcfa'] ?? 0));
 
         foreach (Arr::wrap($options['storefront_variant_prices'] ?? []) as $row) {
             if (!is_array($row)) {
@@ -1509,8 +1519,12 @@ class AliExpressBulkCatalogImportService
                 $label = $this->formatStorefrontVariantLabel($variantAttributes, $externalSkuId);
             }
 
-            $salePriceFcfa = max(0, (int) ($submitted['sale_price_fcfa'] ?? 0));
-            $compareAtPriceFcfa = max(0, (int) ($submitted['compare_at_price_fcfa'] ?? 0));
+            $salePriceFcfa = $singleSalePriceFcfa > 0
+                ? $singleSalePriceFcfa
+                : max(0, (int) ($submitted['sale_price_fcfa'] ?? 0));
+            $compareAtPriceFcfa = $singleSalePriceFcfa > 0
+                ? 0
+                : max(0, (int) ($submitted['compare_at_price_fcfa'] ?? 0));
 
             $variants[] = array_filter([
                 'id' => $externalSkuId,
@@ -1540,8 +1554,12 @@ class AliExpressBulkCatalogImportService
                 $label = $this->formatStorefrontVariantLabel($variantAttributes, $externalSkuId);
             }
 
-            $salePriceFcfa = max(0, (int) ($submitted['sale_price_fcfa'] ?? 0));
-            $compareAtPriceFcfa = max(0, (int) ($submitted['compare_at_price_fcfa'] ?? 0));
+            $salePriceFcfa = $singleSalePriceFcfa > 0
+                ? $singleSalePriceFcfa
+                : max(0, (int) ($submitted['sale_price_fcfa'] ?? 0));
+            $compareAtPriceFcfa = $singleSalePriceFcfa > 0
+                ? 0
+                : max(0, (int) ($submitted['compare_at_price_fcfa'] ?? 0));
 
             $variants[] = array_filter([
                 'id' => $externalSkuId,

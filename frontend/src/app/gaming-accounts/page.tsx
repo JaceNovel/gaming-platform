@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Search } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 
@@ -24,10 +25,41 @@ const parseGamesPayload = (payload: any): MenuGame[] => {
 };
 
 export default function GamingAccountsIndexPage() {
+  const { language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<MenuGame[]>([]);
   const [query, setQuery] = useState("");
+
+  const copy = useMemo(
+    () =>
+      language === "fr"
+        ? {
+            home: "Accueil",
+            kicker: "Marketplace",
+            title: "Comptes de jeu",
+            subtitle: "Choisis ton jeu pour voir les annonces disponibles.",
+            search: "Rechercher un jeu...",
+            loadGames: "Impossible de charger les jeux",
+            loadGeneric: "Impossible de charger",
+            badge: "Compte gaming",
+            cta: "Voir les comptes",
+            empty: "Aucun jeu disponible.",
+          }
+        : {
+            home: "Home",
+            kicker: "Marketplace",
+            title: "Gaming Accounts",
+            subtitle: "Choose your game to see available listings.",
+            search: "Search a game...",
+            loadGames: "Unable to load games",
+            loadGeneric: "Unable to load",
+            badge: "Gaming account",
+            cta: "View accounts",
+            empty: "No games available.",
+          },
+    [language],
+  );
 
   useEffect(() => {
     let active = true;
@@ -41,11 +73,11 @@ export default function GamingAccountsIndexPage() {
         });
         const payload = await res.json().catch(() => null);
         if (!active) return;
-        if (!res.ok) throw new Error(payload?.message ?? "Impossible de charger les jeux");
+        if (!res.ok) throw new Error(payload?.message ?? copy.loadGames);
         setGames(parseGamesPayload(payload));
       } catch (e: any) {
         if (!active) return;
-        setError(e?.message ?? "Impossible de charger");
+        setError(e?.message ?? copy.loadGeneric);
         setGames([]);
       } finally {
         if (active) setLoading(false);
@@ -55,7 +87,7 @@ export default function GamingAccountsIndexPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [copy.loadGames, copy.loadGeneric]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -78,14 +110,14 @@ export default function GamingAccountsIndexPage() {
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
             <Link href="/" className="hover:text-white">
-              Accueil
+              {copy.home}
             </Link>
             <span className="text-white/30">/</span>
-            <span className="text-white/80">Comptes Gaming</span>
+            <span className="text-white/80">{copy.title}</span>
           </div>
-          <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">Marketplace</p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Comptes Gaming</h1>
-          <p className="text-sm text-white/60">Choisis ton jeu pour voir les annonces disponibles.</p>
+          <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">{copy.kicker}</p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{copy.title}</h1>
+          <p className="text-sm text-white/60">{copy.subtitle}</p>
         </div>
 
         <div className="mt-8 rounded-[28px] border border-white/10 bg-white/5 p-4 backdrop-blur">
@@ -94,7 +126,7 @@ export default function GamingAccountsIndexPage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher un jeu..."
+              placeholder={copy.search}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-10 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-cyan-300/40"
             />
           </div>
@@ -131,20 +163,20 @@ export default function GamingAccountsIndexPage() {
                       )}
                       <div className="absolute left-4 top-4">
                         <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-                          Compte Gaming
+                          {copy.badge}
                         </span>
                       </div>
                     </div>
                     <div className="mt-4">
                       <p className="text-base font-black text-white">{g.name}</p>
-                      <p className="mt-1 text-sm text-white/60">Voir les comptes</p>
+                      <p className="mt-1 text-sm text-white/60">{copy.cta}</p>
                     </div>
                   </Link>
                 );
               })}
 
           {!loading && !error && filtered.length === 0 ? (
-            <div className="col-span-full rounded-[28px] border border-white/10 bg-white/5 p-10 text-center text-white/70">Aucun jeu disponible.</div>
+            <div className="col-span-full rounded-[28px] border border-white/10 bg-white/5 p-10 text-center text-white/70">{copy.empty}</div>
           ) : null}
         </div>
       </div>

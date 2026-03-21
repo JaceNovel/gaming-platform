@@ -29,7 +29,6 @@ body {
   background: #05060c;
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
-  top: 0 !important;
 }
 
 html {
@@ -39,35 +38,6 @@ html {
 html,
 body {
   overflow-x: hidden;
-}
-
-#prime-google-translate-element {
-  position: fixed;
-  left: -9999px;
-  bottom: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.goog-te-banner-frame.skiptranslate,
-body > .skiptranslate,
-.goog-logo-link,
-.goog-te-gadget-icon,
-.goog-te-gadget span {
-  display: none !important;
-}
-
-.goog-te-gadget {
-  color: transparent !important;
-  font-size: 0 !important;
-}
-
-.goog-te-combo {
-  position: fixed !important;
-  left: -9999px !important;
-  bottom: 0 !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
 }
 
 @media (min-width: 1024px) {
