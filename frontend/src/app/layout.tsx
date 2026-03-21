@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://primegaming.space").replace(/\/$/, "");
 const ASSET_VERSION = "20260201";
@@ -19,7 +20,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "PRIME Gaming",
-  description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
+  description: "Pan-African gaming platform - Accounts, top-ups, and premium services",
   metadataBase: new URL(SITE_URL),
   alternates: {
     canonical: "/",
@@ -34,7 +35,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "PRIME Gaming",
-    description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
+    description: "Pan-African gaming platform - Accounts, top-ups, and premium services",
     url: SITE_URL,
     siteName: "PRIME Gaming",
     images: [
@@ -48,7 +49,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "PRIME Gaming",
-    description: "Plateforme gaming panafricaine - Comptes, recharges et services premium",
+    description: "Pan-African gaming platform - Accounts, top-ups, and premium services",
     images: ["/images/Capture_d_écran_2026-02-10_115245-removebg-preview.png"],
   },
 };
@@ -81,7 +82,7 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="fr" className="dark" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <meta name="theme-color" content="#0B0F19" />
         <Script id="sentry-blocker" strategy="beforeInteractive">
@@ -154,12 +155,14 @@ gtag('js', new Date());
         <ServiceWorkerBootstrap />
         <NativeBridge />
         <AuthProvider>
-          <AppHeader />
-          <AndroidAppDownloadPrompt />
-          {children}
-          <Footer />
-          <BottomNavigation />
-          <CartDrawer />
+          <LanguageProvider>
+            <AppHeader />
+            <AndroidAppDownloadPrompt />
+            {children}
+            <Footer />
+            <BottomNavigation />
+            <CartDrawer />
+          </LanguageProvider>
         </AuthProvider>
         <Script src="https://code.tidio.co/txhqas6mr4cvgvb9rm4hbz7rdvye2cjw.js" strategy="afterInteractive" async />
       </body>

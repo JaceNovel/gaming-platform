@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { CART_UPDATED_EVENT } from "@/lib/cartEvents";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 type CartItem = {
   id: number;
@@ -51,6 +52,7 @@ function setDismissed(next: boolean) {
 }
 
 export default function CartDrawer() {
+  const { t, formatNumber } = useLanguage();
   const [items, setItems] = useState<CartItem[]>([]);
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissedState] = useState(false);
@@ -137,7 +139,7 @@ export default function CartDrawer() {
       <button
         type="button"
         data-cart-target="drawer"
-        aria-label={open ? "Fermer le panier" : "Ouvrir le panier"}
+        aria-label={open ? t("cart.close") : t("cart.open")}
         onClick={handleToggle}
         className={
           "fixed right-0 top-1/2 z-[90] -translate-y-1/2 rounded-l-2xl border border-white/10 bg-black/70 px-3 py-3 text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur transition " +
@@ -165,10 +167,14 @@ export default function CartDrawer() {
         <div className="flex h-full flex-col pt-[70px] lg:pt-[112px]">
           <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div>
-              <div className="text-sm font-extrabold text-white">Panier</div>
+              <div className="text-sm font-extrabold text-white">{t("cart.title")}</div>
               <div className="text-xs font-semibold text-white/60">
-                {itemCount > 0 ? `${itemCount} article${itemCount > 1 ? "s" : ""}` : "Aucun article"}
-                {dismissed ? " · auto-off" : ""}
+                {itemCount > 0
+                  ? itemCount === 1
+                    ? t("cart.item.one", { count: itemCount })
+                    : t("cart.item.other", { count: itemCount })
+                  : t("cart.none")}
+                {dismissed ? ` · ${t("cart.autoOff")}` : ""}
               </div>
             </div>
 
@@ -177,14 +183,14 @@ export default function CartDrawer() {
               onClick={handleClose}
               className="rounded-xl bg-white/5 px-3 py-2 text-sm font-bold text-white/80 ring-1 ring-white/10 hover:bg-white/10"
             >
-              Fermer
+              {t("cart.close")}
             </button>
           </div>
 
           <div className="flex-1 overflow-auto px-4 py-4">
             {items.length === 0 ? (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm font-semibold text-white/70">
-                Ton panier est vide.
+                {t("cart.empty")}
               </div>
             ) : (
               <div className="space-y-3">
@@ -194,27 +200,27 @@ export default function CartDrawer() {
                       <div className="min-w-0">
                         <div className="truncate text-sm font-extrabold text-white">{item.name}</div>
                         <div className="mt-0.5 text-xs font-semibold text-white/60">
-                          {item.priceLabel ?? `${Number(item.price ?? 0).toLocaleString("fr-FR")} FCFA`}
+                          {item.priceLabel ?? `${formatNumber(Number(item.price ?? 0))} FCFA`}
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeItem(item.id)}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
-                        aria-label="Retirer"
+                        aria-label={t("cart.remove")}
                       >
                         <Trash2 className="h-4 w-4 text-white/75" />
                       </button>
                     </div>
 
                     <div className="mt-3 flex items-center justify-between gap-3">
-                      <div className="text-xs font-bold text-white/70">Quantité</div>
+                      <div className="text-xs font-bold text-white/70">{t("cart.quantity")}</div>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => updateQuantity(item.id, Number(item.quantity ?? 1) - 1)}
                           className="h-8 w-8 rounded-xl bg-white/5 text-sm font-black text-white/80 ring-1 ring-white/10 hover:bg-white/10"
-                          aria-label="Diminuer"
+                          aria-label={t("cart.decrease")}
                         >
                           −
                         </button>
@@ -225,7 +231,7 @@ export default function CartDrawer() {
                           type="button"
                           onClick={() => updateQuantity(item.id, Number(item.quantity ?? 1) + 1)}
                           className="h-8 w-8 rounded-xl bg-white/5 text-sm font-black text-white/80 ring-1 ring-white/10 hover:bg-white/10"
-                          aria-label="Augmenter"
+                          aria-label={t("cart.increase")}
                         >
                           +
                         </button>
@@ -239,8 +245,8 @@ export default function CartDrawer() {
 
           <div className="border-t border-white/10 px-4 py-4">
             <div className="flex items-center justify-between text-sm font-extrabold text-white">
-              <span>Total</span>
-              <span>{subtotal.toLocaleString("fr-FR")} FCFA</span>
+              <span>{t("cart.total")}</span>
+              <span>{formatNumber(subtotal)} FCFA</span>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -249,14 +255,14 @@ export default function CartDrawer() {
                 className="inline-flex items-center justify-center rounded-2xl bg-white/5 px-4 py-3 text-sm font-extrabold text-white/85 ring-1 ring-white/10 hover:bg-white/10"
                 onClick={() => setOpen(false)}
               >
-                Voir panier
+                {t("cart.view")}
               </Link>
               <Link
                 href="/cart"
                 className="inline-flex items-center justify-center rounded-2xl bg-white/10 px-4 py-3 text-sm font-extrabold text-white ring-1 ring-white/15 hover:bg-white/15"
                 onClick={() => setOpen(false)}
               >
-                Commander
+                {t("cart.checkout")}
               </Link>
             </div>
           </div>

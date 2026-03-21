@@ -4,6 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { ExternalLink, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=space.primegaming.app173654";
 const RELATED_APP_IDS = ["space.primegaming.app173654"];
@@ -64,6 +65,7 @@ const matchesRelatedApp = (app: RelatedApp) => {
 
 export default function AndroidAppDownloadPrompt() {
   const pathname = usePathname();
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [installed, setInstalled] = useState(false);
   const [ready, setReady] = useState(false);
@@ -149,13 +151,13 @@ export default function AndroidAppDownloadPrompt() {
               <img src="/favicon-32x32.png" alt="PRIME Gaming" className="h-8 w-8 object-contain" />
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-[0.35em] text-emerald-100/70">Android</p>
-              <h3 className="mt-1 text-lg font-semibold leading-tight">Télécharge l'application PRIME Gaming</h3>
+              <p className="text-[11px] uppercase tracking-[0.35em] text-emerald-100/70">{t("android.badge")}</p>
+              <h3 className="mt-1 text-lg font-semibold leading-tight">{t("android.title")}</h3>
             </div>
           </div>
           <button
             type="button"
-            aria-label="Fermer la fenêtre"
+            aria-label={t("android.close")}
             onClick={() => setOpen(false)}
             className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:text-white"
           >
@@ -165,7 +167,7 @@ export default function AndroidAppDownloadPrompt() {
 
         <div className="px-5 pb-5">
           <p className="text-sm leading-6 text-white/72">
-            Installe l'application Android pour profiter d'une expérience plus fluide, des notifications natives et d'un accès direct à ton DB Wallet.
+            {t("android.description")}
           </p>
 
           <div className="mt-4 flex flex-col gap-2">
@@ -176,7 +178,7 @@ export default function AndroidAppDownloadPrompt() {
               onClick={() => setOpen(false)}
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-105"
             >
-              Télécharger l'application
+              {t("android.download")}
               <ExternalLink className="h-4 w-4" />
             </a>
 
@@ -188,12 +190,12 @@ export default function AndroidAppDownloadPrompt() {
               }}
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/76 transition hover:bg-white/10 hover:text-white"
             >
-              Ne plus recevoir ce pop-up
+              {t("android.dismiss")}
             </button>
           </div>
 
           <p className="mt-3 text-[11px] leading-5 text-white/45">
-            Si l'application est déjà installée sur ce téléphone, cette fenêtre se masquera automatiquement dès que la détection navigateur la remonte.
+            {t("android.note")}
           </p>
         </div>
       </div>

@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export default function Footer() {
   const pathname = usePathname();
+  const { t } = useLanguage();
 
   // Don't show footer on auth pages
   if (pathname?.startsWith("/auth/")) {
@@ -18,17 +20,17 @@ export default function Footer() {
           {/* About */}
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
-              À propos
+              {t("footer.about")}
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              PRIME Gaming - La plateforme gaming panafricaine pour tes comptes, recharges et services premium.
+              {t("footer.aboutText")}
             </p>
           </div>
 
           {/* Legal */}
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
-              Légal
+              {t("footer.legal")}
             </h3>
             <ul className="space-y-2">
               <li>
@@ -36,7 +38,7 @@ export default function Footer() {
                   href="/privacy-policy"
                   className="text-xs sm:text-sm text-slate-400 hover:text-fuchsia-500 transition-colors duration-200"
                 >
-                  Politique de Confidentialité
+                  {t("footer.privacy")}
                 </Link>
               </li>
               <li>
@@ -44,7 +46,7 @@ export default function Footer() {
                   href="/terms-of-service"
                   className="text-xs sm:text-sm text-slate-400 hover:text-fuchsia-500 transition-colors duration-200"
                 >
-                  Conditions d'Utilisation
+                  {t("footer.terms")}
                 </Link>
               </li>
               <li>
@@ -52,7 +54,7 @@ export default function Footer() {
                   href="/cookie-policy"
                   className="text-xs sm:text-sm text-slate-400 hover:text-fuchsia-500 transition-colors duration-200"
                 >
-                  Politique des Cookies
+                  {t("footer.cookies")}
                 </Link>
               </li>
             </ul>
@@ -61,7 +63,7 @@ export default function Footer() {
           {/* Support */}
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
-              Support
+              {t("footer.support")}
             </h3>
             <ul className="space-y-2">
               <li>
@@ -69,7 +71,7 @@ export default function Footer() {
                   href="/contact"
                   className="text-xs sm:text-sm text-slate-400 hover:text-fuchsia-500 transition-colors duration-200"
                 >
-                  Nous Contacter
+                  {t("footer.contact")}
                 </Link>
               </li>
               <li>
@@ -86,7 +88,7 @@ export default function Footer() {
           {/* Socials (placeholder) */}
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white mb-4">
-              Réseaux Sociaux
+              {t("footer.social")}
             </h3>
             <div className="flex flex-wrap gap-3">
               <a
@@ -94,7 +96,7 @@ export default function Footer() {
                 aria-label="Twitter/X"
                 onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
-                title="Twitter - Bientôt disponible"
+                title={t("footer.soonTwitter")}
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -110,7 +112,7 @@ export default function Footer() {
                 aria-label="Discord"
                 onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
-                title="Discord - Bientôt disponible"
+                title={t("footer.soonDiscord")}
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -126,7 +128,7 @@ export default function Footer() {
                 aria-label="Instagram"
                 onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
-                title="Instagram - Bientôt disponible"
+                title={t("footer.soonInstagram")}
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -148,7 +150,7 @@ export default function Footer() {
                 aria-label="TikTok"
                 onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
-                title="TikTok - Bientôt disponible"
+                title={t("footer.soonTikTok")}
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -164,7 +166,7 @@ export default function Footer() {
                 aria-label="YouTube"
                 onClick={(e) => e.preventDefault()}
                 className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-fuchsia-600/20 hover:border-fuchsia-500/50 border border-slate-700 flex items-center justify-center transition-colors duration-200 text-xs font-bold"
-                title="YouTube - Bientôt disponible"
+                title={t("footer.soonYoutube")}
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -190,20 +192,20 @@ export default function Footer() {
         {/* Bottom Section */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-xs sm:text-sm text-slate-400">
           <div>
-            © {new Date().getFullYear()} PRIME Gaming. Tous droits réservés.
+            © {new Date().getFullYear()} PRIME Gaming. {t("footer.rights")}
           </div>
           <div className="flex flex-wrap justify-center sm:justify-end gap-6">
             <Link
               href="/privacy-policy"
               className="hover:text-fuchsia-500 transition-colors duration-200"
             >
-              Confidentialité
+              {t("footer.shortPrivacy")}
             </Link>
             <Link
               href="/terms-of-service"
               className="hover:text-fuchsia-500 transition-colors duration-200"
             >
-              CGU
+              {t("footer.shortTerms")}
             </Link>
             <span>Version 1.0.0</span>
           </div>

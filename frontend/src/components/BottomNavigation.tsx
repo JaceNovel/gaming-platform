@@ -4,28 +4,30 @@ import { useEffect, useRef } from "react";
 import { Crown, Home, LayoutGrid, LifeBuoy, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const navigation: Array<{
-  name: string;
-  href: string;
-  icon: any;
-  activePrefixes?: string[];
-}> = [
-  { name: "Accueil", href: "/", icon: Home },
-  {
-    name: "Catégorie",
-    href: "/shop",
-    icon: LayoutGrid,
-    activePrefixes: ["/shop", "/recharges", "/abonnements", "/gaming-accounts", "/accessoires", "/categorie", "/produits"],
-  },
-  { name: "Premium", href: "/premium", icon: Crown },
-  { name: "Aide", href: "/help", icon: LifeBuoy },
-  { name: "Profil", href: "/account", icon: User },
-];
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export default function BottomNavigation() {
   const pathname = usePathname();
   const navRef = useRef<HTMLElement | null>(null);
+  const { t } = useLanguage();
+
+  const navigation: Array<{
+    name: string;
+    href: string;
+    icon: any;
+    activePrefixes?: string[];
+  }> = [
+    { name: t("bottom.home"), href: "/", icon: Home },
+    {
+      name: t("bottom.category"),
+      href: "/shop",
+      icon: LayoutGrid,
+      activePrefixes: ["/shop", "/recharges", "/abonnements", "/gaming-accounts", "/accessoires", "/categorie", "/produits"],
+    },
+    { name: t("bottom.premium"), href: "/premium", icon: Crown },
+    { name: t("bottom.help"), href: "/help", icon: LifeBuoy },
+    { name: t("bottom.profile"), href: "/account", icon: User },
+  ];
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return;

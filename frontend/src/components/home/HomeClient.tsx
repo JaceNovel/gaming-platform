@@ -10,6 +10,7 @@ import { useCartFlight } from "@/hooks/useCartFlight";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { toDisplayImageSrc } from "../../lib/imageProxy";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { getHomePopularSlotImage } from "@/lib/homePopularStaticImages";
 import ImmersiveBackground from "@/components/layout/ImmersiveBackground";
 import RamadanOverlay from "@/components/home/RamadanOverlay";
@@ -60,6 +61,7 @@ function ProductCardUI({
   showAddToCart?: boolean;
   imageOverrideSrc?: string | null;
 }) {
+  const { t } = useLanguage();
   const thumbSrc = toDisplayImageSrc(p.image) ?? p.image;
 
   return (
@@ -129,7 +131,7 @@ function ProductCardUI({
             }}
             className="relative inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-[0.98]"
           >
-            Acheter
+            {t("home.buy")}
             <span className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-cyan-400/15 via-fuchsia-400/10 to-amber-300/10" />
           </button>
 
@@ -141,7 +143,7 @@ function ProductCardUI({
                 onAddToCart(p, event.currentTarget);
               }}
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 transition active:scale-[0.98]"
-              aria-label="Ajouter au panier"
+              aria-label={t("home.addToCart")}
             >
               <ShoppingCart className="h-5 w-5 text-white/90" />
             </button>
@@ -156,6 +158,7 @@ export default function HomeClient() {
   const router = useRouter();
   const { triggerFlight, overlay } = useCartFlight();
   const { user, loading: authLoading } = useAuth();
+  const { t, formatNumber, language } = useLanguage();
   const [headlineStats, setHeadlineStats] = useState<HomeHeadlineStats>(DEFAULT_HOME_HEADLINE_STATS);
   const [products, setProducts] = useState<ProductCard[]>([]);
   const [hasTournaments, setHasTournaments] = useState(false);
@@ -314,7 +317,7 @@ export default function HomeClient() {
             "/file.svg";
           const badgeLabel = String(item?.category ?? item?.type ?? "VIP");
           const description =
-            item?.details?.description ?? item?.description ?? item?.details?.subtitle ?? item?.game?.name ?? "Produit premium";
+            item?.details?.description ?? item?.description ?? item?.details?.subtitle ?? item?.game?.name ?? t("home.premiumProduct");
           return {
             id: item.id,
             title: item.name,
@@ -382,7 +385,7 @@ export default function HomeClient() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [formatNumber, language, t]);
 
   useEffect(() => {
     let active = true;
@@ -534,33 +537,33 @@ export default function HomeClient() {
 
           {!authLoading && user ? (
             <p className="mx-auto mt-2 max-w-[520px] text-sm font-semibold text-white/85 sm:text-base">
-              Bon retour <span className="text-cyan-200">{user.name}</span>
+              {t("home.welcome", { name: user.name })}
             </p>
           ) : null}
 
           <p className="mx-auto mt-3 max-w-[420px] text-base font-semibold leading-6 text-white/85 sm:max-w-2xl sm:text-xl">
-            La plateforme gaming d’élite
+            {t("home.title")}
           </p>
 
           <p className="mx-auto mt-2 max-w-[560px] text-sm font-semibold text-cyan-200/90 sm:text-base">
-            Le gaming sans attente, sans risque, sans stress.
+            {t("home.subtitle")}
           </p>
 
           <div className="mx-auto mt-6 w-full max-w-xl rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">Planning Tournois</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">{t("home.tournamentPlanning")}</p>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/tournois"
                 className="inline-flex items-center justify-center rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15"
               >
-                Tournois
+                {t("home.tournaments")}
               </Link>
               {hasTournaments ? (
                 <Link
                   href="/tournois"
                   className="inline-flex items-center justify-center rounded-xl bg-cyan-500/80 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-400"
                 >
-                  Participer au tournois
+                  {t("home.joinTournament")}
                 </Link>
               ) : null}
               {hasRegisteredTournament ? (
@@ -568,7 +571,7 @@ export default function HomeClient() {
                   href="/tournois/planning"
                   className="inline-flex items-center justify-center rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white ring-1 ring-white/15 hover:bg-white/15"
                 >
-                  Voir planning
+                  {t("home.viewPlanning")}
                 </Link>
               ) : null}
             </div>
@@ -583,10 +586,10 @@ export default function HomeClient() {
               <div className="relative grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-between sm:gap-0">
                 {(
                   [
-                    { emoji: "🎮", value: formatNumber(headlineStats.accountsSold), label: "Comptes vendus" },
-                    { emoji: "⚡", value: formatNumber(headlineStats.rechargesDone), label: "Recharges effectuées" },
-                    { emoji: "👑", value: formatNumber(headlineStats.premiumMembers), label: "Membres premium" },
-                    { emoji: "📘", value: formatNumber(headlineStats.guidesActive), label: "Guides actives" },
+                    { emoji: "🎮", value: formatNumber(headlineStats.accountsSold), label: t("home.accountsSold") },
+                    { emoji: "⚡", value: formatNumber(headlineStats.rechargesDone), label: t("home.rechargesDone") },
+                    { emoji: "👑", value: formatNumber(headlineStats.premiumMembers), label: t("home.premiumMembers") },
+                    { emoji: "📘", value: formatNumber(headlineStats.guidesActive), label: t("home.guidesActive") },
                   ] as const
                 ).map((s, idx, arr) => (
                   <div
@@ -618,10 +621,10 @@ export default function HomeClient() {
       <section className="mx-auto w-full max-w-6xl px-4 pb-6 pt-6 sm:pt-8">
         <div className="flex items-end justify-between">
           <h2 className="text-lg font-extrabold tracking-tight sm:text-xl">
-            Produits <span className="text-white/70">les plus populaires</span>
+            {t("home.popularTitle")} <span className="text-white/70">{t("home.popularSuffix")}</span>
           </h2>
           <Link href="/accessoires" className="text-xs text-white/70 hover:text-white">
-            Voir plus →
+            {t("home.more")}
           </Link>
         </div>
 

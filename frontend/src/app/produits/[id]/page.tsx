@@ -442,6 +442,12 @@ export default function ProductDetailsPage() {
 
   const mainImage = useMemo(() => extractImage(product), [product]);
   const carouselImages = useMemo(() => extractImages(product), [product]);
+  const storefrontVariants = useMemo(() => normalizeStorefrontVariants(product?.details?.storefront_variants), [product?.details?.storefront_variants]);
+  const selectedVariant = useMemo(
+    () => resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId),
+    [product?.details?.storefront_variants, selectedVariantId]
+  );
+  const selectedVariantImage = useMemo(() => variantImageFromStorefrontVariant(selectedVariant), [selectedVariant]);
   const mergedCarouselImages = useMemo(() => {
     const base = [selectedVariantImage, ...(carouselImages.length ? carouselImages : mainImage ? [mainImage] : [])];
     const normalized = base
@@ -458,12 +464,6 @@ export default function ProductDetailsPage() {
   const displayVideo = useMemo(() => (videoRaw ? toDisplayImageSrc(videoRaw) ?? videoRaw : null), [videoRaw]);
   const displayBanner = useMemo(() => toDisplayImageSrc(bannerImage) ?? bannerImage, [bannerImage]);
   const tags = useMemo(() => normalizeTags(product), [product]);
-  const storefrontVariants = useMemo(() => normalizeStorefrontVariants(product?.details?.storefront_variants), [product?.details?.storefront_variants]);
-  const selectedVariant = useMemo(
-    () => resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId),
-    [product?.details?.storefront_variants, selectedVariantId]
-  );
-  const selectedVariantImage = useMemo(() => variantImageFromStorefrontVariant(selectedVariant), [selectedVariant]);
   const priceValue = useMemo(
     () => selectedVariant?.salePriceFcfa ?? (Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0) || 0),
     [product, selectedVariant?.salePriceFcfa]
@@ -485,6 +485,10 @@ export default function ProductDetailsPage() {
   }, [product]);
   const tagsLabel = tags.length ? tags.join(", ") : "Aucun tag";
   const delivery = useMemo(() => getDelivery(product), [product]);
+  const isAccessoryProduct = useMemo(
+    () => Boolean(product?.accessory_category) || String(product?.type ?? "").toLowerCase() === "item",
+    [product?.accessory_category, product?.type]
+  );
   const isRechargeDirect = useMemo(
     () => String(product?.display_section ?? "").toLowerCase() === "recharge_direct",
     [product?.display_section]

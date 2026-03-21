@@ -48,7 +48,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <html lang="fr">
+    <html lang="en">
       <body>
         <main className="min-h-[100dvh] bg-[#04010d] px-5 py-16 text-white">
           <div className="mx-auto w-full max-w-xl rounded-[28px] border border-white/10 bg-white/5 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.65)]">

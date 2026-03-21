@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, ChevronDown, Coins, Mail } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
 import { onWalletUpdated } from "@/lib/walletEvents";
@@ -38,9 +39,45 @@ const parseGamesPayload = (payload: any): MenuGame[] => {
   return [];
 };
 
+function LanguageToggle({
+  language,
+  onChange,
+  ariaLabel,
+}: {
+  language: "en" | "fr";
+  onChange: (language: "en" | "fr") => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      className="inline-flex items-center rounded-full border border-white/10 bg-white/5 p-1 shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
+    >
+      {(["en", "fr"] as const).map((option) => {
+        const active = option === language;
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={
+              "rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.24em] transition " +
+              (active ? "bg-white text-slate-950" : "text-white/72 hover:text-white")
+            }
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AppHeader() {
   const pathname = usePathname();
   const { authFetch, token, user } = useAuth();
+  const { language, setLanguage, t, formatDateTime, formatNumber } = useLanguage();
   const [isMobile, setIsMobile] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [walletCurrency, setWalletCurrency] = useState<string | null>(null);
@@ -387,17 +424,16 @@ export default function AppHeader() {
     }
   };
 
-  const walletLabel =
-    walletBalance === null ? "—" : walletBalance.toLocaleString("fr-FR");
+  const walletLabel = walletBalance === null ? "—" : formatNumber(walletBalance);
   const walletCurrencyLabel = walletCurrency ?? "FCFA";
 
   const vipLabel = useMemo(() => {
     const isPremium = Boolean(user?.is_premium);
     const rawLevel = String(user?.premium_level ?? "").trim().toLowerCase();
-    if (!isPremium) return "Update Plan";
-    if (rawLevel === "platine" || rawLevel === "platinum") return "VIP Platine 💎";
-    return "VIP Bronze 🥉";
-  }, [user?.is_premium, user?.premium_level]);
+    if (!isPremium) return t("header.vip.update");
+    if (rawLevel === "platine" || rawLevel === "platinum") return t("header.vip.platinum");
+    return t("header.vip.bronze");
+  }, [t, user?.is_premium, user?.premium_level]);
 
   const promoActive =
     remoteConfig.marketingEnabled && remoteConfig.promoEnabled && String(remoteConfig.promoBannerText ?? "").trim() !== "";
@@ -420,7 +456,7 @@ export default function AppHeader() {
               ) : null}
               {remoteConfig.promoCtaUrl ? (
                 <Link href={remoteConfig.promoCtaUrl} className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] text-white/90">
-                  Voir l'offre
+                  {t("header.offer")}
                 </Link>
               ) : null}
             </div>
@@ -445,9 +481,9 @@ export default function AppHeader() {
             <nav className="flex min-w-0 flex-1 flex-nowrap items-center justify-center gap-1 text-sm font-semibold text-white/85">
               {(
                 [
-                  { key: "recharge" as const, label: "Recharges" },
-                  { key: "subscription" as const, label: "Abonnements" },
-                  { key: "marketplace" as const, label: "Gaming Accounts" },
+                  { key: "recharge" as const, label: t("header.nav.recharge") },
+                  { key: "subscription" as const, label: t("header.nav.subscription") },
+                  { key: "marketplace" as const, label: t("header.nav.marketplace") },
                 ]
               ).map(({ key, label }) => {
                 const isOpen = openMenu === key;
@@ -499,7 +535,7 @@ export default function AppHeader() {
                       >
                         {items.length === 0 ? (
                           <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                            Aucun jeu pour le moment.
+                            {t("header.emptyGames")}
                           </div>
                         ) : (
                           <div className="max-h-[360px] overflow-auto">
@@ -545,17 +581,18 @@ export default function AppHeader() {
                   pathname === "/accessoires" ? "bg-white/10 text-white" : "hover:bg-white/8 hover:text-white"
                 }`}
               >
-                <span className="whitespace-nowrap">Accessoires</span>
+                <span className="whitespace-nowrap">{t("header.nav.accessories")}</span>
               </Link>
             </nav>
 
             <div className="flex flex-nowrap items-center gap-2">
+              <LanguageToggle language={language} onChange={setLanguage} ariaLabel={t("language.switcher.aria")} />
               <Link
                 href="/help"
                 className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
               >
                 <span aria-hidden="true" className="text-base leading-none">🎧</span>
-                <span className="whitespace-nowrap">Support 24/7</span>
+                <span className="whitespace-nowrap">{t("header.help")}</span>
               </Link>
               <Link
                 href="/wallet"
@@ -569,7 +606,7 @@ export default function AppHeader() {
                 className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white/85 ring-1 ring-white/10 hover:bg-white/10 hover:shadow-[0_10px_30px_rgba(139,92,246,0.10)]"
               >
                 <span aria-hidden="true" className="text-base leading-none">👤</span>
-                <span className="whitespace-nowrap">Mon Profil</span>
+                <span className="whitespace-nowrap">{t("header.profile")}</span>
               </Link>
             </div>
           </div>
@@ -630,13 +667,14 @@ export default function AppHeader() {
               <span className="tracking-wide">{walletLabel}</span>
               <span className="text-[10px] text-white/70">{walletCurrencyLabel}</span>
             </div>
+            <LanguageToggle language={language} onChange={setLanguage} ariaLabel={t("language.switcher.aria")} />
             <div className="relative">
               <button
                 type="button"
                 className={`relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 ${
                   unreadBadge ? "notify-bounce" : ""
                 }`}
-                aria-label="Notifications"
+                aria-label={t("header.notifications")}
                 onClick={handleToggleNotifications}
               >
                 <Bell className="h-4 w-4 text-white/80" />
@@ -653,7 +691,7 @@ export default function AppHeader() {
                 className={`relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/8 ring-1 ring-white/15 ${
                   inboxBadge ? "notify-bounce" : ""
                 }`}
-                aria-label="Boîte de réception"
+                aria-label={t("header.inbox")}
                 onClick={handleToggleInbox}
               >
                 <Mail className="h-4 w-4 text-white/80" />
@@ -680,19 +718,19 @@ export default function AppHeader() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2">
-              <span className="text-xs uppercase tracking-[0.25em] text-white/50">Notifications</span>
+              <span className="text-xs uppercase tracking-[0.25em] text-white/50">{t("header.notifications")}</span>
               <button
                 type="button"
                 className="text-xs text-white/60 hover:text-white"
                 onClick={() => setShowNotifications(false)}
               >
-                Fermer
+                {t("header.close")}
               </button>
             </div>
             <div className="space-y-2">
               {mobileNotifications.length === 0 ? (
                 <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                  Aucune notification pour le moment.
+                  {t("header.emptyNotifications")}
                 </div>
               ) : (
                 mobileNotifications.map((item) => (
@@ -703,7 +741,7 @@ export default function AppHeader() {
                     }`}
                   >
                     <p className="text-white/90">{item.message}</p>
-                    <p className="mt-1 text-[10px] text-white/40">{new Date(item.created_at).toLocaleString("fr-FR")}</p>
+                    <p className="mt-1 text-[10px] text-white/40">{formatDateTime(item.created_at)}</p>
                   </div>
                 ))
               )}
@@ -724,19 +762,19 @@ export default function AppHeader() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2">
-              <span className="text-xs uppercase tracking-[0.25em] text-white/50">Boîte mail</span>
+              <span className="text-xs uppercase tracking-[0.25em] text-white/50">{t("header.inbox")}</span>
               <button
                 type="button"
                 className="text-xs text-white/60 hover:text-white"
                 onClick={() => setShowInbox(false)}
               >
-                Fermer
+                {t("header.close")}
               </button>
             </div>
             <div className="space-y-2">
               {mobileInboxItems.length === 0 ? (
                 <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                  Aucun message pour le moment.
+                  {t("header.emptyInbox")}
                 </div>
               ) : (
                 mobileInboxItems.map((item) => (
@@ -747,7 +785,7 @@ export default function AppHeader() {
                     }`}
                   >
                     <p className="whitespace-pre-wrap text-white/90">{item.message}</p>
-                    <p className="mt-1 text-[10px] text-white/40">{new Date(item.created_at).toLocaleString("fr-FR")}</p>
+                    <p className="mt-1 text-[10px] text-white/40">{formatDateTime(item.created_at)}</p>
                   </div>
                 ))
               )}
