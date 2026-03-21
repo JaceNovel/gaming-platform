@@ -338,7 +338,6 @@ export default function ProductDetailsPage() {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [storefrontCountries, setStorefrontCountries] = useState<StorefrontCountry[]>([]);
   const [storefrontCountryCode, setStorefrontCountryCode] = useState("TG");
-  const [redirectingToAccessories, setRedirectingToAccessories] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const id = params?.id;
 
@@ -490,24 +489,6 @@ export default function ProductDetailsPage() {
     () => String(product?.display_section ?? "").toLowerCase() === "recharge_direct",
     [product?.display_section]
   );
-  const isAccessoryProduct = useMemo(() => {
-    if (!product) return false;
-
-    if (String(product.accessory_category ?? "").trim() !== "") {
-      return true;
-    }
-
-    return String(product.type ?? "").toLowerCase() === "item" && Boolean(product.shipping_required ?? true);
-  }, [product]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!product || !isAccessoryProduct) return;
-    if (!window.matchMedia("(min-width: 768px)").matches) return;
-
-    setRedirectingToAccessories(true);
-    router.replace("/accessoires");
-  }, [isAccessoryProduct, product, router]);
   useEffect(() => {
     const resolved = resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId);
     setSelectedVariantId(resolved?.id ?? "");
@@ -689,7 +670,7 @@ export default function ProductDetailsPage() {
           </div>
         )}
 
-        {!loading && !error && product && !redirectingToAccessories && (
+        {!loading && !error && product && (
           <>
             <div className="mt-8 space-y-5 md:hidden">
               <div className="rounded-[32px] border border-white/10 bg-white/5 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
