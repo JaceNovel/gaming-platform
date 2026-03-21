@@ -48,6 +48,28 @@ Si usage de cookies/Sanctum:
 - `PLAY_INTEGRITY_SERVICE_ACCOUNT_PATH=/path/to/service-account.json` (optionnel)
 - `SUPPORT_URL=https://space.primegaming.app/support`
 
+### Moneroo
+
+Variables utiles:
+
+- `MONEROO_ENABLED=true`
+- `MONEROO_PUBLIC_KEY=`
+- `MONEROO_SECRET_KEY=`
+- `MONEROO_WEBHOOK_SECRET=`
+- `MONEROO_RETURN_URL=` (optionnel, sinon derive de `APP_URL`)
+- `MONEROO_FRONTEND_STATUS_URL=` (optionnel, sinon derive de `FRONTEND_URL`)
+
+Webhook backend expose par le projet:
+
+- `POST https://api.primegaming.space/api/payments/moneroo/webhook`
+- `POST https://api.primegaming.space/api/payouts/moneroo/webhook`
+
+Le header de signature attendu est:
+
+- `X-Moneroo-Signature`
+
+Le secret configure dans le dashboard Moneroo doit etre identique a `MONEROO_WEBHOOK_SECRET` cote backend.
+
 ## Endpoints requis par le frontend
 
 - `POST /api/register`
