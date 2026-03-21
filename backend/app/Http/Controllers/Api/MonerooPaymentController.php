@@ -97,6 +97,7 @@ class MonerooPaymentController extends Controller
                 'description' => $validated['description'] ?? null,
                 'customer_email' => $validated['customer_email'] ?? $user->email,
                 'customer_phone' => $validated['customer_phone'] ?? null,
+                'customer_full_name' => $validated['customer_name'] ?? $user->name ?? null,
                 'customer_first_name' => $validated['customer_name'] ?? null,
                 'return_url' => $callbackUrl,
                 'methods' => $validated['methods'] ?? [],

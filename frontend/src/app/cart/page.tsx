@@ -795,7 +795,7 @@ function CartScreen() {
                 disabled={loading || !cartItems.length}
               >
                 <CreditCard className="h-4 w-4" />
-                {loading ? "Paiement..." : "Payer maintenant"}
+                {loading ? "Chargement..." : "Continuer"}
               </GlowButton>
 
               {status ? <p className="text-xs text-amber-200">{status}</p> : null}
@@ -808,12 +808,12 @@ function CartScreen() {
         open={paymentModalOpen}
         title="Moyens de paiement"
         subtitle="Nous protégeons vos informations de paiement."
-        amountLabel={`Total à payer: ${Math.floor(total).toLocaleString()} FCFA`}
+        amountLabel={`Total: ${Math.floor(total).toLocaleString()} FCFA`}
         options={paymentOptions}
         value={paymentMethod}
         loading={loading}
         status={status}
-        confirmLabel={`Payer ${Math.floor(total).toLocaleString()} FCFA`}
+        confirmLabel="Continuer"
         onChange={(key) => setPaymentMethod(key as typeof paymentMethod)}
         onClose={() => setPaymentModalOpen(false)}
         onConfirm={handlePay}

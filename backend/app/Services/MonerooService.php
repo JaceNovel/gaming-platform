@@ -334,11 +334,11 @@ class MonerooService
 
     private function buildCustomerPayload(User $user, array $options = []): array
     {
-        $fullName = trim((string) ($user->name ?? ''));
-        $parts = $fullName !== '' ? preg_split('/\s+/', $fullName) : [];
+        $fullName = trim((string) ($options['customer_full_name'] ?? $options['customer_name'] ?? $user->name ?? ''));
+        [$derivedFirstName, $derivedLastName] = $this->splitFullName($fullName);
 
-        $firstName = trim((string) ($options['customer_first_name'] ?? $user->first_name ?? ($parts[0] ?? 'Client')));
-        $lastName = trim((string) ($options['customer_last_name'] ?? $user->last_name ?? (isset($parts[1]) ? implode(' ', array_slice($parts, 1)) : '')));
+        $firstName = trim((string) ($options['customer_first_name'] ?? $user->first_name ?? $derivedFirstName ?? 'Client'));
+        $lastName = trim((string) ($options['customer_last_name'] ?? $user->last_name ?? $derivedLastName ?? 'PrimeGaming'));
         $email = trim((string) ($options['customer_email'] ?? $user->email ?? ''));
         if ($email === '') {
             throw new \RuntimeException('Moneroo requires a customer email address.');
@@ -355,6 +355,23 @@ class MonerooService
             'country' => strtoupper(trim((string) ($options['customer_country'] ?? $user->country_code ?? ''))),
             'zip' => trim((string) ($options['customer_zip'] ?? '')),
         ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    private function splitFullName(string $fullName): array
+    {
+        $normalized = trim(preg_replace('/\s+/', ' ', $fullName) ?? '');
+        if ($normalized === '') {
+            return ['Client', 'PrimeGaming'];
+        }
+
+        $parts = preg_split('/\s+/', $normalized) ?: [];
+        $firstName = trim((string) ($parts[0] ?? 'Client'));
+        $lastName = trim((string) (count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : 'PrimeGaming'));
+
+        return [
+            $firstName !== '' ? $firstName : 'Client',
+            $lastName !== '' ? $lastName : 'PrimeGaming',
+        ];
     }
 
     private function buildPayoutRecipient(string $method, string $recipientValue): array

@@ -660,12 +660,12 @@ function CheckoutScreen() {
         open={paymentModalOpen}
         title="Moyens de paiement"
         subtitle="Nous protégeons vos informations de paiement."
-        amountLabel={`Total à payer: ${Math.floor(estimatedTotal).toLocaleString()} FCFA`}
+        amountLabel={`Total: ${Math.floor(estimatedTotal).toLocaleString()} FCFA`}
         options={paymentOptions}
         value={paymentMethod}
         loading={loading}
         status={status}
-        confirmLabel={`Payer ${Math.floor(estimatedTotal).toLocaleString()} FCFA`}
+        confirmLabel="Continuer"
         onChange={(key) => setPaymentMethod(key as typeof paymentMethod)}
         onClose={() => setPaymentModalOpen(false)}
         onConfirm={handleCreateOrder}

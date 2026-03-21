@@ -327,6 +327,7 @@ class WalletController extends Controller
                 'amount' => $amount,
                 'currency' => 'XOF',
                 'description' => 'Recharge DB Wallet',
+                'customer_full_name' => $user->name,
                 'customer_phone' => $customerPhone,
                 'customer_country' => $customerCountry,
                 'customer_email' => $user->email,

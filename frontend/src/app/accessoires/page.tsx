@@ -722,22 +722,9 @@ export default function AccessoiresPage() {
                                         onClick={() => {
                                           router.push(`/produits/${encodeURIComponent(String(p.id))}`);
                                         }}
-                                        className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/85 hover:bg-white/10 transition"
-                                      >
-                                        Détail
-                                      </button>
-
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const ok = requireShippingThen({ kind: "buy", product: p });
-                                          if (!ok) return;
-                                          persistShipping();
-                                          router.push(`/checkout?product=${encodeURIComponent(String(p.id))}`);
-                                        }}
                                         className="flex-1 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-400/15 transition"
                                       >
-                                        Acheter
+                                        Voir
                                       </button>
 
                                       <button

@@ -62,6 +62,7 @@ class ProcessPayout implements ShouldQueue
                     'country' => (string) $payout->country,
                     'method' => $resolvedMethod,
                     'recipient_value' => (string) $payout->phone,
+                    'customer_full_name' => (string) ($payout->user?->name ?? ''),
                     'customer_phone' => (string) $payout->phone,
                     'customer_country' => (string) $payout->country,
                     'customer_email' => $payout->user?->email,
@@ -99,7 +100,34 @@ class ProcessPayout implements ShouldQueue
                 && $payout
                 && !in_array((string) $payout->status, ['sent', 'failed', 'cancelled'], true)
             ) {
-                $latestProviderPayload = $monerooService->verifyPayout($providerPayoutId);
+                try {
+                    $latestProviderPayload = $monerooService->verifyPayout($providerPayoutId);
+                } catch (\Throwable $e) {
+                    $message = strtolower(trim($e->getMessage()));
+                    if (str_contains($message, 'payout transaction not found')) {
+                        DB::transaction(function () use ($payout, $providerPayoutId, $latestProviderPayload) {
+                            $locked = Payout::query()->whereKey($payout->id)->lockForUpdate()->firstOrFail();
+                            $locked->update([
+                                'status' => 'processing',
+                                'provider' => 'MONEROO',
+                                'provider_ref' => $providerPayoutId,
+                            ]);
+
+                            if (is_array($latestProviderPayload)) {
+                                $locked->events()->create([
+                                    'provider_payload' => $latestProviderPayload,
+                                    'status' => 'processing',
+                                ]);
+                            }
+                        });
+
+                        $this->release(30);
+                        return;
+                    }
+
+                    throw $e;
+                }
+
                 $this->applyProviderState($payout->id, $latestProviderPayload, $monerooService, $walletService, $notifier);
             }
         } catch (\Throwable $e) {
