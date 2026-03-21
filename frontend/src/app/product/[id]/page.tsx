@@ -3,9 +3,10 @@
 import type { MouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Gamepad2, Headphones, Monitor, ShieldCheck, ShoppingCart, Truck } from "lucide-react";
+import { ChevronLeft, Gamepad2, Headphones, Monitor, Share2, ShieldCheck, ShoppingCart, Truck } from "lucide-react";
 import { API_BASE } from "@/lib/config";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useCartFlight } from "@/hooks/useCartFlight";
 import { emitCartUpdated } from "@/lib/cartEvents";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
@@ -136,10 +137,29 @@ const sanitizeDescription = (product: ApiProduct | null): string => {
   return description || "Un accessoire gaming selectionne pour elever ton setup, avec groupage intelligent et livraison optimisee.";
 };
 
+const getSiteUrl = (): string => {
+  if (typeof window !== "undefined" && window.location.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://primegaming.space").replace(/\/$/, "");
+};
+
+const buildProductShareUrl = (id: string | number, language: "fr" | "en"): string => {
+  return `${getSiteUrl()}/produits/${encodeURIComponent(String(id))}?lang=${encodeURIComponent(language)}`;
+};
+
+const buildProductShareText = (name: string, language: "fr" | "en"): string => {
+  return language === "en"
+    ? `Buy ${name} on PRIME Gaming and get 5% off right now.`
+    : `Achetez ${name} sur PRIME Gaming et bénéficiez dès maintenant de -5% de réduction.`;
+};
+
 export default function PremiumAccessoryDesktopPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { language } = useLanguage();
   const { triggerFlight, overlay } = useCartFlight();
   const statusTimeoutRef = useRef<number | null>(null);
 
@@ -340,6 +360,35 @@ export default function PremiumAccessoryDesktopPage() {
     const params = new URLSearchParams({ product: String(product?.id ?? id ?? "") });
     if (selectedVariant?.id) params.set("variant", selectedVariant.id);
     router.push(`/checkout?${params.toString()}`);
+  };
+
+  const handleShare = async () => {
+    if (!product || typeof window === "undefined") return;
+
+    const name = String(product.name ?? product.title ?? "Produit");
+    const url = buildProductShareUrl(product.id, language);
+    const text = buildProductShareText(name, language);
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: name, text, url });
+        return;
+      } catch (error) {
+        const isAbort = error instanceof DOMException && error.name === "AbortError";
+        if (isAbort) return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setStatusMessage(language === "en" ? "Product link copied" : "Lien du produit copié");
+    } catch {
+      window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, "_blank", "noopener,noreferrer");
+      setStatusMessage(language === "en" ? "Sharing opened" : "Partage ouvert");
+    }
+
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
+    statusTimeoutRef.current = window.setTimeout(() => setStatusMessage(null), 2200);
   };
 
   const deliveryMessages = buildGroupedDeliveryMessages({
@@ -594,13 +643,22 @@ export default function PremiumAccessoryDesktopPage() {
                 >
                   Acheter maintenant
                 </button>
-                <button
-                  type="button"
-                  onClick={handleAddToCart}
-                  className="flex w-full items-center justify-center gap-3 rounded-[24px] border border-white/10 bg-white/5 px-6 py-4 text-sm font-semibold text-white transition hover:bg-white/10"
-                >
-                  <ShoppingCart className="h-4 w-4" /> Ajouter au panier
-                </button>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    className="flex w-full items-center justify-center gap-3 rounded-[24px] border border-white/10 bg-white/5 px-6 py-4 text-sm font-semibold text-white transition hover:bg-white/10"
+                  >
+                    <ShoppingCart className="h-4 w-4" /> Ajouter au panier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleShare()}
+                    className="flex w-full items-center justify-center gap-3 rounded-[24px] border border-cyan-300/25 bg-cyan-400/10 px-6 py-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+                  >
+                    <Share2 className="h-4 w-4" /> {language === "en" ? "Share" : "Partager"}
+                  </button>
+                </div>
               </div>
 
               <div className="mt-6 grid grid-cols-2 gap-3 text-sm text-white/70">

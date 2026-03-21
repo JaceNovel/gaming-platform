@@ -3,7 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Sparkles } from "lucide-react";
+import { Search, Share2, Sparkles } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { API_BASE } from "@/lib/config";
 import { toDisplayImageSrc } from "@/lib/imageProxy";
@@ -120,6 +120,26 @@ const defaultDeliveryEstimate = (p: AccessoryProduct): string => {
   return "—";
 };
 
+const getSiteUrl = (): string => {
+  if (typeof window !== "undefined" && window.location.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://primegaming.space").replace(/\/$/, "");
+};
+
+const buildAccessoryShareUrl = (product: AccessoryProduct, language: "fr" | "en"): string => {
+  return `${getSiteUrl()}/produits/${encodeURIComponent(String(product.id))}?lang=${encodeURIComponent(language)}`;
+};
+
+const buildAccessoryShareText = (product: AccessoryProduct, language: "fr" | "en"): string => {
+  const name = productDisplayName(product);
+
+  return language === "fr"
+    ? `Achetez ${name} sur PRIME Gaming et bénéficiez dès maintenant de -5% de réduction.`
+    : `Buy ${name} on PRIME Gaming and get 5% off right now.`;
+};
+
 const logisticsBadge = (modeRaw: any): { label: string; tone: "green" | "cyan" | "amber" } => {
   const mode = String(modeRaw ?? "local").toLowerCase();
   if (mode === "air") return { label: "✈️ Import aérien (≈ 2–3 semaines)", tone: "cyan" };
@@ -203,9 +223,11 @@ export default function AccessoiresPage() {
   const [shippingPhone, setShippingPhone] = useState("");
   const [shippingStatus, setShippingStatus] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<{ kind: "buy" | "cart"; product: AccessoryProduct } | null>(null);
+  const [shareStatus, setShareStatus] = useState<string | null>(null);
 
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const searchCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shareTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const copy = useMemo(
@@ -250,6 +272,9 @@ export default function AccessoiresPage() {
             seeDetail: "Voir détail",
             view: "Voir",
             cart: "Panier",
+            share: "Partager",
+            shareCopied: "Lien du produit copié.",
+            shareFailed: "Partage impossible pour le moment.",
             image: "Image",
             loadAccessories: "Impossible de charger les accessoires",
             loadGeneric: "Impossible de charger",
@@ -293,6 +318,9 @@ export default function AccessoiresPage() {
             seeDetail: "View details",
             view: "View",
             cart: "Cart",
+            share: "Share",
+            shareCopied: "Product link copied.",
+            shareFailed: "Unable to share right now.",
             image: "Image",
             loadAccessories: "Unable to load accessories",
             loadGeneric: "Unable to load",
@@ -326,8 +354,47 @@ export default function AccessoiresPage() {
       if (searchCloseTimeoutRef.current) {
         clearTimeout(searchCloseTimeoutRef.current);
       }
+      if (shareTimeoutRef.current) {
+        clearTimeout(shareTimeoutRef.current);
+      }
     };
   }, []);
+
+  const pushShareStatus = (message: string) => {
+    setShareStatus(message);
+    if (shareTimeoutRef.current) {
+      clearTimeout(shareTimeoutRef.current);
+    }
+    shareTimeoutRef.current = window.setTimeout(() => setShareStatus(null), 2200);
+  };
+
+  const handleShareProduct = async (product: AccessoryProduct) => {
+    if (typeof window === "undefined") return;
+
+    const url = buildAccessoryShareUrl(product, language);
+    const text = buildAccessoryShareText(product, language);
+    const title = productDisplayName(product);
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch (error) {
+        const isAbort = error instanceof DOMException && error.name === "AbortError";
+        if (isAbort) return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      pushShareStatus(copy.shareCopied);
+      return;
+    } catch {
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
+      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+      pushShareStatus(copy.shareFailed);
+    }
+  };
 
   const persistShipping = () => {
     writeShippingInfo({ mapsUrl: shippingMapsUrl.trim(), city: shippingCity.trim(), phone: shippingPhone.trim() });
@@ -572,6 +639,14 @@ export default function AccessoiresPage() {
         </div>
       ) : null}
 
+      {shareStatus ? (
+        <div className="fixed inset-x-0 bottom-24 z-40 flex justify-center px-4 sm:bottom-8" aria-live="polite">
+          <div className="rounded-full border border-white/15 bg-black/85 px-4 py-2 text-xs font-semibold text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+            {shareStatus}
+          </div>
+        </div>
+      ) : null}
+
       <main className="w-full px-5 md:px-10 lg:px-12 py-10">
         <div className="mx-auto w-full max-w-6xl">
           <header className="p-2">
@@ -732,43 +807,56 @@ export default function AccessoiresPage() {
                             const imgSrc = img ? (toDisplayImageSrc(img) ?? img) : null;
                             const price = parseNumber(p.computed_final_price ?? p.discount_price ?? p.price);
                             return (
-                              <Link
+                              <div
                                 key={p.id}
-                                href={`/produits/${encodeURIComponent(String(p.id))}`}
                                 className="snap-start w-[220px] flex-none overflow-hidden rounded-[22px] border border-white/15 bg-white/5 backdrop-blur transition hover:bg-white/10"
                               >
-                                <div className="relative h-28 w-full bg-black/30">
-                                  {imgSrc ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={imgSrc} alt={name} className="h-full w-full object-cover" loading="lazy" />
-                                  ) : (
-                                    <div className="grid h-full w-full place-items-center bg-white/10 text-sm text-white/70">🛒</div>
-                                  )}
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent" />
-                                  <div className="absolute left-3 top-3">
-                                    <span className="inline-flex items-center rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] font-semibold text-white/85">
-                                      {cat.label}
-                                    </span>
+                                <Link href={`/produits/${encodeURIComponent(String(p.id))}`} className="block">
+                                  <div className="relative h-28 w-full bg-black/30">
+                                    {imgSrc ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={imgSrc} alt={name} className="h-full w-full object-cover" loading="lazy" />
+                                    ) : (
+                                      <div className="grid h-full w-full place-items-center bg-white/10 text-sm text-white/70">🛒</div>
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent" />
+                                    <div className="absolute left-3 top-3">
+                                      <span className="inline-flex items-center rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] font-semibold text-white/85">
+                                        {cat.label}
+                                      </span>
+                                    </div>
                                   </div>
-                                </div>
 
-                                <div className="p-3">
-                                  <h3 className="text-sm font-semibold text-white line-clamp-2">{name}</h3>
-                                  {p.accessory_subcategory ? (
-                                    <p className="mt-1 text-xs text-white/60 line-clamp-1">{p.accessory_subcategory}</p>
-                                  ) : null}
-                                  <div className="mt-2 flex items-end justify-between gap-2">
-                                    <p className="text-base font-black text-cyan-200">{formatFcfa(price)}</p>
-                                    <p className="text-[11px] text-white/55">{getCustomerDeliveryText(p)}</p>
+                                  <div className="p-3 pb-2">
+                                    <h3 className="text-sm font-semibold text-white line-clamp-2">{name}</h3>
+                                    {p.accessory_subcategory ? (
+                                      <p className="mt-1 text-xs text-white/60 line-clamp-1">{p.accessory_subcategory}</p>
+                                    ) : null}
                                   </div>
-                                </div>
+                                </Link>
 
                                 <div className="px-3 pb-3">
-                                  <div className="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-center text-xs font-semibold text-white/80">
-                                    {copy.detail}
+                                  <div className="mt-1 flex items-center justify-between gap-2">
+                                    <p className="text-base font-black text-cyan-200">{formatFcfa(price)}</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleShareProduct(p)}
+                                      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-400/10 text-cyan-100 transition hover:bg-cyan-400/15"
+                                      aria-label={`${copy.share} ${name}`}
+                                      title={copy.share}
+                                    >
+                                      <Share2 className="h-4 w-4" />
+                                    </button>
                                   </div>
+
+                                  <Link
+                                    href={`/produits/${encodeURIComponent(String(p.id))}`}
+                                    className="mt-3 block w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-center text-xs font-semibold text-white/80"
+                                  >
+                                    {copy.detail}
+                                  </Link>
                                 </div>
-                              </Link>
+                              </div>
                             );
                           })}
                         </div>
@@ -845,6 +933,16 @@ export default function AccessoiresPage() {
                                         className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/85 hover:bg-white/10 transition"
                                       >
                                         {copy.cart}
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleShareProduct(p)}
+                                        className="inline-flex items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+                                        aria-label={`${copy.share} ${name}`}
+                                        title={copy.share}
+                                      >
+                                        <Share2 className="h-4 w-4" />
                                       </button>
                                     </div>
                                   </div>

@@ -1,0 +1,962 @@
+"use client";
+
+import type { MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { Share2, ShoppingCart } from "lucide-react";
+import { API_BASE } from "@/lib/config";
+import { useCartFlight } from "@/hooks/useCartFlight";
+import { toDisplayImageSrc } from "@/lib/imageProxy";
+import DeliveryBadge from "@/components/ui/DeliveryBadge";
+import { getDeliveryBadgeDisplay } from "@/lib/deliveryDisplay";
+import { openTidioChat } from "@/lib/tidioChat";
+import { emitCartUpdated } from "@/lib/cartEvents";
+import { parseGroupedNumber } from "@/lib/groupedDeliveryMessaging";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { getStoredStorefrontCountry, onStorefrontCountryChanged, sanitizeStorefrontCustomerNotice, setStoredStorefrontCountry, type StorefrontCountry } from "@/lib/storefrontCountry";
+import { buildCartItemKey, normalizeStorefrontVariants, resolveStorefrontVariant } from "@/lib/storefrontVariants";
+
+type ApiProduct = {
+  id: number | string;
+  name?: string | null;
+  title?: string | null;
+  description?: string | null;
+  type?: string | null;
+  shipping_fee?: number | string | null;
+  estimated_delivery_label?: string | null;
+  delivery_estimate_label?: string | null;
+  delivery_eta_days?: number | null;
+  display_section?: string | null;
+  details?: {
+    description?: string | null;
+    tags?: string[] | string | null;
+    image?: string | null;
+    banner?: string | null;
+    cover?: string | null;
+    video?: string | null;
+    brand?: string | null;
+    stock?: number | null;
+    storefront_variants?: unknown[] | null;
+    manual_storefront_pricing?: boolean | null;
+  } | null;
+  price?: number | string | null;
+  discount_price?: number | string | null;
+  computed_final_price?: number | string | null;
+  computed_transport_unit_fee?: number | string | null;
+  image_url?: string | null;
+  cover?: string | null;
+  banner?: string | null;
+  grouping_progress?: number | null;
+  grouping_threshold?: number | null;
+  grouping_progress_label?: string | null;
+  grouping_minimum_value?: number | string | null;
+  grouping_current_value?: number | string | null;
+  grouping_remaining_value?: number | string | null;
+  free_shipping_eligible?: boolean | null;
+  media?: Array<{ url?: string | null } | string>;
+  images?: Array<{ url?: string | null; path?: string | null } | string> | null;
+  category?: string | null;
+  category_entity?: { name?: string | null } | null;
+  brand?: string | null;
+  stock?: number | null;
+  stock_quantity?: number | null;
+  stockType?: string | null;
+  stock_type?: string | null;
+  accessory_category?: string | null;
+  shipping_required?: boolean | null;
+  tags?: Array<{ name?: string | null } | string> | string[] | string | null;
+};
+
+const variantImageFromStorefrontVariant = (variant: ReturnType<typeof resolveStorefrontVariant>): string | null => {
+  const candidate = String(variant?.imageUrl ?? "").trim();
+  return candidate || null;
+};
+
+const formatPrice = (value: number) => `${new Intl.NumberFormat("fr-FR").format(Math.max(0, value))} FCFA`;
+
+const parseNumber = (value: number | string | null | undefined): number => parseGroupedNumber(value);
+
+const sanitizeCustomerDescription = (value: string | null | undefined): string => {
+  const cleaned = String(value ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => {
+      const normalized = line.toLowerCase();
+
+      return !(
+        normalized.startsWith("import automatique aliexpress")
+        || normalized.startsWith("source:")
+        || normalized.startsWith("prix source:")
+      );
+    })
+    .join("\n")
+    .trim();
+
+  return cleaned;
+};
+
+const extractImage = (product: ApiProduct | null): string | null => {
+  if (!product) return null;
+  if (product.image_url) return product.image_url;
+  if (Array.isArray(product.images) && product.images.length) {
+    const first = product.images[0];
+    if (typeof first === "string") return first;
+    return first?.url ?? first?.path ?? null;
+  }
+  if (product.details?.image) return product.details.image;
+  // If no explicit image is set, fall back to cover/banner.
+  if (product.cover) return product.cover;
+  if (product.banner) return product.banner;
+  if (product.details?.cover) return product.details.cover;
+  if (product.details?.banner) return product.details.banner;
+  if (Array.isArray(product.media) && product.media.length) {
+    const entry = product.media[0];
+    if (typeof entry === "string") return entry;
+    return entry?.url ?? null;
+  }
+  return null;
+};
+
+const extractBanner = (product: ApiProduct | null): string | null => {
+  if (!product) return null;
+  return (
+    product.details?.banner ??
+    product.banner ??
+    product.details?.cover ??
+    product.cover ??
+    null
+  );
+};
+
+const extractVideo = (product: ApiProduct | null): string | null => {
+  if (!product) return null;
+  return product.details?.video ?? null;
+};
+
+const normalizeTags = (product: ApiProduct | null): string[] => {
+  if (!product) return [];
+  const raw = product.tags ?? product.details?.tags;
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((tag) => (typeof tag === "string" ? tag : tag?.name))
+      .map((tag) => String(tag ?? "").trim())
+      .filter(Boolean);
+  }
+  return String(raw)
+    .split(/[,;]+/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+};
+
+const extractImages = (product: ApiProduct | null): string[] => {
+  if (!product) return [];
+  const images = Array.isArray(product.images) ? product.images : [];
+  return images
+    .map((entry) => {
+      if (typeof entry === "string") return entry;
+      return entry?.url ?? entry?.path ?? null;
+    })
+    .filter((value): value is string => Boolean(value));
+};
+
+const getDelivery = (product: ApiProduct | null) =>
+  getDeliveryBadgeDisplay({
+    type: product?.type ?? null,
+    display_section: product?.display_section ?? null,
+    delivery_estimate_label: product?.delivery_estimate_label ?? null,
+  });
+
+const getSiteUrl = (): string => {
+  if (typeof window !== "undefined" && window.location.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://primegaming.space").replace(/\/$/, "");
+};
+
+const buildProductShareUrl = (id: string | number, language: "fr" | "en"): string => {
+  return `${getSiteUrl()}/produits/${encodeURIComponent(String(id))}?lang=${encodeURIComponent(language)}`;
+};
+
+const buildProductShareText = (name: string, language: "fr" | "en"): string => {
+  return language === "en"
+    ? `Buy ${name} on PRIME Gaming and get 5% off right now.`
+    : `Achetez ${name} sur PRIME Gaming et bénéficiez dès maintenant de -5% de réduction.`;
+};
+
+function ImageCarousel({
+  images,
+  name,
+  activeIndex,
+  onActiveIndex,
+  aspectClass,
+  onOpenLightbox,
+}: {
+  images: string[];
+  name: string;
+  activeIndex: number;
+  onActiveIndex: (idx: number) => void;
+  aspectClass: string;
+  onOpenLightbox?: (src: string) => void;
+}) {
+  const railRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const target = rail.children.item(activeIndex) as HTMLElement | null;
+    target?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [activeIndex]);
+
+  const handleScroll = () => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const width = rail.clientWidth || 1;
+    const idx = Math.round(rail.scrollLeft / width);
+    const next = Math.min(Math.max(idx, 0), Math.max(images.length - 1, 0));
+    if (next !== activeIndex) onActiveIndex(next);
+  };
+
+  if (!images.length) {
+    return (
+      <div className={`flex ${aspectClass} w-full items-center justify-center rounded-3xl border border-dashed border-white/20 bg-white/5 text-base font-semibold text-white/60 shadow-inner`}>
+        Aucune image
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div
+        ref={railRef}
+        onScroll={handleScroll}
+        className="flex w-full snap-x snap-mandatory overflow-x-auto rounded-3xl border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)] scrollbar-soft"
+      >
+        {images.map((url, idx) => {
+          const display = toDisplayImageSrc(url) ?? url;
+          return (
+            <button
+              key={`${url}-${idx}`}
+              type="button"
+              className={`relative ${aspectClass} w-full flex-none snap-center overflow-hidden ${onOpenLightbox ? "cursor-zoom-in" : ""}`}
+              onClick={() => onOpenLightbox?.(display)}
+              aria-label="Agrandir l'image"
+            >
+              <img src={display} alt={name} className="h-full w-full object-cover" loading={idx === 0 ? "eager" : "lazy"} />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent" />
+            </button>
+          );
+        })}
+      </div>
+
+      {images.length > 1 && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex gap-1.5">
+            {images.map((_, idx) => {
+              const active = idx === activeIndex;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => onActiveIndex(idx)}
+                  className={`h-1.5 rounded-full transition ${active ? "w-7 bg-rose-400" : "w-2.5 bg-white/25"}`}
+                  aria-label={`Aller à l'image ${idx + 1}`}
+                />
+              );
+            })}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {images.map((url, idx) => {
+              const displayThumb = toDisplayImageSrc(url) ?? url;
+              const active = idx === activeIndex;
+              return (
+                <button
+                  key={`${url}-thumb-${idx}`}
+                  type="button"
+                  onClick={() => onActiveIndex(idx)}
+                  className={
+                    "relative h-12 w-16 flex-none overflow-hidden rounded-xl border bg-white/5 transition " +
+                    (active ? "border-rose-400" : "border-white/10 hover:border-white/25")
+                  }
+                >
+                  <img src={displayThumb} alt="" className="h-full w-full object-cover" loading="lazy" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AutoLoopVideo({ src, title, aspectClass }: { src: string; title: string; aspectClass: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        if (entry.isIntersecting) {
+          void video.play().catch(() => {
+            // autoplay can be blocked on some devices, keep silent
+          });
+          return;
+        }
+        video.pause();
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(video);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [src]);
+
+  return (
+    <div className="rounded-3xl border border-white/15 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+      <video
+        ref={videoRef}
+        src={src}
+        title={title}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        controls={false}
+        controlsList="nodownload noplaybackrate noremoteplayback"
+        disablePictureInPicture
+        className={`${aspectClass} w-full rounded-3xl object-cover`}
+      />
+    </div>
+  );
+}
+
+export default function ProductDetailsPage() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const { triggerFlight, overlay } = useCartFlight();
+  const { user } = useAuth();
+  const { language } = useLanguage();
+  const statusTimeoutRef = useRef<ReturnType<typeof setTimeout> | number | null>(null);
+  const [product, setProduct] = useState<ApiProduct | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [storefrontCountries, setStorefrontCountries] = useState<StorefrontCountry[]>([]);
+  const [storefrontCountryCode, setStorefrontCountryCode] = useState("TG");
+  const [selectedVariantId, setSelectedVariantId] = useState("");
+  const id = params?.id;
+
+  useEffect(() => {
+    setStorefrontCountryCode(getStoredStorefrontCountry());
+    return onStorefrontCountryChanged(setStorefrontCountryCode);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadStorefrontCountries = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/storefront/countries`, { headers: { Accept: "application/json" } });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || !active) return;
+
+        const next = Array.isArray(payload?.data) ? payload.data : [];
+        setStorefrontCountries(next);
+        if (next.length > 0 && !next.some((country: StorefrontCountry) => country.code === storefrontCountryCode)) {
+          const fallback = String(next[0]?.code ?? "TG").toUpperCase();
+          setStorefrontCountryCode(fallback);
+          setStoredStorefrontCountry(fallback);
+        }
+      } catch {
+        if (!active) return;
+        setStorefrontCountries([]);
+      }
+    };
+
+    loadStorefrontCountries();
+    return () => {
+      active = false;
+    };
+  }, [storefrontCountryCode]);
+
+  useEffect(() => {
+    let active = true;
+    const loadProduct = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const query = new URLSearchParams();
+        if (storefrontCountryCode) {
+          query.set("country_code", storefrontCountryCode);
+        }
+
+        const url = query.toString()
+          ? `${API_BASE}/products/${id}?${query.toString()}`
+          : `${API_BASE}/products/${id}`;
+
+        const res = await fetch(url);
+        if (!active) return;
+        if (res.status === 404) {
+          setError("Produit introuvable");
+          setProduct(null);
+          return;
+        }
+        if (!res.ok) {
+          setError("Impossible de charger le produit.");
+          setProduct(null);
+          return;
+        }
+        const payload = await res.json();
+        if (!active) return;
+        setProduct(payload);
+        setActiveImageIndex(0);
+      } catch (err) {
+        if (!active) return;
+        setError("Erreur réseau, réessaie plus tard.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    if (id) {
+      loadProduct();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [id, storefrontCountryCode]);
+
+  useEffect(() => {
+    return () => {
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!lightboxSrc) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxSrc(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxSrc]);
+
+  const mainImage = useMemo(() => extractImage(product), [product]);
+  const carouselImages = useMemo(() => extractImages(product), [product]);
+  const storefrontVariants = useMemo(() => normalizeStorefrontVariants(product?.details?.storefront_variants), [product?.details?.storefront_variants]);
+  const selectedVariant = useMemo(
+    () => resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId),
+    [product?.details?.storefront_variants, selectedVariantId]
+  );
+  const selectedVariantImage = useMemo(() => variantImageFromStorefrontVariant(selectedVariant), [selectedVariant]);
+  const mergedCarouselImages = useMemo(() => {
+    const base = [selectedVariantImage, ...(carouselImages.length ? carouselImages : mainImage ? [mainImage] : [])];
+    const normalized = base
+      .map((url) => String(url ?? "").trim())
+      .filter(Boolean);
+    const unique: string[] = [];
+    for (const url of normalized) {
+      if (!unique.includes(url)) unique.push(url);
+    }
+    return unique;
+  }, [carouselImages, mainImage, selectedVariantImage]);
+  const bannerImage = useMemo(() => extractBanner(product), [product]);
+  const videoRaw = useMemo(() => extractVideo(product), [product]);
+  const displayVideo = useMemo(() => (videoRaw ? toDisplayImageSrc(videoRaw) ?? videoRaw : null), [videoRaw]);
+  const displayBanner = useMemo(() => toDisplayImageSrc(bannerImage) ?? bannerImage, [bannerImage]);
+  const tags = useMemo(() => normalizeTags(product), [product]);
+  const priceValue = useMemo(
+    () => selectedVariant?.salePriceFcfa ?? (Number(product?.computed_final_price ?? product?.discount_price ?? product?.price ?? 0) || 0),
+    [product, selectedVariant?.salePriceFcfa]
+  );
+  const description =
+    sanitizeCustomerDescription(product?.description ?? product?.details?.description)
+    || "Offre spéciale disponible dans la boutique PRIME Gaming.";
+  const categoryLabel = product?.category_entity?.name ?? product?.category ?? "—";
+  const brandLabel = product?.brand ?? product?.details?.brand ?? "N/A";
+  const stockCount = useMemo(() => {
+    if (!product) return 0;
+    const value =
+      product.stock ??
+      product.stock_quantity ??
+      product.details?.stock ??
+      (product.stockType === "IN_STOCK" || product.stock_type === "IN_STOCK" ? 5 : 0);
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, numeric) : 0;
+  }, [product]);
+  const tagsLabel = tags.length ? tags.join(", ") : "Aucun tag";
+  const delivery = useMemo(() => getDelivery(product), [product]);
+  const isAccessoryProduct = useMemo(
+    () => Boolean(product?.accessory_category) || String(product?.type ?? "").toLowerCase() === "item",
+    [product?.accessory_category, product?.type]
+  );
+  const isRechargeDirect = useMemo(
+    () => String(product?.display_section ?? "").toLowerCase() === "recharge_direct",
+    [product?.display_section]
+  );
+  useEffect(() => {
+    const resolved = resolveStorefrontVariant(product?.details?.storefront_variants, selectedVariantId);
+    setSelectedVariantId(resolved?.id ?? "");
+  }, [product?.details?.storefront_variants]);
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [selectedVariant?.id]);
+  const activeStorefrontCountry = useMemo(
+    () => storefrontCountries.find((country) => country.code === storefrontCountryCode) ?? null,
+    [storefrontCountries, storefrontCountryCode]
+  );
+  const activeStorefrontNotice = useMemo(
+    () => sanitizeStorefrontCustomerNotice(activeStorefrontCountry?.customer_notice),
+    [activeStorefrontCountry?.customer_notice]
+  );
+
+  const persistToCart = () => {
+    if (!product || typeof window === "undefined") return;
+    const cartRaw = window.localStorage.getItem("bbshop_cart");
+    let cart: Array<{
+      id: number | string;
+      name: string;
+      price: number;
+      priceLabel: string;
+      description?: string;
+      quantity: number;
+      type?: string;
+      displaySection?: string | null;
+      deliveryEstimateLabel?: string | null;
+      deliveryLabel?: string;
+      shippingFee?: number;
+      cartKey?: string;
+      selectedStorefrontVariantId?: string;
+      selectedStorefrontVariantLabel?: string;
+    }>;
+    try {
+      cart = cartRaw ? JSON.parse(cartRaw) : [];
+    } catch {
+      cart = [];
+    }
+    const cartKey = buildCartItemKey(product.id, selectedVariant?.id);
+    const existing = cart.find((item) => String(item.cartKey ?? buildCartItemKey(item.id, item.selectedStorefrontVariantId)) === cartKey);
+    if (existing) {
+      existing.quantity = Number(existing.quantity ?? 0) + 1;
+      existing.shippingFee = Number(product.shipping_fee ?? 0) || 0;
+      existing.cartKey = cartKey;
+      existing.selectedStorefrontVariantId = selectedVariant?.id ?? undefined;
+      existing.selectedStorefrontVariantLabel = selectedVariant?.label ?? undefined;
+    } else {
+      cart.push({
+        id: product.id,
+        cartKey,
+        name: product.name ?? product.title ?? "Produit",
+        price: priceValue,
+        priceLabel: formatPrice(priceValue),
+        description,
+        type: String(product.type ?? ""),
+        displaySection: product.display_section ?? null,
+        deliveryEstimateLabel: product.delivery_estimate_label ?? null,
+        deliveryLabel: delivery?.desktopLabel ?? undefined,
+        shippingFee: Number(product.shipping_fee ?? 0) || 0,
+        selectedStorefrontVariantId: selectedVariant?.id ?? undefined,
+        selectedStorefrontVariantLabel: selectedVariant?.label ?? undefined,
+        quantity: 1,
+      });
+    }
+    window.localStorage.setItem("bbshop_cart", JSON.stringify(cart));
+    emitCartUpdated({ action: "add" });
+    setStatusMessage("Produit ajouté au panier");
+    if (statusTimeoutRef.current) {
+      clearTimeout(statusTimeoutRef.current);
+    }
+    statusTimeoutRef.current = window.setTimeout(() => setStatusMessage(null), 2200);
+  };
+
+  const handleAddToCart = (event: MouseEvent<HTMLButtonElement>) => {
+    if (isRechargeDirect) {
+      const qs = new URLSearchParams({
+        intent: "recharge_direct",
+        product_id: String(product?.id ?? id ?? ""),
+        product_name: String(product?.name ?? product?.title ?? ""),
+      });
+      void openTidioChat({
+        message: `Bonjour, je veux une Recharge Direct : ${String(product?.name ?? product?.title ?? "Produit")} (ID: ${String(product?.id ?? id ?? "")}).`,
+      });
+      return;
+    }
+    persistToCart();
+    triggerFlight(event.currentTarget);
+  };
+
+  const handleBuyNow = (_event: MouseEvent<HTMLButtonElement>) => {
+    if (!user) {
+      router.push(`/auth/login?next=${encodeURIComponent(`/produits/${id}`)}`);
+      return;
+    }
+
+    if (isRechargeDirect) {
+      const qs = new URLSearchParams({
+        intent: "recharge_direct",
+        product_id: String(product?.id ?? id ?? ""),
+        product_name: String(product?.name ?? product?.title ?? ""),
+      });
+      void openTidioChat({
+        message: `Bonjour, je veux une Recharge Direct : ${String(product?.name ?? product?.title ?? "Produit")} (ID: ${String(product?.id ?? id ?? "")}).`,
+      });
+      return;
+    }
+    const rawId = product?.id ?? id;
+    const checkoutProductId = Number(rawId);
+
+    if (!Number.isFinite(checkoutProductId) || checkoutProductId <= 0) {
+      setStatusMessage("Produit invalide");
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+      statusTimeoutRef.current = window.setTimeout(() => setStatusMessage(null), 2200);
+      return;
+    }
+
+    const params = new URLSearchParams({ product: String(checkoutProductId) });
+    if (selectedVariant?.id) params.set("variant", selectedVariant.id);
+    router.push(`/checkout?${params.toString()}`);
+  };
+
+  const handleShare = async () => {
+    if (!product || typeof window === "undefined") return;
+
+    const name = String(product.name ?? product.title ?? "Produit");
+    const url = buildProductShareUrl(product.id, language);
+    const text = buildProductShareText(name, language);
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: name, text, url });
+        return;
+      } catch (error) {
+        const isAbort = error instanceof DOMException && error.name === "AbortError";
+        if (isAbort) return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setStatusMessage(language === "en" ? "Product link copied" : "Lien du produit copié");
+    } catch {
+      window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, "_blank", "noopener,noreferrer");
+      setStatusMessage(language === "en" ? "Sharing opened" : "Partage ouvert");
+    }
+
+    if (statusTimeoutRef.current) {
+      clearTimeout(statusTimeoutRef.current);
+    }
+    statusTimeoutRef.current = window.setTimeout(() => setStatusMessage(null), 2200);
+  };
+
+  const infoRows: Array<{ label: string; value: React.ReactNode }> = [
+    ...(selectedVariant ? [{ label: "Choix", value: selectedVariant.label }] : []),
+    { label: "Catégorie", value: categoryLabel },
+    ...(delivery ? [{ label: "Livraison", value: isAccessoryProduct ? "Livraison disponible" : <DeliveryBadge delivery={delivery} /> }] : []),
+    { label: "Marque", value: brandLabel ?? "N/A" },
+    { label: "Stock", value: `${stockCount} unité${stockCount > 1 ? "s" : ""}` },
+    { label: "Tags", value: tagsLabel },
+  ];
+
+  return (
+    <main className="min-h-screen bg-[#05030d] text-white">
+      {overlay}
+      <div className="relative">
+        <div className="relative h-44 w-full overflow-hidden bg-white/5 sm:h-64">
+          {displayBanner ? (
+            <img
+              src={displayBanner}
+              alt={product?.name ?? "Bannière"}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="h-full w-full bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.35),transparent_55%),radial-gradient(circle_at_80%_0%,rgba(14,165,233,0.3),transparent_55%),radial-gradient(circle_at_50%_80%,rgba(244,206,106,0.15),transparent_55%)]" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/55 to-[#05030d]" />
+        </div>
+      </div>
+      {statusMessage && (
+        <div className="fixed right-4 top-[88px] z-50 flex items-center gap-2 rounded-2xl border border-white/15 bg-black/80 px-4 py-2 text-sm font-semibold text-white shadow-[0_20px_60px_rgba(0,0,0,0.65)]">
+          <ShoppingCart className="h-4 w-4 text-rose-400" />
+          <span>{statusMessage}</span>
+        </div>
+      )}
+      <div className="mx-auto w-full max-w-6xl px-4 py-10 lg:px-8 lg:py-16">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="text-sm font-medium text-white/70 transition hover:text-white"
+          >
+            ← Retour boutique
+          </button>
+        </div>
+
+        {loading && (
+          <div className="mt-20 rounded-3xl border border-white/10 bg-white/5 p-10 text-center text-white/60 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+            Chargement du produit...
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="mt-20 rounded-3xl border border-rose-500/40 bg-rose-500/10 p-10 text-center text-rose-100">
+            {error}
+            <div className="mt-6">
+              <Link href="/" className="text-sm font-semibold text-rose-200 underline">
+                Retourner à l'accueil
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {!loading && !error && product && (
+          <>
+            <div className="mt-8 space-y-5 md:hidden">
+              <div className="rounded-[32px] border border-white/10 bg-white/5 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+                {displayVideo ? (
+                  <AutoLoopVideo
+                    src={displayVideo}
+                    title={product.name ?? product.title ?? "Produit"}
+                    aspectClass="aspect-square"
+                  />
+                ) : (
+                  <ImageCarousel
+                    images={mergedCarouselImages}
+                    name={product.name ?? product.title ?? "Produit"}
+                    activeIndex={activeImageIndex}
+                    onActiveIndex={setActiveImageIndex}
+                    aspectClass="aspect-square"
+                    onOpenLightbox={setLightboxSrc}
+                  />
+                )}
+              </div>
+              <div className="space-y-4 rounded-[32px] border border-white/10 bg-black/40 p-5 shadow-[0_20px_70px_rgba(0,0,0,0.55)]">
+                <div className="space-y-2">
+                  <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">{categoryLabel}</p>
+                  <h1 className="text-2xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
+                  <p className="text-2xl font-black text-[#ff4b63]">{formatPrice(priceValue)}</p>
+                  {storefrontVariants.length > 0 ? (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/75">
+                      <p className="font-semibold text-white">Choix du client</p>
+                      <select
+                        value={selectedVariant?.id ?? ""}
+                        onChange={(event) => setSelectedVariantId(event.target.value)}
+                        className="mt-3 w-full rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm font-semibold text-white outline-none"
+                      >
+                        {storefrontVariants.map((variant) => (
+                          <option key={variant.id} value={variant.id} className="bg-slate-950 text-white">
+                            {variant.label} · {formatPrice(variant.salePriceFcfa)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+                </div>
+
+                {isAccessoryProduct && storefrontCountries.length > 0 ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/75">
+                    <div className="mb-2 text-[11px] uppercase tracking-[0.32em] text-white/40">Pays de livraison</div>
+                    <select
+                      value={storefrontCountryCode}
+                      onChange={(event) => {
+                        const next = event.target.value.toUpperCase();
+                        setStorefrontCountryCode(next);
+                        setStoredStorefrontCountry(next);
+                      }}
+                      className="w-full rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm font-semibold text-white outline-none"
+                    >
+                      {storefrontCountries.map((country) => (
+                        <option key={country.code} value={country.code} className="bg-slate-950 text-white">
+                          {country.name}
+                        </option>
+                      ))}
+                    </select>
+                    {activeStorefrontNotice ? (
+                      <p className="mt-2 text-xs text-white/55">{activeStorefrontNotice}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <p className="text-sm text-white/70">{description}</p>
+
+                {tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {tags.slice(0, 8).map((tag) => (
+                      <span key={tag} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/70">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                  <p className="text-[11px] uppercase tracking-[0.35em] text-white/40">Infos</p>
+                  <div className="mt-3 space-y-2">
+                    {infoRows.slice(0, 3).map((row) => (
+                      <div key={row.label} className="flex items-center justify-between text-xs">
+                        <span className="text-white/60">{row.label}</span>
+                        <span className="font-semibold text-white">{row.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {!isRechargeDirect ? (
+                    <button
+                      type="button"
+                      onClick={handleAddToCart}
+                      className="w-full rounded-2xl bg-[#d71933] px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(215,25,51,0.45)] transition active:scale-[0.99]"
+                    >
+                      Ajouter au panier
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleBuyNow}
+                    className="w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_15px_45px_rgba(16,185,129,0.45)] transition active:scale-[0.99]"
+                  >
+                    {isRechargeDirect ? "Ouvrir le chat" : "Acheter maintenant"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleShare()}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 shadow-[0_15px_45px_rgba(34,211,238,0.18)] transition active:scale-[0.99]"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    {language === "en" ? "Share" : "Partager"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-10 hidden gap-10 md:grid lg:grid-cols-[1.15fr_0.85fr]">
+              {displayVideo ? (
+                <AutoLoopVideo
+                  src={displayVideo}
+                  title={product.name ?? product.title ?? "Produit"}
+                  aspectClass="aspect-[4/3]"
+                />
+              ) : (
+                <ImageCarousel
+                  images={mergedCarouselImages}
+                  name={product.name ?? product.title ?? "Produit"}
+                  activeIndex={activeImageIndex}
+                  onActiveIndex={setActiveImageIndex}
+                  aspectClass="aspect-[4/3]"
+                  onOpenLightbox={setLightboxSrc}
+                />
+              )}
+
+              <div className="space-y-6">
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+                  <h1 className="text-3xl font-bold text-white">{product.name ?? product.title ?? "Produit"}</h1>
+                  <p className="mt-3 text-3xl font-bold text-[#ff4b63]">{formatPrice(priceValue)}</p>
+                  {storefrontVariants.length > 0 ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/75">
+                      <p className="font-semibold text-white">Choix du client</p>
+                      <select
+                        value={selectedVariant?.id ?? ""}
+                        onChange={(event) => setSelectedVariantId(event.target.value)}
+                        className="mt-3 w-full rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm font-semibold text-white outline-none"
+                      >
+                        {storefrontVariants.map((variant) => (
+                          <option key={variant.id} value={variant.id} className="bg-slate-950 text-white">
+                            {variant.label} · {formatPrice(variant.salePriceFcfa)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+                  <p className="mt-4 text-base text-white/70">{description}</p>
+
+                  <div className="mt-6">
+                    <h2 className="text-lg font-semibold text-white">Informations</h2>
+                    <div className="mt-4 divide-y divide-white/10 text-sm">
+                      {infoRows.map((row) => (
+                        <div key={row.label} className="flex items-center justify-between py-3">
+                          <span className="text-white/60">{row.label}</span>
+                          <span className="text-right font-semibold text-white">{row.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                    {!isRechargeDirect ? (
+                      <button
+                        type="button"
+                        onClick={handleAddToCart}
+                        className="rounded-full bg-[#d71933] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-900/30 transition hover:bg-[#b51229]"
+                      >
+                        Ajouter au panier
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={handleBuyNow}
+                      className="rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-700"
+                    >
+                      {isRechargeDirect ? "Ouvrir le chat" : "Acheter maintenant"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleShare()}
+                      className="inline-flex items-center justify-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-400/10 px-6 py-3 text-sm font-semibold text-cyan-100 shadow-lg shadow-cyan-950/20 transition hover:bg-cyan-400/15"
+                    >
+                      <Share2 className="h-4 w-4" />
+                      {language === "en" ? "Share" : "Partager"}
+                    </button>
+                  </div>
+
+                  {delivery ? (
+                    <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                      <DeliveryBadge delivery={delivery} />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {lightboxSrc ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightboxSrc(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt="Aperçu"
+            className="max-h-[90vh] max-w-[95vw] rounded-2xl object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ) : null}
+    </main>
+  );
+}
