@@ -42,7 +42,7 @@ class AdminSettingsController extends Controller
             'responsibility_assignments' => 'nullable|array',
         ]);
 
-        $allowedRoles = array_merge(['user'], array_keys($responsibilityService->roleCatalog()));
+        $allowedRoles = User::allowedRoles();
 
         foreach ((array) ($data['admins'] ?? []) as $member) {
             $role = (string) ($member['role'] ?? '');

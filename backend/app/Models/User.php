@@ -17,6 +17,8 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    public const DEFAULT_ROLE = 'user';
+
     public const ADMIN_ROLES = [
         'admin',
         'admin_super',
@@ -30,6 +32,11 @@ class User extends Authenticatable
         'staff',
         'viewer',
     ];
+
+    public static function allowedRoles(): array
+    {
+        return array_merge([self::DEFAULT_ROLE], self::ADMIN_ROLES);
+    }
 
     /**
      * The attributes that are mass assignable.

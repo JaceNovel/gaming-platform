@@ -1,0 +1,8 @@
+{
+  "name": "partner-pdfgen",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pdfkit": "^0.18.0"
+  }
+}

@@ -55,7 +55,7 @@ class AdminUsersController extends Controller
         $data = $request->validate([
             'name' => 'sometimes|string|max:255',
             'email' => 'sometimes|email|max:255|unique:users,email,' . $user->id,
-            'role' => ['sometimes', 'string', 'max:32', Rule::in(array_merge(['user'], User::ADMIN_ROLES))],
+            'role' => ['sometimes', 'string', 'max:32', Rule::in(User::allowedRoles())],
             'country_code' => 'nullable|string|max:8',
             'country_name' => 'nullable|string|max:120',
             'is_premium' => 'nullable|boolean',
