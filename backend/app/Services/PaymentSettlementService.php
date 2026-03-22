@@ -6,6 +6,7 @@ use App\Jobs\ProcessMarketplaceOrder;
 use App\Jobs\ProcessOrderDelivery;
 use App\Jobs\ProcessRedeemFulfillment;
 use App\Jobs\SendOrderPaidSms;
+use App\Models\EmailLog;
 use App\Models\MarketplaceOrder;
 use App\Models\Order;
 use App\Models\Payment;
@@ -242,6 +243,12 @@ class PaymentSettlementService
             return;
         }
 
+        if (in_array($orderType, ['purchase', 'redeem_purchase'], true)) {
+            $this->queueAdminOrderPaidNotification($order, $payment, $provider, 'recharges', 'Nouvelle commande payee');
+        } elseif ($orderType === 'marketplace_gaming_account') {
+            $this->queueAdminOrderPaidNotification($order, $payment, $provider, 'sellers', 'Nouvelle commande marketplace payee');
+        }
+
         $orderMeta = $order->meta ?? [];
         if (!is_array($orderMeta)) {
             $orderMeta = [];
@@ -405,5 +412,105 @@ class PaymentSettlementService
                 ]);
             }
         });
+    }
+
+    private function queueAdminOrderPaidNotification(
+        Order $order,
+        Payment $payment,
+        string $provider,
+        string $responsibility,
+        string $subject
+    ): void {
+        $frontendUrl = rtrim((string) (env('FRONTEND_URL', config('app.url'))), '/');
+        $orderType = (string) ($order->type ?? '');
+        $actionUrl = $orderType === 'marketplace_gaming_account'
+            ? $frontendUrl . '/admin/marketplace/orders'
+            : $frontendUrl . '/admin/orders/' . $order->id;
+
+        $headline = $orderType === 'marketplace_gaming_account'
+            ? 'Commande marketplace payee'
+            : 'Nouvelle commande payee';
+
+        $intro = $orderType === 'marketplace_gaming_account'
+            ? 'Une commande marketplace vient d etre payee sur la plateforme.'
+            : 'Une nouvelle commande client vient d etre payee sur le site.';
+
+        $notificationType = $orderType === 'marketplace_gaming_account'
+            ? 'admin_marketplace_order_paid'
+            : 'admin_order_paid';
+
+        $itemSummary = $this->summarizeOrderItems($order);
+
+        DB::afterCommit(function () use ($order, $payment, $provider, $responsibility, $subject, $headline, $intro, $actionUrl, $notificationType, $itemSummary) {
+            try {
+                app(AdminResponsibilityService::class)->notify(
+                    $responsibility,
+                    $notificationType,
+                    $subject,
+                    [
+                        'headline' => $headline,
+                        'intro' => $intro,
+                        'details' => array_values(array_filter([
+                            ['label' => 'Reference', 'value' => (string) ($order->reference ?? ('#' . $order->id))],
+                            ['label' => 'Client', 'value' => (string) ($order->user?->name ?? 'Utilisateur')],
+                            ['label' => 'Email', 'value' => (string) ($order->user?->email ?? '—')],
+                            $itemSummary !== '' ? ['label' => 'Articles', 'value' => $itemSummary] : null,
+                            ['label' => 'Montant', 'value' => number_format((float) ($payment->amount ?? 0), 0, ',', ' ') . ' FCFA'],
+                            ['label' => 'Provider', 'value' => strtoupper($provider)],
+                            ['label' => 'Type', 'value' => (string) ($order->type ?? 'purchase')],
+                        ])),
+                        'actionUrl' => $actionUrl,
+                        'actionText' => 'Voir la commande',
+                    ],
+                    [
+                        'order' => $order->toArray(),
+                        'payment' => $payment->toArray(),
+                        'user' => $order->user?->toArray() ?? [],
+                    ],
+                    [
+                        'order_id' => $order->id,
+                        'payment_id' => $payment->id,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning($provider . ':admin-order-notify-failed', [
+                    'order_id' => $order->id,
+                    'payment_id' => $payment->id,
+                    'responsibility' => $responsibility,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        });
+    }
+
+    private function summarizeOrderItems(Order $order): string
+    {
+        $labels = $order->orderItems
+            ->map(function ($item) {
+                $label = trim((string) ($item->product?->name ?? $item->product?->title ?? ''));
+                if ($label === '') {
+                    $label = 'Produit #' . ($item->product_id ?? 'n/a');
+                }
+
+                $quantity = max(1, (int) ($item->quantity ?? 1));
+
+                return $quantity > 1 ? ($label . ' x' . $quantity) : $label;
+            })
+            ->filter()
+            ->values();
+
+        if ($labels->isEmpty()) {
+            return '';
+        }
+
+        $visible = $labels->take(3)->all();
+        $summary = implode(', ', $visible);
+        $remaining = $labels->count() - count($visible);
+
+        if ($remaining > 0) {
+            $summary .= ' +' . $remaining;
+        }
+
+        return $summary;
     }
 }
