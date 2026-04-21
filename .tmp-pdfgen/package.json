@@ -2,6 +2,10 @@
   "name": "partner-pdfgen",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "npm --prefix ../frontend install && npm --prefix ../frontend run build",
+    "start": "npm --prefix ../frontend run start"
+  },
   "dependencies": {
     "pdfkit": "^0.18.0"
   }
