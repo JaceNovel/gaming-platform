@@ -95,20 +95,17 @@ class AdminDashboardController extends Controller
             $cursor = $groupBy === 'month' ? $cursor->addMonth() : $cursor->addDay();
         }
 
-        $groupExpr = $groupBy === 'month' ? "date_trunc('month', created_at)" : "date_trunc('day', created_at)";
-
         $rows = Payment::query()
-            ->selectRaw("{$groupExpr} as bucket, SUM(amount) as total")
+            ->select(['created_at', 'amount'])
             ->where('status', 'completed')
             ->whereBetween('created_at', [$start->startOfDay(), $end->endOfDay()])
-            ->groupBy('bucket')
-            ->orderBy('bucket')
             ->get();
 
-        $lookup = $rows->mapWithKeys(function ($row) use ($groupBy, $format) {
-            $bucket = Carbon::parse($row->bucket)->format($format);
-            return [$bucket => (float) $row->total];
-        });
+        $lookup = $rows
+            ->groupBy(function ($row) use ($groupBy, $format) {
+                return Carbon::parse($row->created_at)->startOf($groupBy)->format($format);
+            })
+            ->map(fn ($payments) => (float) $payments->sum('amount'));
 
         $values = array_map(fn ($label) => $lookup[$label] ?? 0, $labels);
 
