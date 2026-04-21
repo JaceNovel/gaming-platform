@@ -21,6 +21,7 @@ return new class extends Migration
 
         DB::table('push_subscriptions')
             ->select(['id', 'endpoint'])
+            ->whereNull('endpoint_hash')
             ->orderBy('id')
             ->chunkById(100, function ($rows): void {
                 foreach ($rows as $row) {
@@ -32,9 +33,11 @@ return new class extends Migration
                 }
             });
 
-        Schema::table('push_subscriptions', function (Blueprint $table) {
-            $table->unique('endpoint_hash');
-        });
+        if (!$this->indexExists('push_subscriptions', 'push_subscriptions_endpoint_hash_unique')) {
+            Schema::table('push_subscriptions', function (Blueprint $table) {
+                $table->unique('endpoint_hash');
+            });
+        }
     }
 
     public function down(): void
@@ -43,9 +46,33 @@ return new class extends Migration
             return;
         }
 
+        if ($this->indexExists('push_subscriptions', 'push_subscriptions_endpoint_hash_unique')) {
+            Schema::table('push_subscriptions', function (Blueprint $table) {
+                $table->dropUnique(['endpoint_hash']);
+            });
+        }
+
         Schema::table('push_subscriptions', function (Blueprint $table) {
-            $table->dropUnique(['endpoint_hash']);
             $table->dropColumn('endpoint_hash');
         });
+    }
+
+    private function indexExists(string $table, string $indexName): bool
+    {
+        $driver = Schema::getConnection()->getDriverName();
+
+        return match ($driver) {
+            'mysql' => DB::table('information_schema.statistics')
+                ->where('table_schema', DB::getDatabaseName())
+                ->where('table_name', $table)
+                ->where('index_name', $indexName)
+                ->exists(),
+            'pgsql' => DB::table('pg_indexes')
+                ->where('schemaname', 'public')
+                ->where('tablename', $table)
+                ->where('indexname', $indexName)
+                ->exists(),
+            default => false,
+        };
     }
 };
