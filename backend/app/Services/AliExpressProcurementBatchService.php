@@ -375,8 +375,12 @@ class AliExpressProcurementBatchService
             try {
                 $response = $this->supplierApiClient->iopOperation($account, 'ds-freight-query', $freightPayload);
                 $availableServices = $this->extractFreightServiceNames($response);
+                $noAvailableServices = $availableServices === [];
                 $resolvedService = $this->resolveMatchingDsLogisticsServiceName($requestedService, $availableServices)
                     ?? ($requestedService === null ? $this->selectPreferredDsLogisticsServiceName($availableServices) : null);
+                $errorMessage = $noAvailableServices
+                    ? 'Aucune option de livraison AliExpress n a ete retournee pour ce lot. Verifie le SKU DS, le pays de livraison et la disponibilite logistique cote AliExpress.'
+                    : null;
 
                 if ($batchItem?->productSupplierLink && $resolvedService !== null) {
                     $this->persistResolvedDsLogisticsServiceName($batchItem->productSupplierLink, $resolvedService);
@@ -389,8 +393,11 @@ class AliExpressProcurementBatchService
                     'requested_logistics_service_name' => $requestedService,
                     'resolved_logistics_service_name' => $resolvedService,
                     'available_services' => $availableServices,
-                    'is_valid' => $requestedService === null ? ($resolvedService !== null ? true : null) : $resolvedService !== null,
+                    'is_valid' => $noAvailableServices
+                        ? false
+                        : ($requestedService === null ? ($resolvedService !== null ? true : null) : $resolvedService !== null),
                     'success' => true,
+                    'error_message' => $errorMessage,
                     'request_payload' => $freightPayload,
                     'response' => $response,
                 ];
@@ -425,8 +432,13 @@ class AliExpressProcurementBatchService
                 return trim((string) (($item['product_name'] ?? 'Produit') . ': ' . ($item['error_message'] ?? 'Precheck freight impossible.')));
             }
 
+            $availableServices = array_values(array_filter(Arr::wrap($item['available_services'] ?? []), 'is_string'));
+            if ($availableServices === [] && $this->nullableString($item['resolved_logistics_service_name'] ?? null) === null) {
+                return trim((string) (($item['product_name'] ?? 'Produit') . ': ' . ($item['error_message'] ?? 'Aucune option de livraison AliExpress n a ete retournee pour ce lot.')));
+            }
+
             if (($item['is_valid'] ?? null) === false) {
-                $available = implode(', ', array_slice(array_values(array_filter(Arr::wrap($item['available_services'] ?? []), 'is_string')), 0, 8));
+                $available = implode(', ', array_slice($availableServices, 0, 8));
 
                 return trim((string) (($item['product_name'] ?? 'Produit') . ': logistics_service_name invalide pour ce SKU DS.' . ($available !== '' ? ' Services disponibles: ' . $available : '')));
             }

@@ -1,0 +1,739 @@
+# Pack copier-coller: automatisation AliExpress DS (commandes + envoi)
+
+Ce fichier contient tout le code fourni, organise en blocs a coller dans un projet Laravel.
+
+## 1) Configuration
+
+```php
+<?php
+// config/aliexpress_ds.php
+
+return [
+    'base_url' => env('ALIEXPRESS_BASE_URL', 'https://api-sg.aliexpress.com'),
+    'app_key' => env('ALIEXPRESS_APP_KEY'),
+    'app_secret' => env('ALIEXPRESS_APP_SECRET'),
+    'access_token' => env('ALIEXPRESS_ACCESS_TOKEN'),
+    'timeout' => (int) env('ALIEXPRESS_TIMEOUT', 20),
+    'default_locale' => env('ALIEXPRESS_DS_LOCALE', 'fr_FR'),
+    'default_currency' => 'USD',
+    'default_ship_to_country' => env('ALIEXPRESS_DS_SHIP_TO_COUNTRY', 'FR'),
+    'default_logistics_service' => env('ALIEXPRESS_DS_DEFAULT_LOGISTICS', 'AliExpress Selection Standard'),
+];
+```
+
+```env
+# .env
+ALIEXPRESS_BASE_URL=https://api-sg.aliexpress.com
+ALIEXPRESS_APP_KEY=xxxx
+ALIEXPRESS_APP_SECRET=xxxx
+ALIEXPRESS_ACCESS_TOKEN=xxxx
+ALIEXPRESS_TIMEOUT=20
+ALIEXPRESS_DS_LOCALE=fr_FR
+ALIEXPRESS_DS_SHIP_TO_COUNTRY=FR
+ALIEXPRESS_DS_DEFAULT_LOGISTICS=AliExpress Selection Standard
+```
+
+## 2) Client TOP AliExpress
+
+```php
+<?php
+// app/Services/AliExpressTopClient.php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+
+class AliExpressTopClient
+{
+    public function call(string $method, array $payload = []): array
+    {
+        $baseUrl = rtrim((string) config('aliexpress_ds.base_url'), '/');
+        $appKey = (string) config('aliexpress_ds.app_key');
+        $appSecret = (string) config('aliexpress_ds.app_secret');
+        $accessToken = (string) config('aliexpress_ds.access_token');
+        $timeout = (int) config('aliexpress_ds.timeout', 20);
+
+        if ($appKey === '' || $appSecret === '' || $accessToken === '') {
+            throw new RuntimeException('Config AliExpress manquante (app_key/app_secret/access_token).');
+        }
+
+        $sys = [
+            'app_key' => $appKey,
+            'method' => $method,
+            'format' => 'json',
+            'sign_method' => 'sha256',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+            'v' => '2.0',
+            'access_token' => $accessToken,
+        ];
+
+        $api = $this->flattenPayload($payload);
+        $all = array_merge($sys, $api);
+
+        $all['sign'] = $this->sign($all, $appSecret);
+
+        $response = Http::timeout($timeout)
+            ->asForm()
+            ->post($baseUrl . '/sync', $all);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Erreur HTTP AliExpress: ' . $response->status() . ' ' . $response->body());
+        }
+
+        $json = $response->json();
+        if (! is_array($json)) {
+            throw new RuntimeException('Reponse AliExpress invalide (non JSON).');
+        }
+
+        return $json;
+    }
+
+    private function flattenPayload(array $payload): array
+    {
+        $flat = [];
+        foreach ($payload as $key => $value) {
+            if (is_array($value)) {
+                $flat[$key] = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            } else {
+                $flat[$key] = (string) $value;
+            }
+        }
+
+        return $flat;
+    }
+
+    private function sign(array $params, string $secret): string
+    {
+        unset($params['sign']);
+        ksort($params);
+
+        $toSign = '';
+        foreach ($params as $k => $v) {
+            $toSign .= $k . $v;
+        }
+
+        return strtoupper(hash_hmac('sha256', $toSign, $secret));
+    }
+}
+```
+
+## 3) Service d'automatisation DS
+
+```php
+<?php
+// app/Services/AliExpressDsAutomationService.php
+
+namespace App\Services;
+
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
+use RuntimeException;
+
+class AliExpressDsAutomationService
+{
+    public function __construct(
+        private readonly AliExpressTopClient $client
+    ) {
+    }
+
+    public function buildDraft(array $order): array
+    {
+        // $order attendu:
+        // [
+        //   'id' => 123,
+        //   'shipping_address' => [...],
+        //   'items' => [
+        //      ['product_id' => '123', 'sku_attr' => '14:29;5:100014066', 'qty' => 1, 'logistics_service_name' => 'AliExpress Selection Standard', 'memo' => '...']
+        //   ]
+        // ]
+        $items = [];
+        foreach (Arr::wrap($order['items'] ?? []) as $line) {
+            $items[] = [
+                'product_id' => (string) ($line['product_id'] ?? ''),
+                'sku_attr' => (string) ($line['sku_attr'] ?? ''),
+                'product_count' => (string) max(1, (int) ($line['qty'] ?? 1)),
+                'logistics_service_name' => (string) ($line['logistics_service_name'] ?: config('aliexpress_ds.default_logistics_service')),
+                'order_memo' => (string) ($line['memo'] ?? ('Order #' . ($order['id'] ?? 'N/A'))),
+            ];
+        }
+
+        $this->assertDraft($items);
+
+        return [
+            'ds_extend_request' => [
+                'payment' => [
+                    'pay_currency' => (string) config('aliexpress_ds.default_currency', 'USD'),
+                    'try_to_pay' => 'true',
+                ],
+            ],
+            'param_place_order_request4_open_api_d_t_o' => [
+                'out_order_id' => $this->outOrderId((string) ($order['id'] ?? Str::uuid())),
+                'logistics_address' => $this->normalizeAddress((array) ($order['shipping_address'] ?? [])),
+                'product_items' => $items,
+            ],
+        ];
+    }
+
+    public function createWithAutopay(array $order, ?array $customDraft = null): array
+    {
+        $draft = $customDraft ?? $this->buildDraft($order);
+
+        $freight = $this->freightPrecheck($draft);
+        $error = $this->freightFailure($freight);
+        if ($error !== null) {
+            throw new RuntimeException($error);
+        }
+
+        $draft = $this->applyResolvedLogistics($draft, $freight);
+
+        $raw = $this->client->call('aliexpress.ds.order.create', $draft);
+        $normalized = $this->normalizeCreateResult($raw);
+
+        if (! $normalized['success']) {
+            throw new RuntimeException($normalized['error_message'] ?? 'Creation DS echouee.');
+        }
+
+        return [
+            'success' => true,
+            'external_order_id' => $normalized['order_list'][0] ?? null,
+            'payment_warning' => $normalized['payment_warning'],
+            'supplier_status' => $normalized['payment_warning'] ? 'pending' : 'paid',
+            'freight_check' => $freight,
+            'raw_response' => $raw,
+        ];
+    }
+
+    public function syncOrderAndTracking(string $externalOrderId): array
+    {
+        $orderRaw = $this->client->call('aliexpress.trade.ds.order.get', [
+            'single_order_query' => [
+                'order_id' => $externalOrderId,
+            ],
+        ]);
+
+        $trackingRaw = $this->client->call('aliexpress.ds.order.tracking.get', [
+            'tracking_request' => [
+                'trade_order_id' => $externalOrderId,
+            ],
+        ]);
+
+        $orderStatus = $this->findFirstStringByKeys($orderRaw, ['order_status', 'orderStatus']);
+        $logisticsStatus = $this->findFirstStringByKeys($trackingRaw, ['logistics_status', 'logisticsStatus']);
+        $trackingNumber = $this->findFirstStringByKeys($trackingRaw, ['tracking_no', 'trackingNumber', 'tracking_number']);
+        $provider = $this->findFirstStringByKeys($trackingRaw, ['service_name', 'company_name', 'logistics_company']);
+
+        return [
+            'external_order_id' => $externalOrderId,
+            'remote_order_status' => $orderStatus,
+            'remote_logistics_status' => $logisticsStatus,
+            'tracking_number' => $trackingNumber,
+            'shipping_provider_name' => $provider,
+            'supplier_status' => $this->mapSupplierStatus($orderStatus, $logisticsStatus),
+            'order_raw' => $orderRaw,
+            'tracking_raw' => $trackingRaw,
+        ];
+    }
+
+    public function freightPrecheck(array $draft): array
+    {
+        $locale = (string) config('aliexpress_ds.default_locale', 'fr_FR');
+        $currency = (string) data_get($draft, 'ds_extend_request.payment.pay_currency', 'USD');
+        $shipToCountry = (string) config('aliexpress_ds.default_ship_to_country', 'FR');
+
+        $items = Arr::wrap(data_get($draft, 'param_place_order_request4_open_api_d_t_o.product_items', []));
+        $checks = [];
+
+        foreach ($items as $idx => $item) {
+            $productId = trim((string) ($item['product_id'] ?? ''));
+            $skuAttr = trim((string) ($item['sku_attr'] ?? ''));
+            $requestedService = trim((string) ($item['logistics_service_name'] ?? ''));
+
+            if ($productId === '' || $skuAttr === '') {
+                $checks[] = [
+                    'index' => $idx,
+                    'success' => false,
+                    'error_message' => 'product_id ou sku_attr manquant.',
+                ];
+                continue;
+            }
+
+            $payload = [
+                'queryDeliveryReq' => [
+                    'locale' => $locale,
+                    'language' => strtolower(substr($locale, 0, 2)),
+                    'currency' => $currency,
+                    'shipToCountry' => $shipToCountry,
+                    'productId' => $productId,
+                    // Selon ton mapping, selectedSkuId peut etre derive de sku_attr.
+                    // Si tu as selectedSkuId numerique en DB, envoie-le ici directement.
+                    'selectedSkuId' => $this->extractFirstNumericFromSkuAttr($skuAttr),
+                    'quantity' => max(1, (int) ($item['product_count'] ?? 1)),
+                ],
+            ];
+
+            try {
+                $raw = $this->client->call('aliexpress.ds.freight.query', $payload);
+                $available = $this->extractServiceNames($raw);
+                $resolved = $this->resolveService($requestedService, $available);
+
+                $checks[] = [
+                    'index' => $idx,
+                    'success' => true,
+                    'requested_logistics_service_name' => $requestedService,
+                    'resolved_logistics_service_name' => $resolved,
+                    'available_services' => $available,
+                    'is_valid' => $resolved !== null,
+                    'request_payload' => $payload,
+                    'response' => $raw,
+                ];
+            } catch (\Throwable $e) {
+                $checks[] = [
+                    'index' => $idx,
+                    'success' => false,
+                    'error_message' => $e->getMessage(),
+                    'request_payload' => $payload,
+                ];
+            }
+        }
+
+        return [
+            'checked_at' => now()->toIso8601String(),
+            'items' => $checks,
+        ];
+    }
+
+    private function assertDraft(array $items): void
+    {
+        if ($items === []) {
+            throw new RuntimeException('Aucun item a commander.');
+        }
+
+        foreach ($items as $i => $line) {
+            if (trim((string) ($line['product_id'] ?? '')) === '') {
+                throw new RuntimeException('Ligne #' . ($i + 1) . ': product_id manquant.');
+            }
+            if (trim((string) ($line['sku_attr'] ?? '')) === '') {
+                throw new RuntimeException('Ligne #' . ($i + 1) . ': sku_attr manquant.');
+            }
+        }
+    }
+
+    private function normalizeAddress(array $address): array
+    {
+        $locale = (string) config('aliexpress_ds.default_locale', 'fr_FR');
+
+        $out = [
+            'country' => (string) ($address['country'] ?? config('aliexpress_ds.default_ship_to_country', 'FR')),
+            'province' => (string) ($address['province'] ?? ''),
+            'city' => (string) ($address['city'] ?? ''),
+            'address' => (string) ($address['address1'] ?? ''),
+            'address2' => (string) ($address['address2'] ?? ''),
+            'zip' => (string) ($address['zip'] ?? ''),
+            'contact_person' => (string) ($address['contact_person'] ?? ''),
+            'full_name' => (string) ($address['full_name'] ?? ''),
+            'mobile_no' => $this->phoneDigits((string) ($address['mobile_no'] ?? '')),
+            'phone' => $this->phoneDigits((string) ($address['phone'] ?? '')),
+            'phone_country' => (string) ($address['phone_country'] ?? '+33'),
+            'locale' => $locale,
+        ];
+
+        return array_filter($out, static fn ($v) => $v !== null && $v !== '');
+    }
+
+    private function outOrderId(string $source): string
+    {
+        return Str::limit('ds-' . preg_replace('/[^a-zA-Z0-9\-]/', '-', $source), 64, '');
+    }
+
+    private function phoneDigits(string $phone): string
+    {
+        return preg_replace('/\D+/', '', $phone) ?? '';
+    }
+
+    private function extractServiceNames(array $payload): array
+    {
+        $names = [];
+        $stack = [$payload];
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if (! is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $k => $v) {
+                if (is_array($v)) {
+                    $stack[] = $v;
+                    continue;
+                }
+
+                $key = strtolower((string) $k);
+                if (in_array($key, ['service_name', 'servicename', 'logistics_service_name', 'company_name'], true)) {
+                    $value = trim((string) $v);
+                    if ($value !== '') {
+                        $names[] = $value;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    private function resolveService(string $requested, array $available): ?string
+    {
+        $requested = trim($requested);
+        if ($requested === '') {
+            return $available[0] ?? null;
+        }
+
+        foreach ($available as $name) {
+            if (strcasecmp($requested, (string) $name) === 0) {
+                return (string) $name;
+            }
+        }
+
+        $aliasRequested = $this->alias($requested);
+        foreach ($available as $name) {
+            if ($this->alias((string) $name) === $aliasRequested) {
+                return (string) $name;
+            }
+        }
+
+        return null;
+    }
+
+    private function alias(string $name): string
+    {
+        $n = Str::lower(trim($name));
+        $n = str_replace(['expedition standard aliexpress', 'aliexpress standard shipping'], 'aliexpress-standard', $n);
+        $n = str_replace(['aliexpress selection standard'], 'aliexpress-standard', $n);
+        $n = preg_replace('/[^a-z0-9]+/', '-', $n) ?? '';
+
+        return trim($n, '-');
+    }
+
+    private function freightFailure(array $freight): ?string
+    {
+        foreach (Arr::wrap($freight['items'] ?? []) as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            if (($item['success'] ?? true) === false) {
+                return 'Freight precheck KO: ' . (string) ($item['error_message'] ?? 'erreur inconnue');
+            }
+
+            if (($item['is_valid'] ?? false) === false) {
+                return 'Freight precheck KO: service logistique invalide pour au moins une ligne.';
+            }
+        }
+
+        return null;
+    }
+
+    private function applyResolvedLogistics(array $draft, array $freight): array
+    {
+        $items = Arr::wrap(data_get($draft, 'param_place_order_request4_open_api_d_t_o.product_items', []));
+        foreach ($items as $i => $item) {
+            $resolved = trim((string) data_get($freight, 'items.' . $i . '.resolved_logistics_service_name', ''));
+            if ($resolved !== '') {
+                $items[$i]['logistics_service_name'] = $resolved;
+            }
+        }
+
+        data_set($draft, 'param_place_order_request4_open_api_d_t_o.product_items', $items);
+
+        return $draft;
+    }
+
+    private function normalizeCreateResult(array $payload): array
+    {
+        $orderList = Arr::wrap($this->findFirstArrayByKeys($payload, ['order_list', 'orderList']) ?? []);
+        $orderList = array_values(array_filter(array_map(static fn ($v) => trim((string) $v), $orderList)));
+
+        if ($orderList === []) {
+            $single = $this->findFirstStringByKeys($payload, ['order_id', 'orderId', 'trade_order_id', 'tradeOrderId']);
+            if ($single !== null) {
+                $orderList = [$single];
+            }
+        }
+
+        $isSuccess = $this->findFirstBoolByKeys($payload, ['is_success', 'isSuccess', 'success']);
+        $errorCode = $this->findFirstStringByKeys($payload, ['error_code', 'errorCode']);
+        $remoteMessage = $this->findFirstStringByKeys($payload, ['error_msg', 'errorMessage', 'sub_msg', 'subMessage', 'error_message']);
+        $requestId = $this->findFirstStringByKeys($payload, ['request_id', 'requestId']);
+
+        $success = $orderList !== [] || ($isSuccess === true && $errorCode === null);
+        $paymentWarning = $success && ($errorCode !== null || $remoteMessage !== null)
+            ? ($remoteMessage ?: $errorCode)
+            : null;
+
+        return [
+            'success' => $success,
+            'is_success' => $isSuccess,
+            'order_list' => $orderList,
+            'error_code' => $errorCode,
+            'remote_error_message' => $remoteMessage,
+            'request_id' => $requestId,
+            'payment_warning' => $paymentWarning,
+            'error_message' => $success ? null : ($remoteMessage ?: ('DS create failed' . ($requestId ? ' request_id=' . $requestId : ''))),
+        ];
+    }
+
+    private function mapSupplierStatus(?string $orderStatus, ?string $logisticsStatus): string
+    {
+        $orderStatus = strtoupper((string) $orderStatus);
+        $logisticsStatus = strtoupper((string) $logisticsStatus);
+
+        if ($orderStatus === 'FIN' || $logisticsStatus === 'BUYER_ACCEPT_GOODS') {
+            return 'delivered';
+        }
+
+        if (in_array($orderStatus, ['SELLER_SEND_PART_GOODS', 'WAIT_BUYER_ACCEPT_GOODS'], true) ||
+            in_array($logisticsStatus, ['SELLER_SEND_GOODS', 'SELLER_SEND_PART_GOODS'], true)) {
+            return 'delivering';
+        }
+
+        if (in_array($orderStatus, ['PLACE_ORDER_SUCCESS', 'PAYMENT_PROCESSING', 'WAIT_SELLER_SEND_GOODS'], true)) {
+            return 'paid';
+        }
+
+        return 'pending';
+    }
+
+    private function extractFirstNumericFromSkuAttr(string $skuAttr): ?string
+    {
+        if (preg_match('/\d+/', $skuAttr, $m) === 1) {
+            return $m[0];
+        }
+
+        return null;
+    }
+
+    private function findFirstStringByKeys(array $payload, array $keys): ?string
+    {
+        $needle = array_flip(array_map(static fn ($k) => strtolower($k), $keys));
+        $stack = [$payload];
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if (! is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $k => $v) {
+                if (is_array($v)) {
+                    $stack[] = $v;
+                    continue;
+                }
+
+                if (is_string($k) && isset($needle[strtolower($k)])) {
+                    $s = trim((string) $v);
+                    if ($s !== '') {
+                        return $s;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function findFirstArrayByKeys(array $payload, array $keys): ?array
+    {
+        $needle = array_flip(array_map(static fn ($k) => strtolower($k), $keys));
+        $stack = [$payload];
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if (! is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $k => $v) {
+                if (is_array($v)) {
+                    if (is_string($k) && isset($needle[strtolower($k)])) {
+                        return $v;
+                    }
+                    $stack[] = $v;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function findFirstBoolByKeys(array $payload, array $keys): ?bool
+    {
+        $needle = array_flip(array_map(static fn ($k) => strtolower($k), $keys));
+        $stack = [$payload];
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if (! is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $k => $v) {
+                if (is_array($v)) {
+                    $stack[] = $v;
+                    continue;
+                }
+
+                if (is_string($k) && isset($needle[strtolower($k)])) {
+                    $b = filter_var($v, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                    if ($b !== null) {
+                        return $b;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
+```
+
+## 4) Controleur API
+
+```php
+<?php
+// app/Http/Controllers/AliExpressDsController.php
+
+namespace App\Http\Controllers;
+
+use App\Services\AliExpressDsAutomationService;
+use Illuminate\Http\Request;
+
+class AliExpressDsController extends Controller
+{
+    public function draft(Request $request, AliExpressDsAutomationService $service)
+    {
+        $order = $request->validate([
+            'id' => 'required',
+            'shipping_address' => 'required|array',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|string',
+            'items.*.sku_attr' => 'required|string',
+            'items.*.qty' => 'nullable|integer|min:1',
+            'items.*.logistics_service_name' => 'nullable|string',
+            'items.*.memo' => 'nullable|string',
+        ]);
+
+        $draft = $service->buildDraft($order);
+        $freight = $service->freightPrecheck($draft);
+
+        return response()->json([
+            'draft' => $draft,
+            'freight_check' => $freight,
+        ]);
+    }
+
+    public function create(Request $request, AliExpressDsAutomationService $service)
+    {
+        $data = $request->validate([
+            'order' => 'required|array',
+            'custom_draft' => 'nullable|array',
+        ]);
+
+        $result = $service->createWithAutopay($data['order'], $data['custom_draft'] ?? null);
+
+        // Ici tu persistes localement:
+        // - external_order_id
+        // - supplier_status (paid/pending)
+        // - payload request/response
+        // - freight_check
+
+        return response()->json($result);
+    }
+
+    public function sync(string $externalOrderId, AliExpressDsAutomationService $service)
+    {
+        $result = $service->syncOrderAndTracking($externalOrderId);
+
+        // Ici tu updates localement:
+        // - supplier_status
+        // - tracking_number
+        // - shipping_provider_name
+        // - dernier snapshot remote
+
+        return response()->json($result);
+    }
+}
+```
+
+## 5) Routes API
+
+```php
+<?php
+// routes/api.php (ajoute ces routes)
+
+use App\Http\Controllers\AliExpressDsController;
+use Illuminate\Support\Facades\Route;
+
+Route::prefix('aliexpress/ds')->group(function () {
+    Route::post('/draft', [AliExpressDsController::class, 'draft']);
+    Route::post('/create', [AliExpressDsController::class, 'create']);
+    Route::post('/sync/{externalOrderId}', [AliExpressDsController::class, 'sync']);
+});
+```
+
+## 6) Commande de sync periodique
+
+```php
+<?php
+// app/Console/Commands/SyncAliExpressDsOrders.php
+// Optional: cron pour "envoie/suivi" automatique
+
+namespace App\Console\Commands;
+
+use App\Services\AliExpressDsAutomationService;
+use Illuminate\Console\Command;
+
+class SyncAliExpressDsOrders extends Command
+{
+    protected $signature = 'ds:sync-orders';
+    protected $description = 'Synchronise les statuts DS AliExpress (order + tracking).';
+
+    public function handle(AliExpressDsAutomationService $service): int
+    {
+        // Remplace par ta requete DB reelle:
+        // $orders = Order::query()->whereNotNull('supplier_external_order_id')->whereIn('supplier_status', ['pending','paid','delivering'])->get();
+
+        $orders = []; // placeholder
+
+        foreach ($orders as $order) {
+            try {
+                $sync = $service->syncOrderAndTracking((string) $order->supplier_external_order_id);
+
+                // $order->update([...]); // status + tracking + provider
+                $this->info('SYNC OK: ' . $order->id . ' -> ' . ($sync['supplier_status'] ?? 'n/a'));
+            } catch (\Throwable $e) {
+                $this->error('SYNC KO: ' . $order->id . ' -> ' . $e->getMessage());
+            }
+        }
+
+        return self::SUCCESS;
+    }
+}
+```
+
+```php
+<?php
+// app/Console/Kernel.php
+// Ajoute la planification
+
+protected function schedule(\Illuminate\Console\Scheduling\Schedule $schedule): void
+{
+    $schedule->command('ds:sync-orders')->everyTenMinutes();
+}
+```
+
+## 7) Utilisation rapide
+
+1. Appelle `POST /api/aliexpress/ds/draft` pour verifier draft + freight.
+2. Appelle `POST /api/aliexpress/ds/create` pour creer la commande DS avec `try_to_pay=true`.
+3. Si `payment_warning != null`, garde le statut local `pending`.
+4. Lance la sync periodique pour l'envoi/tracking via `ds:sync-orders`.

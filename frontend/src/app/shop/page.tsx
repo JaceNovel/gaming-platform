@@ -18,7 +18,7 @@ type MenuGame = {
   image?: string | null;
 };
 
-type CategoryKey = "recharges" | "abonnements" | "accounts" | "accessoires";
+type CategoryKey = "recharges" | "abonnements" | "accessoires";
 
 const FIXED_BG = "/images/WhatsApp%20Image%202026-02-06%20at%2003.44.47.jpeg";
 
@@ -30,7 +30,6 @@ const CATEGORIES: Array<{
 }> = [
   { key: "recharges", title: "Recharges", emoji: "🎮", needsGame: true },
   { key: "abonnements", title: "Abonnements", emoji: "👑", needsGame: true },
-  { key: "accounts", title: "Comptes Gaming", emoji: "🧩", needsGame: true },
   { key: "accessoires", title: "Accessoires", emoji: "🛒", needsGame: false },
 ];
 
@@ -52,7 +51,6 @@ const parseGamesPayload = (payload: any): MenuGame[] => {
 const contextForCategory = (key: CategoryKey) => {
   if (key === "recharges") return "recharge";
   if (key === "abonnements") return "subscription";
-  if (key === "accounts") return "marketplace";
   return null;
 };
 
@@ -61,7 +59,6 @@ const hrefForSelection = (key: CategoryKey, gameSlug?: string) => {
   if (!gameSlug) return "/shop";
   if (key === "recharges") return `/recharges/${encodeURIComponent(gameSlug)}`;
   if (key === "abonnements") return `/abonnements/${encodeURIComponent(gameSlug)}`;
-  if (key === "accounts") return `/gaming-accounts/${encodeURIComponent(gameSlug)}`;
   return "/shop";
 };
 
@@ -89,7 +86,6 @@ export default function ShopPage() {
             categories: {
               recharges: "Recharges",
               abonnements: "Abonnements",
-              accounts: "Comptes de jeu",
               accessoires: "Accessoires",
             },
             helpPrefix: "Besoin d’aide ? Va sur",
@@ -110,7 +106,6 @@ export default function ShopPage() {
             categories: {
               recharges: "Top-ups",
               abonnements: "Subscriptions",
-              accounts: "Gaming Accounts",
               accessoires: "Accessories",
             },
             helpPrefix: "Need help? Go to",

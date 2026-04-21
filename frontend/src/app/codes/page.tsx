@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Download, X } from "lucide-react";
 import RequireAuth from "@/components/auth/RequireAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
 import SectionTitle from "@/components/ui/SectionTitle";
@@ -56,6 +57,12 @@ type MeRedeemsResponse = {
   current_page?: number;
   last_page?: number;
   next_page_url?: string | null;
+};
+
+type RedeemModalState = {
+  orderId: number;
+  orderReference: string;
+  items: MeRedeemsRow[];
 };
 
 const prettyOrderStatus = (status?: string | null) => {
@@ -160,7 +167,9 @@ function CodesClient() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const [banner, setBanner] = useState<string | null>(null);
+  const [redeemModal, setRedeemModal] = useState<RedeemModalState | null>(null);
   const loadSeq = useRef(0);
+  const openedRedeemModalRef = useRef<string | null>(null);
 
   useEffect(() => {
     try {
@@ -174,14 +183,15 @@ function CodesClient() {
 
   useEffect(() => {
     const status = String(searchParams.get("payment_status") ?? "").toLowerCase();
+    const order = String(searchParams.get("order") ?? "").trim();
     if (!status) return;
 
     const isSuccess = status === "success" || status === "paid" || status === "completed";
     if (isSuccess) {
-      setBanner("Paiement confirmé. Tes codes sont disponibles ci-dessous.");
+      setBanner(order ? "Paiement confirmé. Ton bon diamant est prêt ci-dessous." : "Paiement confirmé. Tes codes sont disponibles ci-dessous.");
       window.setTimeout(() => {
         setBanner(null);
-        router.replace("/codes");
+        router.replace(order ? `/codes?order=${encodeURIComponent(order)}` : "/codes");
       }, 4500);
     }
   }, [router, searchParams]);
@@ -208,6 +218,40 @@ function CodesClient() {
       .map(([orderId, value]) => ({ orderId, order: value.order, items: value.items }))
       .sort((a, b) => (b.orderId ?? 0) - (a.orderId ?? 0));
   }, [deliveries]);
+
+  useEffect(() => {
+    const status = String(searchParams.get("payment_status") ?? "").toLowerCase();
+    const orderParam = String(searchParams.get("order") ?? "").trim();
+    const isSuccess = status === "success" || status === "paid" || status === "completed";
+
+    if (!isSuccess || !orderParam || deliveriesByOrder.length === 0) {
+      return;
+    }
+
+    if (openedRedeemModalRef.current === orderParam) {
+      return;
+    }
+
+    const numericOrderId = Number(orderParam);
+    const group = deliveriesByOrder.find((entry) => {
+      if (Number.isFinite(numericOrderId) && numericOrderId > 0) {
+        return entry.orderId === numericOrderId;
+      }
+      return String(entry.order?.reference ?? "").trim() === orderParam;
+    });
+
+    const deliveredItems = (group?.items ?? []).filter((row) => Boolean(String(row.code ?? "").trim()));
+    if (!group || deliveredItems.length === 0) {
+      return;
+    }
+
+    openedRedeemModalRef.current = orderParam;
+    setRedeemModal({
+      orderId: group.orderId,
+      orderReference: String(group.order?.reference ?? `#${group.orderId}`),
+      items: deliveredItems,
+    });
+  }, [deliveriesByOrder, searchParams]);
 
   const last5DeliveredCodes = useMemo(() => {
     const rows = deliveries
@@ -332,6 +376,23 @@ function CodesClient() {
     }
   };
 
+  const handleCopyRedeemCodes = async (rows: MeRedeemsRow[]) => {
+    const codesText = rows
+      .map((row) => String(row.code ?? "").trim())
+      .filter(Boolean)
+      .join("\n");
+
+    if (!codesText) {
+      setBanner("Aucun code à copier.");
+      window.setTimeout(() => setBanner(null), 2000);
+      return;
+    }
+
+    const ok = await copyToClipboard(codesText);
+    setBanner(ok ? "Bon diamant copié" : "Copie impossible");
+    window.setTimeout(() => setBanner(null), 2200);
+  };
+
   useEffect(() => {
     void loadOrders();
     void loadMyRedeems(1, "replace");
@@ -342,6 +403,81 @@ function CodesClient() {
 
   return (
     <div className="min-h-screen text-white">
+      {redeemModal ? (
+        <div
+          className="fixed inset-0 z-[120] grid place-items-center bg-black/75 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Bon diamant"
+          onClick={() => setRedeemModal(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-[30px] border border-cyan-300/20 bg-[#050816]/95 p-6 shadow-[0_30px_90px_rgba(0,0,0,0.55)] backdrop-blur"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.35em] text-cyan-200/70">Bon de diamants</p>
+                <h2 className="mt-2 text-2xl font-black text-white">Recharge prête</h2>
+                <p className="mt-2 text-sm text-white/70">
+                  Commande {redeemModal.orderReference}. Copie ton bon puis télécharge le guide PDF pour effectuer la recharge.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRedeemModal(null)}
+                className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/70 hover:text-white"
+                aria-label="Fermer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {redeemModal.items.map((row) => (
+                <div key={row.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white break-all">{row.code}</p>
+                      <p className="mt-1 text-xs text-white/60">
+                        {row.denomination?.label ? row.denomination.label : "Code"}
+                        {row.denomination?.diamonds ? ` • ${row.denomination.diamonds} diamonds` : ""}
+                        {row.quantity_index ? ` • #${row.quantity_index}` : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyRedeemCodes([row])}
+                      className="shrink-0 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
+                    >
+                      Copier
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => void handleCopyRedeemCodes(redeemModal.items)}
+                className="inline-flex items-center justify-center rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100"
+              >
+                Copier le bon
+              </button>
+              <a
+                href={REDEEM_GUIDE_PDF_PATH}
+                download
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100"
+              >
+                <Download className="h-4 w-4" />
+                Télécharger le guide PDF
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-black" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(180,70,255,0.30),transparent_45%),radial-gradient(circle_at_70%_50%,rgba(0,255,255,0.18),transparent_50%),radial-gradient(circle_at_50%_90%,rgba(255,160,0,0.12),transparent_55%)]" />

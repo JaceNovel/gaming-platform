@@ -1,0 +1,1584 @@
+```env
+# .env
+ALIEXPRESS_API_BASE_URL=https://api-sg.aliexpress.com
+ALIEXPRESS_APP_KEY=
+ALIEXPRESS_APP_SECRET=
+ALIEXPRESS_ACCESS_TOKEN=
+ALIEXPRESS_TIMEOUT=20
+ALIEXPRESS_DS_PRODUCT_GET_METHOD=aliexpress.ds.product.get
+ALIEXPRESS_DS_PRODUCT_WHOLESALE_GET_METHOD=aliexpress.ds.product.wholesale.get
+ALIEXPRESS_DS_FREIGHT_QUERY_METHOD=aliexpress.ds.freight.query
+ALIEXPRESS_DS_DEFAULT_SHIP_TO_COUNTRY=TG
+ALIEXPRESS_DS_DEFAULT_TARGET_CURRENCY=USD
+ALIEXPRESS_DS_DEFAULT_TARGET_LANGUAGE=fr
+```
+
+```php
+<?php
+// config/aliexpress_ds.php
+
+return [
+    'base_url' => env('ALIEXPRESS_API_BASE_URL', 'https://api-sg.aliexpress.com'),
+    'app_key' => env('ALIEXPRESS_APP_KEY'),
+    'app_secret' => env('ALIEXPRESS_APP_SECRET'),
+    'access_token' => env('ALIEXPRESS_ACCESS_TOKEN'),
+    'timeout' => (int) env('ALIEXPRESS_TIMEOUT', 20),
+    'product_get_method' => env('ALIEXPRESS_DS_PRODUCT_GET_METHOD', 'aliexpress.ds.product.get'),
+    'product_wholesale_method' => env('ALIEXPRESS_DS_PRODUCT_WHOLESALE_GET_METHOD', 'aliexpress.ds.product.wholesale.get'),
+    'freight_query_method' => env('ALIEXPRESS_DS_FREIGHT_QUERY_METHOD', 'aliexpress.ds.freight.query'),
+    'default_ship_to_country' => env('ALIEXPRESS_DS_DEFAULT_SHIP_TO_COUNTRY', 'TG'),
+    'default_target_currency' => env('ALIEXPRESS_DS_DEFAULT_TARGET_CURRENCY', 'USD'),
+    'default_target_language' => env('ALIEXPRESS_DS_DEFAULT_TARGET_LANGUAGE', 'fr'),
+];
+```
+
+```php
+<?php
+// routes/api.php
+
+use App\Http\Controllers\Api\AdminAliExpressDsImportController;
+use Illuminate\Support\Facades\Route;
+
+Route::post('/admin/aliexpress/import', [AdminAliExpressDsImportController::class, 'import']);
+```
+
+```php
+<?php
+// app/Exceptions/AliExpressImportDiagnosticException.php
+
+namespace App\Exceptions;
+
+use RuntimeException;
+
+class AliExpressImportDiagnosticException extends RuntimeException
+{
+    public function __construct(
+        string $message,
+        private readonly array $context = []
+    ) {
+        parent::__construct($message);
+    }
+
+    public function context(): array
+    {
+        return $this->context;
+    }
+}
+```
+
+```php
+<?php
+// app/Models/SupplierProduct.php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class SupplierProduct extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'external_product_id',
+        'external_offer_id',
+        'title',
+        'supplier_name',
+        'source_url',
+        'main_image_url',
+        'category_path_json',
+        'attributes_json',
+        'product_payload_json',
+    ];
+
+    protected $casts = [
+        'category_path_json' => 'array',
+        'attributes_json' => 'array',
+        'product_payload_json' => 'array',
+    ];
+
+    public function skus(): HasMany
+    {
+        return $this->hasMany(SupplierProductSku::class);
+    }
+}
+```
+
+```php
+<?php
+// app/Models/SupplierProductSku.php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class SupplierProductSku extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'supplier_product_id',
+        'external_sku_id',
+        'sku_label',
+        'variant_attributes_json',
+        'moq',
+        'unit_price',
+        'currency_code',
+        'available_quantity',
+        'lead_time_days',
+        'logistics_modes_json',
+        'sku_payload_json',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'variant_attributes_json' => 'array',
+        'logistics_modes_json' => 'array',
+        'sku_payload_json' => 'array',
+        'unit_price' => 'float',
+        'is_active' => 'boolean',
+    ];
+
+    public function supplierProduct(): BelongsTo
+    {
+        return $this->belongsTo(SupplierProduct::class);
+    }
+}
+```
+
+```php
+<?php
+// database/migrations/2026_04_07_180000_create_supplier_products_tables.php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::create('supplier_products', function (Blueprint $table) {
+            $table->id();
+            $table->string('external_product_id')->unique();
+            $table->string('external_offer_id')->nullable();
+            $table->string('title');
+            $table->string('supplier_name')->nullable();
+            $table->text('source_url')->nullable();
+            $table->text('main_image_url')->nullable();
+            $table->json('category_path_json')->nullable();
+            $table->json('attributes_json')->nullable();
+            $table->json('product_payload_json')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('supplier_product_skus', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('supplier_product_id')->constrained()->cascadeOnDelete();
+            $table->string('external_sku_id');
+            $table->string('sku_label')->nullable();
+            $table->json('variant_attributes_json')->nullable();
+            $table->unsignedInteger('moq')->default(1);
+            $table->decimal('unit_price', 18, 4)->nullable();
+            $table->string('currency_code', 8)->nullable();
+            $table->unsignedInteger('available_quantity')->nullable();
+            $table->unsignedInteger('lead_time_days')->nullable();
+            $table->json('logistics_modes_json')->nullable();
+            $table->json('sku_payload_json')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+
+            $table->unique(['supplier_product_id', 'external_sku_id']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('supplier_product_skus');
+        Schema::dropIfExists('supplier_products');
+    }
+};
+```
+
+```php
+<?php
+// app/Services/AliExpressTopClient.php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+
+class AliExpressTopClient
+{
+    public function call(string $method, array $payload = []): array
+    {
+        $baseUrl = rtrim((string) config('aliexpress_ds.base_url'), '/');
+        $appKey = (string) config('aliexpress_ds.app_key');
+        $appSecret = (string) config('aliexpress_ds.app_secret');
+        $accessToken = (string) config('aliexpress_ds.access_token');
+        $timeout = (int) config('aliexpress_ds.timeout', 20);
+
+        if ($appKey === '' || $appSecret === '' || $accessToken === '') {
+            throw new RuntimeException('Configuration AliExpress manquante (app_key/app_secret/access_token).');
+        }
+
+        $system = [
+            'app_key' => $appKey,
+            'method' => $method,
+            'format' => 'json',
+            'sign_method' => 'sha256',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+            'v' => '2.0',
+            'access_token' => $accessToken,
+        ];
+
+        $business = [];
+        foreach ($payload as $key => $value) {
+            $business[$key] = is_array($value)
+                ? json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : (string) $value;
+        }
+
+        $params = array_merge($system, $business);
+        $params['sign'] = $this->sign($params, $appSecret);
+
+        $response = Http::timeout($timeout)
+            ->asForm()
+            ->post($baseUrl . '/sync', $params);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Erreur HTTP AliExpress: ' . $response->status() . ' ' . $response->body());
+        }
+
+        $json = $response->json();
+        if (! is_array($json)) {
+            throw new RuntimeException('Reponse AliExpress invalide.');
+        }
+
+        return $json;
+    }
+
+    private function sign(array $params, string $secret): string
+    {
+        unset($params['sign']);
+        ksort($params);
+
+        $toSign = '';
+        foreach ($params as $key => $value) {
+            $toSign .= $key . $value;
+        }
+
+        return strtoupper(hash_hmac('sha256', $toSign, $secret));
+    }
+}
+```
+
+```php
+<?php
+// app/Services/SupplierCatalogPersistenceService.php
+
+namespace App\Services;
+
+use App\Models\SupplierProduct;
+use App\Models\SupplierProductSku;
+use Illuminate\Support\Facades\DB;
+
+class SupplierCatalogPersistenceService
+{
+    public function store(array $normalized): array
+    {
+        return DB::transaction(function () use ($normalized): array {
+            $product = SupplierProduct::query()->updateOrCreate(
+                [
+                    'external_product_id' => (string) $normalized['external_product_id'],
+                ],
+                [
+                    'external_offer_id' => $normalized['external_offer_id'] ?? null,
+                    'title' => (string) $normalized['title'],
+                    'supplier_name' => $normalized['supplier_name'] ?? null,
+                    'source_url' => $normalized['source_url'] ?? null,
+                    'main_image_url' => $normalized['main_image_url'] ?? null,
+                    'category_path_json' => is_array($normalized['category_path_json'] ?? null) ? $normalized['category_path_json'] : null,
+                    'attributes_json' => is_array($normalized['attributes_json'] ?? null) ? $normalized['attributes_json'] : null,
+                    'product_payload_json' => is_array($normalized['product_payload_json'] ?? null) ? $normalized['product_payload_json'] : null,
+                ]
+            );
+
+            $seen = [];
+            foreach ((array) ($normalized['skus'] ?? []) as $sku) {
+                if (! is_array($sku)) {
+                    continue;
+                }
+
+                $externalSkuId = trim((string) ($sku['external_sku_id'] ?? ''));
+                if ($externalSkuId === '') {
+                    continue;
+                }
+
+                $seen[] = $externalSkuId;
+
+                SupplierProductSku::query()->updateOrCreate(
+                    [
+                        'supplier_product_id' => $product->id,
+                        'external_sku_id' => $externalSkuId,
+                    ],
+                    [
+                        'sku_label' => $sku['sku_label'] ?? null,
+                        'variant_attributes_json' => is_array($sku['variant_attributes_json'] ?? null) ? $sku['variant_attributes_json'] : null,
+                        'moq' => max(1, (int) ($sku['moq'] ?? 1)),
+                        'unit_price' => is_numeric($sku['unit_price'] ?? null) ? (float) $sku['unit_price'] : null,
+                        'currency_code' => $sku['currency_code'] ?? null,
+                        'available_quantity' => isset($sku['available_quantity']) ? (int) $sku['available_quantity'] : null,
+                        'lead_time_days' => isset($sku['lead_time_days']) ? (int) $sku['lead_time_days'] : null,
+                        'logistics_modes_json' => is_array($sku['logistics_modes_json'] ?? null) ? $sku['logistics_modes_json'] : null,
+                        'sku_payload_json' => is_array($sku['sku_payload_json'] ?? null) ? $sku['sku_payload_json'] : null,
+                        'is_active' => (bool) ($sku['is_active'] ?? true),
+                    ]
+                );
+            }
+
+            if ($seen !== []) {
+                SupplierProductSku::query()
+                    ->where('supplier_product_id', $product->id)
+                    ->whereNotIn('external_sku_id', $seen)
+                    ->delete();
+            }
+
+            $product->load('skus');
+
+            return [
+                'id' => $product->id,
+                'external_product_id' => $product->external_product_id,
+                'external_offer_id' => $product->external_offer_id,
+                'title' => $product->title,
+                'supplier_name' => $product->supplier_name,
+                'source_url' => $product->source_url,
+                'main_image_url' => $product->main_image_url,
+                'category_path_json' => $product->category_path_json,
+                'attributes_json' => $product->attributes_json,
+                'product_payload_json' => $product->product_payload_json,
+                'skus' => $product->skus->map(fn (SupplierProductSku $sku) => [
+                    'id' => $sku->id,
+                    'external_sku_id' => $sku->external_sku_id,
+                    'sku_label' => $sku->sku_label,
+                    'variant_attributes_json' => $sku->variant_attributes_json,
+                    'moq' => $sku->moq,
+                    'unit_price' => $sku->unit_price,
+                    'currency_code' => $sku->currency_code,
+                    'available_quantity' => $sku->available_quantity,
+                    'lead_time_days' => $sku->lead_time_days,
+                    'logistics_modes_json' => $sku->logistics_modes_json,
+                    'sku_payload_json' => $sku->sku_payload_json,
+                    'is_active' => $sku->is_active,
+                ])->values()->all(),
+            ];
+        });
+    }
+}
+```
+
+```php
+<?php
+// app/Services/AliExpressDsProductImportService.php
+
+namespace App\Services;
+
+use App\Exceptions\AliExpressImportDiagnosticException;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
+
+class AliExpressDsProductImportService
+{
+    public function __construct(
+        private readonly AliExpressTopClient $client,
+        private readonly SupplierCatalogPersistenceService $persistence,
+    ) {
+    }
+
+    public function importByExternalProductId(array $input): array
+    {
+        $externalProductId = trim((string) ($input['external_product_id'] ?? ''));
+        $shipToCountry = strtoupper(trim((string) ($input['ship_to_country'] ?? config('aliexpress_ds.default_ship_to_country', 'TG'))));
+        $targetCurrency = strtoupper(trim((string) ($input['target_currency'] ?? config('aliexpress_ds.default_target_currency', 'USD'))));
+        $targetLanguage = trim((string) ($input['target_language'] ?? config('aliexpress_ds.default_target_language', 'fr')));
+        $remoteMode = trim((string) ($input['remote_mode'] ?? 'ds_product'));
+
+        if ($externalProductId === '') {
+            throw new RuntimeException('external_product_id manquant.');
+        }
+
+        $candidates = $remoteMode === 'ds_wholesale'
+            ? [
+                config('aliexpress_ds.product_wholesale_method', 'aliexpress.ds.product.wholesale.get'),
+                config('aliexpress_ds.product_get_method', 'aliexpress.ds.product.get'),
+            ]
+            : [
+                config('aliexpress_ds.product_get_method', 'aliexpress.ds.product.get'),
+                config('aliexpress_ds.product_wholesale_method', 'aliexpress.ds.product.wholesale.get'),
+            ];
+
+        $attempts = [];
+        $lastRaw = null;
+        $lastErrorCode = null;
+        $lastRequestId = null;
+
+        foreach ($candidates as $index => $method) {
+            $attempts[] = $method;
+
+            Log::info('aliexpress_ds.import_attempt', [
+                'external_product_id' => $externalProductId,
+                'ship_to_country' => $shipToCountry,
+                'target_currency' => $targetCurrency,
+                'target_language' => $targetLanguage,
+                'attempt_method' => $method,
+            ]);
+
+            $raw = $this->client->call($method, [
+                'ship_to_country' => $shipToCountry,
+                'product_id' => $externalProductId,
+                'target_currency' => $targetCurrency,
+                'target_language' => $targetLanguage,
+                'remove_personal_benefit' => 'false',
+            ]);
+
+            $lastRaw = $raw;
+            $lastErrorCode = $this->findFirstStringByKeys($raw, ['error_code', 'errorCode', 'code', 'sub_code', 'subCode']);
+            $lastRequestId = $this->findFirstStringByKeys($raw, ['request_id', 'requestId']);
+
+            Log::info('aliexpress_ds.import_response_summary', [
+                'external_product_id' => $externalProductId,
+                'attempt_method' => $method,
+                'provider_error_code' => $lastErrorCode,
+                'provider_request_id' => $lastRequestId,
+                'response_shape' => $this->describeResponseShape($raw),
+            ]);
+
+            $normalized = $this->normalizeDsProduct($externalProductId, $raw, [
+                'ship_to_country' => $shipToCountry,
+                'target_currency' => $targetCurrency,
+                'target_language' => $targetLanguage,
+                'resolved_remote_mode' => $method === config('aliexpress_ds.product_wholesale_method') ? 'ds_wholesale' : 'ds_product',
+            ]);
+
+            if ($this->isUsable($normalized)) {
+                return [
+                    'product' => $this->persistence->store($normalized),
+                    'meta' => [
+                        'resolved_remote_mode' => $normalized['attributes_json']['import_mode'] ?? 'ds_product',
+                        'fallback_used' => $index > 0,
+                        'ship_to_country' => $shipToCountry,
+                    ],
+                ];
+            }
+        }
+
+        Log::warning('aliexpress_ds.import_failed', [
+            'external_product_id' => $externalProductId,
+            'ship_to_country' => $shipToCountry,
+            'attempts' => $attempts,
+            'provider_error_code' => $lastErrorCode,
+            'provider_request_id' => $lastRequestId,
+        ]);
+
+        throw new AliExpressImportDiagnosticException(
+            $this->buildErrorMessage($lastErrorCode, $lastRaw),
+            [
+                'external_product_id' => $externalProductId,
+                'ship_to_country' => $shipToCountry,
+                'attempts' => $attempts,
+                'provider_error_code' => $lastErrorCode,
+                'provider_request_id' => $lastRequestId,
+                'response_shape' => $this->describeResponseShape($lastRaw),
+            ]
+        );
+    }
+
+    private function buildErrorMessage(?string $errorCode, ?array $raw): string
+    {
+        $code = strtoupper((string) $errorCode);
+
+        return match ($code) {
+            'ISP.INVALID-TOKEN', 'INVALID_SESSION', 'INVALID_ACCESS_TOKEN' => 'Le token AliExpress semble invalide ou expire. Reconnecte le compte OAuth puis relance l import.',
+            'ISV.INVALID-PERMISSION', 'FORBIDDEN', 'INSUFFICIENT_ISV_PERMISSIONS' => 'Le compte AliExpress connecte n a pas les permissions Dropshipping pour cette API.',
+            default => $this->describeResponseShape($raw) === 'result_without_skus'
+                ? 'Le produit AliExpress a ete lu mais aucun SKU exploitable n a ete trouve.'
+                : 'Produit AliExpress DS introuvable ou non lisible pour cet External product ID. Verifie l ID, le pays de destination, les droits DS du compte et le token OAuth.',
+        };
+    }
+
+    private function isUsable(array $normalized): bool
+    {
+        if (trim((string) ($normalized['title'] ?? '')) === '') {
+            return false;
+        }
+
+        foreach ((array) ($normalized['skus'] ?? []) as $sku) {
+            if (is_array($sku) && trim((string) ($sku['external_sku_id'] ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeDsProduct(string $externalProductId, array $payload, array $options = []): array
+    {
+        $result = is_array($payload['result'] ?? null)
+            ? $payload['result']
+            : (is_array(data_get($payload, 'aliexpress_ds_product_get_response.result'))
+                ? data_get($payload, 'aliexpress_ds_product_get_response.result')
+                : (is_array(data_get($payload, 'aliexpress_ds_product_wholesale_get_response.result'))
+                    ? data_get($payload, 'aliexpress_ds_product_wholesale_get_response.result')
+                    : []));
+
+        $baseInfo = is_array($result['ae_item_base_info_dto'] ?? null) ? $result['ae_item_base_info_dto'] : [];
+        $storeInfo = is_array($result['ae_store_info'] ?? null) ? $result['ae_store_info'] : [];
+        $packageInfo = is_array($result['package_info_dto'] ?? null) ? $result['package_info_dto'] : [];
+        $logisticsInfo = is_array($result['logistics_info_dto'] ?? null) ? $result['logistics_info_dto'] : [];
+        $productConverter = is_array($result['product_id_converter_result'] ?? null) ? $result['product_id_converter_result'] : [];
+        $multimedia = is_array($result['ae_multimedia_info_dto'] ?? null) ? $result['ae_multimedia_info_dto'] : [];
+
+        $title = trim((string) ($baseInfo['subject'] ?? $baseInfo['title'] ?? '')) ?: ('Produit ' . $externalProductId);
+        $imageUrlsRaw = trim((string) ($multimedia['image_urls'] ?? ''));
+        $imageUrls = array_values(array_filter(array_map('trim', explode(';', $imageUrlsRaw))));
+        $mainImageUrl = $imageUrls[0] ?? null;
+        $targetCurrency = strtoupper(trim((string) ($options['target_currency'] ?? 'USD'))) ?: 'USD';
+
+        $normalizedSkus = [];
+        foreach ((array) ($result['ae_item_sku_info_dtos'] ?? []) as $sku) {
+            if (! is_array($sku)) {
+                continue;
+            }
+
+            $externalSkuId = trim((string) ($sku['sku_id'] ?? $sku['skuId'] ?? $sku['selectedSkuId'] ?? $sku['selected_sku_id'] ?? $sku['id'] ?? ''));
+            if ($externalSkuId === '') {
+                continue;
+            }
+
+            $normalizedSkus[] = [
+                'external_sku_id' => $externalSkuId,
+                'sku_label' => $sku['sku_attr'] ?? $externalSkuId,
+                'variant_attributes_json' => $this->normalizeVariantAttributes($sku),
+                'moq' => max(1, (int) ($sku['sku_bulk_order'] ?? 1)),
+                'unit_price' => $this->resolveMoneyValue($sku, ['offer_sale_price', 'target_sale_price', 'sale_price', 'sku_price', 'price']),
+                'currency_code' => $sku['currency_code'] ?? $targetCurrency,
+                'available_quantity' => isset($sku['sku_available_stock']) ? (int) $sku['sku_available_stock'] : (isset($sku['ipm_sku_stock']) ? (int) $sku['ipm_sku_stock'] : null),
+                'lead_time_days' => null,
+                'logistics_modes_json' => [],
+                'sku_payload_json' => $sku,
+                'is_active' => filter_var($sku['sku_stock'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) !== false,
+            ];
+        }
+
+        return [
+            'external_product_id' => $externalProductId,
+            'external_offer_id' => $productConverter['main_product_id'] ?? null,
+            'title' => $title,
+            'supplier_name' => $storeInfo['store_name'] ?? 'AliExpress',
+            'source_url' => 'https://www.aliexpress.com/item/' . $externalProductId . '.html',
+            'main_image_url' => $mainImageUrl,
+            'category_path_json' => array_values(array_filter([
+                trim((string) ($baseInfo['category_sequence'] ?? '')),
+                trim((string) ($baseInfo['category_id'] ?? '')),
+            ])),
+            'attributes_json' => [
+                'target_currency' => $targetCurrency,
+                'target_language' => $options['target_language'] ?? null,
+                'ship_to_country' => $options['ship_to_country'] ?? null,
+                'delivery_time' => $logisticsInfo['delivery_time'] ?? null,
+                'gross_weight' => $packageInfo['gross_weight'] ?? null,
+                'import_mode' => $options['resolved_remote_mode'] ?? 'ds_product',
+            ],
+            'product_payload_json' => array_merge($payload, ['result' => $result]),
+            'skus' => $normalizedSkus,
+        ];
+    }
+
+    private function normalizeVariantAttributes(array $sku): array
+    {
+        $rows = [];
+        foreach ((array) ($sku['ae_sku_property_dtos'] ?? $sku['sku_property_list'] ?? []) as $property) {
+            if (! is_array($property)) {
+                continue;
+            }
+
+            $rows[] = array_filter([
+                'property_id' => $property['sku_property_id'] ?? null,
+                'property_value_id' => $property['property_value_id'] ?? null,
+                'property_name' => $property['sku_property_name'] ?? null,
+                'property_value' => $property['property_value_definition_name'] ?? $property['sku_property_value'] ?? null,
+                'sku_image' => $property['sku_image'] ?? null,
+            ], static fn ($value) => $value !== null && $value !== '');
+        }
+
+        return array_values(array_filter($rows));
+    }
+
+    private function resolveMoneyValue(array $payload, array $keys): ?float
+    {
+        foreach ($keys as $key) {
+            $value = data_get($payload, $key);
+            if (is_numeric($value)) {
+                return (float) $value;
+            }
+
+            if (is_string($value)) {
+                $normalized = str_replace(',', '.', trim($value));
+                if (is_numeric($normalized)) {
+                    return (float) $normalized;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function describeResponseShape(?array $payload): string
+    {
+        if (! is_array($payload) || $payload === []) {
+            return 'empty_payload';
+        }
+
+        $result = is_array($payload['result'] ?? null)
+            ? $payload['result']
+            : (is_array(data_get($payload, 'aliexpress_ds_product_get_response.result'))
+                ? data_get($payload, 'aliexpress_ds_product_get_response.result')
+                : (is_array(data_get($payload, 'aliexpress_ds_product_wholesale_get_response.result'))
+                    ? data_get($payload, 'aliexpress_ds_product_wholesale_get_response.result')
+                    : null));
+
+        if (! is_array($result) || $result === []) {
+            return 'empty_result';
+        }
+
+        if (! is_array($result['ae_item_base_info_dto'] ?? null) || ($result['ae_item_base_info_dto'] ?? []) === []) {
+            return 'result_without_base_info';
+        }
+
+        if (! is_array($result['ae_item_sku_info_dtos'] ?? null) || ($result['ae_item_sku_info_dtos'] ?? []) === []) {
+            return 'result_without_skus';
+        }
+
+        return 'result_with_base_info_and_skus';
+    }
+
+    private function findFirstStringByKeys(array $payload, array $keys): ?string
+    {
+        $needle = array_flip(array_map(static fn ($key) => strtolower((string) $key), $keys));
+        $stack = [$payload];
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if (! is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $key => $value) {
+                if (is_array($value)) {
+                    $stack[] = $value;
+                    continue;
+                }
+
+                if (is_string($key) && isset($needle[strtolower($key)])) {
+                    $string = trim((string) $value);
+                    if ($string !== '') {
+                        return $string;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
+```
+
+```php
+<?php
+// app/Http/Controllers/Api/AdminAliExpressDsImportController.php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Services\AliExpressDsProductImportService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Throwable;
+
+class AdminAliExpressDsImportController extends Controller
+{
+    public function import(Request $request, AliExpressDsProductImportService $service)
+    {
+        $data = $request->validate([
+            'external_product_id' => 'required|string|max:255',
+            'ship_to_country' => 'nullable|string|size:2',
+            'target_currency' => 'nullable|string|max:8',
+            'target_language' => 'nullable|string|max:16',
+            'remote_mode' => 'nullable|in:ds_product,ds_wholesale',
+        ]);
+
+        try {
+            $result = $service->importByExternalProductId([
+                'external_product_id' => (string) $data['external_product_id'],
+                'ship_to_country' => strtoupper((string) ($data['ship_to_country'] ?? config('aliexpress_ds.default_ship_to_country', 'TG'))),
+                'target_currency' => strtoupper((string) ($data['target_currency'] ?? config('aliexpress_ds.default_target_currency', 'USD'))),
+                'target_language' => (string) ($data['target_language'] ?? config('aliexpress_ds.default_target_language', 'fr')),
+                'remote_mode' => (string) ($data['remote_mode'] ?? 'ds_product'),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $result['product'],
+                'meta' => $result['meta'],
+            ], 201);
+        } catch (Throwable $exception) {
+            Log::warning('aliexpress_ds.controller_import_failed', [
+                'external_product_id' => (string) ($data['external_product_id'] ?? ''),
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+                'debug' => method_exists($exception, 'context') ? $exception->context() : null,
+            ], 400);
+        }
+    }
+}
+```
+
+```php
+<?php
+// tests/Feature/AdminAliExpressDsImportControllerTest.php
+
+namespace Tests\Feature;
+
+use App\Services\AliExpressDsProductImportService;
+use Tests\TestCase;
+
+class AdminAliExpressDsImportControllerTest extends TestCase
+{
+    public function test_import_returns_created_payload(): void
+    {
+        $this->app->instance(AliExpressDsProductImportService::class, new class {
+            public function importByExternalProductId(array $input): array
+            {
+                return [
+                    'product' => [
+                        'external_product_id' => $input['external_product_id'],
+                        'title' => 'Produit test',
+                        'skus' => [
+                            ['external_sku_id' => 'sku-1'],
+                        ],
+                    ],
+                    'meta' => [
+                        'resolved_remote_mode' => 'ds_product',
+                        'fallback_used' => false,
+                        'ship_to_country' => 'TG',
+                    ],
+                ];
+            }
+        });
+
+        $response = $this->postJson('/api/admin/aliexpress/import', [
+            'external_product_id' => '1005008409003645',
+            'ship_to_country' => 'TG',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.external_product_id', '1005008409003645')
+            ->assertJsonPath('meta.resolved_remote_mode', 'ds_product');
+    }
+
+    public function test_import_validates_required_fields(): void
+    {
+        $this->postJson('/api/admin/aliexpress/import', [])
+            ->assertStatus(422);
+    }
+}
+```
+
+```php
+<?php
+// tests/Unit/AliExpressDsProductImportServiceTest.php
+
+namespace Tests\Unit;
+
+use App\Exceptions\AliExpressImportDiagnosticException;
+use App\Services\AliExpressDsProductImportService;
+use App\Services\AliExpressTopClient;
+use App\Services\SupplierCatalogPersistenceService;
+use Tests\TestCase;
+
+class AliExpressDsProductImportServiceTest extends TestCase
+{
+    public function test_import_uses_first_successful_response(): void
+    {
+        $client = new class extends AliExpressTopClient {
+            public function call(string $method, array $payload = []): array
+            {
+                return [
+                    'result' => [
+                        'ae_item_base_info_dto' => [
+                            'subject' => 'Produit DS',
+                            'category_id' => '100',
+                        ],
+                        'ae_store_info' => [
+                            'store_name' => 'Store Test',
+                        ],
+                        'ae_multimedia_info_dto' => [
+                            'image_urls' => 'https://img/1.jpg;https://img/2.jpg',
+                        ],
+                        'ae_item_sku_info_dtos' => [
+                            [
+                                'sku_id' => '1200001',
+                                'sku_attr' => 'Default',
+                                'offer_sale_price' => '12.99',
+                                'currency_code' => 'USD',
+                                'sku_available_stock' => 5,
+                            ],
+                        ],
+                    ],
+                ];
+            }
+        };
+
+        $persistence = new class extends SupplierCatalogPersistenceService {
+            public function store(array $normalized): array
+            {
+                return $normalized;
+            }
+        };
+
+        $service = new AliExpressDsProductImportService($client, $persistence);
+
+        $result = $service->importByExternalProductId([
+            'external_product_id' => '1005008409003645',
+            'ship_to_country' => 'TG',
+            'remote_mode' => 'ds_product',
+        ]);
+
+        $this->assertSame('1005008409003645', $result['product']['external_product_id']);
+        $this->assertSame('Produit DS', $result['product']['title']);
+        $this->assertCount(1, $result['product']['skus']);
+        $this->assertFalse($result['meta']['fallback_used']);
+    }
+
+    public function test_import_falls_back_to_wholesale(): void
+    {
+        $client = new class extends AliExpressTopClient {
+            private int $count = 0;
+
+            public function call(string $method, array $payload = []): array
+            {
+                $this->count++;
+
+                if ($this->count === 1) {
+                    return ['result' => []];
+                }
+
+                return [
+                    'result' => [
+                        'ae_item_base_info_dto' => [
+                            'subject' => 'Produit Wholesale',
+                        ],
+                        'ae_item_sku_info_dtos' => [
+                            [
+                                'sku_id' => 'sku-wholesale',
+                                'offer_sale_price' => '8.50',
+                                'currency_code' => 'USD',
+                            ],
+                        ],
+                    ],
+                ];
+            }
+        };
+
+        $persistence = new class extends SupplierCatalogPersistenceService {
+            public function store(array $normalized): array
+            {
+                return $normalized;
+            }
+        };
+
+        $service = new AliExpressDsProductImportService($client, $persistence);
+
+        $result = $service->importByExternalProductId([
+            'external_product_id' => '1005008409003645',
+            'ship_to_country' => 'TG',
+            'remote_mode' => 'ds_product',
+        ]);
+
+        $this->assertTrue($result['meta']['fallback_used']);
+        $this->assertSame('ds_wholesale', $result['meta']['resolved_remote_mode']);
+    }
+
+    public function test_import_throws_diagnostic_exception_when_both_attempts_fail(): void
+    {
+        $client = new class extends AliExpressTopClient {
+            public function call(string $method, array $payload = []): array
+            {
+                return [
+                    'result' => [],
+                    'error_code' => 'isv.invalid-permission',
+                    'request_id' => 'req-1',
+                ];
+            }
+        };
+
+        $persistence = new class extends SupplierCatalogPersistenceService {
+            public function store(array $normalized): array
+            {
+                return $normalized;
+            }
+        };
+
+        $service = new AliExpressDsProductImportService($client, $persistence);
+
+        $this->expectException(AliExpressImportDiagnosticException::class);
+
+        $service->importByExternalProductId([
+            'external_product_id' => '1005008409003645',
+            'ship_to_country' => 'TG',
+            'remote_mode' => 'ds_product',
+        ]);
+    }
+}
+```
+                'remote_mode' => (string) ($data['remote_mode'] ?? 'ds_product'),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $result['product'],
+                'meta' => $result['meta'],
+            ], 201);
+        } catch (Throwable $exception) {
+            Log::warning('aliexpress_ds.import_failed', [
+                'external_product_id' => (string) ($data['external_product_id'] ?? ''),
+                'ship_to_country' => strtoupper((string) ($data['ship_to_country'] ?? config('aliexpress_ds.default_ship_to_country', 'TG'))),
+                'message' => $exception->getMessage(),
+            ]);
+
+            $debug = method_exists($exception, 'context') ? $exception->context() : null;
+
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+                'debug' => $debug,
+            ], 400);
+        }
+    }
+}
+```
+
+-------------------------------------------------------------------------------
+## 7) Exception de diagnostic conseillee
+
+```php
+<?php
+// app/Exceptions/AliExpressImportDiagnosticException.php
+
+namespace App\Exceptions;
+
+use RuntimeException;
+
+class AliExpressImportDiagnosticException extends RuntimeException
+{
+    public function __construct(string $message, private readonly array $context = [])
+    {
+        parent::__construct($message);
+    }
+
+    public function context(): array
+    {
+        return $this->context;
+    }
+}
+```
+
+-------------------------------------------------------------------------------
+## 8) Client AliExpress TOP minimal
+
+```php
+<?php
+// app/Services/AliExpressTopClient.php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+
+class AliExpressTopClient
+{
+    public function call(string $method, array $payload = []): array
+    {
+        $baseUrl = rtrim((string) config('aliexpress_ds.base_url'), '/');
+        $appKey = (string) config('aliexpress_ds.app_key');
+        $appSecret = (string) config('aliexpress_ds.app_secret');
+        $accessToken = (string) config('aliexpress_ds.access_token');
+        $timeout = (int) config('aliexpress_ds.timeout', 20);
+
+        if ($appKey === '' || $appSecret === '' || $accessToken === '') {
+            throw new RuntimeException('Configuration AliExpress manquante (app_key/app_secret/access_token).');
+        }
+
+        $sys = [
+            'app_key' => $appKey,
+            'method' => $method,
+            'format' => 'json',
+            'sign_method' => 'sha256',
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+            'v' => '2.0',
+            'access_token' => $accessToken,
+        ];
+
+        $flat = [];
+        foreach ($payload as $key => $value) {
+            $flat[$key] = is_array($value)
+                ? json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : (string) $value;
+        }
+
+        $all = array_merge($sys, $flat);
+        $all['sign'] = $this->sign($all, $appSecret);
+
+        $response = Http::timeout($timeout)
+            ->asForm()
+            ->post($baseUrl . '/sync', $all);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Erreur HTTP AliExpress: ' . $response->status() . ' ' . $response->body());
+        }
+
+        $json = $response->json();
+        if (! is_array($json)) {
+            throw new RuntimeException('Reponse AliExpress invalide.');
+        }
+
+        return $json;
+    }
+
+    private function sign(array $params, string $secret): string
+    {
+        unset($params['sign']);
+        ksort($params);
+
+        $toSign = '';
+        foreach ($params as $key => $value) {
+            $toSign .= $key . $value;
+        }
+
+        return strtoupper(hash_hmac('sha256', $toSign, $secret));
+    }
+}
+```
+
+-------------------------------------------------------------------------------
+## 9) Service principal d'import DS avec fallback
+
+Le comportement critique est ici:
+- premier essai sur `aliexpress.ds.product.get`
+- fallback sur `aliexpress.ds.product.wholesale.get`
+- message d'erreur structure si les 2 reponses sont vides ou invalides
+
+```php
+<?php
+// app/Services/AliExpressDsProductImportService.php
+
+namespace App\Services;
+
+use App\Exceptions\AliExpressImportDiagnosticException;
+use RuntimeException;
+
+class AliExpressDsProductImportService
+{
+    public function __construct(
+        private readonly AliExpressTopClient $client,
+        private readonly SupplierCatalogPersistenceService $persistence,
+    ) {
+    }
+
+    public function importByExternalProductId(array $input): array
+    {
+        $externalProductId = trim((string) ($input['external_product_id'] ?? ''));
+        $shipToCountry = strtoupper(trim((string) ($input['ship_to_country'] ?? config('aliexpress_ds.default_ship_to_country', 'TG'))));
+        $targetCurrency = strtoupper(trim((string) ($input['target_currency'] ?? config('aliexpress_ds.default_target_currency', 'USD'))));
+        $targetLanguage = trim((string) ($input['target_language'] ?? config('aliexpress_ds.default_target_language', 'fr')));
+        $remoteMode = trim((string) ($input['remote_mode'] ?? 'ds_product'));
+
+        if ($externalProductId === '') {
+            throw new RuntimeException('external_product_id manquant.');
+        }
+
+        $attempts = [];
+        $candidates = $remoteMode === 'ds_wholesale'
+            ? [
+                config('aliexpress_ds.product_wholesale_method', 'aliexpress.ds.product.wholesale.get'),
+                config('aliexpress_ds.product_get_method', 'aliexpress.ds.product.get'),
+            ]
+            : [
+                config('aliexpress_ds.product_get_method', 'aliexpress.ds.product.get'),
+                config('aliexpress_ds.product_wholesale_method', 'aliexpress.ds.product.wholesale.get'),
+            ];
+
+        $lastRaw = null;
+        $lastErrorCode = null;
+        $lastRequestId = null;
+
+        foreach ($candidates as $index => $method) {
+            $attempts[] = $method;
+
+            $raw = $this->client->call($method, [
+                'ship_to_country' => $shipToCountry,
+                'product_id' => $externalProductId,
+                'target_currency' => $targetCurrency,
+                'target_language' => $targetLanguage,
+                'remove_personal_benefit' => 'false',
+            ]);
+
+            $lastRaw = $raw;
+            $lastErrorCode = $this->findFirstStringByKeys($raw, ['error_code', 'errorCode', 'code', 'sub_code', 'subCode']);
+            $lastRequestId = $this->findFirstStringByKeys($raw, ['request_id', 'requestId']);
+
+            $normalized = $this->normalizeDsProduct($externalProductId, $raw, [
+                'ship_to_country' => $shipToCountry,
+                'target_currency' => $targetCurrency,
+                'target_language' => $targetLanguage,
+                'resolved_remote_mode' => $method === config('aliexpress_ds.product_wholesale_method') ? 'ds_wholesale' : 'ds_product',
+            ]);
+
+            if ($this->isNormalizedProductUsable($normalized)) {
+                $product = $this->persistence->store($normalized);
+
+                return [
+                    'product' => $product,
+                    'meta' => [
+                        'resolved_remote_mode' => $normalized['attributes_json']['import_mode'] ?? 'ds_product',
+                        'fallback_used' => $index > 0,
+                        'ship_to_country' => $shipToCountry,
+                    ],
+                ];
+            }
+        }
+
+        throw new AliExpressImportDiagnosticException(
+            'Produit AliExpress DS introuvable ou non lisible pour cet External product ID. Verifie l ID, le pays de destination, les droits DS du compte et le token OAuth.',
+            [
+                'external_product_id' => $externalProductId,
+                'ship_to_country' => $shipToCountry,
+                'attempts' => $attempts,
+                'provider_error_code' => $lastErrorCode,
+                'provider_request_id' => $lastRequestId,
+                'response_shape' => $this->describeResponseShape($lastRaw),
+            ]
+        );
+    }
+
+    private function isNormalizedProductUsable(array $normalized): bool
+    {
+        $title = trim((string) ($normalized['title'] ?? ''));
+        $skus = is_array($normalized['skus'] ?? null) ? $normalized['skus'] : [];
+
+        if ($title === '') {
+            return false;
+        }
+
+        foreach ($skus as $sku) {
+            if (! is_array($sku)) {
+                continue;
+            }
+
+            if (trim((string) ($sku['external_sku_id'] ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function describeResponseShape(?array $payload): string
+    {
+        if (! is_array($payload) || $payload === []) {
+            return 'empty_payload';
+        }
+
+        $result = data_get($payload, 'result');
+        if (! is_array($result) || $result === []) {
+            return 'empty_result';
+        }
+
+        $base = data_get($result, 'ae_item_base_info_dto');
+        $skus = data_get($result, 'ae_item_sku_info_dtos');
+
+        if (! is_array($base) || $base === []) {
+            return 'result_without_base_info';
+        }
+
+        if (! is_array($skus) || $skus === []) {
+            return 'result_without_skus';
+        }
+
+        return 'result_with_base_info_and_skus';
+    }
+
+    private function findFirstStringByKeys(array $payload, array $keys): ?string
+    {
+        $needle = array_flip(array_map(static fn ($key) => strtolower((string) $key), $keys));
+        $stack = [$payload];
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if (! is_array($node)) {
+                continue;
+            }
+
+            foreach ($node as $key => $value) {
+                if (is_array($value)) {
+                    $stack[] = $value;
+                    continue;
+                }
+
+                if (is_string($key) && isset($needle[strtolower($key)])) {
+                    $string = trim((string) $value);
+                    if ($string !== '') {
+                        return $string;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
+```
+
+-------------------------------------------------------------------------------
+## 10) Normalisation DS a reprendre telle quelle
+
+Le parseur doit lire les chemins suivants dans `result`:
+
+- `ae_item_base_info_dto`
+- `ae_store_info`
+- `package_info_dto`
+- `logistics_info_dto`
+- `product_id_converter_result`
+- `ae_multimedia_info_dto`
+- `ae_item_sku_info_dtos`
+
+Code conseille:
+
+```php
+<?php
+// methode a integrer dans AliExpressDsProductImportService
+
+private function normalizeDsProduct(string $externalProductId, array $payload, array $options = []): array
+{
+    $result = is_array($payload['result'] ?? null)
+        ? $payload['result']
+        : (is_array(data_get($payload, 'aliexpress_ds_product_get_response.result'))
+            ? data_get($payload, 'aliexpress_ds_product_get_response.result')
+            : (is_array(data_get($payload, 'aliexpress_ds_product_wholesale_get_response.result'))
+                ? data_get($payload, 'aliexpress_ds_product_wholesale_get_response.result')
+                : []));
+
+    $baseInfo = is_array($result['ae_item_base_info_dto'] ?? null) ? $result['ae_item_base_info_dto'] : [];
+    $storeInfo = is_array($result['ae_store_info'] ?? null) ? $result['ae_store_info'] : [];
+    $packageInfo = is_array($result['package_info_dto'] ?? null) ? $result['package_info_dto'] : [];
+    $logisticsInfo = is_array($result['logistics_info_dto'] ?? null) ? $result['logistics_info_dto'] : [];
+    $productConverter = is_array($result['product_id_converter_result'] ?? null) ? $result['product_id_converter_result'] : [];
+    $multimedia = is_array($result['ae_multimedia_info_dto'] ?? null) ? $result['ae_multimedia_info_dto'] : [];
+
+    $title = trim((string) ($baseInfo['subject'] ?? $baseInfo['title'] ?? ''));
+    $imageUrlsRaw = trim((string) ($multimedia['image_urls'] ?? ''));
+    $imageUrls = array_values(array_filter(array_map('trim', explode(';', $imageUrlsRaw))));
+    $mainImageUrl = $imageUrls[0] ?? null;
+    $targetCurrency = strtoupper(trim((string) ($options['target_currency'] ?? 'USD'))) ?: 'USD';
+
+    $skuRows = array_values(array_filter(is_array($result['ae_item_sku_info_dtos'] ?? null) ? $result['ae_item_sku_info_dtos'] : []));
+    $normalizedSkus = [];
+
+    foreach ($skuRows as $sku) {
+        if (! is_array($sku)) {
+            continue;
+        }
+
+        $externalSkuId = trim((string) ($sku['sku_id'] ?? $sku['skuId'] ?? $sku['selectedSkuId'] ?? $sku['id'] ?? ''));
+        if ($externalSkuId === '') {
+            continue;
+        }
+
+        $normalizedSkus[] = [
+            'external_sku_id' => $externalSkuId,
+            'sku_label' => $sku['sku_attr'] ?? $externalSkuId,
+            'variant_attributes_json' => [],
+            'moq' => max(1, (int) ($sku['sku_bulk_order'] ?? 1)),
+            'unit_price' => $sku['offer_sale_price'] ?? $sku['sale_price'] ?? $sku['sku_price'] ?? null,
+            'currency_code' => $sku['currency_code'] ?? $targetCurrency,
+            'available_quantity' => $sku['sku_available_stock'] ?? $sku['ipm_sku_stock'] ?? null,
+            'lead_time_days' => null,
+            'logistics_modes_json' => [],
+            'sku_payload_json' => $sku,
+            'is_active' => true,
+        ];
+    }
+
+    return [
+        'external_product_id' => $externalProductId,
+        'external_offer_id' => $productConverter['main_product_id'] ?? null,
+        'title' => $title !== '' ? $title : ('Produit ' . $externalProductId),
+        'supplier_name' => $storeInfo['store_name'] ?? 'AliExpress',
+        'source_url' => 'https://www.aliexpress.com/item/' . $externalProductId . '.html',
+        'main_image_url' => $mainImageUrl,
+        'category_path_json' => array_values(array_filter([
+            trim((string) ($baseInfo['category_sequence'] ?? '')),
+            trim((string) ($baseInfo['category_id'] ?? '')),
+        ])),
+        'attributes_json' => [
+            'target_currency' => $targetCurrency,
+            'target_language' => $options['target_language'] ?? null,
+            'ship_to_country' => $options['ship_to_country'] ?? null,
+            'delivery_time' => $logisticsInfo['delivery_time'] ?? null,
+            'gross_weight' => $packageInfo['gross_weight'] ?? null,
+            'import_mode' => $options['resolved_remote_mode'] ?? 'ds_product',
+        ],
+        'product_payload_json' => array_merge($payload, ['result' => $result]),
+        'skus' => $normalizedSkus,
+    ];
+}
+```
+
+-------------------------------------------------------------------------------
+## 11) Persistance locale minimale
+
+Le code final doit stocker:
+
+### Produit fournisseur
+- `external_product_id`
+- `external_offer_id`
+- `title`
+- `supplier_name`
+- `source_url`
+- `main_image_url`
+- `category_path_json`
+- `attributes_json`
+- `product_payload_json`
+
+### SKU fournisseur
+- `external_sku_id`
+- `sku_label`
+- `variant_attributes_json`
+- `moq`
+- `unit_price`
+- `currency_code`
+- `available_quantity`
+- `sku_payload_json`
+- `is_active`
+
+Important:
+- ne jamais jeter `product_payload_json` brut
+- ne jamais jeter `sku_payload_json` brut
+
+Ces payloads sont indispensables pour debugger les cas reels en prod.
+
+-------------------------------------------------------------------------------
+## 12) Regles de fallback obligatoires
+
+Copilot doit coder ces regles exactement:
+
+1. Si `ds_product` retourne un payload vide, essayer `ds_wholesale`
+2. Si `ds_product` retourne un produit sans SKU, essayer `ds_wholesale`
+3. Si `ship_to_country` est absent, utiliser une valeur par defaut explicite
+4. Si l'erreur provider indique un probleme de permission, retourner un message dedie
+5. Si l'erreur provider indique un probleme de token, retourner un message dedie
+6. Si le produit est lisible mais sans SKU actif, retourner `Aucun SKU DS actif n'a ete importe pour ce produit.`
+
+Exemples de messages attendus:
+
+- `Le compte AliExpress connecte n'a pas les permissions Dropshipping pour cette API.`
+- `Le token AliExpress semble invalide ou expire. Reconnecte le compte OAuth puis relance l'import.`
+- `Le produit AliExpress existe mais n'est pas disponible pour le pays de destination demande.`
+- `Le produit AliExpress a ete lu mais aucun SKU exploitable n'a ete trouve.`
+
+-------------------------------------------------------------------------------
+## 13) Logs minimum a ajouter sur Vercel / production
+
+Le bug actuel est difficile a corriger car la production ne loggue pas assez de contexte.
+
+Ajouter ces logs server-side pour chaque import:
+
+```php
+Log::info('aliexpress_ds.import_attempt', [
+    'external_product_id' => $externalProductId,
+    'ship_to_country' => $shipToCountry,
+    'target_currency' => $targetCurrency,
+    'target_language' => $targetLanguage,
+    'attempt_method' => $method,
+]);
+```
+
+```php
+Log::info('aliexpress_ds.import_response_summary', [
+    'external_product_id' => $externalProductId,
+    'attempt_method' => $method,
+    'provider_error_code' => $lastErrorCode,
+    'provider_request_id' => $lastRequestId,
+    'response_shape' => $this->describeResponseShape($raw),
+]);
+```
+
+```php
+Log::warning('aliexpress_ds.import_failed', [
+    'external_product_id' => $externalProductId,
+    'ship_to_country' => $shipToCountry,
+    'attempts' => $attempts,
+    'provider_error_code' => $lastErrorCode,
+    'provider_request_id' => $lastRequestId,
+]);
+```
+
+Ne jamais logger:
+- `app_secret`
+- `access_token` complet
+
+Eventuellement logger seulement:
+- les 6 premiers caracteres du token
+- ou un hash du token
+
+-------------------------------------------------------------------------------
+## 14) Freight preview conseille avant mapping DS
+
+Ce n'est pas obligatoire pour lire un produit, mais c'est tres utile juste apres l'import pour verifier que le SKU est vraiment commandable pour le pays cible.
+
+Appel conseille:
+
+```php
+$freight = $client->call('aliexpress.ds.freight.query', [
+    'queryDeliveryReq' => [
+        'locale' => 'fr_FR',
+        'language' => 'fr',
+        'currency' => 'USD',
+        'shipToCountry' => 'TG',
+        'productId' => $productId,
+        'selectedSkuId' => $selectedSkuId,
+        'quantity' => 1,
+    ],
+]);
+```
+
+Si le freight retourne zero service, il faut considerer que:
+- le produit est lisible
+- mais pas commandable pour cette destination
+
+Ne pas confondre ce cas avec `produit introuvable`.
+
+-------------------------------------------------------------------------------
+## 15) Checklist de debug pour le bug exact
+
+Quand l'admin voit:
+- `Aucun produit AliExpress n'a pu etre lu pour cet External product ID`
+
+il faut verifier dans cet ordre:
+
+1. `external_product_id` est bien numerique et complet
+2. le compte utilise est bien un compte AliExpress, pas un autre provider
+3. `ship_to_country` est explicitement envoye
+4. le premier essai est bien `aliexpress.ds.product.get`
+5. le fallback `aliexpress.ds.product.wholesale.get` est bien tente
+6. la reponse brute contient-elle `result` ?
+7. la reponse brute contient-elle `ae_item_base_info_dto` ?
+8. la reponse brute contient-elle `ae_item_sku_info_dtos` ?
+9. y a-t-il un `error_code` provider ?
+10. y a-t-il un `request_id` provider a conserver dans les logs ?
+
+Si `result` existe mais que le parseur retourne vide, le bug est dans le code de normalisation.
+
+Si `result` est vide pour `TG` mais non vide pour un autre pays, le bug n'est pas l'ID produit: c'est la destination.
+
+Si les 2 appels DS echouent avec permission, le bug est le compte OAuth ou les scopes DS.
+
+-------------------------------------------------------------------------------
+## 16) Regles UX cote admin
+
+L'interface admin doit demander ou pre-remplir:
+- `external_product_id`
+- `ship_to_country`
+- `target_currency`
+- `target_language`
+
+Elle doit aussi afficher au retour:
+- le mode resolu: `ds_product` ou `ds_wholesale`
+- si fallback utilise: oui/non
+- le nombre de SKU importes
+- le message provider si present
+
+En cas d'erreur, afficher:
+- message utilisateur
+- code provider
+- request id provider
+
+Ne pas afficher seulement `Erreur 400` sans details.
+
+-------------------------------------------------------------------------------
+## 17) Tests a ecrire
+
+Copilot doit ajouter au minimum ces tests:
+
+1. import OK via `ds_product`
+2. fallback OK vers `ds_wholesale`
+3. echec si `external_product_id` vide
+4. echec diagnostique si les 2 appels retournent vide
+5. echec diagnostique si permission DS absente
+6. succes avec produit sans image mais avec SKU
+7. echec si produit sans titre et sans SKU
+
+Exemple d'assertions:
+
+```php
+$this->assertTrue($response['success']);
+$this->assertSame('1005008409003645', $response['data']['external_product_id']);
+$this->assertNotEmpty($response['data']['skus']);
+```
+
+```php
+$this->assertFalse($response['success']);
+$this->assertSame('empty_result', $response['debug']['response_shape']);
+```
+
+-------------------------------------------------------------------------------
+## 18) Resume d'implementation pour Copilot
+
+Copilot doit coder les elements suivants:
+
+1. `config/aliexpress_ds.php`
+2. `App\Services\AliExpressTopClient`
+3. `App\Exceptions\AliExpressImportDiagnosticException`
+4. `App\Services\AliExpressDsProductImportService`
+5. `App\Http\Controllers\Api\AdminAliExpressDsImportController`
+6. la route `POST /api/admin/aliexpress/import`
+7. la persistance du produit et des SKU
+8. les logs de diagnostic
+9. les tests unitaires et feature
+
+Comportement obligatoire:
+- toujours envoyer `ship_to_country`
+- tenter `ds_product` puis `ds_wholesale`
+- conserver la reponse brute provider
+- retourner un diagnostic structure en cas d'echec
+- ne plus masquer toutes les causes sous le message "Aucun produit AliExpress n'a pu etre lu"
+
+-------------------------------------------------------------------------------
+## 19) Message final a viser
+
+Le code final est valide si:
+
+1. un produit DS importable est effectivement persiste avec ses SKU
+2. un produit non importable retourne un message explicite et un bloc `debug`
+3. les logs prod permettent d'identifier si le probleme est l'ID, le pays, les droits DS, le token ou le parseur
+
+Fin du pack.

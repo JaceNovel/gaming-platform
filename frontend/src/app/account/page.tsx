@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Download, ExternalLink, Globe, LogOut, PhoneCall } from "lucide-react";
+import { Download, ExternalLink, Globe, LogOut } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/components/auth/RequireAuth";
@@ -347,10 +347,6 @@ function AccountClient() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState(false);
-  const [marketplaceSellerContactEligible, setMarketplaceSellerContactEligible] = useState(false);
-  const [marketplaceSellerWhatsappUrl, setMarketplaceSellerWhatsappUrl] = useState<string | null>(null);
-  const [marketplaceSellerWhatsappLoading, setMarketplaceSellerWhatsappLoading] = useState(false);
-  const [marketplaceSellerWhatsappError, setMarketplaceSellerWhatsappError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!vipModalOpen) return;
@@ -475,7 +471,7 @@ function AccountClient() {
         if (hasRedeemItems) {
           // Requirement: redeem-code buyers should land on "Mes codes" after payment.
           setThankYouOpen(false);
-          router.replace(`/codes?payment_status=${encodeURIComponent(resolvedStatus)}`);
+          router.replace(`/codes?payment_status=${encodeURIComponent(resolvedStatus)}&order=${encodeURIComponent(orderId)}`);
           return;
         }
 
@@ -518,60 +514,6 @@ function AccountClient() {
       active = false;
     };
   }, [authFetch, router, searchParams]);
-
-  useEffect(() => {
-    if (!thankYouOpen) return;
-
-    const status = (searchParams.get('payment_status') ?? '').toLowerCase();
-    const isSuccess = status === 'success' || status === 'paid' || status === 'completed';
-    const order = (searchParams.get('order') ?? '').trim();
-
-    if (!isSuccess || !order) {
-      setMarketplaceSellerContactEligible(false);
-      setMarketplaceSellerWhatsappUrl(null);
-      setMarketplaceSellerWhatsappLoading(false);
-      setMarketplaceSellerWhatsappError(null);
-      return;
-    }
-
-    let active = true;
-    setMarketplaceSellerContactEligible(false);
-    setMarketplaceSellerWhatsappUrl(null);
-    setMarketplaceSellerWhatsappLoading(true);
-    setMarketplaceSellerWhatsappError(null);
-
-    (async () => {
-      try {
-        const res = await authFetch(`${API_BASE}/gaming-accounts/orders/${encodeURIComponent(order)}/whatsapp`);
-        const payload = await res.json().catch(() => null);
-        if (!active) return;
-        const url = typeof payload?.whatsapp?.url === 'string' ? payload.whatsapp.url : '';
-        if (res.ok && url) {
-          setMarketplaceSellerContactEligible(true);
-          setMarketplaceSellerWhatsappUrl(url);
-        } else if (res.status === 409) {
-          // Marketplace order exists but is still being generated/processed.
-          setMarketplaceSellerContactEligible(true);
-          setMarketplaceSellerWhatsappUrl(null);
-          setMarketplaceSellerWhatsappError(payload?.message ?? 'Commande en cours de traitement. Réessaie dans quelques secondes.');
-        } else {
-          setMarketplaceSellerContactEligible(false);
-          setMarketplaceSellerWhatsappUrl(null);
-        }
-      } catch {
-        if (!active) return;
-        setMarketplaceSellerContactEligible(false);
-        setMarketplaceSellerWhatsappUrl(null);
-      } finally {
-        if (!active) return;
-        setMarketplaceSellerWhatsappLoading(false);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [authFetch, searchParams, thankYouOpen]);
 
   const avatar = useMemo(() => {
     const id = me?.avatarId || "nova_ghost";
@@ -938,10 +880,6 @@ function AccountClient() {
       handleVipEntry();
       return;
     }
-    if (menu === "Vendeur") {
-      router.push("/account/seller");
-      return;
-    }
     if (menu === "MesCodes") {
       router.push("/codes");
       return;
@@ -1248,16 +1186,6 @@ function AccountClient() {
   const countryTag = (me?.countryCode ?? "CI").toUpperCase();
   const lastWalletTransaction = walletTransactions[0];
   const isTogoPlayer = (me.countryCode ?? "").toUpperCase() === "TG";
-  const paymentStatusParam = (searchParams.get('payment_status') ?? '').toLowerCase();
-  const orderParam = (searchParams.get('order') ?? '').trim();
-  const isPaymentSuccessParam = paymentStatusParam === 'success' || paymentStatusParam === 'paid' || paymentStatusParam === 'completed';
-  const matchedPaidOrder = !loadingOrders ? orders.find((o) => String(o.internalId) === String(orderParam)) : null;
-  const isLikelyMarketplacePaidOrder = Boolean(matchedPaidOrder?.id?.startsWith('MP-'));
-  const showMarketplaceSellerButton = Boolean(
-    orderParam &&
-      isPaymentSuccessParam &&
-      (isLikelyMarketplacePaidOrder || marketplaceSellerContactEligible || marketplaceSellerWhatsappLoading),
-  );
 
   return (
     <div className="min-h-screen text-white">
@@ -1309,58 +1237,12 @@ function AccountClient() {
                   type="button"
                   onClick={() => {
                     closeThankYou();
-                    router.push("/codes");
+                    router.push(`/codes?payment_status=success&order=${encodeURIComponent(String(thankYouRedeemOrderId))}`);
                   }}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/15 transition"
                 >
                   Recharger
                 </button>
-              ) : null}
-
-              {showMarketplaceSellerButton ? (
-                <button
-                  type="button"
-                  disabled={marketplaceSellerWhatsappLoading}
-                  onClick={async () => {
-                    if (marketplaceSellerWhatsappUrl) {
-                      window.location.href = marketplaceSellerWhatsappUrl;
-                      return;
-                    }
-
-                    try {
-                      setMarketplaceSellerWhatsappLoading(true);
-                      setMarketplaceSellerWhatsappError(null);
-                      const res = await authFetch(
-                        `${API_BASE}/gaming-accounts/orders/${encodeURIComponent(orderParam)}/whatsapp`,
-                      );
-                      const payload = await res.json().catch(() => null);
-                      const url = typeof payload?.whatsapp?.url === 'string' ? payload.whatsapp.url : '';
-                      if (url) {
-                        setMarketplaceSellerWhatsappUrl(url);
-                        window.location.href = url;
-                        return;
-                      }
-                      setMarketplaceSellerWhatsappError(payload?.message ?? 'Contact vendeur indisponible pour le moment.');
-                    } catch {
-                      setMarketplaceSellerWhatsappError('Contact vendeur indisponible pour le moment.');
-                    } finally {
-                      setMarketplaceSellerWhatsappLoading(false);
-                    }
-                  }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/15 transition disabled:opacity-60"
-                >
-                  <PhoneCall className="h-4 w-4" /> Vendeur
-                </button>
-              ) : null}
-
-              {marketplaceSellerWhatsappError ? (
-                <p className="text-xs text-amber-200">{marketplaceSellerWhatsappError}</p>
-              ) : null}
-
-              {showMarketplaceSellerButton ? (
-                <p className="text-xs text-white/65">
-                  Important: le numéro utilisé pour cet achat doit être identique au numéro qui contactera le vendeur.
-                </p>
               ) : null}
 
               <button

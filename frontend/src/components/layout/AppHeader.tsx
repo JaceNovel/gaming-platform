@@ -485,13 +485,11 @@ export default function AppHeader() {
                 [
                   { key: "recharge" as const, label: t("header.nav.recharge") },
                   { key: "subscription" as const, label: t("header.nav.subscription") },
-                  { key: "marketplace" as const, label: t("header.nav.marketplace") },
                 ]
               ).map(({ key, label }) => {
                 const isOpen = openMenu === key;
                 const items = menuGames[key] ?? [];
-                const baseHref =
-                  key === "recharge" ? "/recharges" : key === "subscription" ? "/abonnements" : "/gaming-accounts";
+                const baseHref = key === "recharge" ? "/recharges" : "/abonnements";
 
                 return (
                   <div key={key} className={`relative ${isOpen ? "z-[70]" : "z-0"}`}>

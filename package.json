@@ -1,0 +1,11 @@
+{
+  "name": "gaming-platform",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "start": "npm --prefix frontend run start"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}

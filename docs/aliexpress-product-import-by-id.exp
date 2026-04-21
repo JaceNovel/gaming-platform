@@ -1,0 +1,416 @@
+# Pack copier-coller: import AliExpress par ID produit
+
+Ce fichier contient la documentation et les extraits de code utiles pour comprendre et reutiliser l'integration d'import produit AliExpress par `external_product_id` dans un projet Laravel.
+
+Le flux reel du depot fait 2 etapes:
+
+1. charger un produit distant AliExpress a partir de son ID
+2. importer ce produit en base locale avec ses SKU
+
+## 1) Configuration
+
+Le depot s'appuie sur `config/services.php` et `.env`.
+
+```env
+# .env
+ALIEXPRESS_API_BASE_URL=https://api-sg.aliexpress.com
+ALIEXPRESS_PRODUCT_DETAIL_METHOD=aliexpress.solution.product.info.get
+ALIEXPRESS_DS_PRODUCT_GET_METHOD=aliexpress.ds.product.get
+ALIEXPRESS_DS_PRODUCT_WHOLESALE_GET_METHOD=aliexpress.ds.product.wholesale.get
+ALIEXPRESS_PRODUCT_LOOKUP_PARAM=product_id
+ALIEXPRESS_SIGN_METHOD=sha256
+ALIEXPRESS_REQUEST_TIMEOUT=20
+```
+
+```php
+<?php
+// config/services.php
+
+'sourcing' => [
+    'platforms' => [
+        'aliexpress' => [
+            'api_base_url' => env('ALIEXPRESS_API_BASE_URL', 'https://api-sg.aliexpress.com'),
+            'sign_method' => env('ALIEXPRESS_SIGN_METHOD', 'sha256'),
+            'product_detail_method' => env('ALIEXPRESS_PRODUCT_DETAIL_METHOD', 'aliexpress.solution.product.info.get'),
+            'ds_product_get_method' => env('ALIEXPRESS_DS_PRODUCT_GET_METHOD', 'aliexpress.ds.product.get'),
+            'ds_product_wholesale_get_method' => env('ALIEXPRESS_DS_PRODUCT_WHOLESALE_GET_METHOD', 'aliexpress.ds.product.wholesale.get'),
+            'product_lookup_param' => env('ALIEXPRESS_PRODUCT_LOOKUP_PARAM', 'product_id'),
+            'timeout' => (int) env('ALIEXPRESS_REQUEST_TIMEOUT', 20),
+        ],
+    ],
+],
+```
+
+## 2) Endpoint backend pour charger un produit par ID
+
+Le point d'entree API utilise dans le depot est:
+
+```php
+<?php
+// routes/api.php
+
+use App\Http\Controllers\Api\AdminSupplierCatalogController;
+
+Route::post('/sourcing/catalog/fetch-remote', [AdminSupplierCatalogController::class, 'fetchRemote']);
+Route::post('/sourcing/catalog/import', [AdminSupplierCatalogController::class, 'import']);
+```
+
+## 3) Controleur API
+
+```php
+<?php
+// app/Http/Controllers/Api/AdminSupplierCatalogController.php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\SupplierAccount;
+use App\Services\SupplierApiClient;
+use App\Services\SupplierCatalogImportService;
+use Illuminate\Http\Request;
+use Throwable;
+
+class AdminSupplierCatalogController extends Controller
+{
+    public function fetchRemote(Request $request, SupplierApiClient $supplierApiClient)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'external_product_id' => 'required|string|max:255',
+            'lookup_type' => 'nullable|in:product_id,sku_id',
+            'remote_mode' => 'nullable|in:standard,ds_product,ds_wholesale',
+            'ship_to_country' => 'nullable|string|size:2',
+            'target_currency' => 'nullable|string|max:8',
+            'target_language' => 'nullable|string|max:16',
+            'remove_personal_benefit' => 'nullable|boolean',
+            'biz_model' => 'nullable|string|max:64',
+            'province_code' => 'nullable|string|max:64',
+            'city_code' => 'nullable|string|max:64',
+        ]);
+
+        try {
+            $account = SupplierAccount::query()->findOrFail((int) $data['supplier_account_id']);
+
+            $normalized = $supplierApiClient->fetchRemoteProduct(
+                $account,
+                (string) $data['external_product_id'],
+                $data['lookup_type'] ?? null,
+                [
+                    'remote_mode' => $data['remote_mode'] ?? 'standard',
+                    'ship_to_country' => strtoupper((string) ($data['ship_to_country'] ?? 'TG')),
+                    'target_currency' => $data['target_currency'] ?? null,
+                    'target_language' => $data['target_language'] ?? null,
+                    'remove_personal_benefit' => $data['remove_personal_benefit'] ?? null,
+                    'biz_model' => $data['biz_model'] ?? null,
+                    'province_code' => $data['province_code'] ?? null,
+                    'city_code' => $data['city_code'] ?? null,
+                ]
+            );
+        } catch (Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 502);
+        }
+
+        return response()->json([
+            'data' => $normalized,
+        ]);
+    }
+
+    public function import(Request $request, SupplierCatalogImportService $importService)
+    {
+        $data = $request->validate([
+            'supplier_account_id' => 'required|exists:supplier_accounts,id',
+            'external_product_id' => 'required|string|max:255',
+            'external_offer_id' => 'nullable|string|max:255',
+            'title' => 'required|string|max:255',
+            'supplier_name' => 'nullable|string|max:255',
+            'source_url' => 'nullable|url|max:2048',
+            'main_image_url' => 'nullable|url|max:2048',
+            'category_path_json' => 'nullable|array',
+            'attributes_json' => 'nullable|array',
+            'product_payload_json' => 'nullable|array',
+            'skus' => 'required|array|min:1',
+            'skus.*.external_sku_id' => 'required|string|max:255',
+            'skus.*.sku_label' => 'nullable|string|max:255',
+            'skus.*.variant_attributes_json' => 'nullable|array',
+            'skus.*.moq' => 'nullable|integer|min:1',
+            'skus.*.unit_price' => 'nullable|numeric|min:0',
+            'skus.*.currency_code' => 'nullable|string|max:8',
+        ]);
+
+        $product = $importService->import((int) $data['supplier_account_id'], $data);
+
+        return response()->json([
+            'data' => $product,
+        ], 201);
+    }
+}
+```
+
+## 4) Service principal de lecture distante par ID produit
+
+Le coeur de l'integration est dans `SupplierApiClient`.
+
+```php
+<?php
+// app/Services/SupplierApiClient.php
+
+namespace App\Services;
+
+use App\Models\SupplierAccount;
+
+class SupplierApiClient
+{
+    public function fetchRemoteProduct(SupplierAccount $account, string $externalProductId, ?string $lookupType = null, array $options = []): array
+    {
+        $config = $this->platformConfig($account->platform);
+        $remoteMode = (string) ($options['remote_mode'] ?? 'standard');
+
+        $methodName = match ($remoteMode) {
+            'ds_product' => trim((string) ($config['ds_product_get_method'] ?? '')),
+            'ds_wholesale' => trim((string) ($config['ds_product_wholesale_get_method'] ?? '')),
+            default => trim((string) ($config['product_detail_method'] ?? '')),
+        };
+
+        $lookupParam = trim((string) ($config['product_lookup_param'] ?? 'product_id'));
+
+        $response = $this->request(
+            $account,
+            $methodName,
+            $this->buildProductLookupParams($methodName, $lookupParam, $externalProductId, $lookupType, $options)
+        );
+
+        return $this->normalizeProductResponse($account, $externalProductId, $response, $methodName, $options);
+    }
+}
+```
+
+## 5) Injection de l'ID produit dans la requete AliExpress
+
+Le point cle est `buildProductLookupParams()`.
+
+```php
+<?php
+// app/Services/SupplierApiClient.php
+
+private function buildProductLookupParams(string $methodName, string $lookupParam, string $externalProductId, ?string $lookupType = null, array $options = []): array
+{
+    if ($methodName === 'aliexpress.solution.product.info.get') {
+        return [
+            'product_id' => $externalProductId,
+            'productId' => $externalProductId,
+        ];
+    }
+
+    if (in_array($methodName, ['aliexpress.ds.product.get', 'aliexpress.ds.product.wholesale.get'], true)) {
+        return array_filter([
+            'ship_to_country' => strtoupper(trim((string) ($options['ship_to_country'] ?? 'TG'))) ?: 'TG',
+            'product_id' => $externalProductId,
+            'target_currency' => $options['target_currency'] ?? null,
+            'target_language' => $options['target_language'] ?? null,
+            'remove_personal_benefit' => array_key_exists('remove_personal_benefit', $options)
+                ? ($options['remove_personal_benefit'] ? 'true' : 'false')
+                : null,
+            'biz_model' => $options['biz_model'] ?? null,
+            'province_code' => $options['province_code'] ?? null,
+            'city_code' => $options['city_code'] ?? null,
+        ], static fn ($value) => $value !== null && $value !== '');
+    }
+
+    return [
+        'productId' => $lookupType === 'sku_id' ? null : $externalProductId,
+        'skuId' => $lookupType === 'sku_id' ? $externalProductId : null,
+        $lookupParam => $externalProductId,
+        'product_id' => $externalProductId,
+        'external_product_id' => $externalProductId,
+    ];
+}
+```
+
+## 6) Normalisation de la reponse AliExpress
+
+Apres la reponse API, le service la transforme en structure uniforme pour l'import local.
+
+### Structure cible retournee
+
+```php
+[
+    'supplier_account_id' => 12,
+    'external_product_id' => '1005008409003645',
+    'external_offer_id' => '...',
+    'title' => 'Nom produit',
+    'supplier_name' => 'Store Name',
+    'source_url' => 'https://www.aliexpress.com/item/1005008409003645.html',
+    'main_image_url' => 'https://...',
+    'category_path_json' => [...],
+    'attributes_json' => [...],
+    'product_payload_json' => [...],
+    'skus' => [
+        [
+            'external_sku_id' => '12000044944828317',
+            'sku_label' => 'Default',
+            'variant_attributes_json' => [],
+            'moq' => 1,
+            'unit_price' => 12.99,
+            'currency_code' => 'USD',
+            'available_quantity' => 25,
+            'lead_time_days' => null,
+            'logistics_modes_json' => [],
+            'sku_payload_json' => [...],
+        ],
+    ],
+]
+```
+
+### Exemple de normalisation DS
+
+```php
+<?php
+// app/Services/SupplierApiClient.php
+
+private function normalizeAliExpressDsProductResponse(SupplierAccount $account, string $externalProductId, array $payload, string $methodName, array $options = []): array
+{
+    $result = is_array($payload['result'] ?? null) ? $payload['result'] : [];
+    $baseInfo = is_array($result['ae_item_base_info_dto'] ?? null) ? $result['ae_item_base_info_dto'] : [];
+    $storeInfo = is_array($result['ae_store_info'] ?? null) ? $result['ae_store_info'] : [];
+
+    $title = trim((string) ($baseInfo['subject'] ?? $baseInfo['title'] ?? '')) ?: ('Produit ' . $externalProductId);
+    $sourceUrl = 'https://www.aliexpress.com/item/' . $externalProductId . '.html';
+
+    return [
+        'supplier_account_id' => $account->id,
+        'external_product_id' => $externalProductId,
+        'external_offer_id' => $result['product_id_converter_result']['main_product_id'] ?? null,
+        'title' => $title,
+        'supplier_name' => $storeInfo['store_name'] ?? $account->label,
+        'source_url' => $sourceUrl,
+        'main_image_url' => null,
+        'category_path_json' => [],
+        'attributes_json' => [
+            'target_currency' => $options['target_currency'] ?? 'USD',
+            'target_language' => $options['target_language'] ?? null,
+            'ship_to_country' => $options['ship_to_country'] ?? null,
+        ],
+        'product_payload_json' => $payload,
+        'skus' => [],
+    ];
+}
+```
+
+## 7) Service d'import local en base
+
+Une fois le produit distant charge et normalise, il est persiste localement via `SupplierCatalogImportService`.
+
+```php
+<?php
+// app/Services/SupplierCatalogImportService.php
+
+namespace App\Services;
+
+use App\Models\SupplierProduct;
+
+class SupplierCatalogImportService
+{
+    public function import(int $supplierAccountId, array $payload): SupplierProduct
+    {
+        $externalProductId = trim((string) ($payload['external_product_id'] ?? ''));
+
+        return SupplierProduct::query()->updateOrCreate(
+            [
+                'supplier_account_id' => $supplierAccountId,
+                'external_product_id' => $externalProductId,
+            ],
+            [
+                'title' => $payload['title'] ?? null,
+                'supplier_name' => $payload['supplier_name'] ?? null,
+                'source_url' => $payload['source_url'] ?? null,
+                'main_image_url' => $payload['main_image_url'] ?? null,
+                'category_path_json' => $payload['category_path_json'] ?? [],
+                'attributes_json' => $payload['attributes_json'] ?? [],
+                'product_payload_json' => $payload['product_payload_json'] ?? [],
+            ]
+        );
+    }
+}
+```
+
+## 8) Requete example pour charger un produit par ID
+
+```http
+POST /api/admin/sourcing/catalog/fetch-remote
+Content-Type: application/json
+
+{
+  "supplier_account_id": 12,
+  "external_product_id": "1005008409003645",
+  "remote_mode": "ds_product",
+  "ship_to_country": "TG",
+  "target_currency": "USD",
+  "target_language": "fr",
+  "remove_personal_benefit": false
+}
+```
+
+## 9) Requete example pour importer le produit en local
+
+```http
+POST /api/admin/sourcing/catalog/import
+Content-Type: application/json
+
+{
+  "supplier_account_id": 12,
+  "external_product_id": "1005008409003645",
+  "external_offer_id": "1005008409003645",
+  "title": "Nom du produit AliExpress",
+  "supplier_name": "AliExpress Store",
+  "source_url": "https://www.aliexpress.com/item/1005008409003645.html",
+  "main_image_url": "https://ae01.alicdn.com/kf/example.jpg",
+  "category_path_json": [],
+  "attributes_json": {
+    "target_currency": "USD",
+    "target_language": "fr",
+    "ship_to_country": "TG"
+  },
+  "product_payload_json": {
+    "raw": true
+  },
+  "skus": [
+    {
+      "external_sku_id": "12000044944828317",
+      "sku_label": "Default",
+      "variant_attributes_json": [],
+      "moq": 1,
+      "unit_price": 12.99,
+      "currency_code": "USD"
+    }
+  ]
+}
+```
+
+## 10) Resume rapide
+
+Le code qui permet l'import AliExpress par ID produit est celui-ci:
+
+1. le front envoie `external_product_id` a `/api/admin/sourcing/catalog/fetch-remote`
+2. `AdminSupplierCatalogController::fetchRemote()` appelle `SupplierApiClient::fetchRemoteProduct()`
+3. `SupplierApiClient::buildProductLookupParams()` injecte `product_id` dans la requete AliExpress
+4. `SupplierApiClient::normalizeProductResponse()` convertit la reponse en structure locale uniforme
+5. le front renvoie ensuite les donnees vers `/api/admin/sourcing/catalog/import`
+6. `AdminSupplierCatalogController::import()` appelle `SupplierCatalogImportService::import()` pour persister le produit
+
+## 11) Notes importantes
+
+- `external_product_id` est la cle de l'import fournisseur
+- en mode standard, l'API cible est `aliexpress.solution.product.info.get`
+- en mode DS, l'API cible est `aliexpress.ds.product.get`
+- si tu veux importer un produit par SKU, il faut utiliser `lookup_type=sku_id`
+- le retour API doit etre normalise avant d'etre enregistre localement
+
+## 12) Utilisation rapide
+
+1. Renseigne un compte fournisseur AliExpress connecte en OAuth.
+2. Appelle `POST /api/admin/sourcing/catalog/fetch-remote` avec `external_product_id`.
+3. Recupere les `skus` retournes.
+4. Appelle `POST /api/admin/sourcing/catalog/import` avec les donnees normalisees.
+5. Le produit est cree ou mis a jour dans le catalogue fournisseur local.

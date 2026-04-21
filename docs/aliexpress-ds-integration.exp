@@ -1,0 +1,405 @@
+FILE_TYPE=integration_blueprint
+NAME=AliExpress DS Full Integration
+VERSION=2026-03-30
+PROJECT=gaming-platform
+SCOPE=backend sourcing aliexpress dropshipping payment logistics sync webhook
+
+[OBJECTIVE]
+Centraliser dans un seul fichier tout ce qui est necessaire pour integrer et finaliser l'automatisation AliExpress DS dans ce projet:
+- connexion OAuth AliExpress
+- appels API DS
+- creation de commande fournisseur
+- tentative d'auto-paiement AliExpress
+- verification logistique
+- sync des statuts et tracking
+- gestion des batches groupes
+- points manquants a implementer
+
+[CURRENT_STATE]
+Le projet sait deja:
+- utiliser AliExpress via api-sg.aliexpress.com
+- gerer OAuth AliExpress avec endpoints standard et security
+- appeler les APIs business TOP via /sync?method=...
+- construire un draft DS
+- faire un precheck freight par ligne
+- tenter un auto-paiement DS avec try_to_pay=true
+- gerer le cas create success + payment fail
+- synchroniser l'etat distant via trade.ds.order.get et ds.order.tracking.get
+- creer des batches groupes quand grouping + MOQ sont atteints
+
+Le projet ne montre pas encore clairement:
+- webhook DS DROPSHIPPER_ORDER_STATUS_UPDATE
+- mapping operationnel pour ds.address.get
+- flux metier complet de repayment manuel si autoPay fail
+
+[IMPORTANT_PAYMENT_SEPARATION]
+Il existe 2 paiements differents.
+
+1. Paiement client plateforme:
+- gere par notre application
+- aujourd'hui principalement Moneroo
+- permet de confirmer la commande client
+
+2. Paiement fournisseur AliExpress:
+- gere par AliExpress sur le compte acheteur DS connecte
+- depend du compte AliExpress, du statut DS, de PayPal lie, des permissions et de la devise USD
+- n'utilise pas Moneroo pour payer AliExpress
+
+[REQUIRED_BUSINESS_PREREQUISITES]
+OBLIGATOIRE_1=appKey AliExpress whitelistee pour DS
+OBLIGATOIRE_2=compte acheteur active dans DS Center
+OBLIGATOIRE_3=compte PayPal lie au compte AliExpress
+OBLIGATOIRE_4=scopes OAuth DS accordes sur l application
+OBLIGATOIRE_5=compte reconnecte apres ajout/changement de scopes
+OBLIGATOIRE_6=devise DS en USD
+OBLIGATOIRE_7=destination supportee par le flux DS utilise
+
+[REQUIRED_ENV_KEYS]
+ALIEXPRESS_OAUTH_AUTHORIZE_URL=https://api-sg.aliexpress.com/oauth/authorize
+ALIEXPRESS_OAUTH_TOKEN_URL=https://api-sg.aliexpress.com/rest/auth/token/create
+ALIEXPRESS_OAUTH_SECURITY_TOKEN_URL=https://api-sg.aliexpress.com/rest/auth/token/security/create
+ALIEXPRESS_OAUTH_REFRESH_URL=https://api-sg.aliexpress.com/rest/auth/token/refresh
+ALIEXPRESS_OAUTH_SECURITY_REFRESH_URL=https://api-sg.aliexpress.com/rest/auth/token/security/refresh
+ALIEXPRESS_API_BASE_URL=https://api-sg.aliexpress.com
+ALIEXPRESS_CALLBACK_URL=<to_define>
+ALIEXPRESS_DEFAULT_SCOPE=<to_define_if_needed>
+ALIEXPRESS_SIGN_METHOD=sha256
+ALIEXPRESS_PREFER_SECURITY_TOKENS=true
+ALIEXPRESS_DS_ORDER_CREATE_METHOD=aliexpress.ds.order.create
+ALIEXPRESS_DS_PRODUCT_GET_METHOD=aliexpress.ds.product.get
+ALIEXPRESS_DS_PRODUCT_WHOLESALE_GET_METHOD=aliexpress.ds.product.wholesale.get
+ALIEXPRESS_DS_PRODUCT_SPECIALINFO_GET_METHOD=aliexpress.ds.product.specialinfo.get
+ALIEXPRESS_DS_TEXT_SEARCH_METHOD=aliexpress.ds.text.search
+ALIEXPRESS_DS_SEARCH_EVENT_REPORT_METHOD=aliexpress.ds.search.event.report
+ALIEXPRESS_DS_IMAGE_SEARCH_V2_METHOD=aliexpress.ds.image.searchV2
+ALIEXPRESS_DS_CATEGORY_GET_METHOD=aliexpress.ds.category.get
+ALIEXPRESS_DS_FEED_ITEMIDS_GET_METHOD=aliexpress.ds.feed.itemids.get
+ALIEXPRESS_DS_MEMBER_BENEFIT_GET_METHOD=aliexpress.ds.member.benefit.get
+ALIEXPRESS_DS_FREIGHT_QUERY_METHOD=aliexpress.ds.freight.query
+ALIEXPRESS_DS_TRADE_ORDER_GET_METHOD=aliexpress.trade.ds.order.get
+ALIEXPRESS_DS_ORDER_TRACKING_GET_METHOD=aliexpress.ds.order.tracking.get
+ALIEXPRESS_DS_DEFAULT_LOGISTICS_SERVICE_NAME=AliExpress Selection Standard
+
+[OPTIONAL_ENV_TO_ADD]
+ALIEXPRESS_DS_ADDRESS_GET_METHOD=aliexpress.ds.address.get
+ALIEXPRESS_DS_WEBHOOK_SECRET=<to_define_if_webhook_signature_required>
+ALIEXPRESS_DS_WEBHOOK_TOPIC=DROPSHIPPER_ORDER_STATUS_UPDATE
+ALIEXPRESS_DS_SYNC_ENABLED=true
+ALIEXPRESS_DS_SYNC_INTERVAL_MINUTES=15
+
+[CONFIG_ALREADY_PRESENT]
+FILE=backend/config/services.php
+HAS=oauth endpoints aliexpress
+HAS=ds method mapping
+HAS=affiliate and fulfillment related method mapping
+
+[CORE_APIS_TO_USE]
+API_1=aliexpress.ds.product.get
+USAGE_1=rafraichir produit DS et retrouver les vrais SKU
+
+API_2=aliexpress.ds.product.wholesale.get
+USAGE_2=recuperer les donnees wholesale et completer la resolution SKU
+
+API_3=aliexpress.ds.freight.query
+USAGE_3=valider service logistique exact, SKU, pays, quantite, devise
+
+API_4=aliexpress.ds.order.create
+USAGE_4=creer la commande DS et tenter l auto-paiement
+
+API_5=aliexpress.trade.ds.order.get
+USAGE_5=recuperer statut distant de la commande fournisseur
+
+API_6=aliexpress.ds.order.tracking.get
+USAGE_6=recuperer tracking et progression logistique
+
+API_7=aliexpress.ds.member.benefit.get
+USAGE_7=controle technique de l etat et de l eligibilite DS du compte
+
+API_8=aliexpress.ds.address.get
+USAGE_8=non integre actuellement, utile si on veut s appuyer sur les adresses DS natives AliExpress
+
+API_9=DROPSHIPPER_ORDER_STATUS_UPDATE
+USAGE_9=webhook a integrer pour avoir une synchronisation event-driven des changements de statut
+
+[LOCAL_SERVICES_ALREADY_USED]
+SERVICE_1=App\Services\SupplierApiClient
+ROLE_1=client unifie AliExpress / Alibaba avec mapping des operations IOP et normalisation des reponses
+
+SERVICE_2=App\Services\AliExpressOrderFulfillmentService
+ROLE_2=creation DS commande unitaire, precheck freight, sync remote, tracking, invoice, fulfilment
+
+SERVICE_3=App\Services\AliExpressProcurementBatchService
+ROLE_3=creation DS groupee pour batches fournisseur
+
+SERVICE_4=App\Services\ProcurementBatchService
+ROLE_4=construction des batches, regroupement, verification MOQ, auto-drafts
+
+SERVICE_5=App\Services\GroupedLotService
+ROLE_5=calcul seuil de grouping, MOQ effectif, montant minimum de lot
+
+[ADMIN_ROUTES_ALREADY_PRESENT]
+ORDER_DRAFT_GET=/api/admin/orders/{order}/supplier/aliexpress/ds-draft
+ORDER_CREATE_POST=/api/admin/orders/{order}/supplier/aliexpress/create-order
+ORDER_SYNC_POST=/api/admin/orders/{order}/supplier/aliexpress/sync-order
+GROUPED_READY_GET=/api/admin/sourcing/grouped-ready?platform=aliexpress
+BATCH_DRAFT_GET=/api/admin/sourcing/batches/{procurementBatch}/aliexpress/ds-draft
+BATCH_CREATE_POST=/api/admin/sourcing/batches/{procurementBatch}/aliexpress/create-order
+
+[MAIN_ORDER_FLOW]
+STEP_1=commande client payee sur la plateforme
+STEP_2=commande rattachee a AliExpress comme fournisseur
+STEP_3=resolution du compte fournisseur AliExpress
+STEP_4=resolution de l adresse hub/fournisseur
+STEP_5=construction du draft DS
+STEP_6=verification de chaque ligne via ds.freight.query
+STEP_7=reecriture des logistics_service_name avec la valeur exacte retournee par AliExpress
+STEP_8=appel ds.order.create avec USD + try_to_pay=true
+STEP_9=persistance des payloads request/response
+STEP_10=si success sans warning paiement => statut fournisseur paid
+STEP_11=si success avec warning paiement => statut fournisseur pending
+STEP_12=sync ulterieure via ds.trade.order.get + ds.order.tracking.get
+
+[BATCH_FLOW]
+STEP_1=collecter les ProcurementDemand pending
+STEP_2=exiger order.status=payment_success
+STEP_3=exiger grouping_released_at non null
+STEP_4=verifier MOQ fournisseur atteint
+STEP_5=verifier meme fournisseur, meme destination, meme devise
+STEP_6=creer procurement_batch draft
+STEP_7=construire un payload DS groupe
+STEP_8=precheck freight par ligne
+STEP_9=appeler ds.order.create pour tout le batch
+STEP_10=stocker metadata dans procurement_batches.supplier_order_payload_json
+
+[REQUIRED_CREATE_PAYLOAD_RULES]
+RULE_1=ds_extend_request.payment.pay_currency doit etre USD
+RULE_2=ds_extend_request.payment.try_to_pay doit etre true
+RULE_3=param_place_order_request4_open_api_d_t_o.out_order_id doit etre unique
+RULE_4=param_place_order_request4_open_api_d_t_o.logistics_address doit etre complet
+RULE_5=chaque product_item doit avoir product_id
+RULE_6=chaque product_item doit avoir product_count >= 1
+RULE_7=chaque product_item doit avoir logistics_service_name valide
+RULE_8=sku_attr doit correspondre exactement au SKU choisi quand necessaire
+
+[REFERENCE_CREATE_PAYLOAD]
+{
+  "ds_extend_request": {
+    "payment": {
+      "pay_currency": "USD",
+      "try_to_pay": "true"
+    }
+  },
+  "param_place_order_request4_open_api_d_t_o": {
+    "out_order_id": "gp-order-123-abc",
+    "logistics_address": {
+      "country": "FR",
+      "province": "Yvelines",
+      "city": "Maisons-Laffitte",
+      "address": "42 RUE DE PARIS, CENTRE MBE 2538",
+      "zip": "78600",
+      "contact_person": "LAWSON-BODY",
+      "full_name": "LAWSON-BODY",
+      "mobile_no": "612345678",
+      "phone": "612345678",
+      "phone_country": "+33",
+      "locale": "fr_FR"
+    },
+    "product_items": [
+      {
+        "product_id": "1005001234567890",
+        "sku_attr": "200007763:201336100",
+        "product_count": "1",
+        "logistics_service_name": "AliExpress Selection Standard",
+        "order_memo": "Commande locale ORD-123"
+      }
+    ]
+  }
+}
+
+[FREIGHT_PRECHECK_RULES]
+CHECK_1=product_id present
+CHECK_2=selectedSkuId numerique resolu depuis supplier_sku
+CHECK_3=service logistique disponible pour le SKU
+CHECK_4=quantite coherente
+CHECK_5=devise coherente
+CHECK_6=destination supportee
+
+On ne doit jamais creer une commande DS sans precheck freight immediat avant create-order.
+
+[SKU_MAPPING_RULES]
+RULE_1=ne jamais choisir le plus ancien SKU par defaut sans verification
+RULE_2=privilegier les SKU actifs DS avec selectedSkuId numerique
+RULE_3=si le mapping pointe vers un placeholder ou un SKU non numerique, rafraichir via ds.product.get puis ds.product.wholesale.get
+RULE_4=ne relier un nouveau SKU que s il est sur et numerique
+
+[LOGISTICS_RULES]
+RULE_1=la famille standard AliExpress peut apparaitre sous plusieurs noms
+RULE_2=les alias standard doivent etre consideres equivalents pour matching
+RULE_3=au moment du create-order, le payload doit contenir le nom exact retourne par ds.freight.query
+RULE_4=memoriser la valeur resolue dans le mapping local pour stabiliser les appels suivants
+
+[ALIASES_TO_RECOGNIZE]
+STANDARD_1=AliExpress Selection Standard
+STANDARD_2=AliExpress Standard Shipping
+STANDARD_3=Expedition standard AliExpress
+PREMIUM_1=AliExpress Premium shipping
+PREMIUM_2=Expedition premium AliExpress
+
+[PAYMENT_RESULT_INTERPRETATION]
+CASE_1=create_success_and_payment_success
+LOCAL_EFFECT_1=supplier_status=paid
+
+CASE_2=create_success_but_autoPay_fail
+LOCAL_EFFECT_2=supplier_status=pending
+ACTION_2=marquer payment warning et exiger reprise/review
+
+CASE_3=create_fail
+LOCAL_EFFECT_3=supplier_status inchange ou erreur selon contexte
+ACTION_3=stocker l erreur et bloquer la progression fulfilment
+
+[COMMON_REMOTE_ERRORS]
+ERROR_1=B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL
+MEANING_1=adresse hub ou livraison invalide
+
+ERROR_2=BLACKLIST_BUYER_IN_LIST
+MEANING_2=compte acheteur AliExpress invalide ou blackliste
+
+ERROR_3=USER_ACCOUNT_DISABLED
+MEANING_3=compte acheteur desactive
+
+ERROR_4=PRICE_PAY_CURRENCY_ERROR
+MEANING_4=devise incoherente, DS doit rester en USD
+
+ERROR_5=DELIVERY_METHOD_NOT_EXIST
+MEANING_5=service logistique invalide pour le SKU
+
+ERROR_6=INVENTORY_HOLD_ERROR
+MEANING_6=stock insuffisant ou indisponible
+
+ERROR_7=REPEATED_ORDER_ERROR
+MEANING_7=AliExpress considere la commande comme doublon
+
+ERROR_8=InsufficientPermission
+MEANING_8=scopes DS manquants ou compte non autorise pour l operation
+
+[LOCAL_STATUS_EXPECTED]
+ORDER_SUPPLIER_STATUS_1=pending
+ORDER_SUPPLIER_STATUS_2=paid
+ORDER_SUPPLIER_STATUS_3=grouping
+ORDER_SUPPLIER_STATUS_4=supplier_ordered
+ORDER_SUPPLIER_STATUS_5=warehouse_received
+ORDER_SUPPLIER_STATUS_6=delivering
+ORDER_SUPPLIER_STATUS_7=delivered
+
+[DATA_TO_PERSIST]
+SAVE_1=latest_request_payload_json
+SAVE_2=latest_response_payload_json
+SAVE_3=metadata_json
+SAVE_4=external_order_id
+SAVE_5=tracking_number
+SAVE_6=shipping_provider_code
+SAVE_7=shipping_provider_name
+SAVE_8=package_id
+SAVE_9=last_synced_at
+SAVE_10=freight_check_result
+SAVE_11=payment_warning
+SAVE_12=ds draft payload
+
+[BATCH_CONDITIONS]
+MOQ_BASE=min target_moq or supplier sku moq or 1
+MOQ_MULTIPLIER=10
+MINIMUM_LOT_AMOUNT_XOF=25000
+MUST_SHARE_1=same supplier account
+MUST_SHARE_2=same warehouse destination label
+MUST_SHARE_3=same currency
+
+[MINIMUM_FEATURES_TO_IMPLEMENT_NEXT]
+TASK_1=ajouter mapping config + client pour aliexpress.ds.address.get
+TASK_2=ajouter endpoint webhook AliExpress DS
+TASK_3=persister les events webhook dans supplier_webhook_events
+TASK_4=verifier signature webhook si AliExpress fournit un schema exploitable
+TASK_5=brancher le webhook topic DROPSHIPPER_ORDER_STATUS_UPDATE
+TASK_6=mettre a jour automatiquement les commandes locales sur reception webhook
+TASK_7=ajouter job periodique fallback de sync si webhook rate
+TASK_8=ajouter ecran/admin action de retry paiement fournisseur si autoPay fail
+TASK_9=ajouter alerting sur InsufficientPermission, USER_ACCOUNT_DISABLED, PRICE_PAY_CURRENCY_ERROR, INVENTORY_HOLD_ERROR
+TASK_10=ajouter health-check admin du compte DS via ds.member.benefit.get
+
+[PROPOSED_NEW_BACKEND_ITEMS]
+NEW_CONFIG_1=backend/config/services.php -> ds_address_get_method
+NEW_CLIENT_OPERATION_1=SupplierApiClient iopOperationDefinitions -> ds-address-get
+NEW_NORMALIZER_1=SupplierApiClient normalizeIopOperationResult -> ds-address-get
+NEW_CONTROLLER_1=endpoint admin de test ds-address-get
+NEW_CONTROLLER_2=endpoint public interne webhook aliexpress ds
+NEW_SERVICE_1=AliExpressDropshippingWebhookService
+NEW_JOB_1=SyncAliExpressDsOrderStatusJob
+NEW_COMMAND_1=artisan command pour resync manuel en masse
+
+[PROPOSED_WEBHOOK_ROUTE]
+METHOD=POST
+PATH=/api/webhooks/aliexpress/ds
+PURPOSE=recevoir les notifications DROPSHIPPER_ORDER_STATUS_UPDATE et synchroniser automatiquement les commandes locales
+
+[PROPOSED_WEBHOOK_HANDLER_BEHAVIOR]
+STEP_1=recevoir event brut
+STEP_2=verifier signature si disponible
+STEP_3=stocker event brut en base
+STEP_4=identifier le supplier account concerne
+STEP_5=resoudre la commande locale par external_order_id
+STEP_6=lancer sync detail via ds-trade-order-get
+STEP_7=lancer sync tracking via ds-order-tracking-get si utile
+STEP_8=mettre a jour supplier status, tracking, provider, package id, metadata
+STEP_9=marquer event traite ou en erreur
+
+[PROPOSED_HEALTHCHECK]
+CHECK_1=token present
+CHECK_2=refresh token present
+CHECK_3=appel ds-member-benefit-get reussi
+CHECK_4=aucune erreur InsufficientPermission
+CHECK_5=compte non disabled
+CHECK_6=test freight sur SKU de reference possible
+CHECK_7=test create-order sandbox/controle si environnement le permet
+
+[KNOWN_LIMITATIONS]
+LIMIT_1=Paiement client et paiement fournisseur sont decouples
+LIMIT_2=AliExpress peut accepter la creation et refuser le paiement
+LIMIT_3=la dispo produit et le service logistique peuvent changer entre import et achat
+LIMIT_4=sans webhook DS, la synchro temps reel est incomplete
+LIMIT_5=sans ds.address.get, la gestion d adresses reste pilotee par notre modele local
+
+[GO_LIVE_CHECKLIST]
+CHECK_1=OAuth AliExpress connecte
+CHECK_2=scopes DS valides
+CHECK_3=compte DS Center actif
+CHECK_4=PayPal lie au compte AliExpress
+CHECK_5=devise USD verifiee
+CHECK_6=precheck freight valide sur plusieurs SKU
+CHECK_7=create-order valide sur commande test
+CHECK_8=cas autoPay fail teste et gere
+CHECK_9=sync remote manuel valide
+CHECK_10=webhook DS implemente ou cron de resync en place
+CHECK_11=logs request/response visibles en admin ou en observabilite
+CHECK_12=alerting erreurs critiques configure
+
+[FILES_TO_READ_OR_EDIT_FOR_IMPLEMENTATION]
+FILE_1=backend/config/services.php
+FILE_2=backend/app/Services/SupplierApiClient.php
+FILE_3=backend/app/Services/AliExpressOrderFulfillmentService.php
+FILE_4=backend/app/Services/AliExpressProcurementBatchService.php
+FILE_5=backend/app/Services/ProcurementBatchService.php
+FILE_6=backend/app/Http/Controllers/Api/AdminOrderController.php
+FILE_7=backend/app/Http/Controllers/Api/AdminProcurementController.php
+FILE_8=backend/routes/api.php
+FILE_9=backend/app/Models/SupplierWebhookEvent.php
+FILE_10=backend/database/migrations/*supplier_webhook_events*
+
+[FINAL_TARGET]
+Le systeme cible doit etre capable de:
+- recevoir une commande client payee
+- preparer automatiquement la commande fournisseur DS
+- verifier le freight et le SKU reel
+- tenter l auto-paiement AliExpress en USD
+- gerer sans confusion le cas paye ou non paye cote fournisseur
+- suivre automatiquement la commande distante
+- consolider les commandes groupees quand MOQ + grouping sont atteints
+- reagir aux webhooks DS pour garder l etat local toujours a jour

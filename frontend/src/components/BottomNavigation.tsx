@@ -22,7 +22,7 @@ export default function BottomNavigation() {
       name: t("bottom.category"),
       href: "/shop",
       icon: LayoutGrid,
-      activePrefixes: ["/shop", "/recharges", "/abonnements", "/gaming-accounts", "/accessoires", "/categorie", "/produits"],
+      activePrefixes: ["/shop", "/recharges", "/abonnements", "/accessoires", "/categorie", "/produits"],
     },
     { name: t("bottom.premium"), href: "/premium", icon: Crown },
     { name: t("bottom.help"), href: "/help", icon: LifeBuoy },

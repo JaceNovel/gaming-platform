@@ -61,6 +61,28 @@ class AliExpressOrderFulfillmentServiceTest extends TestCase
         );
     }
 
+    #[Test]
+    public function it_reports_when_no_delivery_option_is_returned(): void
+    {
+        $service = $this->makeService();
+
+        $message = $this->invokePrivate($service, 'describeDsFreightCheckFailure', [[
+            'items' => [[
+                'product_name' => 'Console retro',
+                'success' => true,
+                'is_valid' => false,
+                'resolved_logistics_service_name' => null,
+                'available_services' => [],
+                'error_message' => 'Aucune option de livraison AliExpress n a ete retournee pour cette commande. Verifie le SKU DS, le pays de livraison et la disponibilite logistique cote AliExpress.',
+            ]],
+        ]]);
+
+        $this->assertSame(
+            'Console retro: Aucune option de livraison AliExpress n a ete retournee pour cette commande. Verifie le SKU DS, le pays de livraison et la disponibilite logistique cote AliExpress.',
+            $message
+        );
+    }
+
     private function makeService(): AliExpressOrderFulfillmentService
     {
         return new AliExpressOrderFulfillmentService(

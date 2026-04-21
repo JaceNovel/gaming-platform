@@ -40,7 +40,7 @@ function OrderConfirmationRedirect() {
         if (!active) return;
 
         if (redeemRes.ok && redeemPayload?.has_redeem_items) {
-          router.replace(`/codes?payment_status=${encodeURIComponent(statusLower)}`);
+          router.replace(`/codes?payment_status=${encodeURIComponent(statusLower)}&order=${encodeURIComponent(order)}`);
           return;
         }
       } catch {

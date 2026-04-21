@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { AlertTriangle, Bell, Crown, Gift, Home, KeyRound, Send, Settings, ShoppingBag, Store, Wallet } from "lucide-react";
+import { AlertTriangle, Bell, Crown, Gift, Home, KeyRound, Send, Settings, ShoppingBag, Wallet } from "lucide-react";
 
 export type DashboardMenuId =
   | "MesCommandes"
@@ -9,7 +9,6 @@ export type DashboardMenuId =
   | "VIP"
   | "Parrainage"
   | "EnvoyerAmi"
-  | "Vendeur"
   | "Litige"
   | "Principal"
   | "Parametres";
@@ -28,7 +27,6 @@ export const DASHBOARD_MENU: DashboardMenuItem[] = [
   { id: "Litige", label: "Litige", icon: AlertTriangle },
   { id: "Parrainage", label: "Parrainage", icon: Gift },
   { id: "EnvoyerAmi", label: "Envoie a ton ami", icon: Send },
-  { id: "Vendeur", label: "Devenir vendeur", icon: Store },
   { id: "VIP", label: "PRIME VIP", icon: Crown },
   { id: "Principal", label: "Principal", icon: Home },
   { id: "Parametres", label: "Paramètres", icon: Settings },

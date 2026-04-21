@@ -295,10 +295,9 @@ export default function HomeClient() {
           return Array.isArray(data) ? (data as ApiProduct[]) : [];
         };
 
-        const [popularItems, accessoryItems, gamingAccountItems] = await Promise.all([
+        const [popularItems, accessoryItems] = await Promise.all([
           readProducts(`${API_BASE}/products?active=1&display_section=popular&limit=9&_ts=${ts}`),
           readProducts(`${API_BASE}/products?active=1&shop_type=accessory&limit=3&_ts=${ts}`),
-          readProducts(`${API_BASE}/products?active=1&shop_type=gaming_account&limit=3&_ts=${ts}`),
         ]);
 
         if (!active) return;
@@ -335,22 +334,12 @@ export default function HomeClient() {
         };
 
         const isAccessory = (item: ApiProduct) => item.type === "item" && Boolean(item.accessory_category);
-        const isGamingAccount = (item: ApiProduct) => item.type === "account";
-
-        const mergedItems = [...popularItems];
+        const mergedItems = popularItems.filter((item) => String(item?.type ?? "").toLowerCase() !== "account");
 
         if (!mergedItems.some(isAccessory)) {
           const accessoryFallback = accessoryItems.find((item) => !mergedItems.some((existing) => existing.id === item.id));
           if (accessoryFallback) {
             mergedItems.unshift(accessoryFallback);
-          }
-        }
-
-        if (!mergedItems.some(isGamingAccount)) {
-          const gamingAccountFallback = gamingAccountItems.find((item) => !mergedItems.some((existing) => existing.id === item.id));
-          if (gamingAccountFallback) {
-            const insertIndex = mergedItems.length > 0 ? 1 : 0;
-            mergedItems.splice(insertIndex, 0, gamingAccountFallback);
           }
         }
 
@@ -586,7 +575,6 @@ export default function HomeClient() {
               <div className="relative grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-between sm:gap-0">
                 {(
                   [
-                    { emoji: "🎮", value: formatNumber(headlineStats.accountsSold), label: t("home.accountsSold") },
                     { emoji: "⚡", value: formatNumber(headlineStats.rechargesDone), label: t("home.rechargesDone") },
                     { emoji: "👑", value: formatNumber(headlineStats.premiumMembers), label: t("home.premiumMembers") },
                     { emoji: "📘", value: formatNumber(headlineStats.guidesActive), label: t("home.guidesActive") },
