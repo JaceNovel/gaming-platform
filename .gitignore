@@ -1,0 +1,5 @@
+.tmp-pdfgen/.next/
+.tmp-pdfgen/node_modules/
+frontend/.next/
+frontend/node_modules/
+backend/node_modules/
