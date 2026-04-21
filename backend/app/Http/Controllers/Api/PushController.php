@@ -32,14 +32,16 @@ class PushController extends Controller
         ]);
 
         $endpoint = (string) $validated['endpoint'];
+        $endpointHash = hash('sha256', $endpoint);
         $p256dh = (string) ($validated['keys']['p256dh'] ?? '');
         $auth = (string) ($validated['keys']['auth'] ?? '');
         $encoding = (string) ($validated['contentEncoding'] ?? 'aesgcm');
 
         PushSubscription::updateOrCreate(
-            ['endpoint' => $endpoint],
+            ['endpoint_hash' => $endpointHash],
             [
                 'user_id' => $user->id,
+                'endpoint' => $endpoint,
                 'public_key' => $p256dh,
                 'auth_token' => $auth,
                 'content_encoding' => $encoding,
@@ -61,8 +63,10 @@ class PushController extends Controller
             'endpoint' => 'required|string',
         ]);
 
+        $endpointHash = hash('sha256', (string) $validated['endpoint']);
+
         PushSubscription::where('user_id', $user->id)
-            ->where('endpoint', (string) $validated['endpoint'])
+            ->where('endpoint_hash', $endpointHash)
             ->delete();
 
         return response()->json(['ok' => true]);

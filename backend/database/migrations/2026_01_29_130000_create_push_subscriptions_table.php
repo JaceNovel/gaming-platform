@@ -12,13 +12,14 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->text('endpoint');
+            $table->string('endpoint_hash', 64);
             $table->string('public_key', 255);
             $table->string('auth_token', 255);
             $table->string('content_encoding', 30)->default('aesgcm');
             $table->timestamp('last_used_at')->nullable();
             $table->timestamps();
 
-            $table->unique('endpoint');
+            $table->unique('endpoint_hash');
             $table->index(['user_id', 'created_at']);
         });
     }
