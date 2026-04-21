@@ -7,23 +7,40 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (DB::getDriverName() === 'sqlite') {
+        $driver = DB::getDriverName();
+
+        if ($driver === 'sqlite') {
             return;
         }
+
         // Switch enum to varchar to allow initiated/paid/failed states
-        DB::statement("ALTER TABLE payments ALTER COLUMN status TYPE VARCHAR(32)");
+        if ($driver === 'mysql') {
+            DB::statement("ALTER TABLE payments MODIFY status VARCHAR(32) NOT NULL DEFAULT 'pending'");
+        } elseif ($driver === 'pgsql') {
+            DB::statement("ALTER TABLE payments ALTER COLUMN status TYPE VARCHAR(32)");
+            DB::statement("ALTER TABLE payments ALTER COLUMN status SET DEFAULT 'pending'");
+            DB::statement("ALTER TABLE payments ALTER COLUMN status SET NOT NULL");
+        } else {
+            return;
+        }
+
         DB::statement("UPDATE payments SET status = 'pending' WHERE status IS NULL");
-        DB::statement("ALTER TABLE payments ALTER COLUMN status SET DEFAULT 'pending'");
-        DB::statement("ALTER TABLE payments ALTER COLUMN status SET NOT NULL");
     }
 
     public function down(): void
     {
-        if (DB::getDriverName() === 'sqlite') {
+        $driver = DB::getDriverName();
+
+        if ($driver === 'sqlite') {
             return;
         }
+
         // Best-effort rollback to a nullable, no-default column for compatibility
-        DB::statement("ALTER TABLE payments ALTER COLUMN status DROP NOT NULL");
-        DB::statement("ALTER TABLE payments ALTER COLUMN status DROP DEFAULT");
+        if ($driver === 'mysql') {
+            DB::statement("ALTER TABLE payments MODIFY status VARCHAR(32) NULL DEFAULT NULL");
+        } elseif ($driver === 'pgsql') {
+            DB::statement("ALTER TABLE payments ALTER COLUMN status DROP NOT NULL");
+            DB::statement("ALTER TABLE payments ALTER COLUMN status DROP DEFAULT");
+        }
     }
 };
