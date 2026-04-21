@@ -11,8 +11,18 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasColumn('orders', 'payment_id')) {
+            return;
+        }
+
         Schema::table('orders', function (Blueprint $table) {
-            $table->foreignId('payment_id')->nullable()->after('status')->constrained()->onDelete('set null');
+            $column = $table->foreignId('payment_id')->nullable();
+
+            if (Schema::hasColumn('orders', 'status')) {
+                $column->after('status');
+            }
+
+            $column->constrained()->onDelete('set null');
         });
     }
 

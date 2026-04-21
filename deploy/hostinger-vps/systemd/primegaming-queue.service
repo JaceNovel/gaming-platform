@@ -1,0 +1,15 @@
+[Unit]
+Description=PRIME Gaming Laravel Queue Worker
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/gaming-platform/backend
+ExecStart=/usr/bin/php artisan queue:work --queue=redeem-fulfillment,default --sleep=3 --tries=3 --timeout=120
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
