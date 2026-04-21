@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const safeUrl = (value: string | undefined) => {
@@ -20,6 +21,7 @@ const apiPattern = apiUrl
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  outputFileTracingRoot: path.resolve(process.cwd(), ".."),
   async headers() {
     return [
       {

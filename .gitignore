@@ -1,3 +1,4 @@
+.next/
 .tmp-pdfgen/.next/
 .tmp-pdfgen/node_modules/
 frontend/.next/
