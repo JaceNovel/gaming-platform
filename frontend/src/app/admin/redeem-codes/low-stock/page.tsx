@@ -30,8 +30,11 @@ export default function AdminRedeemLowStockPage() {
   const loadLowStock = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/admin/redeem-codes/low-stock`, {
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
           ...getAuthHeaders(),
         },
       });

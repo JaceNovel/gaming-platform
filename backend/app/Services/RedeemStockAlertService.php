@@ -17,7 +17,14 @@ class RedeemStockAlertService
         }
 
         $available = $denomination->availableStock();
-        if ($available > $threshold) {
+        if ($available >= $threshold) {
+            RedeemStockAlert::query()
+                ->where('denomination_id', $denomination->id)
+                ->update([
+                    'last_notified_stock' => null,
+                    'last_notified_at' => null,
+                ]);
+
             return;
         }
 
