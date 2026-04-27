@@ -305,6 +305,9 @@ function CheckoutScreen() {
         return;
       }
 
+      const currency = String(order?.currency ?? "XOF").toUpperCase();
+      const customer = buildCustomerPayload();
+
       if (paymentMethod === "paypal") {
         const payRes = await authFetch(`${API_BASE}/payments/paypal/init`, {
           method: "POST",
@@ -341,9 +344,6 @@ function CheckoutScreen() {
         setStatus("Paiement indisponible : URL de paiement PayPal manquante.");
         return;
       }
-
-      const currency = String(order?.currency ?? "XOF").toUpperCase();
-      const customer = buildCustomerPayload();
 
       const callbackUrl = `${window.location.origin}/order-confirmation?order=${orderId}`;
 
