@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('game_id')->constrained()->onDelete('cascade');
             $table->string('name');
-            $table->enum('type', ['account', 'recharge', 'item']);
+            $table->enum('type', ['account', 'recharge', 'item', 'subscription']);
             $table->decimal('price', 10, 2);
             $table->decimal('discount_price', 10, 2)->nullable();
             $table->integer('stock')->default(0);
