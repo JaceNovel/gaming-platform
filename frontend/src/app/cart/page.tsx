@@ -73,7 +73,7 @@ function CartScreen() {
   const [rewardMinPurchaseAmount, setRewardMinPurchaseAmount] = useState<number>(0);
   const [walletLoading, setWalletLoading] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"moneroo" | "bank_card" | "wallet" | "wallet_reward">("moneroo");
+  const [paymentMethod, setPaymentMethod] = useState<"moneroo" | "bank_card" | "paypal" | "wallet" | "wallet_reward">("moneroo");
 
   const [shippingMapsUrl, setShippingMapsUrl] = useState("");
   const [shippingCity, setShippingCity] = useState("");
@@ -357,6 +357,13 @@ function CartScreen() {
         variant: "bank_card",
       },
       {
+        key: "paypal",
+        title: "PayPal",
+        description: "Paiement sécurisé via votre compte PayPal.",
+        badge: "EUR",
+        variant: "paypal",
+      },
+      {
         key: "wallet",
         title: "Wallet",
         description: walletLoading ? "Chargement du solde wallet..." : `Solde disponible: ${Math.floor(walletAvailable).toLocaleString()} FCFA.`,
@@ -517,14 +524,54 @@ function CartScreen() {
         return;
       }
 
+      if (paymentMethod === "paypal") {
+        const payRes = await authFetch(`${API_BASE}/payments/paypal/init`, {
+          method: "POST",
+          body: JSON.stringify({
+            order_id: orderId,
+            payment_method: "paypal",
+            amount: amountToCharge,
+            currency,
+            customer_email: user?.email,
+            description: `Commande #${orderId}`,
+            metadata: {
+              source: "cart",
+              item_count: cartItems.length,
+              cart_items: cartItems.map((item) => ({ id: item.id, quantity: item.quantity })),
+            },
+          }),
+        });
+
+        if (!payRes.ok) {
+          const err = await payRes.json().catch(() => ({}));
+          setStatus(err.message ?? "Impossible de démarrer le paiement PayPal.");
+          return;
+        }
+
+        const data = await payRes.json().catch(() => null);
+        const paymentUrl = typeof data?.data?.payment_url === "string" ? data.data.payment_url : "";
+
+        if (!paymentUrl) {
+          setStatus("Lien de paiement PayPal indisponible.");
+          return;
+        }
+
+        setStatus("Redirection vers PayPal...");
+        window.location.href = paymentUrl;
+        return;
+      }
+
+      const monerooMethods = paymentMethod === "bank_card" ? ["card"] : [];
+
       const payRes = await authFetch(`${API_BASE}/payments/moneroo/init`, {
         method: "POST",
         body: JSON.stringify({
           order_id: orderId,
-          payment_method: "moneroo",
+          payment_method: paymentMethod,
           amount: amountToCharge,
           currency,
           customer_email: user?.email,
+          methods: monerooMethods,
           metadata: {
             source: "cart",
             item_count: cartItems.length,

@@ -26,7 +26,7 @@ class MonerooPaymentController extends Controller
     {
         $validated = $request->validate([
             'order_id' => ['required', 'integer', Rule::exists('orders', 'id')],
-            'payment_method' => ['nullable', Rule::in(['moneroo'])],
+            'payment_method' => ['nullable', Rule::in(['moneroo', 'bank_card'])],
             'amount' => ['required', 'numeric', 'min:100'],
             'currency' => ['required', 'string', 'size:3'],
             'customer_email' => ['nullable', 'email'],
@@ -62,6 +62,11 @@ class MonerooPaymentController extends Controller
         $currency = strtoupper((string) $validated['currency']);
         if ($currency !== strtoupper((string) config('moneroo.default_currency', 'XOF'))) {
             return response()->json(['message' => 'Unsupported currency'], 422);
+        }
+
+        $methods = array_values(array_filter(array_map(static fn ($value) => trim((string) $value), $validated['methods'] ?? [])));
+        if (($validated['payment_method'] ?? null) === 'bank_card' && $methods === []) {
+            $methods = ['card'];
         }
 
         try {
@@ -100,7 +105,7 @@ class MonerooPaymentController extends Controller
                 'customer_full_name' => $validated['customer_name'] ?? $user->name ?? null,
                 'customer_first_name' => $validated['customer_name'] ?? null,
                 'return_url' => $callbackUrl,
-                'methods' => $validated['methods'] ?? [],
+                'methods' => $methods,
                 'metadata' => array_merge($validated['metadata'] ?? [], [
                     'source' => 'checkout',
                     'order_id' => (string) $order->id,
